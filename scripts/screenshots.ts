@@ -111,6 +111,18 @@ async function main(): Promise<void> {
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
 
+    // Two players in a private room with a round of tag running.
+    const runner = await context.newPage();
+    await enter(runner, 'Runner', 'docs-tag');
+    const chaser = await context.newPage();
+    await enter(chaser, 'Chaser', 'docs-tag');
+    await runner.keyboard.press('Escape');
+    await runner.getByRole('button', { name: 'Play tag' }).click();
+    await runner.waitForFunction(() => window.__world?.game !== null, null, { timeout: 10_000 });
+    await hold(runner, 'KeyD', 500);
+    await runner.waitForTimeout(1500);
+    await runner.screenshot({ path: `${outDir}/tag.png` });
+
     await page.goto(`${clientUrl}/portfolio.html`);
     await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });
     const phone = await browser.newContext({

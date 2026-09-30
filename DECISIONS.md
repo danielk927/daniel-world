@@ -102,3 +102,14 @@ Judgment calls made during the unattended build, with reasons.
 - **Screenshots and the perf report use headless Chromium on the real GPU** (`--use-angle=metal`); E2E keeps SwiftShader as the spec asks.
 - **Deployment is documented, not scripted.**
   No Docker or platform CLIs were available, so the Dockerfile in the README is marked untested; the Railway/Render and static hosting steps only use commands that were run here.
+
+## Game mode (M6)
+
+- **Tag, in private rooms only.** The lobby is for wandering; a game there would hijack everyone's visit.
+- **Server-authoritative rules:** the server picks who is it, detects tags (1.3 m horizontally, similar height) after each simulation tick, and keeps score.
+  Clients only ask to start a round.
+- **Score = seconds spent not being it; highest wins.** Rounds last 90 s; a freshly tagged player cannot tag the tagger back for 3 s.
+- **Round state is broadcast once a second and on every tag**, and the client counts the timer down locally in between.
+  Late joiners get the state right after `welcome` and join the scoreboard at 0.
+- **If it leaves, it passes to a random remaining player**; if fewer than two players remain, the round ends.
+- **Started from the pause menu ("Play tag")**, next to "Copy invite link", so the flow is: make a private room, share the link, press Play tag.

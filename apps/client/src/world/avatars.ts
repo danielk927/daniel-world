@@ -1,5 +1,7 @@
 import {
   CapsuleGeometry,
+  ConeGeometry,
+  Mesh,
   Color,
   Group,
   InstancedMesh,
@@ -54,6 +56,9 @@ export class Avatars {
   private readonly eyes: InstancedMesh;
   private readonly avatars = new Map<number, Avatar>();
   private readonly freeSlots: number[] = [];
+  /** Floating marker over whoever is "it" in a round of tag. */
+  private readonly marker: Mesh;
+  private markedId: number | null = null;
 
   // Scratch objects so updates never allocate.
   private readonly root = new Matrix4();
@@ -85,6 +90,20 @@ export class Avatars {
       for (let i = 0; i < mesh.count; i++) mesh.setMatrixAt(i, this.hidden);
       this.group.add(mesh);
     }
+    const markerGeometry = new ConeGeometry(0.2, 0.4, 4);
+    markerGeometry.rotateX(Math.PI);
+    this.marker = new Mesh(
+      markerGeometry,
+      new MeshStandardMaterial({
+        color: '#ff5a5a',
+        emissive: '#ff3b3b',
+        emissiveIntensity: 1.4,
+        flatShading: true,
+      }),
+    );
+    // Scaled to nothing rather than hidden, so its shader still compiles during loading.
+    this.marker.scale.setScalar(0);
+    this.group.add(this.marker);
     for (let i = capacity - 1; i >= 0; i--) this.freeSlots.push(i);
     // Instance colors must exist before the first render.
     for (let i = 0; i < capacity; i++) {
@@ -126,8 +145,15 @@ export class Avatars {
     const avatar = this.avatars.get(id);
     if (!avatar) return;
     this.avatars.delete(id);
+    if (id === this.markedId) this.marker.scale.setScalar(0);
     this.freeSlots.push(avatar.slot);
     this.hideSlot(avatar.slot);
+  }
+
+  /** Show the tag marker over this player, or over nobody. */
+  setMarked(id: number | null): void {
+    this.markedId = id;
+    if (id === null || !this.avatars.has(id)) this.marker.scale.setScalar(0);
   }
 
   playEmote(id: number, emote: Emote, time: number): void {
@@ -283,6 +309,15 @@ export class Avatars {
     }
 
     avatar.tagAnchor.set(pose.x, pose.y + lift + headY + HEAD_RADIUS + 0.28, pose.z);
+    if (id === this.markedId) {
+      this.marker.position.set(
+        pose.x,
+        avatar.tagAnchor.y + 0.75 + Math.sin(time * 4) * 0.06,
+        pose.z,
+      );
+      this.marker.rotation.y = time * 2.5;
+      this.marker.scale.setScalar(1);
+    }
     this.markDirty();
   }
 }

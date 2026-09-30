@@ -5,6 +5,7 @@ export interface PauseHandlers {
   onLeave(): void;
   onSensitivity(value: number): void;
   onCopyInvite(): void;
+  onStartTag(): void;
 }
 
 const CONTROLS: readonly (readonly [string, string])[] = [
@@ -23,8 +24,14 @@ export class PauseMenu {
   private readonly resumeButton: HTMLButtonElement;
   private readonly slider: HTMLInputElement;
   private readonly note = el('p', { class: 'pause-note' });
+  private readonly tagButton = el('button', {
+    class: 'button button-secondary pause-wide',
+    text: 'Play tag',
+    attrs: { type: 'button' },
+  });
+  private readonly roomActions: HTMLElement;
   private readonly inviteButton = el('button', {
-    class: 'button button-secondary pause-invite',
+    class: 'button button-secondary pause-wide',
     text: 'Copy invite link',
     attrs: { type: 'button' },
   });
@@ -41,6 +48,10 @@ export class PauseMenu {
       text: 'Leave world',
       attrs: { type: 'button' },
     });
+    this.roomActions = el('div', { class: 'pause-room-actions' }, [
+      this.tagButton,
+      this.inviteButton,
+    ]);
     this.slider = el('input', {
       class: 'slider',
       attrs: {
@@ -74,7 +85,7 @@ export class PauseMenu {
           el('h2', { class: 'card-title', text: 'Paused', attrs: { id: 'pause-title' } }),
           this.note,
           el('div', { class: 'pause-actions' }, [this.resumeButton, leaveButton]),
-          this.inviteButton,
+          this.roomActions,
           el('div', { class: 'field' }, [
             el('label', {
               class: 'field-label',
@@ -102,6 +113,7 @@ export class PauseMenu {
     this.resumeButton.addEventListener('click', () => handlers.onResume());
     leaveButton.addEventListener('click', () => handlers.onLeave());
     this.inviteButton.addEventListener('click', () => handlers.onCopyInvite());
+    this.tagButton.addEventListener('click', () => handlers.onStartTag());
     this.slider.addEventListener('input', () => {
       const value = Number(this.slider.value);
       sliderValue.textContent = `${value.toFixed(1)}x`;
@@ -110,9 +122,9 @@ export class PauseMenu {
     parent.append(this.element);
   }
 
-  /** Private rooms can be shared with a link. */
-  setInviteVisible(visible: boolean): void {
-    this.inviteButton.hidden = !visible;
+  /** Private rooms can be shared with a link and host a round of tag. */
+  setPrivateRoom(isPrivate: boolean): void {
+    this.roomActions.hidden = !isPrivate;
   }
 
   get isOpen(): boolean {

@@ -8,7 +8,7 @@
 - [x] M3 Multiplayer client
 - [x] M4 E2E
 - [x] M5 Polish
-- [ ] M6 Stretch (game mode)
+- [x] M6 Stretch (game mode)
 
 ## Log
 
@@ -59,6 +59,13 @@
 - Heap profiling found and removed the main per-frame garbage source (shadow depth program churn) and iterator allocations.
 - Dead code removed (unused avatar helpers, label flag, protocol types); spawn points spread around the plaza.
 - `README.md` with quick start, controls, content editing, architecture and a deployment section (server on Fly.io/Railway/Render, client on Vercel/Netlify/GitHub Pages); env examples for both apps.
+
+### M6 Stretch: tag
+
+- Server `TagRound` (apps/server/src/tag.ts) with unit tests: private rooms only, two-player minimum, tag on contact, no tag-backs for 3 s, scoring, round end, it leaving, late joiners.
+- Client: "Play tag" in the pause menu, scoreboard with timer and ranking, IT badge on name tags, a floating red marker over whoever is it, toasts and chat announcements.
+- E2E: a round starts from the menu and both players see the scoreboard.
+- Screenshot: `docs/screenshots/tag.png`.
 
 ## Next
 

@@ -16,6 +16,7 @@ import { LabelLayer } from '../ui/labels.ts';
 import type { Landing } from '../ui/landing.ts';
 import { InfoPanel } from '../ui/panel.ts';
 import { PauseMenu } from '../ui/pause.ts';
+import { Scoreboard } from '../ui/scoreboard.ts';
 import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
 import { CameraRig } from './cameraRig.ts';
@@ -54,6 +55,7 @@ export class Game {
   private readonly pause: PauseMenu;
   private readonly panel: InfoPanel;
   private readonly toasts: Toasts;
+  private readonly scoreboard: Scoreboard;
 
   private lastFrame = performance.now();
   private elapsed = 0;
@@ -83,6 +85,7 @@ export class Game {
       onSend: (text) => this.multiplayer?.sendChat(text),
       onClose: () => this.closeChat(),
     });
+    this.scoreboard = new Scoreboard(overlay);
     this.toasts = new Toasts(overlay);
     this.panel = new InfoPanel(overlay);
     this.pause = new PauseMenu(
@@ -92,6 +95,7 @@ export class Game {
         onLeave: () => this.leave(),
         onSensitivity: (value) => this.input.setSensitivity(value),
         onCopyInvite: () => void this.copyInvite(),
+        onStartTag: () => this.startTag(),
       },
       this.input.sensitivity,
     );
@@ -141,7 +145,7 @@ export class Game {
     this.enterToQuat.setFromEuler(this.euler.set(0, SPAWN.yaw, 0));
     this.enterProgress = 0;
     this.mode = 'entering';
-    this.pause.setInviteVisible(room !== DEFAULT_ROOM);
+    this.pause.setPrivateRoom(room !== DEFAULT_ROOM);
     this.chat.clear();
     this.multiplayer = new Multiplayer({
       url: SERVER_URL,
@@ -152,6 +156,7 @@ export class Game {
       labels: this.labels,
       hud: this.hud,
       chat: this.chat,
+      scoreboard: this.scoreboard,
       worldTime: () => this.elapsed,
       notify: (message) => this.toasts.show(message),
       onFatal: (message) => this.leave(message),
@@ -243,6 +248,16 @@ export class Game {
     this.lastEmoteAt = now;
     this.multiplayer?.sendEmote(emote);
     this.toasts.show(EMOTE_TOASTS[emote], 1600);
+  }
+
+  private startTag(): void {
+    if (!this.multiplayer) return;
+    const problem = this.multiplayer.startTag();
+    if (problem) {
+      this.toasts.show(problem, 3500);
+      return;
+    }
+    void this.resume();
   }
 
   private async copyInvite(): Promise<void> {

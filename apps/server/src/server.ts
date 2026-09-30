@@ -215,6 +215,8 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       players: room.playerList(),
       self: room.snapshotOf(player),
     });
+    // Late joiners see the round in progress straight away.
+    if (room.game) send(conn, room.game.state());
     log(`${name} (#${player.id}) joined ${code} (${room.players.size} players)`);
   };
 
@@ -239,6 +241,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
         if (text) room.broadcast({ t: 'chat', id: player.id, name: player.name, text });
         break;
       }
+      case 'game':
+        room.startTag();
+        break;
       case 'emote':
         if (conn.emotes.take())
           room.broadcast({ t: 'emote', id: player.id, emote: message.emote }, player.id);

@@ -2,7 +2,9 @@ import type { Vector3 } from 'three';
 import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
+  TAG_MIN_PLAYERS,
   type Emote,
+  type GameStateMessage,
   type InputMessage,
   type PlayerInfo,
   type ServerMessage,
@@ -14,6 +16,7 @@ import type { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
 import type { Hud, HudPlayer } from '../ui/hud.ts';
 import type { Label, LabelLayer } from '../ui/labels.ts';
+import type { Scoreboard, ScoreboardPlayer } from '../ui/scoreboard.ts';
 import type { Avatars, AvatarPose } from '../world/avatars.ts';
 import type { LocalPlayer } from './localPlayer.ts';
 
@@ -34,6 +37,7 @@ interface Remote {
   /** Latest authoritative position, exposed for tests. */
   readonly server: { x: number; y: number; z: number };
   label: Label | null;
+  readonly tag: HTMLElement;
   readonly bubble: HTMLElement;
   bubbleTimer: number;
 }
@@ -47,6 +51,7 @@ export interface MultiplayerDeps {
   labels: LabelLayer;
   hud: Hud;
   chat: Chat;
+  scoreboard: Scoreboard;
   /** Seconds, the same clock the world animates with. */
   worldTime: () => number;
   notify: (message: string) => void;
@@ -80,6 +85,8 @@ export class Multiplayer {
   private wasOnline = false;
   private hasBeenOnline = false;
   private statusTimer = 0;
+  /** The running round of tag, if any. */
+  game: GameStateMessage | null = null;
 
   constructor(deps: MultiplayerDeps) {
     this.deps = deps;
@@ -134,8 +141,19 @@ export class Multiplayer {
     this.connection.send({ t: 'emote', emote });
   }
 
+  /** Ask the server to start a round of tag. Returns a reason if it clearly cannot start. */
+  startTag(): string | null {
+    if (!this.isOnline) return 'Tag needs a connection to the server.';
+    if (this.game) return 'A round is already running.';
+    if (this.remotes.size + 1 < TAG_MIN_PLAYERS)
+      return 'Tag needs at least two players. Share the invite link!';
+    this.connection.send({ t: 'game', action: 'start' });
+    return null;
+  }
+
   close(): void {
     window.clearInterval(this.statusTimer);
+    this.endGame();
     this.connection.close();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
   }
@@ -195,6 +213,7 @@ export class Multiplayer {
       return;
     }
     // Offline: everyone else vanishes, the world keeps working in single player.
+    this.endGame();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     this.selfId = null;
     this.clock.reset();
@@ -219,6 +238,7 @@ export class Multiplayer {
 
   private onWelcome(welcome: WelcomeMessage): void {
     this.selfId = welcome.id;
+    this.endGame();
     this.deps.player.reset(welcome.self);
     if (!this.hasBeenOnline) this.deps.onSpawn(welcome.self.yaw);
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
@@ -289,9 +309,60 @@ export class Multiplayer {
         this.deps.chat.addSystem(`${remote.info.name} ${EMOTE_LABELS[message.emote]}`);
         return;
       }
+      case 'game':
+        this.onGameState(message);
+        return;
+      case 'tagged': {
+        const from = this.lookup(message.from)?.name ?? 'Someone';
+        const to = this.lookup(message.to)?.name ?? 'someone';
+        this.deps.chat.addSystem(`${from} tagged ${to}!`);
+        if (message.to === this.selfId) this.deps.notify("🏃 You're it!");
+        else if (message.from === this.selfId) this.deps.notify(`Tagged ${to}!`);
+        return;
+      }
       default:
         return;
     }
+  }
+
+  private onGameState(state: GameStateMessage): void {
+    const { chat, scoreboard, avatars, notify } = this.deps;
+    const started = this.game === null && state.phase === 'playing';
+    this.game = state.phase === 'playing' ? state : null;
+    scoreboard.update(state, this.selfId, (id) => this.lookup(id));
+    const it = state.phase === 'playing' ? state.it : null;
+    avatars.setMarked(it);
+    for (const [id, remote] of this.remotes) remote.tag.classList.toggle('is-it', id === it);
+    if (started) {
+      const who = it === this.selfId ? 'You are' : `${this.lookup(it ?? -1)?.name ?? 'Someone'} is`;
+      chat.addSystem(`A round of tag started! ${who} it.`);
+      if (it === this.selfId) notify("🏃 You're it! Tag someone.");
+    } else if (state.phase === 'ended') {
+      const top = state.scores[0];
+      const winner = top ? this.lookup(top.id)?.name : null;
+      chat.addSystem(
+        winner ? `Round over. ${winner} wins with ${top!.score} points.` : 'Round over.',
+      );
+    }
+  }
+
+  /** Forget any round in progress (left the room, went offline, rejoined). */
+  private endGame(): void {
+    this.game = null;
+    this.deps.scoreboard.hide();
+    this.deps.avatars.setMarked(null);
+    for (const remote of this.remotes.values()) remote.tag.classList.remove('is-it');
+  }
+
+  private lookup(id: number): ScoreboardPlayer | null {
+    if (id === this.selfId) {
+      return {
+        name: this.selfInfo?.name ?? this.deps.name,
+        color: this.selfInfo?.color ?? '#fff8f0',
+      };
+    }
+    const remote = this.remotes.get(id);
+    return remote ? { name: remote.info.name, color: remote.info.color } : null;
   }
 
   private addRemote(info: PlayerInfo): void {
@@ -312,6 +383,7 @@ export class Multiplayer {
       hasPose: false,
       server: { x: 0, y: 0, z: 0 },
       label: anchor ? this.deps.labels.add(tag, anchor, 0, 40) : null,
+      tag,
       bubble,
       bubbleTimer: 0,
     };
