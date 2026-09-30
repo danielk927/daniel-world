@@ -3,10 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>World</title>
+    <meta
+      name="description"
+      content="Daniel Kim's personal website: a small multiplayer 3D world."
+    />
+    <meta name="theme-color" content="#2a2038" />
+    <title>Daniel's World</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="loading" class="loading" role="status" aria-live="polite">
+        <div class="loading-mark" aria-hidden="true"></div>
+        <p class="loading-text">Loading…</p>
+        <div class="loading-bar" aria-hidden="true"><div class="loading-bar-fill"></div></div>
+      </div>
+      <noscript>
+        <p class="noscript">
+          This site is a small 3D world and needs JavaScript.
+          <a href="/portfolio.html">Here is the plain portfolio instead.</a>
+        </p>
+      </noscript>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

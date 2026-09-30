@@ -1,0 +1,25 @@
+:root {
+  --font-display:
+    ui-rounded, 'SF Pro Rounded', 'Nunito', 'Segoe UI Variable Display', system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --ink: #fff8f0;
+  --ink-muted: #e4d8cf;
+  --ink-faint: #b9aab3;
+  --panel: rgba(30, 22, 40, 0.78);
+  --panel-strong: rgba(24, 18, 33, 0.92);
+  --panel-border: rgba(255, 236, 214, 0.14);
+  --accent: #ffb86b;
+  --accent-strong: #ffa04d;
+  --accent-ink: #2b1606;
+  --danger: #ff8c8c;
+  --ok: #7be0a0;
+  --warn: #ffd36b;
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --shadow: 0 18px 50px rgba(20, 8, 30, 0.35), 0 2px 8px rgba(20, 8, 30, 0.2);
+  --focus: 0 0 0 3px rgba(255, 184, 107, 0.65);
+}
