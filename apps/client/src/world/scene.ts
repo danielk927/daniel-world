@@ -10,6 +10,7 @@ import {
 } from 'three';
 import type { LoreEntry } from '../content.ts';
 import type { Quality } from '../util/capabilities.ts';
+import { Avatars } from './avatars.ts';
 import { createCloudSea } from './clouds.ts';
 import { createDistantIslands } from './distant.ts';
 import { createIsland, type Island } from './island.ts';
@@ -17,6 +18,7 @@ import { LoreObjects } from './lore.ts';
 import { SUN_DIRECTION, palette } from './palette.ts';
 import { createMotes } from './particles.ts';
 import { createPlaza, type Plaza } from './plaza.ts';
+import { assignShadowDepthMaterials } from './shadowDepth.ts';
 import { createSky } from './sky.ts';
 import { createVegetation } from './vegetation.ts';
 import { worldTime } from './wind.ts';
@@ -29,6 +31,8 @@ export class WorldScene {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 2000);
   readonly lore: LoreObjects;
+  /** Remote players. Part of the scene from the start so their shaders compile during loading. */
+  readonly avatars = new Avatars();
   private readonly island: Island;
   private readonly plaza: Plaza;
   private readonly sky = createSky();
@@ -84,7 +88,9 @@ export class WorldScene {
       createVegetation(),
       this.lore.group,
       createMotes(this.renderer.getPixelRatio()),
+      this.avatars.group,
     );
+    assignShadowDepthMaterials(this.scene);
     this.resize();
   }
 

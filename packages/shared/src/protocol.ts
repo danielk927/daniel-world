@@ -56,7 +56,6 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   pingSchema,
 ]);
 
-export type HelloMessage = z.infer<typeof helloSchema>;
 export type InputMessage = z.infer<typeof inputSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
@@ -119,7 +118,6 @@ export const emoteBroadcastSchema = z.object({
 export const pongSchema = z.object({ t: z.literal('pong'), id: z.number().int() });
 
 export const ERROR_CODES = ['room_full', 'bad_hello', 'version', 'rate_limited'] as const;
-export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export const errorSchema = z.object({
   t: z.literal('error'),

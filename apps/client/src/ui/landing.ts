@@ -121,7 +121,7 @@ export class Landing {
       ],
     );
     parent.append(this.element);
-    this.setCount(null);
+    this.count.textContent = 'Checking who is here…';
   }
 
   show(): void {
@@ -137,7 +137,7 @@ export class Landing {
   setCount(players: number | null): void {
     this.count.classList.toggle('is-live', players !== null);
     if (players === null) {
-      this.count.textContent = 'Lobby status unavailable';
+      this.count.textContent = 'Server offline: you can still explore solo';
     } else if (players === 0) {
       this.count.textContent = 'The lobby is empty. Be the first!';
     } else {

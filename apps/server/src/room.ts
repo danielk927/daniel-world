@@ -3,6 +3,7 @@ import {
   MAX_PLAYERS_PER_ROOM,
   NAME_MAX_LENGTH,
   createPlayerState,
+  spawnPoint,
   encode,
   stepPlayer,
   type PlayerInfo,
@@ -54,6 +55,7 @@ export class Room {
   readonly code: string;
   readonly players = new Map<number, RoomPlayer>();
   tick = 0;
+  private arrivals = 0;
 
   constructor(code: string) {
     this.code = code;
@@ -74,7 +76,9 @@ export class Room {
 
   /** Adds a player and tells everyone else. The caller must check `isFull` first. */
   add(joining: NewPlayer): RoomPlayer {
-    const state = createPlayerState(joining.spawn?.x, joining.spawn?.z, joining.spawn?.yaw);
+    // Golden-ratio steps spread arrivals evenly; the first player in a room gets the main spawn.
+    const spawn = joining.spawn ?? spawnPoint((this.arrivals++ * 0.381966) % 1);
+    const state = createPlayerState(spawn.x, spawn.z, spawn.yaw);
     // One idle step settles a reconnecting player's hint: out of walls, inside the rim, on the ground.
     stepPlayer(state, { keys: 0, yaw: state.yaw, pitch: 0 });
     const player: RoomPlayer = {

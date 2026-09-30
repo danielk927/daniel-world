@@ -17,6 +17,8 @@ npx playwright install chromium
 npm run e2e                  # playwright, builds client in test mode, spawns its own server on :3101
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
 npm run bots -- --count 15   # simulated players for load testing
+node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU)
+node scripts/perf.ts         # 16-player perf report (needs the dev client on :5173)
 ```
 
 ## Map
@@ -48,3 +50,10 @@ npm run bots -- --count 15   # simulated players for load testing
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
 4. For visual changes, run `node scripts/screenshots.ts` and look at `docs/screenshots/`.
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 1 ms frame CPU, about 61 draw calls with 16 players).
+
+## Gotchas
+
+- Shadow-casting `InstancedMesh`es need `assignShadowDepthMaterials` (done in `WorldScene`), or three.js re-derives shader parameters every frame.
+- E2E uses SwiftShader, which gets the low quality tier automatically; screenshots and perf use the real GPU and `?quality=high`.
+- The first player in a room spawns at `SPAWN`; E2E walking paths rely on that.

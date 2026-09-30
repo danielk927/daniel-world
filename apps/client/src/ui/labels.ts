@@ -5,7 +5,6 @@ export interface Label {
   readonly anchor: Vector3;
   offsetY: number;
   maxDistance: number;
-  visible: boolean;
   /** Last written style values, so unchanged labels cost no DOM writes. */
   lastX: number;
   lastY: number;
@@ -44,7 +43,6 @@ export class LabelLayer {
       anchor,
       offsetY,
       maxDistance,
-      visible: true,
       lastX: NaN,
       lastY: NaN,
       lastScale: NaN,
@@ -67,13 +65,13 @@ export class LabelLayer {
 
   update(): void {
     const camPos = this.camera.position;
-    for (const label of this.labels) {
+    for (let i = 0; i < this.labels.length; i++) {
+      const label = this.labels[i]!;
       scratch.copy(label.anchor);
       scratch.y += label.offsetY;
       const distance = scratch.distanceTo(camPos);
       scratch.project(this.camera);
       const onScreen =
-        label.visible &&
         distance < label.maxDistance &&
         scratch.z < 1 &&
         Math.abs(scratch.x) < 1.2 &&

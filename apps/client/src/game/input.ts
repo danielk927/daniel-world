@@ -16,7 +16,7 @@ const MOVEMENT_KEYS: Record<string, number> = {
 };
 
 const SENSITIVITY_KEY = 'world.sensitivity';
-export const DEFAULT_SENSITIVITY = 1;
+const DEFAULT_SENSITIVITY = 1;
 /** Radians per pixel at sensitivity 1. */
 const BASE_RADIANS_PER_PIXEL = 0.0022;
 

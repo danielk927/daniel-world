@@ -51,6 +51,8 @@ export interface MultiplayerDeps {
   worldTime: () => number;
   notify: (message: string) => void;
   onFatal: (message: string) => void;
+  /** The server placed us somewhere new (first join); turn the view to match. */
+  onSpawn: (yaw: number) => void;
 }
 
 export interface RemoteDebugInfo {
@@ -89,7 +91,8 @@ export class Multiplayer {
       deps.name,
       deps.room,
       () => {
-        // Rejoin where we are standing after a reconnect instead of back at spawn.
+        // Rejoin where we are standing after a reconnect instead of back at a spawn point.
+        if (!this.hasBeenOnline) return undefined;
         const s = deps.player.state;
         return { x: s.x, z: s.z, yaw: s.yaw };
       },
@@ -150,21 +153,30 @@ export class Multiplayer {
 
   /** Per frame: interpolate every remote player ~100 ms in the past and pose their avatar. */
   update(now: number, dt: number): void {
-    const renderTime = this.clock.serverTime(now) - INTERPOLATION_DELAY_MS;
-    const time = this.deps.worldTime();
-    for (const [id, remote] of this.remotes) {
-      if (!remote.buffer.sample(renderTime, remote.pose)) continue;
-      const pose = remote.pose;
-      if (remote.hasPose && dt > 0) {
-        const speed = Math.hypot(pose.x - remote.lastX, pose.z - remote.lastZ) / dt;
-        pose.speed += (speed - pose.speed) * Math.min(1, dt * 12);
-      }
-      remote.lastX = pose.x;
-      remote.lastZ = pose.z;
-      remote.hasPose = true;
-      this.deps.avatars.update(id, pose, time, dt);
-    }
+    this.renderTime = this.clock.serverTime(now) - INTERPOLATION_DELAY_MS;
+    this.frameDt = dt;
+    this.frameTime = this.deps.worldTime();
+    this.remotes.forEach(this.updateRemote);
   }
+
+  private renderTime = 0;
+  private frameDt = 0;
+  private frameTime = 0;
+
+  /** Bound once, so the per-frame loop allocates nothing. */
+  private readonly updateRemote = (remote: Remote, id: number): void => {
+    if (!remote.buffer.sample(this.renderTime, remote.pose)) return;
+    const pose = remote.pose;
+    const dt = this.frameDt;
+    if (remote.hasPose && dt > 0) {
+      const speed = Math.hypot(pose.x - remote.lastX, pose.z - remote.lastZ) / dt;
+      pose.speed += (speed - pose.speed) * Math.min(1, dt * 12);
+    }
+    remote.lastX = pose.x;
+    remote.lastZ = pose.z;
+    remote.hasPose = true;
+    this.deps.avatars.update(id, pose, this.frameTime, dt);
+  };
 
   private onStatus(status: ConnectionStatus, retryInMs: number | null): void {
     const { hud, chat } = this.deps;
@@ -208,6 +220,7 @@ export class Multiplayer {
   private onWelcome(welcome: WelcomeMessage): void {
     this.selfId = welcome.id;
     this.deps.player.reset(welcome.self);
+    if (!this.hasBeenOnline) this.deps.onSpawn(welcome.self.yaw);
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     for (const info of welcome.players) {
       if (info.id === welcome.id) this.selfInfo = info;

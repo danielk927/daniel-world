@@ -21,6 +21,7 @@ import {
   FOUNTAIN,
   LORE_SLOTS,
   RUIN_BLOCKS,
+  spawnPoint,
   terrainHeight,
   type BoxCollider,
 } from './world.ts';
@@ -232,6 +233,19 @@ describe('wrapAngle', () => {
 });
 
 describe('world layout', () => {
+  it('spreads spawn points around the plaza, facing the fountain', () => {
+    expect(spawnPoint(0)).toEqual({ x: 0, z: 7.5, yaw: 0 });
+    for (const t of [0.1, 0.37, 0.5, 0.83]) {
+      const p = spawnPoint(t);
+      expect(Math.hypot(p.x, p.z)).toBeCloseTo(7.5);
+      // Facing the center: the forward vector points back toward the origin.
+      expect(-Math.sin(p.yaw) * p.x + -Math.cos(p.yaw) * p.z).toBeCloseTo(-7.5);
+      const s = createPlayerState(p.x, p.z, p.yaw);
+      stepPlayer(s, { keys: 0, yaw: p.yaw, pitch: 0 });
+      expect(Math.hypot(s.x - p.x, s.z - p.z)).toBeLessThan(1e-3);
+    }
+  });
+
   it('has a clear spawn point', () => {
     const s = createPlayerState();
     const before = { x: s.x, z: s.z };

@@ -13,7 +13,13 @@ export interface WorldDebugState {
   /** Everyone in the room, including this player (1 when alone or offline). */
   readonly playerCount: number;
   readonly prediction: { pending: number; maxCorrection: number };
-  readonly renderer: { drawCalls: number; triangles: number; fps: number; quality: string };
+  readonly renderer: {
+    drawCalls: number;
+    triangles: number;
+    fps: number;
+    frameCpuMs: number;
+    quality: string;
+  };
 }
 
 declare global {
@@ -62,6 +68,7 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
         drawCalls: info.render.calls,
         triangles: info.render.triangles,
         fps: fps(),
+        frameCpuMs: game.frameCpuMs,
         quality: world.quality,
       };
     },

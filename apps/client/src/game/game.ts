@@ -17,7 +17,6 @@ import type { Landing } from '../ui/landing.ts';
 import { InfoPanel } from '../ui/panel.ts';
 import { PauseMenu } from '../ui/pause.ts';
 import { Toasts } from '../ui/toast.ts';
-import { Avatars } from '../world/avatars.ts';
 import type { WorldScene } from '../world/scene.ts';
 import { CameraRig } from './cameraRig.ts';
 import { Input } from './input.ts';
@@ -55,7 +54,6 @@ export class Game {
   private readonly pause: PauseMenu;
   private readonly panel: InfoPanel;
   private readonly toasts: Toasts;
-  private readonly avatars = new Avatars();
 
   private lastFrame = performance.now();
   private elapsed = 0;
@@ -70,12 +68,13 @@ export class Game {
   private hoveredIndex = -1;
   private lastEmoteAt = -Infinity;
   private room = DEFAULT_ROOM;
+  /** Smoothed main-thread time spent per frame (simulation, animation, render submission), in ms. */
+  frameCpuMs = 0;
 
   constructor(world: WorldScene, overlay: HTMLElement, landing: Landing) {
     this.world = world;
     this.landing = landing;
     const canvas = world.renderer.domElement;
-    world.scene.add(this.avatars.group);
     this.input = new Input(canvas);
     this.rig = new CameraRig(world.camera);
     this.labels = new LabelLayer(overlay, world.camera);
@@ -149,13 +148,18 @@ export class Game {
       name,
       room,
       player: this.player,
-      avatars: this.avatars,
+      avatars: this.world.avatars,
       labels: this.labels,
       hud: this.hud,
       chat: this.chat,
       worldTime: () => this.elapsed,
       notify: (message) => this.toasts.show(message),
       onFatal: (message) => this.leave(message),
+      onSpawn: (yaw) => {
+        this.input.yaw = yaw;
+        this.input.pitch = 0;
+        this.enterToQuat.setFromEuler(this.euler.set(0, yaw, 0));
+      },
     });
     void this.input.lock();
   }
@@ -168,6 +172,7 @@ export class Game {
     this.panel.close();
     this.chat.hide();
     this.hud.hide();
+    this.hud.setCovered(false);
     this.hud.setPrompt(null);
     this.input.enabled = false;
     this.input.unlock();
@@ -189,6 +194,7 @@ export class Game {
   private async resume(): Promise<void> {
     if (this.mode !== 'paused' && this.mode !== 'panel') return;
     this.pause.hide();
+    this.hud.setCovered(false);
     this.mode = 'playing';
     this.input.enabled = true;
     const locked = await this.input.lock();
@@ -203,6 +209,7 @@ export class Game {
     this.input.enabled = false;
     this.input.releaseAll();
     this.input.unlock();
+    this.hud.setCovered(true);
     this.pause.show(note);
   }
 
@@ -211,6 +218,7 @@ export class Game {
     this.input.enabled = false;
     this.input.releaseAll();
     this.hud.setPrompt(null);
+    this.hud.setCovered(true);
     this.input.unlock();
     this.panel.open(entry);
   }
@@ -296,6 +304,7 @@ export class Game {
 
   private readonly frame = (now: number): void => {
     requestAnimationFrame(this.frame);
+    const started = performance.now();
     // Long enough to catch up MAX_CATCH_UP_TICKS after a hitch, short enough to not fast-forward.
     const dt = Math.min(0.25, Math.max(0, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
@@ -321,6 +330,7 @@ export class Game {
     this.updateHover();
     this.labels.update();
     this.world.render();
+    this.frameCpuMs += (performance.now() - started - this.frameCpuMs) * 0.05;
   };
 
   private updateCamera(dt: number): void {

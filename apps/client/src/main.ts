@@ -52,7 +52,6 @@ async function boot(): Promise<void> {
 
   game = new Game(world, overlay, landing);
   game.start();
-  pollLobbyCount(landing);
 
   // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.
   if (import.meta.env.MODE !== 'production') {
@@ -78,6 +77,7 @@ async function boot(): Promise<void> {
     requestAnimationFrame(() => {
       loading.hide();
       landing.show();
+      pollLobbyCount(landing);
     }),
   );
 }

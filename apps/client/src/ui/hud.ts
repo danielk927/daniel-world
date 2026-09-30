@@ -77,6 +77,11 @@ export class Hud {
     this.element.hidden = true;
   }
 
+  /** While a panel or menu covers the world, hide the parts that would peek out or mislead. */
+  setCovered(covered: boolean): void {
+    this.element.classList.toggle('is-covered', covered);
+  }
+
   setRoom(code: string): void {
     this.roomName.textContent = code === DEFAULT_ROOM ? 'lobby' : `#${code}`;
   }

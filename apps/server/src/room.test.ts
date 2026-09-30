@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   Keys,
   MAX_PLAYERS_PER_ROOM,
+  SPAWN,
   createPlayerState,
   parseServerMessage,
   stepPlayer,
@@ -24,7 +25,8 @@ function makeRoom() {
     const id = nextId++;
     const messages: string[] = [];
     inbox.set(id, messages);
-    return room.add({ id, name, send: (d) => messages.push(d) });
+    // Everyone at the default spawn, so tests can mirror the server with a plain client state.
+    return room.add({ id, name, spawn: SPAWN, send: (d) => messages.push(d) });
   };
   const lastSnapshot = (id: number): SnapshotMessage => {
     const messages = inbox.get(id)!;

@@ -100,7 +100,8 @@ export function floorHeight(
   colliders: readonly Collider[] = COLLIDERS,
 ): number {
   let floor = terrainHeight(x, z);
-  for (const c of colliders) {
+  for (let i = 0; i < colliders.length; i++) {
+    const c = colliders[i]!;
     if (c.top > floor && c.top <= feetY + STEP_HEIGHT && overlapsHorizontally(c, x, z)) {
       floor = c.top;
     }
@@ -233,7 +234,8 @@ export function stepPlayer(
     const prevHead = s.y + PLAYER_HEIGHT;
     s.y += s.vy * h;
     if (s.vy > 0) {
-      for (const c of colliders) {
+      for (let j = 0; j < colliders.length; j++) {
+        const c = colliders[j]!;
         if (
           prevHead <= c.bottom + 1e-6 &&
           s.y + PLAYER_HEIGHT > c.bottom &&
@@ -248,7 +250,8 @@ export function stepPlayer(
     // Horizontal: slide along anything that spans the body above step height.
     s.x += s.vx * h;
     s.z += s.vz * h;
-    for (const c of colliders) {
+    for (let j = 0; j < colliders.length; j++) {
+      const c = colliders[j]!;
       if (c.top > s.y + STEP_HEIGHT && c.bottom < s.y + PLAYER_HEIGHT) pushOut(s, c);
     }
 

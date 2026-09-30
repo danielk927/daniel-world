@@ -96,14 +96,6 @@ export class Avatars {
     this.group.name = 'avatars';
   }
 
-  get size(): number {
-    return this.avatars.size;
-  }
-
-  has(id: number): boolean {
-    return this.avatars.has(id);
-  }
-
   add(id: number, color: string): Vector3 | null {
     if (this.avatars.has(id)) return this.avatars.get(id)!.tagAnchor;
     const slot = this.freeSlots.pop();
@@ -136,10 +128,6 @@ export class Avatars {
     this.avatars.delete(id);
     this.freeSlots.push(avatar.slot);
     this.hideSlot(avatar.slot);
-  }
-
-  clear(): void {
-    for (const id of [...this.avatars.keys()]) this.remove(id);
   }
 
   playEmote(id: number, emote: Emote, time: number): void {

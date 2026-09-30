@@ -443,6 +443,10 @@ kbd {
   inset: 0;
 }
 
+.hud.is-covered :is(.crosshair, .prompt, .hud-players, .hint) {
+  visibility: hidden;
+}
+
 .crosshair {
   position: absolute;
   top: 50%;

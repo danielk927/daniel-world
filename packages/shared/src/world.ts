@@ -74,6 +74,19 @@ export function terrainHeight(x: number, z: number): number {
 
 export const SPAWN = { x: 0, z: 7.5, yaw: 0 } as const;
 
+/**
+ * A spawn spot on the plaza, facing the fountain. `t` in [0, 1) picks the angle; t = 0 is SPAWN.
+ * New players are spread around the ring so a busy room does not stack everyone on one point.
+ */
+export function spawnPoint(t: number): { x: number; z: number; yaw: number } {
+  const angle = Math.PI + t * Math.PI * 2;
+  const x = Math.sin(angle) * SPAWN.z;
+  const z = -Math.cos(angle) * SPAWN.z;
+  // Round away floating point noise so t = 0 is exactly SPAWN.
+  const clean = (v: number): number => Math.round(v * 1e6) / 1e6 + 0;
+  return { x: clean(x), z: clean(z), yaw: clean(Math.atan2(x, z)) };
+}
+
 export const PLAZA_RADIUS = 9;
 
 export const FOUNTAIN = {

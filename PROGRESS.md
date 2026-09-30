@@ -7,7 +7,7 @@
 - [x] M2 Room server
 - [x] M3 Multiplayer client
 - [x] M4 E2E
-- [ ] M5 Polish
+- [x] M5 Polish
 - [ ] M6 Stretch (game mode)
 
 ## Log
@@ -51,6 +51,15 @@
 - `e2e/smoke.spec.ts`: landing and portfolio.
 - Stable across repeated runs (~2.5 min).
 
+### M5 Polish
+
+- `scripts/screenshots.ts` writes landing, world (with bots), pause, lore object, info panel, portfolio and mobile shots to `docs/screenshots/`.
+- Visual fixes from reviewing them: lobby count showed "unavailable" on first paint, the info panel overlapped the player list, crosshair and hints now hide under menus, friendlier count wording.
+- `scripts/bots.ts` and `scripts/perf.ts`: with 16 players on an Apple M5 (real GPU, high quality) the client holds 60 fps, ~1.0 ms main-thread time per frame, 61 draw calls, zero prediction corrections.
+- Heap profiling found and removed the main per-frame garbage source (shadow depth program churn) and iterator allocations.
+- Dead code removed (unused avatar helpers, label flag, protocol types); spawn points spread around the plaza.
+- `README.md` with quick start, controls, content editing, architecture and a deployment section (server on Fly.io/Railway/Render, client on Vercel/Netlify/GitHub Pages); env examples for both apps.
+
 ## Next
 
-- M5: screenshots, visual QA, 16-bot performance check, dead code sweep, README with deployment section.
+- M6 (stretch): a lightweight game mode in private rooms with a scoreboard.

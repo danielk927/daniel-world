@@ -89,3 +89,16 @@ Judgment calls made during the unattended build, with reasons.
   This keeps the world usable for visitors without a GPU and keeps multi-page E2E fast.
   `?quality=high|low` overrides it (docs screenshots use `high`).
 - **E2E contexts use a 960x540 viewport and a 120 s per-test timeout**, because several software-rendered pages share one CPU.
+
+## Polish
+
+- **Spawn points are spread around the plaza** by golden-ratio steps, facing the fountain; the first player in a room gets the main spawn (keeps E2E paths deterministic).
+  Reconnects still rejoin at the player's own position.
+- **Avatars live in `WorldScene` from the start**, so their shaders compile behind the loading screen rather than hitching when the first visitor appears.
+- **Shadow depth materials per instancing variant** (`world/shadowDepth.ts`).
+  A heap profile showed three.js recomputing program parameters for every shadow caster every frame, because one shared depth material alternated between instanced and plain meshes; this removed most per-frame garbage.
+- **Per-frame loops use indexed `for` and a pre-bound `forEach` callback** instead of `for...of`, which allocated iterators in the sim, labels and remote-player update.
+  What remains in the heap profile is engine-level (number boxing, three.js uniform uploads) and snapshot JSON parsing.
+- **Screenshots and the perf report use headless Chromium on the real GPU** (`--use-angle=metal`); E2E keeps SwiftShader as the spec asks.
+- **Deployment is documented, not scripted.**
+  No Docker or platform CLIs were available, so the Dockerfile in the README is marked untested; the Railway/Render and static hosting steps only use commands that were run here.
