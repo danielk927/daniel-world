@@ -7,6 +7,7 @@ const host = process.env.HOST;
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const basePath = process.env.BASE_PATH?.replace(/\/$/, '');
 const trustProxy = process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true';
 
 const server = await startServer({
@@ -14,6 +15,7 @@ const server = await startServer({
   ...(host ? { host } : {}),
   ...(allowedOrigins?.length ? { allowedOrigins } : {}),
   trustProxy,
+  ...(basePath ? { basePath } : {}),
   log: (message) => console.log(`[${new Date().toISOString()}] ${message}`),
 });
 console.log(

@@ -282,6 +282,16 @@ describe('room server', () => {
     expect(await response.json()).toEqual({ room: 'lobby', players: 2, max: MAX_PLAYERS_PER_ROOM });
   });
 
+  it('serves its HTTP routes under a base path too', async () => {
+    await server.close();
+    server = await startServer({ port: 0, host: '127.0.0.1', basePath: '/ws' });
+    const prefixed = await fetch(`http://127.0.0.1:${server.port}/ws/rooms/lobby`);
+    expect(await prefixed.json()).toMatchObject({ room: 'lobby', players: 0 });
+    expect((await fetch(`http://127.0.0.1:${server.port}/ws/health`)).status).toBe(200);
+    // WebSocket upgrades on the prefixed path work as usual.
+    expect((await client().join('Pathfinder')).room).toBe('lobby');
+  });
+
   it('does not reveal how many players are in private rooms', async () => {
     await client().join('Alice', 'hideout');
     const response = await fetch(`http://127.0.0.1:${server.port}/rooms/hideout`);

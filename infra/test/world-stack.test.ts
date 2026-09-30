@@ -1,0 +1,140 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { App } from 'aws-cdk-lib';
+import { Match, Template } from 'aws-cdk-lib/assertions';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { SERVER_PATH, SERVER_PORT, WorldStack } from '../lib/world-stack.ts';
+
+let template: Template;
+
+beforeAll(() => {
+  // Stand-in build output; the real one comes from scripts/build-assets.ts.
+  const dir = mkdtempSync(join(tmpdir(), 'world-infra-'));
+  const clientDir = join(dir, 'client');
+  const serverDir = join(dir, 'server');
+  mkdirSync(clientDir);
+  mkdirSync(serverDir);
+  writeFileSync(join(clientDir, 'index.html'), '<!doctype html>');
+  writeFileSync(join(serverDir, 'index.js'), 'console.log("server")');
+
+  const app = new App();
+  const stack = new WorldStack(app, 'Test', {
+    env: { account: '123456789012', region: 'us-east-1' },
+    clientDir,
+    serverDir,
+  });
+  template = Template.fromStack(stack);
+});
+
+describe('WorldStack', () => {
+  it('serves the site from a private, encrypted bucket through Origin Access Control', () => {
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      PublicAccessBlockConfiguration: {
+        BlockPublicAcls: true,
+        BlockPublicPolicy: true,
+        IgnorePublicAcls: true,
+        RestrictPublicBuckets: true,
+      },
+      BucketEncryption: Match.objectLike({}),
+    });
+    template.resourceCountIs('AWS::CloudFront::OriginAccessControl', 1);
+  });
+
+  it('routes /ws* to the room server with caching off and upgrade headers forwarded', () => {
+    template.hasResourceProperties('AWS::CloudFront::Distribution', {
+      DistributionConfig: Match.objectLike({
+        DefaultRootObject: 'index.html',
+        DefaultCacheBehavior: Match.objectLike({ ViewerProtocolPolicy: 'redirect-to-https' }),
+        CacheBehaviors: [
+          Match.objectLike({
+            PathPattern: `${SERVER_PATH}*`,
+            ViewerProtocolPolicy: 'https-only',
+            // Managed CachingDisabled and AllViewerExceptHostHeader policies.
+            CachePolicyId: '4135ea2d-6df8-44a3-9df3-4b5a84be39ad',
+            OriginRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac',
+            AllowedMethods: Match.arrayWith(['GET', 'OPTIONS', 'POST']),
+          }),
+        ],
+        Origins: Match.arrayWith([
+          Match.objectLike({
+            CustomOriginConfig: Match.objectLike({
+              HTTPPort: SERVER_PORT,
+              OriginProtocolPolicy: 'http-only',
+            }),
+          }),
+        ]),
+      }),
+    });
+  });
+
+  it('lets only CloudFront reach the server, on the server port only', () => {
+    template.resourceCountIs('AWS::EC2::SecurityGroupIngress', 1);
+    template.hasResourceProperties('AWS::EC2::SecurityGroupIngress', {
+      FromPort: SERVER_PORT,
+      ToPort: SERVER_PORT,
+      IpProtocol: 'tcp',
+      SourcePrefixListId: Match.anyValue(),
+      CidrIp: Match.absent(),
+    });
+    // No inline rules that could open anything else.
+    template.hasResourceProperties('AWS::EC2::SecurityGroup', {
+      SecurityGroupIngress: Match.absent(),
+    });
+  });
+
+  it('runs a small Graviton instance with IMDSv2, an encrypted disk, and no SSH key', () => {
+    template.hasResourceProperties('AWS::EC2::Instance', {
+      InstanceType: 't4g.micro',
+      BlockDeviceMappings: [
+        Match.objectLike({ Ebs: Match.objectLike({ Encrypted: true, VolumeType: 'gp3' }) }),
+      ],
+      KeyName: Match.absent(),
+    });
+    template.hasResourceProperties('AWS::EC2::LaunchTemplate', {
+      LaunchTemplateData: Match.objectLike({ MetadataOptions: { HttpTokens: 'required' } }),
+    });
+  });
+
+  it('does not pay for a NAT gateway', () => {
+    template.resourceCountIs('AWS::EC2::NatGateway', 0);
+  });
+
+  it('grants the instance Systems Manager and only its own log group', () => {
+    template.hasResourceProperties('AWS::IAM::Role', {
+      ManagedPolicyArns: Match.arrayWith([
+        Match.objectLike({
+          'Fn::Join': Match.arrayWith([
+            Match.arrayWith([Match.stringLikeRegexp('AmazonSSMManagedInstanceCore')]),
+          ]),
+        }),
+      ]),
+    });
+    const policies = JSON.stringify(template.findResources('AWS::IAM::Policy'));
+    expect(policies).toContain('logs:PutLogEvents');
+    expect(policies).not.toMatch(
+      /"Resource":"\*"[^}]*logs:PutLogEvents|logs:PutLogEvents[^}]*"Resource":"\*"/,
+    );
+  });
+
+  it('self-heals: recover on host failure, reboot on instance failure', () => {
+    const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm')).map((alarm) =>
+      JSON.stringify(alarm),
+    );
+    expect(alarms.find((a) => a.includes('StatusCheckFailed_System'))).toContain(':ec2:recover');
+    expect(alarms.find((a) => a.includes('StatusCheckFailed_Instance'))).toContain(':ec2:reboot');
+  });
+
+  it('boots the server as an unprivileged systemd service on a verified Node.js', () => {
+    const instances = template.findResources('AWS::EC2::Instance');
+    const userData = JSON.stringify(Object.values(instances)[0]);
+    expect(userData).toContain('sha256sum -c');
+    expect(userData).toContain('User=world');
+    expect(userData).toContain(`BASE_PATH=${SERVER_PATH}`);
+    expect(userData).toContain('TRUST_PROXY=1');
+  });
+
+  it('keeps server logs in CloudWatch for two weeks', () => {
+    template.hasResourceProperties('AWS::Logs::LogGroup', { RetentionInDays: 14 });
+  });
+});

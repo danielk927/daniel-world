@@ -31,6 +31,8 @@ export interface ServerOptions {
   allowedOrigins?: readonly string[];
   /** Behind a reverse proxy (Fly.io, Railway), take the client IP from `x-forwarded-for`. */
   trustProxy?: boolean;
+  /** Path prefix in front of the HTTP routes, e.g. `/ws` when a CDN routes `/ws*` here. */
+  basePath?: string;
   log?: (message: string) => void;
 }
 
@@ -105,6 +107,11 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
 
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
+    const basePath = options.basePath ?? '';
+    const pathname =
+      basePath && (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`))
+        ? url.pathname.slice(basePath.length) || '/'
+        : url.pathname;
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'access-control-allow-origin': '*',
@@ -117,11 +124,11 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       sendJson(res, 405, { error: 'method not allowed' });
       return;
     }
-    if (url.pathname === '/health') {
+    if (pathname === '/health') {
       sendJson(res, 200, { ok: true });
       return;
     }
-    const match = /^\/rooms\/([^/]{1,64})$/.exec(url.pathname);
+    const match = /^\/rooms\/([^/]{1,64})$/.exec(pathname);
     // Only the public lobby's count is published; private room codes stay private.
     if (match) {
       let raw: string;

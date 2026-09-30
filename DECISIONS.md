@@ -121,3 +121,21 @@ Judgment calls made during the unattended build, with reasons.
 - **The connection status live region only announces changes** (connected, connecting, offline); the ping and retry countdown are visual only.
 - **Esc toggles the pause menu**, and closing a dialog gives focus back to the page (a hidden dialog was swallowing the next Esc).
 - **E2E walks until a position is reached** instead of holding keys for fixed times, and allows a small prediction correction on starved CI machines (exactness is covered by unit tests).
+
+## AWS deployment
+
+- **CDK in TypeScript** (`infra/`), run by Node's native type stripping like the server, so the infrastructure is reviewed, tested (`infra/test`) and deployed from the repo.
+- **CloudFront in front of both S3 and EC2 on one domain.**
+  It provides TLS for `wss://` without buying a domain or managing certificates, and CloudFront supports WebSockets natively.
+  The client is built with `VITE_SERVER_URL=/ws`, which it resolves against the page origin; the server strips the `/ws` prefix from its HTTP routes via `BASE_PATH`.
+- **EC2 over Fargate or App Runner.** App Runner does not support WebSockets; Fargate needs a load balancer (about $16/month before any compute).
+  A single t4g.micro (Graviton) fits one in-memory room server and is free-tier eligible.
+- **No NAT gateway, one public subnet, security group restricted to the CloudFront origin-facing prefix list.**
+  The instance has a public IP only so CloudFront can reach it; nothing else can.
+- **No SSH.** Access is through Systems Manager Session Manager; the instance role has only SSM, its code bundle and its log group.
+- **Immutable server deploys:** the server bundle is a CDK asset referenced by user data with `userDataCausesReplacement`, so a new build replaces the instance.
+  This briefly disconnects players (they reconnect automatically), which is fine for a personal site.
+- **Pinned, checksum-verified Node.js** downloaded at boot, instead of distribution packages whose versions drift.
+- **The server bundle now includes `ws`** (esbuild with a `createRequire` banner), so any host needs only Node.js.
+- **Known audit finding:** `npm audit` reports a `brace-expansion` advisory inside `aws-cdk-lib`'s bundled dependencies.
+  It cannot be patched from here and only runs at deploy time on our own inputs, never in the site or server.

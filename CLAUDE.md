@@ -17,6 +17,7 @@ npx playwright install chromium
 npm run e2e                  # playwright, builds client in test mode, spawns its own server on :3101
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
 npm run bots -- --count 15   # simulated players for load testing
+npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
 node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU)
 node scripts/perf.ts         # 16-player perf report (needs the dev client on :5173)
 ```
@@ -30,6 +31,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 - `apps/client` - Vite + Three.js client.
   `src/content.ts` holds all personal content (placeholders marked `TODO(daniel)`).
   `index.html` is the 3D world, `portfolio.html` is the static fallback.
+- `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
 - `scripts` - dev tooling (bots, screenshots).
 

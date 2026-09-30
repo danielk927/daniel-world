@@ -102,58 +102,65 @@ Judgment calls made while building are recorded in [DECISIONS.md](DECISIONS.md).
 
 ## Deployment
 
-Nothing here has been deployed.
-The client is a static site and the server is a single long-running Node process, so they can be hosted separately.
+The site has two parts with different hosting needs.
+The client is static files.
+The room server is a long-running process that holds WebSocket connections and the in-memory rooms, so it cannot run on serverless functions (Vercel, Lambda).
 
-### Server (Fly.io, Railway, Render, or any VPS)
+### AWS (primary): one command with the CDK
 
-The server needs a host that keeps WebSocket connections open.
-Build it once and run the bundle; it only needs the `ws` package at runtime.
+`infra/` defines the whole production stack with the AWS CDK in TypeScript:
+
+```text
+visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (private, Origin Access Control)
+                               └─ /ws*  ──▶ EC2 t4g.micro room server (Graviton, port 3001)
+```
+
+- **CloudFront** is the only public entry point.
+  It serves the site and proxies WebSocket traffic on the same domain, so the page connects to `wss://<same host>/ws` with CloudFront's TLS certificate and no custom domain is required.
+- **S3** holds the built client; the bucket is private, encrypted, and readable only by the distribution.
+  Every deploy uploads the new build and invalidates the cache.
+- **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
+  Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
+  A new server build replaces the instance (immutable deploys).
+- **CloudWatch** receives the server logs (two-week retention) and two alarms self-heal the instance: host failure triggers EC2 auto-recovery, an unresponsive instance is rebooted.
+- **IAM** is least privilege: the instance role has Session Manager access, read access to its own code bundle, and write access to its own log group.
+- No NAT gateway and a single public subnet keep the cost to roughly the instance and its public IP (about $10/month, less on the AWS free tier).
+
+First time only:
 
 ```bash
-npm ci
-npm run build -w @world/server
-PORT=8080 TRUST_PROXY=1 ALLOWED_ORIGINS=https://your-site.example node apps/server/dist/index.js
+aws login                                         # or aws configure / aws sso login
+npx cdk bootstrap -a "node infra/bin/world.ts"    # prepares the account for CDK deploys
 ```
 
-Environment variables (see [`apps/server/.env.example`](apps/server/.env.example)):
-
-- `PORT`: listen port (default 3001).
-- `ALLOWED_ORIGINS`: comma-separated page origins allowed to connect; unset allows any.
-- `TRUST_PROXY=1`: take the client IP from `x-forwarded-for`, needed behind a platform proxy.
-
-On **Railway** or **Render**, point a Node service at the repository with build command `npm ci && npm run build -w @world/server`, start command `node apps/server/dist/index.js`, and health check path `/health`.
-
-On **Fly.io**, a Dockerfile along these lines works (not tested here, Docker was not available):
-
-```dockerfile
-FROM node:24-slim AS build
-WORKDIR /app
-COPY . .
-RUN npm ci && npm run build -w @world/server
-
-FROM node:24-slim
-WORKDIR /app
-COPY --from=build /app/apps/server/dist ./dist
-RUN npm install ws@8
-ENV PORT=8080 TRUST_PROXY=1
-EXPOSE 8080
-CMD ["node", "dist/index.js"]
-```
-
-Then `fly launch --no-deploy`, set `ALLOWED_ORIGINS` with `fly secrets set`, keep one machine running (rooms live in memory, so do not scale to more than one instance), and `fly deploy`.
-
-### Client (GitHub Pages, Vercel, Netlify, Cloudflare Pages)
-
-Build with the server's public WebSocket URL baked in:
+Then deploy (and redeploy after changes) with:
 
 ```bash
-VITE_SERVER_URL=wss://your-server.example npm run build -w @world/client
+npm run deploy:aws
 ```
 
-Upload `apps/client/dist`.
-On **Vercel** or **Netlify**, use that as the build command with output directory `apps/client/dist` and set `VITE_SERVER_URL` in the project settings.
-On **GitHub Pages**, publish `apps/client/dist` from a workflow; if the site lives under a sub-path, also set Vite's `base` option in `apps/client/vite.config.ts`.
+The command builds the client (pointed at `/ws`) and the single-file server bundle, then runs `cdk deploy`.
+It prints `SiteUrl` (the site), `ServerUrl` (for a client hosted elsewhere), `ShellCommand` (Session Manager) and `ServerLogGroup`.
+`npm run diff -w @world/infra` previews changes; `npm run destroy -w @world/infra` removes everything.
+Rooms live in one process's memory, so keep exactly one instance.
+
+### Vercel (optional second front end)
+
+`vercel.json` builds the static client for Vercel.
+To give it multiplayer, set the project's `VITE_SERVER_URL` environment variable to the stack's `ServerUrl` output (for example `wss://d1234abcd.cloudfront.net/ws`) and redeploy.
+
+### Other hosts
+
+The server is one file with no runtime dependencies besides Node.js 22+:
+
+```bash
+npm ci && npm run build -w @world/server
+PORT=8080 TRUST_PROXY=1 node apps/server/dist/index.js
+```
+
+Environment variables (see [`apps/server/.env.example`](apps/server/.env.example)): `PORT`, `ALLOWED_ORIGINS` (comma-separated page origins; unset allows any), `TRUST_PROXY=1` behind a proxy, and `BASE_PATH` when a CDN forwards a path prefix such as `/ws`.
+Railway or Render work with build command `npm ci && npm run build -w @world/server`, start command `node apps/server/dist/index.js`, and health check `/health`.
+Build the client with `VITE_SERVER_URL` set to the server's `wss://` URL, or to a path like `/ws` when the same domain proxies to the server.
 
 ## Testing
 

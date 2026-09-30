@@ -8,6 +8,8 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/dist-test/**',
+      'infra/build/**',
+      'infra/cdk.out/**',
       '**/node_modules/**',
       'test-results/**',
       'playwright-report/**',
