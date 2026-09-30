@@ -6,7 +6,8 @@ export default defineConfig({
   // Tests share one room server process and start/stop it, so run serially.
   workers: 1,
   fullyParallel: false,
-  timeout: 60_000,
+  // Several software-rendered pages share the CPU, so give each test generous room.
+  timeout: 120_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? 'github' : 'list',
   use: {

@@ -20,7 +20,7 @@ export interface ConnectionHandlers {
 const BACKOFF_START_MS = 1000;
 const BACKOFF_MAX_MS = 15_000;
 /** If the server accepts the socket but never welcomes us, give up and retry. */
-const WELCOME_TIMEOUT_MS = 6000;
+const WELCOME_TIMEOUT_MS = 10_000;
 const PING_INTERVAL_MS = 2000;
 
 /**

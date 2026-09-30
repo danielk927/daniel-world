@@ -6,7 +6,7 @@
 - [x] M1 Single-player world
 - [x] M2 Room server
 - [x] M3 Multiplayer client
-- [ ] M4 E2E
+- [x] M4 E2E
 - [ ] M5 Polish
 - [ ] M6 Stretch (game mode)
 
@@ -44,6 +44,13 @@
 - Review fixes folded in: Esc in the info panel no longer opens the pause menu; pedestals and the fountain column can no longer be climbed into; landing sweep for fast falls; cursor picking without pointer lock; server ghost-join, backpressure, connection caps, idle-fall, tick-loop resilience, duplicate names, invisible characters, malformed URL crash.
 - Manually verified with two headless browsers: join, see each other, movement, chat with bubble, wave and dance.
 
+### M4 E2E
+
+- `e2e/multiplayer.spec.ts`: two players see each other in the lobby; A's movement seen by B (and zero prediction corrections); chat A to B as plain text; private room isolation; closing A drops B to 1; Esc on an info panel returns to play.
+- `e2e/offline.spec.ts`: with no server the world loads, shows solo mode and is walkable, then reconnects when the server starts.
+- `e2e/smoke.spec.ts`: landing and portfolio.
+- Stable across repeated runs (~2.5 min).
+
 ## Next
 
-- M4: Playwright E2E suite through `window.__world`.
+- M5: screenshots, visual QA, 16-bot performance check, dead code sweep, README with deployment section.

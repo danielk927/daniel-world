@@ -15,7 +15,7 @@ export class Chat {
   readonly element: HTMLElement;
   private readonly log = el('ol', {
     class: 'chat-log',
-    attrs: { 'aria-live': 'polite', 'aria-label': 'Chat messages' },
+    attrs: { 'aria-live': 'polite', 'aria-label': 'Chat history' },
   });
   private readonly input: HTMLInputElement;
   private readonly form: HTMLFormElement;

@@ -6,7 +6,7 @@ import { el } from './ui/dom.ts';
 import { Landing } from './ui/landing.ts';
 import { loading } from './ui/loading.ts';
 import { SERVER_HTTP_URL } from './env.ts';
-import { hasWebGL2, isTouchOnly } from './util/capabilities.ts';
+import { isTouchOnly, pickQuality, probeWebGL } from './util/capabilities.ts';
 
 async function boot(): Promise<void> {
   const app = document.getElementById('app')!;
@@ -18,7 +18,8 @@ async function boot(): Promise<void> {
     onEnter: (name, room) => game?.enter(name, room),
   });
 
-  if (!hasWebGL2()) {
+  const webgl = probeWebGL();
+  if (!webgl.supported) {
     loading.hide();
     app.classList.add('no-webgl');
     landing.setUnsupported(
@@ -43,7 +44,7 @@ async function boot(): Promise<void> {
   ]);
   const canvas = el('canvas', { class: 'world-canvas' });
   app.prepend(canvas);
-  const world = new WorldScene(canvas, lore);
+  const world = new WorldScene(canvas, lore, pickQuality(webgl));
   loading.setText('Warming up shaders…');
   loading.setProgress(0.6);
   await world.compile();

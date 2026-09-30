@@ -13,7 +13,7 @@ export interface WorldDebugState {
   /** Everyone in the room, including this player (1 when alone or offline). */
   readonly playerCount: number;
   readonly prediction: { pending: number; maxCorrection: number };
-  readonly renderer: { drawCalls: number; triangles: number; fps: number };
+  readonly renderer: { drawCalls: number; triangles: number; fps: number; quality: string };
 }
 
 declare global {
@@ -58,7 +58,12 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
       return { pending: game.player.pendingInputs, maxCorrection: game.player.lastCorrection };
     },
     get renderer() {
-      return { drawCalls: info.render.calls, triangles: info.render.triangles, fps: fps() };
+      return {
+        drawCalls: info.render.calls,
+        triangles: info.render.triangles,
+        fps: fps(),
+        quality: world.quality,
+      };
     },
   };
   Object.defineProperty(window, '__world', { value: Object.freeze(state), configurable: true });

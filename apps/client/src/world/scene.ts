@@ -9,6 +9,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import type { LoreEntry } from '../content.ts';
+import type { Quality } from '../util/capabilities.ts';
 import { createCloudSea } from './clouds.ts';
 import { createDistantIslands } from './distant.ts';
 import { createIsland, type Island } from './island.ts';
@@ -32,16 +33,21 @@ export class WorldScene {
   private readonly plaza: Plaza;
   private readonly sky = createSky();
 
-  constructor(canvas: HTMLCanvasElement, entries: readonly LoreEntry[]) {
+  readonly quality: Quality;
+
+  constructor(canvas: HTMLCanvasElement, entries: readonly LoreEntry[], quality: Quality) {
+    this.quality = quality;
+    const high = quality === 'high';
     this.renderer = new WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: high,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Low quality renders below native resolution; the browser scales the canvas up.
+    this.renderer.setPixelRatio(high ? Math.min(window.devicePixelRatio, 2) : 0.75);
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = high;
     this.renderer.shadowMap.type = PCFShadowMap;
 
     this.scene.fog = new Fog(palette.fog, 60, 420);
@@ -71,7 +77,7 @@ export class WorldScene {
       sun,
       sun.target,
       this.sky,
-      createCloudSea(),
+      createCloudSea(high ? 5 : 3),
       createDistantIslands(),
       this.island.group,
       this.plaza.group,

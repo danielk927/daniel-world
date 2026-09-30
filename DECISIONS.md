@@ -80,3 +80,12 @@ Judgment calls made during the unattended build, with reasons.
 - **Emotes are also announced in the chat log**, and the local player gets a toast (first person cannot see its own avatar).
 - **Reconnect uses jittered exponential backoff** (1 s doubling to 15 s) and rejoins at the player's current position; a "Reconnected" toast confirms it.
 - **Private rooms get a "Copy invite link" button** in the pause menu (`?room=code`).
+
+## Testing
+
+- **E2E runs the room server in the Playwright process** (`e2e/helpers.ts` imports `startServer`), so tests can stop and restart it; the offline test also verifies automatic reconnection.
+- **E2E asserts on `window.__world`** (mode, connection, room, self id, local position, remote players with positions, player count, prediction stats, renderer stats), plus accessible roles for UI (chat history, dialogs, status).
+- **Quality tiers.** A software WebGL renderer (SwiftShader, llvmpipe) is detected via `WEBGL_debug_renderer_info` and gets low quality: no shadows, no MSAA, 0.75 render scale, 3-octave clouds.
+  This keeps the world usable for visitors without a GPU and keeps multi-page E2E fast.
+  `?quality=high|low` overrides it (docs screenshots use `high`).
+- **E2E contexts use a 960x540 viewport and a 120 s per-test timeout**, because several software-rendered pages share one CPU.

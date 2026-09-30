@@ -3,8 +3,9 @@ import { palette } from './palette.ts';
 import { worldTime } from './wind.ts';
 
 /** A drifting sea of clouds below the island. One quad, all detail in the fragment shader. */
-export function createCloudSea(): Mesh {
+export function createCloudSea(octaves: number): Mesh {
   const material = new ShaderMaterial({
+    defines: { OCTAVES: octaves },
     transparent: true,
     depthWrite: false,
     side: DoubleSide,
@@ -45,7 +46,7 @@ export function createCloudSea(): Mesh {
       float fbm(vec2 p) {
         float value = 0.0;
         float amplitude = 0.5;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < OCTAVES; i++) {
           value += amplitude * noise(p);
           p = p * 2.03 + vec2(17.1, 9.2);
           amplitude *= 0.5;
