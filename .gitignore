@@ -12,3 +12,4 @@ playwright/.cache/
 .env.*
 !.env.example
 dist-test/
+.vercel/
