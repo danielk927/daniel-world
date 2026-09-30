@@ -180,7 +180,9 @@ export class Game {
     this.hud.setCovered(false);
     this.hud.setPrompt(null);
     this.input.enabled = false;
+    this.input.releaseAll();
     this.input.unlock();
+    this.toasts.clear();
     this.multiplayer?.close();
     this.multiplayer = null;
     this.landing.setNotice(reason);

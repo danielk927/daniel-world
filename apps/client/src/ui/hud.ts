@@ -17,10 +17,12 @@ export class Hud {
   private readonly roomName = el('span', { class: 'hud-room-name' });
   private readonly statusDot = el('span', { class: 'status-dot' });
   private readonly statusText = el('span', { class: 'hud-status-text' });
-  private readonly status = el('div', { class: 'hud-status', attrs: { role: 'status' } }, [
-    this.statusDot,
-    this.statusText,
-  ]);
+  private readonly status = el('div', { class: 'hud-status' }, [this.statusDot, this.statusText]);
+  /** Screen readers hear only status changes, not the ping or countdown ticking. */
+  private readonly statusAnnouncement = el('span', {
+    class: 'visually-hidden',
+    attrs: { role: 'status' },
+  });
   private readonly playerCount = el('span', { class: 'hud-players-count' });
   private readonly playerList = el('ul', { class: 'hud-players-list' });
   private readonly hint = el('div', { class: 'hint' }, [
@@ -49,6 +51,7 @@ export class Hud {
         el('span', { class: 'hud-label', text: 'Room' }),
         this.roomName,
         this.status,
+        this.statusAnnouncement,
       ]),
       el(
         'section',
@@ -87,6 +90,14 @@ export class Hud {
   }
 
   setStatus(status: ConnectionStatus, detail: string): void {
+    if (this.status.dataset.status !== status) {
+      this.statusAnnouncement.textContent =
+        status === 'online'
+          ? 'Connected'
+          : status === 'connecting'
+            ? 'Connecting'
+            : 'Offline, playing solo';
+    }
     this.status.dataset.status = status;
     this.statusText.textContent = detail;
   }

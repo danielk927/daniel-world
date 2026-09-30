@@ -157,5 +157,6 @@ export class LocalPlayer {
     this.pendingStart = 0;
     this.pendingCount = 0;
     this.error.set(0, 0, 0);
+    this.lastCorrection = 0;
   }
 }

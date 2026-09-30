@@ -111,6 +111,12 @@ export class PauseMenu {
       ],
     );
     this.resumeButton.addEventListener('click', () => handlers.onResume());
+    this.element.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !this.isOpen) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handlers.onResume();
+    });
     leaveButton.addEventListener('click', () => handlers.onLeave());
     this.inviteButton.addEventListener('click', () => handlers.onCopyInvite());
     this.tagButton.addEventListener('click', () => handlers.onStartTag());
@@ -142,6 +148,8 @@ export class PauseMenu {
 
   hide(): void {
     if (this.element.hidden) return;
+    if (this.element.contains(document.activeElement))
+      (document.activeElement as HTMLElement).blur();
     this.element.hidden = true;
     this.releaseFocus?.();
     this.releaseFocus = null;

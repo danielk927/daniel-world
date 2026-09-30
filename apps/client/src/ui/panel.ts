@@ -42,7 +42,7 @@ export class InfoPanel {
     );
     this.closeButton.addEventListener('click', () => this.close());
     this.element.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && this.isOpen) {
         event.preventDefault();
         // The game also listens for Esc (to pause); this press is only for the panel.
         event.stopPropagation();
@@ -73,6 +73,9 @@ export class InfoPanel {
   close(): void {
     if (!this.current) return;
     this.current = null;
+    // Give focus back to the page, or keys would keep landing on the hidden panel.
+    if (this.element.contains(document.activeElement))
+      (document.activeElement as HTMLElement).blur();
     this.element.classList.remove('open');
     this.element.hidden = true;
     this.releaseFocus?.();

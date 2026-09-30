@@ -113,3 +113,11 @@ Judgment calls made during the unattended build, with reasons.
   Late joiners get the state right after `welcome` and join the scoreboard at 0.
 - **If it leaves, it passes to a random remaining player**; if fewer than two players remain, the round ends.
 - **Started from the pause menu ("Play tag")**, next to "Copy invite link", so the flow is: make a private room, share the link, press Play tag.
+
+## Final review fixes
+
+- **Chat closes when its input loses focus** (for example clicking the world), so the keyboard can never be left waiting on a chat nobody is typing in.
+- **Four seconds without any server message counts as a dead connection** and triggers the normal reconnect; pings go out every second so a quiet room still proves liveness.
+- **The connection status live region only announces changes** (connected, connecting, offline); the ping and retry countdown are visual only.
+- **Esc toggles the pause menu**, and closing a dialog gives focus back to the page (a hidden dialog was swallowing the next Esc).
+- **E2E walks until a position is reached** instead of holding keys for fixed times, and allows a small prediction correction on starved CI machines (exactness is covered by unit tests).

@@ -73,13 +73,6 @@ export async function enterWorld(
   return page;
 }
 
-/** Hold a key for a while, like a player walking. */
-export async function hold(page: Page, key: string, ms: number): Promise<void> {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(ms);
-  await page.keyboard.up(key);
-}
-
 /** Wait until the local player has stopped moving, and return that state. */
 export async function waitUntilStill(page: Page): Promise<WorldDebugState> {
   let previous = await world(page);
@@ -92,4 +85,24 @@ export async function waitUntilStill(page: Page): Promise<WorldDebugState> {
     previous = current;
   }
   throw new Error('player never came to rest');
+}
+
+/**
+ * Hold a key until the player's position satisfies `arrived`, like a person walking to a spot.
+ * Robust to frame rate, unlike holding for a fixed time.
+ */
+export async function walkUntil(
+  page: Page,
+  key: string,
+  arrived: (player: WorldDebugState['player']) => boolean,
+  timeout = 15_000,
+): Promise<void> {
+  await page.keyboard.down(key);
+  try {
+    await expect
+      .poll(async () => arrived((await world(page)).player), { timeout, intervals: [50] })
+      .toBe(true);
+  } finally {
+    await page.keyboard.up(key);
+  }
 }

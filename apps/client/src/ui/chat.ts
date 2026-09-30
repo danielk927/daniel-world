@@ -54,6 +54,8 @@ export class Chat {
       this.close();
     });
     this.input.addEventListener('input', () => this.updateCounter());
+    // Clicking away (e.g. on the world) ends the chat instead of leaving the game waiting for it.
+    this.input.addEventListener('blur', () => this.close());
     this.input.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();

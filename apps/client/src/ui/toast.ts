@@ -9,6 +9,10 @@ export class Toasts {
     parent.append(this.element);
   }
 
+  clear(): void {
+    this.element.replaceChildren();
+  }
+
   show(message: string, durationMs = 2600): void {
     const toast = el('div', { class: 'toast', text: message });
     this.element.append(toast);

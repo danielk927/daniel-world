@@ -21,7 +21,9 @@ const BACKOFF_START_MS = 1000;
 const BACKOFF_MAX_MS = 15_000;
 /** If the server accepts the socket but never welcomes us, give up and retry. */
 const WELCOME_TIMEOUT_MS = 10_000;
-const PING_INTERVAL_MS = 2000;
+const PING_INTERVAL_MS = 1000;
+/** Snapshots arrive 20 times a second; this much silence means the connection is dead. */
+const SILENCE_TIMEOUT_MS = 4000;
 
 /**
  * One logical connection to a room. Handles the hello handshake, validates every incoming message,
@@ -39,6 +41,7 @@ export class Connection {
   private welcomeTimer = 0;
   private pingTimer = 0;
   private pingId = 0;
+  private lastMessageAt = 0;
   private readonly pingSentAt = new Map<number, number>();
   private readonly url: string;
   private readonly name: string;
@@ -114,6 +117,7 @@ export class Connection {
       );
     });
     ws.addEventListener('message', (event: MessageEvent<unknown>) => {
+      this.lastMessageAt = performance.now();
       const message = parseServerMessage(event.data);
       if (message) this.receive(message);
     });
@@ -160,7 +164,13 @@ export class Connection {
   private startPinging(): void {
     window.clearInterval(this.pingTimer);
     this.pingSentAt.clear();
+    this.lastMessageAt = performance.now();
     this.pingTimer = window.setInterval(() => {
+      // A socket can stay "open" long after the network is gone (sleep, NAT timeout).
+      if (performance.now() - this.lastMessageAt > SILENCE_TIMEOUT_MS) {
+        this.ws?.close();
+        return;
+      }
       const id = this.pingId++;
       this.pingSentAt.set(id, performance.now());
       // Forget pings that were never answered so the map cannot grow.
