@@ -67,7 +67,8 @@ export function copyPlayerState(from: PlayerState, to: PlayerState): PlayerState
 
 /** Snap to a fixed grid so state is compact on the wire and identical after a JSON round trip. */
 function quantize(v: number): number {
-  return Math.round(v * 10000) / 10000;
+  // `+ 0` turns -0 into 0, which is what JSON would do anyway.
+  return Math.round(v * 10000) / 10000 + 0;
 }
 
 const TAU = Math.PI * 2;

@@ -1,3 +1,18 @@
-import { TICK_RATE } from '@world/shared';
+import { DEFAULT_SERVER_PORT } from '@world/shared';
+import { startServer } from './server.ts';
 
-console.log(`server placeholder, tick rate ${TICK_RATE}`);
+const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
+const host = process.env.HOST;
+
+const server = await startServer({
+  port,
+  ...(host ? { host } : {}),
+  log: (message) => console.log(`[${new Date().toISOString()}] ${message}`),
+});
+console.log(`World server listening on :${server.port}`);
+
+const shutdown = (): void => {
+  void server.close().then(() => process.exit(0));
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

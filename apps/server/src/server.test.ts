@@ -1,0 +1,256 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { WebSocket } from 'ws';
+import {
+  CHAT_MAX_LENGTH,
+  Keys,
+  MAX_PLAYERS_PER_ROOM,
+  PROTOCOL_VERSION,
+  parseServerMessage,
+  type ServerMessage,
+} from '@world/shared';
+import {
+  CLOSE_BAD_HELLO,
+  CLOSE_FLOOD,
+  CLOSE_HELLO_TIMEOUT,
+  CLOSE_ROOM_FULL,
+  startServer,
+  type WorldServer,
+} from './server.ts';
+
+type Message<T extends ServerMessage['t']> = Extract<ServerMessage, { t: T }>;
+
+class TestClient {
+  readonly ws: WebSocket;
+  readonly messages: ServerMessage[] = [];
+  closeCode: number | null = null;
+  private waiters: (() => void)[] = [];
+
+  constructor(port: number, options: { autoPong?: boolean } = {}) {
+    this.ws = new WebSocket(`ws://127.0.0.1:${port}`, { autoPong: options.autoPong ?? true });
+    this.ws.on('message', (data: Buffer) => {
+      const message = parseServerMessage(data.toString());
+      if (message) this.messages.push(message);
+      this.notify();
+    });
+    this.ws.on('close', (code: number) => {
+      this.closeCode = code;
+      this.notify();
+    });
+  }
+
+  private notify(): void {
+    const waiters = this.waiters;
+    this.waiters = [];
+    for (const w of waiters) w();
+  }
+
+  opened(): Promise<void> {
+    if (this.ws.readyState === WebSocket.OPEN) return Promise.resolve();
+    return new Promise((resolve) => this.ws.once('open', () => resolve()));
+  }
+
+  send(message: unknown): void {
+    this.ws.send(typeof message === 'string' ? message : JSON.stringify(message));
+  }
+
+  async waitFor<T>(check: () => T | undefined | null | false, timeoutMs = 2000): Promise<T> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const result = check();
+      if (result) return result;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error('timed out waiting for condition');
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, remaining);
+        this.waiters.push(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    }
+  }
+
+  waitForMessage<T extends ServerMessage['t']>(
+    type: T,
+    where: (m: Message<T>) => boolean = () => true,
+  ): Promise<Message<T>> {
+    return this.waitFor(() =>
+      this.messages.find((m): m is Message<T> => m.t === type && where(m as Message<T>)),
+    );
+  }
+
+  waitForClose(): Promise<number> {
+    return this.waitFor(() => this.closeCode ?? undefined);
+  }
+
+  async join(name: string, room = 'lobby'): Promise<Message<'welcome'>> {
+    await this.opened();
+    this.send({ t: 'hello', v: PROTOCOL_VERSION, name, room });
+    return this.waitForMessage('welcome');
+  }
+
+  latestSnapshot(): Message<'snap'> | undefined {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const m = this.messages[i]!;
+      if (m.t === 'snap') return m;
+    }
+    return undefined;
+  }
+}
+
+let server: WorldServer;
+const clients: TestClient[] = [];
+
+function client(options?: { autoPong?: boolean }): TestClient {
+  const c = new TestClient(server.port, options);
+  clients.push(c);
+  return c;
+}
+
+beforeEach(async () => {
+  server = await startServer({ port: 0, host: '127.0.0.1', heartbeatMs: 200, helloTimeoutMs: 300 });
+});
+
+afterEach(async () => {
+  for (const c of clients.splice(0)) c.ws.terminate();
+  await server.close();
+});
+
+describe('room server', () => {
+  it('welcomes a player and lets two players see each other', async () => {
+    const a = client();
+    const welcomeA = await a.join('Alice');
+    expect(welcomeA.room).toBe('lobby');
+    expect(welcomeA.players.map((p) => p.name)).toEqual(['Alice']);
+
+    const b = client();
+    const welcomeB = await b.join('Bob');
+    expect(welcomeB.players.map((p) => p.name).sort()).toEqual(['Alice', 'Bob']);
+    await a.waitForMessage('join', (m) => m.player.id === welcomeB.id);
+
+    const snap = await b.waitFor(() => {
+      const s = b.latestSnapshot();
+      return s && s.players.length === 2 ? s : undefined;
+    });
+    expect(snap.players.map((p) => p.id).sort()).toEqual([welcomeA.id, welcomeB.id].sort());
+  });
+
+  it('moves a player from their inputs and acknowledges them', async () => {
+    const a = client();
+    const welcome = await a.join('Walker');
+    const startZ = welcome.self.z;
+    for (let seq = 0; seq < 10; seq++)
+      a.send({ t: 'input', seq, keys: Keys.Forward, yaw: 0, pitch: 0 });
+    const snap = await a.waitFor(() => {
+      const me = a.latestSnapshot()?.players.find((p) => p.id === welcome.id);
+      return me && me.ack === 9 ? me : undefined;
+    });
+    expect(snap.z).toBeLessThan(startZ - 1);
+  });
+
+  it('broadcasts sanitized chat to the room, including the sender', async () => {
+    const a = client();
+    const b = client();
+    const welcomeA = await a.join('Alice');
+    await b.join('Bob');
+    a.send({ t: 'chat', text: `  <b>hi</b>\u0000 ${'x'.repeat(300)}` });
+    const received = await b.waitForMessage('chat');
+    expect(received.id).toBe(welcomeA.id);
+    expect(received.name).toBe('Alice');
+    expect(received.text.startsWith('<b>hi</b> ')).toBe(true);
+    expect(received.text.length).toBe(CHAT_MAX_LENGTH);
+    await a.waitForMessage('chat');
+  });
+
+  it('keeps private rooms isolated', async () => {
+    const a = client();
+    const b = client();
+    const c = client();
+    await a.join('Alice', 'Secret Base');
+    const welcomeB = await b.join('Bob', 'lobby');
+    const welcomeC = await c.join('Cara', 'secret-base');
+    expect(welcomeC.room).toBe('secret-base');
+    expect(welcomeC.players.map((p) => p.name).sort()).toEqual(['Alice', 'Cara']);
+    await a.waitForMessage('join', (m) => m.player.name === 'Cara');
+    c.send({ t: 'chat', text: 'psst' });
+    await a.waitForMessage('chat');
+    await new Promise((r) => setTimeout(r, 150));
+    expect(b.messages.some((m) => m.t === 'chat' || m.t === 'join')).toBe(false);
+    expect(b.latestSnapshot()?.players.map((p) => p.id)).toEqual([welcomeB.id]);
+  });
+
+  it('broadcasts leave when a player disconnects and forgets empty rooms', async () => {
+    const a = client();
+    const b = client();
+    const welcomeA = await a.join('Alice', 'tmp');
+    await b.join('Bob', 'tmp');
+    a.ws.close();
+    await b.waitForMessage('leave', (m) => m.id === welcomeA.id);
+    b.ws.close();
+    await b.waitForClose();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(server.rooms.has('tmp')).toBe(false);
+  });
+
+  it('rejects the player after the room is full', async () => {
+    for (let i = 0; i < MAX_PLAYERS_PER_ROOM; i++) await client().join(`P${i}`, 'packed');
+    const extra = client();
+    await extra.opened();
+    extra.send({ t: 'hello', v: PROTOCOL_VERSION, name: 'Late', room: 'packed' });
+    const error = await extra.waitForMessage('error');
+    expect(error.code).toBe('room_full');
+    expect(await extra.waitForClose()).toBe(CLOSE_ROOM_FULL);
+    expect(server.rooms.get('packed')?.players.size).toBe(MAX_PLAYERS_PER_ROOM);
+  });
+
+  it('rejects clients on a different protocol version', async () => {
+    const a = client();
+    await a.opened();
+    a.send({ t: 'hello', v: PROTOCOL_VERSION + 1, name: 'Old', room: 'lobby' });
+    expect((await a.waitForMessage('error')).code).toBe('version');
+    expect(await a.waitForClose()).toBe(CLOSE_BAD_HELLO);
+  });
+
+  it('drops invalid messages without disconnecting', async () => {
+    const a = client();
+    const welcome = await a.join('Alice');
+    a.send('not json');
+    a.send({ t: 'input', seq: 0, keys: 12345, yaw: 0, pitch: 0 });
+    a.send({ t: 'teleport', x: 0, y: 100, z: 0 });
+    a.ws.send(Buffer.from([1, 2, 3]), { binary: true });
+    a.send({ t: 'ping', id: 7 });
+    expect((await a.waitForMessage('pong')).id).toBe(7);
+    const me = await a.waitFor(() => a.latestSnapshot()?.players.find((p) => p.id === welcome.id));
+    expect(me.ack).toBe(-1);
+    expect(a.closeCode).toBeNull();
+  });
+
+  it('disconnects a client that floods messages', async () => {
+    const a = client();
+    await a.join('Flooder');
+    for (let i = 0; i < 500; i++) a.send({ t: 'ping', id: i });
+    expect(await a.waitForClose()).toBe(CLOSE_FLOOD);
+  });
+
+  it('closes connections that never say hello', async () => {
+    const a = client();
+    await a.opened();
+    expect(await a.waitForClose()).toBe(CLOSE_HELLO_TIMEOUT);
+  });
+
+  it('drops connections that stop answering heartbeats', async () => {
+    const a = client();
+    const b = client({ autoPong: false });
+    await a.join('Alive');
+    const welcomeB = await b.join('Ghost');
+    await a.waitForMessage('leave', (m) => m.id === welcomeB.id);
+  });
+
+  it('serves the lobby player count over HTTP', async () => {
+    await client().join('Alice');
+    await client().join('Bob');
+    const response = await fetch(`http://127.0.0.1:${server.port}/rooms/LOBBY`);
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(await response.json()).toEqual({ room: 'lobby', players: 2, max: MAX_PLAYERS_PER_ROOM });
+  });
+});

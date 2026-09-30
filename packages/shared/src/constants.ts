@@ -58,3 +58,23 @@ export const EMOTES = ['wave', 'dance', 'jump'] as const;
 export type Emote = (typeof EMOTES)[number];
 /** How long an emote animation plays, in seconds. */
 export const EMOTE_DURATION = 2.4;
+
+/** One distinct avatar color per player slot in a room. */
+export const PLAYER_COLORS = [
+  '#ff7a59',
+  '#4fb3ff',
+  '#7bd88f',
+  '#ffcf4d',
+  '#c792ea',
+  '#ff6fa8',
+  '#3dd6c6',
+  '#f29e4c',
+  '#8c9eff',
+  '#b5e655',
+  '#ff9e9e',
+  '#5ec8e5',
+  '#e0a3ff',
+  '#ffd9a0',
+  '#9be3b5',
+  '#f25f5c',
+] as const;

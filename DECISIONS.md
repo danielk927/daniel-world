@@ -43,3 +43,21 @@ Judgment calls made during the unattended build, with reasons.
 - **Fonts are system stacks** (`ui-rounded` for headings), so nothing is downloaded.
 - **`?room=code` prefills the room field**, so private rooms can be shared as links.
 - **Server URL default is `ws://<page host>:3001`** rather than a hard-coded `localhost`, so LAN devices work in dev; `VITE_SERVER_URL` overrides it.
+
+## Networking
+
+- **One JSON message per WebSocket frame, discriminated by `t`.**
+  Snapshots at 20 Hz for 16 players are about 30 KB/s per client, fine for this scale; a binary format would add complexity for no visible gain.
+- **Snapshots carry full state for every player** (position, velocity, look, grounded, last acked input).
+  One serialized string is shared by all recipients each tick.
+- **Input credit instead of trusting client timing.**
+  Each player earns one simulation step per server tick, banking at most 6, and the input queue is capped at 8 (oldest dropped).
+  A client cannot move faster than the simulation allows no matter how fast it sends.
+- **Reconnect spawn hint.**
+  `hello` may carry the player's last position; the server clamps it to the rim and runs one settle step (pushes out of colliders, snaps to ground).
+  Worst case a player teleports somewhere they could have walked to, which is harmless here.
+- **Rate limiting:** a 60-token bucket refilling at 40/s for all messages, plus separate chat (burst 4, 1 per 2 s) and emote buckets.
+  Rate-limited and invalid messages add leaky strikes (limit 40, leaking 10/s); crossing the limit closes the socket with 1008.
+- **Heartbeat** pings every 10 s and terminates sockets that missed a pong; sockets that do not send `hello` within 10 s are closed.
+- **Lobby count over HTTP** (`GET /rooms/:code`) on the same port, so the landing page can show it without opening a socket.
+- **Empty rooms are deleted immediately**; room codes are normalized to `a-z0-9-` and default to `lobby`.
