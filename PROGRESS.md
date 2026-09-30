@@ -1,5 +1,63 @@
 # Progress
 
+## Final summary
+
+All milestones (M0 to M6) are done and committed on `main`.
+The full definition of done passes from a fresh clone: `npm install`, `npm run lint`, `npm run typecheck`, `npm test` (84 tests), `npx playwright install chromium`, `npm run e2e` (10 tests, about 3 minutes), and `npm run build`.
+
+### What was built
+
+- **A first-person 3D personal site**: a low-poly floating island at golden hour, built only from primitives and shaders.
+  It has a sky, a cloud sea, fog, shadows, wind-swayed trees and grass, a fountain with a floating crystal, lanterns, drifting light motes, and distant islands.
+- **Eight lore objects** (About, Projects, Experience, Skills, Contact, Now, Fun facts, Island notes) on pedestals.
+  They highlight when you look at them and open an info panel when clicked.
+- **Landing screen**: random name saved in localStorage, room code, live lobby count, and a "Skip to portfolio" link.
+  There is also a loading screen, a pause menu with mouse sensitivity, and notices for devices without WebGL or without a mouse.
+- **A static portfolio page** (`/portfolio.html`) rendered from the same `content.ts`.
+- **Real-time multiplayer**:
+  - Up to 16 players per room.
+  - Client-side prediction with server reconciliation, and interpolated remote avatars with animations and name tags.
+  - Chat with speech bubbles, and emotes (wave, dance, jump).
+  - Private rooms with invite links.
+  - Offline single-player mode with automatic reconnect.
+- **A hardened room server** that validates every message with zod.
+  It rate limits and disconnects floods, runs a heartbeat, caps connections, blocks speed hacks, and drops slow clients.
+- **Tag**, a game mode for private rooms, with a scoreboard.
+- **Performance** on an Apple M5 with 16 players: a steady 60 fps, about 1 ms of main-thread time per frame, and 61 draw calls.
+  Software renderers automatically get a lighter quality tier.
+
+### How to run it
+
+```bash
+npm install
+npm run dev            # http://localhost:5173 (client) and :3001 (server)
+npm run bots -- --count 5   # optional: some company
+```
+
+`README.md` has the controls, architecture, and deployment steps.
+`CLAUDE.md` has the commands and conventions for future sessions.
+`DECISIONS.md` records every judgment call.
+
+### Known issues and limitations
+
+- Pointer lock is not available in headless test browsers.
+  E2E runs the drag-to-look fallback, so the pointer-lock path was only reasoned about, not driven automatically.
+- On a real GPU the look was checked through headless-GPU screenshots (`docs/screenshots/`), not by a person in a headed browser.
+  A quick manual pass would still be worthwhile.
+- The Dockerfile in the README deployment section is untested (Docker was not available here).
+  The Railway/Render and static-hosting steps only use commands that were run locally.
+- Rooms live in one server process's memory, so the server must run as a single instance.
+- Bit-exact prediction is guaranteed between V8 engines (Chrome, Edge, Node).
+  Firefox and Safari may drift by tiny amounts, which reconciliation smooths out invisibly.
+- The E2E suite takes about 3 minutes because several software-rendered browsers share one CPU.
+
+### What needs Daniel's input
+
+- **Real content**: replace every `TODO(daniel)` in `apps/client/src/content.ts` (tagline, intro, about, projects, experience, skills, contact links, now, fun facts).
+- **Deployment accounts and domains**: a host for the server (Fly.io, Railway, or Render) and for the static client (Vercel, Netlify, or GitHub Pages).
+  Then set `VITE_SERVER_URL` for the client build and `ALLOWED_ORIGINS` / `TRUST_PROXY` for the server.
+- **Optional taste calls**: site title and eyebrow text (`site` in `content.ts`), the palette in `apps/client/src/world/palette.ts`, and whether tag should also be allowed in the public lobby.
+
 ## Milestones
 
 - [x] M0 Scaffold
@@ -67,6 +125,10 @@
 - E2E: a round starts from the menu and both players see the scoreboard.
 - Screenshot: `docs/screenshots/tag.png`.
 
+### Final review fixes
+
+- Chat blur soft-lock, silent-connection detection, quieter live region, Esc toggles pause, closed dialogs release focus, frame-rate-independent E2E walking.
+
 ## Next
 
-- M6 (stretch): a lightweight game mode in private rooms with a scoreboard.
+- Nothing required. See "What needs Daniel's input" above.
