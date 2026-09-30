@@ -4,6 +4,7 @@ export interface PauseHandlers {
   onResume(): void;
   onLeave(): void;
   onSensitivity(value: number): void;
+  onCopyInvite(): void;
 }
 
 const CONTROLS: readonly (readonly [string, string])[] = [
@@ -22,6 +23,11 @@ export class PauseMenu {
   private readonly resumeButton: HTMLButtonElement;
   private readonly slider: HTMLInputElement;
   private readonly note = el('p', { class: 'pause-note' });
+  private readonly inviteButton = el('button', {
+    class: 'button button-secondary pause-invite',
+    text: 'Copy invite link',
+    attrs: { type: 'button' },
+  });
   private releaseFocus: (() => void) | null = null;
 
   constructor(parent: HTMLElement, handlers: PauseHandlers, sensitivity: number) {
@@ -68,6 +74,7 @@ export class PauseMenu {
           el('h2', { class: 'card-title', text: 'Paused', attrs: { id: 'pause-title' } }),
           this.note,
           el('div', { class: 'pause-actions' }, [this.resumeButton, leaveButton]),
+          this.inviteButton,
           el('div', { class: 'field' }, [
             el('label', {
               class: 'field-label',
@@ -94,12 +101,18 @@ export class PauseMenu {
     );
     this.resumeButton.addEventListener('click', () => handlers.onResume());
     leaveButton.addEventListener('click', () => handlers.onLeave());
+    this.inviteButton.addEventListener('click', () => handlers.onCopyInvite());
     this.slider.addEventListener('input', () => {
       const value = Number(this.slider.value);
       sliderValue.textContent = `${value.toFixed(1)}x`;
       handlers.onSensitivity(value);
     });
     parent.append(this.element);
+  }
+
+  /** Private rooms can be shared with a link. */
+  setInviteVisible(visible: boolean): void {
+    this.inviteButton.hidden = !visible;
   }
 
   get isOpen(): boolean {

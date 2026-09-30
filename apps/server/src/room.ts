@@ -1,6 +1,7 @@
 import {
   PLAYER_COLORS,
   MAX_PLAYERS_PER_ROOM,
+  NAME_MAX_LENGTH,
   createPlayerState,
   encode,
   stepPlayer,
@@ -18,6 +19,11 @@ export const MAX_QUEUED_INPUTS = 8;
  * so a burst after a network hiccup catches up quickly, but never enough to speed hack.
  */
 export const MAX_INPUT_CREDIT = 6;
+/**
+ * A player who sends nothing for this many ticks is simulated with an idle input, so going silent
+ * mid-jump (or with a lag switch) cannot freeze them in the air.
+ */
+export const IDLE_STEP_AFTER_TICKS = 10;
 
 export interface QueuedInput extends PlayerInput {
   seq: number;
@@ -30,6 +36,8 @@ export interface RoomPlayer {
   readonly state: PlayerState;
   readonly queue: QueuedInput[];
   credit: number;
+  /** Consecutive ticks without any queued input. */
+  idleTicks: number;
   /** Highest input sequence applied so far, -1 before the first. */
   lastSeq: number;
   send: (data: string) => void;
@@ -76,6 +84,7 @@ export class Room {
       state,
       queue: [],
       credit: 1,
+      idleTicks: 0,
       lastSeq: -1,
       send: joining.send,
     };
@@ -87,6 +96,21 @@ export class Room {
   remove(id: number): void {
     if (!this.players.delete(id)) return;
     this.broadcast({ t: 'leave', id });
+  }
+
+  /** `name`, or `name 2`, `name 3`... if someone in the room already has it. */
+  uniqueName(name: string): string {
+    const taken = new Set([...this.players.values()].map((p) => p.name.toLowerCase()));
+    if (!taken.has(name.toLowerCase())) return name;
+    for (let n = 2; ; n++) {
+      const suffix = ` ${n}`;
+      const candidate =
+        Array.from(name)
+          .slice(0, NAME_MAX_LENGTH - suffix.length)
+          .join('')
+          .trimEnd() + suffix;
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
   }
 
   info(player: RoomPlayer): PlayerInfo {
@@ -129,6 +153,16 @@ export class Room {
     this.tick++;
     for (const player of this.players.values()) {
       player.credit = Math.min(MAX_INPUT_CREDIT, player.credit + 1);
+      if (player.queue.length === 0) {
+        player.idleTicks++;
+        if (player.idleTicks > IDLE_STEP_AFTER_TICKS) {
+          const s = player.state;
+          stepPlayer(s, { keys: 0, yaw: s.yaw, pitch: s.pitch });
+          player.credit = 0;
+        }
+        continue;
+      }
+      player.idleTicks = 0;
       while (player.credit >= 1 && player.queue.length > 0) {
         const input = player.queue.shift()!;
         stepPlayer(player.state, input);

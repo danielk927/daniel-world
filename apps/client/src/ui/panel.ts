@@ -44,6 +44,8 @@ export class InfoPanel {
     this.element.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        // The game also listens for Esc (to pause); this press is only for the panel.
+        event.stopPropagation();
         this.close();
       }
     });

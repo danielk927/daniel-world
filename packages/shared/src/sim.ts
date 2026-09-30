@@ -180,8 +180,10 @@ export function stepPlayer(
 ): void {
   const dt = TICK_SECONDS;
   const keys = input.keys;
-  s.yaw = quantize(wrapAngle(input.yaw));
-  s.pitch = quantize(Math.min(MAX_PITCH, Math.max(-MAX_PITCH, input.pitch)));
+  s.yaw = Number.isFinite(input.yaw) ? quantize(wrapAngle(input.yaw)) : s.yaw;
+  s.pitch = Number.isFinite(input.pitch)
+    ? quantize(Math.min(MAX_PITCH, Math.max(-MAX_PITCH, input.pitch)))
+    : s.pitch;
 
   // Desired horizontal direction in world space. Yaw 0 looks down -Z.
   let localX = 0;
@@ -227,6 +229,7 @@ export function stepPlayer(
     s.vy = Math.max(s.vy - GRAVITY * h, -MAX_FALL_SPEED);
 
     // Vertical: bump heads on overhangs such as the arch lintel.
+    const prevFeet = s.y;
     const prevHead = s.y + PLAYER_HEIGHT;
     s.y += s.vy * h;
     if (s.vy > 0) {
@@ -265,7 +268,8 @@ export function stepPlayer(
     }
 
     // Ground: land, step up, or stick to gentle downhill slopes.
-    const floor = floorHeight(s.x, s.z, s.y, colliders);
+    // Search from the higher of the old and new feet, so a fast fall cannot skip past a surface.
+    const floor = floorHeight(s.x, s.z, Math.max(s.y, prevFeet), colliders);
     if (s.y <= floor) {
       s.y = floor;
       if (s.vy <= 0) {

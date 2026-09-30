@@ -5,20 +5,11 @@ import {
   ROOM_CODE_MAX_LENGTH,
 } from './constants.ts';
 
-// Control characters, zero-width and bidi-override characters that could break or spoof the UI.
-// Built from code points so no invisible characters appear in the source.
-const UNSAFE_RANGES: readonly (readonly [number, number])[] = [
-  [0x0000, 0x001f],
-  [0x007f, 0x009f],
-  [0x200b, 0x200f],
-  [0x202a, 0x202e],
-  [0x2060, 0x2069],
-  [0xfeff, 0xfeff],
-];
-const hex = (n: number): string => `\\u${n.toString(16).padStart(4, '0')}`;
+// Control, format (zero-width, bidi overrides, soft hyphen) and default-ignorable characters that
+// could break or spoof the UI, plus blank-looking fillers that are none of those (braille blank).
 const UNSAFE_CHARS = new RegExp(
-  `[${UNSAFE_RANGES.map(([from, to]) => `${hex(from)}-${hex(to)}`).join('')}]`,
-  'g',
+  `[\\p{Cc}\\p{Cf}\\p{Default_Ignorable_Code_Point}${String.fromCodePoint(0x2800)}]`,
+  'gu',
 );
 
 function cleanText(raw: string, maxLength: number): string {

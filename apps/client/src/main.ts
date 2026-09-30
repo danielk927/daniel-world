@@ -1,9 +1,11 @@
 import './styles/app.css';
+import { DEFAULT_ROOM } from '@world/shared';
 import { lore } from './content.ts';
 import type { Game } from './game/game.ts';
 import { el } from './ui/dom.ts';
 import { Landing } from './ui/landing.ts';
 import { loading } from './ui/loading.ts';
+import { SERVER_HTTP_URL } from './env.ts';
 import { hasWebGL2, isTouchOnly } from './util/capabilities.ts';
 
 async function boot(): Promise<void> {
@@ -13,7 +15,7 @@ async function boot(): Promise<void> {
 
   let game: Game | null = null;
   const landing = new Landing(overlay, {
-    onEnter: () => game?.enter(),
+    onEnter: (name, room) => game?.enter(name, room),
   });
 
   if (!hasWebGL2()) {
@@ -49,6 +51,7 @@ async function boot(): Promise<void> {
 
   game = new Game(world, overlay, landing);
   game.start();
+  pollLobbyCount(landing);
 
   // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.
   if (import.meta.env.MODE !== 'production') {
@@ -76,6 +79,24 @@ async function boot(): Promise<void> {
       landing.show();
     }),
   );
+}
+
+/** Keep the landing page's lobby count fresh while it is visible. */
+function pollLobbyCount(landing: Landing): void {
+  const refresh = async (): Promise<void> => {
+    if (document.hidden || landing.element.hidden) return;
+    try {
+      const response = await fetch(`${SERVER_HTTP_URL}/rooms/${DEFAULT_ROOM}`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      const body = (await response.json()) as { players?: unknown };
+      landing.setCount(typeof body.players === 'number' ? body.players : null);
+    } catch {
+      landing.setCount(null);
+    }
+  };
+  void refresh();
+  window.setInterval(() => void refresh(), 4000);
 }
 
 void boot();

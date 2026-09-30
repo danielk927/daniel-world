@@ -39,13 +39,17 @@ export class Input {
   enabled = false;
   sensitivity: number;
   /** Called for non-movement key presses while enabled, e.g. Enter or the emote number keys. */
-  onKey: ((code: string) => void) | null = null;
+  /** Return true if the key was handled, which also cancels its default browser action. */
+  onKey: ((code: string) => boolean) | null = null;
   onLockChange: ((locked: boolean) => void) | null = null;
 
   private held = 0;
   private readonly heldCodes = new Set<string>();
   private dragging = false;
   private dragTravel = 0;
+  /** Last cursor position in CSS pixels, used for picking when the pointer is not locked. */
+  cursorX = window.innerWidth / 2;
+  cursorY = window.innerHeight / 2;
 
   private readonly target: HTMLElement;
 
@@ -116,7 +120,8 @@ export class Input {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (isTextField(event.target)) return;
+    // Already handled by a dialog, or typed into a field.
+    if (event.defaultPrevented || isTextField(event.target)) return;
     const bit = MOVEMENT_KEYS[event.code];
     if (bit !== undefined) {
       if (!this.enabled) return;
@@ -126,7 +131,8 @@ export class Input {
       this.recomputeHeld();
       return;
     }
-    if (this.enabled && !event.repeat) this.onKey?.(event.code);
+    // Cancelling matters for Enter: otherwise the press that opens the chat also submits it.
+    if (this.enabled && !event.repeat && this.onKey?.(event.code)) event.preventDefault();
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
@@ -144,6 +150,8 @@ export class Input {
 
   private readonly onMouseMove = (event: MouseEvent): void => {
     this.dragTravel += Math.abs(event.movementX) + Math.abs(event.movementY);
+    this.cursorX = event.clientX;
+    this.cursorY = event.clientY;
     if (!this.enabled || (!this.locked && !this.dragging)) return;
     const scale = BASE_RADIANS_PER_PIXEL * this.sensitivity;
     this.yaw -= event.movementX * scale;

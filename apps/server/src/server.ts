@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import {
+  DEFAULT_ROOM,
   MAX_PLAYERS_PER_ROOM,
   PLAY_RADIUS,
   PROTOCOL_VERSION,
@@ -23,6 +24,13 @@ export interface ServerOptions {
   tickMs?: number;
   heartbeatMs?: number;
   helloTimeoutMs?: number;
+  /** Total simultaneous sockets. */
+  maxConnections?: number;
+  maxConnectionsPerIp?: number;
+  /** If set, only pages served from these origins may connect (e.g. `https://example.com`). */
+  allowedOrigins?: readonly string[];
+  /** Behind a reverse proxy (Fly.io, Railway), take the client IP from `x-forwarded-for`. */
+  trustProxy?: boolean;
   log?: (message: string) => void;
 }
 
@@ -40,10 +48,19 @@ export const CLOSE_FLOOD = 1008;
 export const CLOSE_ROOM_FULL = 4001;
 export const CLOSE_BAD_HELLO = 4002;
 export const CLOSE_HELLO_TIMEOUT = 4003;
+export const CLOSE_TRY_AGAIN_LATER = 1013;
+
+/** A client that is this far behind on reading snapshots is dropped instead of buffered forever. */
+export const MAX_BUFFERED_BYTES = 256 * 1024;
+/** After asking a socket to close, stop waiting for its handshake after this long. */
+const CLOSE_GRACE_MS = 1000;
 
 interface Connection {
   readonly ws: WebSocket;
+  readonly ip: string;
   alive: boolean;
+  /** Set as soon as we decide to drop the socket; nothing it sends is processed after that. */
+  closing: boolean;
   room: Room | null;
   player: RoomPlayer | null;
   readonly messages: TokenBucket;
@@ -105,8 +122,20 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       return;
     }
     const match = /^\/rooms\/([^/]{1,64})$/.exec(url.pathname);
+    // Only the public lobby's count is published; private room codes stay private.
     if (match) {
-      const code = normalizeRoomCode(decodeURIComponent(match[1]!));
+      let raw: string;
+      try {
+        raw = decodeURIComponent(match[1]!);
+      } catch {
+        sendJson(res, 400, { error: 'bad room code' });
+        return;
+      }
+      const code = normalizeRoomCode(raw);
+      if (code !== DEFAULT_ROOM) {
+        sendJson(res, 404, { error: 'not found' });
+        return;
+      }
       sendJson(res, 200, {
         room: code,
         players: rooms.get(code)?.players.size ?? 0,
@@ -119,8 +148,25 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
 
   const wss = new WebSocketServer({ server: http, maxPayload: MAX_PAYLOAD_BYTES });
 
-  const send = (conn: Connection, message: ServerMessage): void => {
-    if (conn.ws.readyState === conn.ws.OPEN) conn.ws.send(encode(message));
+  const sendRaw = (conn: Connection, data: string): void => {
+    if (conn.closing || conn.ws.readyState !== conn.ws.OPEN) return;
+    if (conn.ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+      log(`dropping slow client${conn.player ? ` #${conn.player.id}` : ''}`);
+      drop(conn, CLOSE_FLOOD, 'too slow');
+      return;
+    }
+    conn.ws.send(data);
+  };
+
+  const send = (conn: Connection, message: ServerMessage): void => sendRaw(conn, encode(message));
+
+  /** Stop processing a socket right away, leave its room, and close it (forcefully if needed). */
+  const drop = (conn: Connection, code: number, reason: string): void => {
+    if (conn.closing) return;
+    conn.closing = true;
+    leave(conn);
+    conn.ws.close(code, reason);
+    setTimeout(() => conn.ws.terminate(), CLOSE_GRACE_MS).unref();
   };
 
   const leave = (conn: Connection): void => {
@@ -137,28 +183,26 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     if (conn.player) return;
     if (message.v !== PROTOCOL_VERSION) {
       send(conn, { t: 'error', code: 'version', message: 'Please reload the page to update.' });
-      conn.ws.close(CLOSE_BAD_HELLO, 'version');
+      drop(conn, CLOSE_BAD_HELLO, 'version');
       return;
     }
     const code = normalizeRoomCode(message.room);
     let room = rooms.get(code);
     if (room?.isFull) {
       send(conn, { t: 'error', code: 'room_full', message: `Room "${code}" is full.` });
-      conn.ws.close(CLOSE_ROOM_FULL, 'room full');
+      drop(conn, CLOSE_ROOM_FULL, 'room full');
       return;
     }
     if (!room) {
       room = new Room(code);
       rooms.set(code, room);
     }
-    const name = sanitizeName(message.name) || 'Guest';
+    const name = room.uniqueName(sanitizeName(message.name) || 'Guest');
     const player = room.add({
       id: nextPlayerId++,
       name,
       spawn: message.spawn ? clampSpawn(message.spawn) : undefined,
-      send: (data) => {
-        if (conn.ws.readyState === conn.ws.OPEN) conn.ws.send(data);
-      },
+      send: (data) => sendRaw(conn, data),
     });
     conn.room = room;
     conn.player = player;
@@ -202,10 +246,32 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     }
   };
 
-  wss.on('connection', (ws: WebSocket) => {
+  const maxConnections = options.maxConnections ?? 1000;
+  const maxPerIp = options.maxConnectionsPerIp ?? 20;
+  const perIp = new Map<string, number>();
+
+  wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+    const forwarded = options.trustProxy ? req.headers['x-forwarded-for'] : undefined;
+    const ip =
+      (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ??
+      req.socket.remoteAddress ??
+      'unknown';
+    const origin = req.headers.origin;
+    if (options.allowedOrigins && (!origin || !options.allowedOrigins.includes(origin))) {
+      ws.close(CLOSE_FLOOD, 'origin not allowed');
+      return;
+    }
+    if (connections.size >= maxConnections || (perIp.get(ip) ?? 0) >= maxPerIp) {
+      ws.close(CLOSE_TRY_AGAIN_LATER, 'too many connections');
+      return;
+    }
+    perIp.set(ip, (perIp.get(ip) ?? 0) + 1);
+
     const conn: Connection = {
       ws,
+      ip,
       alive: true,
+      closing: false,
       room: null,
       player: null,
       // ~21 messages per second is normal (20 inputs + pings); allow bursts well above that.
@@ -217,14 +283,14 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     connections.add(conn);
 
     const helloTimer = setTimeout(() => {
-      if (!conn.player) ws.close(CLOSE_HELLO_TIMEOUT, 'hello timeout');
+      if (!conn.player) drop(conn, CLOSE_HELLO_TIMEOUT, 'hello timeout');
     }, helloTimeoutMs);
 
     const strike = (): void => {
       if (conn.strikes.add()) {
         log(`disconnecting flooder${conn.player ? ` #${conn.player.id}` : ''}`);
         send(conn, { t: 'error', code: 'rate_limited', message: 'Too many messages.' });
-        ws.close(CLOSE_FLOOD, 'rate limit');
+        drop(conn, CLOSE_FLOOD, 'rate limit');
       }
     };
 
@@ -232,6 +298,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       conn.alive = true;
     });
     ws.on('message', (data: RawData, isBinary: boolean) => {
+      if (conn.closing) return;
       if (!conn.messages.take()) {
         strike();
         return;
@@ -246,6 +313,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     ws.on('close', () => {
       clearTimeout(helloTimer);
       connections.delete(conn);
+      const count = (perIp.get(ip) ?? 1) - 1;
+      if (count <= 0) perIp.delete(ip);
+      else perIp.set(ip, count);
       leave(conn);
     });
     // Errors (e.g. oversized frames) are followed by a close event, which does the cleanup.
@@ -271,9 +341,16 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     const now = performance.now();
     // After a long stall (debugger, sleep), resynchronize instead of running a burst of ticks.
     if (now - nextTick > 1000) nextTick = now;
-    for (const room of rooms.values()) room.step();
     nextTick += tickMs;
     tickTimer = setTimeout(runTick, Math.max(0, nextTick - performance.now()));
+    for (const room of rooms.values()) {
+      // One broken room must never stop the loop for everyone else.
+      try {
+        room.step();
+      } catch (error) {
+        log(`tick failed in room ${room.code}: ${String(error)}`);
+      }
+    }
   };
   tickTimer = setTimeout(runTick, tickMs);
 

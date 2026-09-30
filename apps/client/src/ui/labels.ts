@@ -6,6 +6,11 @@ export interface Label {
   offsetY: number;
   maxDistance: number;
   visible: boolean;
+  /** Last written style values, so unchanged labels cost no DOM writes. */
+  lastX: number;
+  lastY: number;
+  lastScale: number;
+  lastOpacity: number;
 }
 
 const scratch = new Vector3();
@@ -34,7 +39,17 @@ export class LabelLayer {
   add(element: HTMLElement, anchor: Vector3, offsetY: number, maxDistance: number): Label {
     element.classList.add('label');
     this.element.append(element);
-    const label: Label = { element, anchor, offsetY, maxDistance, visible: true };
+    const label: Label = {
+      element,
+      anchor,
+      offsetY,
+      maxDistance,
+      visible: true,
+      lastX: NaN,
+      lastY: NaN,
+      lastScale: NaN,
+      lastOpacity: -1,
+    };
     this.labels.push(label);
     return label;
   }
@@ -64,15 +79,28 @@ export class LabelLayer {
         Math.abs(scratch.x) < 1.2 &&
         Math.abs(scratch.y) < 1.2;
       if (!onScreen) {
-        if (label.element.style.opacity !== '0') label.element.style.opacity = '0';
+        if (label.lastOpacity !== 0) {
+          label.lastOpacity = 0;
+          label.element.style.opacity = '0';
+        }
         continue;
       }
-      const x = (scratch.x * 0.5 + 0.5) * this.width;
-      const y = (-scratch.y * 0.5 + 0.5) * this.height;
-      const fade = Math.min(1, (label.maxDistance - distance) / (label.maxDistance * 0.25));
-      const scale = Math.max(0.7, Math.min(1.1, 9 / Math.max(distance, 1)));
-      label.element.style.opacity = fade.toFixed(2);
-      label.element.style.transform = `translate(-50%, -100%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+      const x = Math.round((scratch.x * 0.5 + 0.5) * this.width * 2) / 2;
+      const y = Math.round((-scratch.y * 0.5 + 0.5) * this.height * 2) / 2;
+      const fade =
+        Math.round(Math.min(1, (label.maxDistance - distance) / (label.maxDistance * 0.25)) * 50) /
+        50;
+      const scale = Math.round(Math.max(0.7, Math.min(1.1, 9 / Math.max(distance, 1))) * 200) / 200;
+      if (fade !== label.lastOpacity) {
+        label.lastOpacity = fade;
+        label.element.style.opacity = String(fade);
+      }
+      if (x !== label.lastX || y !== label.lastY || scale !== label.lastScale) {
+        label.lastX = x;
+        label.lastY = y;
+        label.lastScale = scale;
+        label.element.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px) scale(${scale})`;
+      }
     }
   }
 }

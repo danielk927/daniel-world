@@ -61,3 +61,22 @@ Judgment calls made during the unattended build, with reasons.
 - **Heartbeat** pings every 10 s and terminates sockets that missed a pong; sockets that do not send `hello` within 10 s are closed.
 - **Lobby count over HTTP** (`GET /rooms/:code`) on the same port, so the landing page can show it without opening a socket.
 - **Empty rooms are deleted immediately**; room codes are normalized to `a-z0-9-` and default to `lobby`.
+- **Server hardening after review:** sockets being dropped are marked `closing` and removed from their room immediately (a rejected socket used to be able to join during the close handshake), then force-terminated after 1 s.
+  Slow readers over 256 KB of buffered output are dropped; connections are capped (1000 total, 20 per IP, `trustProxy` for `x-forwarded-for`); optional `allowedOrigins`.
+- **Silent players keep falling.** After 10 ticks without input the server steps them with an idle input, so going quiet mid-jump cannot be used to hover.
+- **Duplicate names get a number** (`Otter 2`) within a room, and names/chat strip control, format and default-ignorable characters.
+- **Only the lobby count is public over HTTP;** private room occupancy is not revealed.
+- **Determinism note:** V8 (Chrome, Node) produces identical `Math.sin`/`Math.cos` results, so Chromium clients never need corrections.
+  Other engines may differ in the last bit; reconciliation plus a 12/s visual error decay hides any such drift, so no custom trig was added.
+
+## Multiplayer client
+
+- **Remote players render 100 ms behind a clock that tracks the fastest observed snapshot delivery.**
+  Jitter is absorbed by the delay; extrapolation past the newest snapshot is capped at 150 ms, then the avatar holds still.
+- **Corrections under 4 m are blended out** (exponential decay); bigger ones (respawn, reconnect) snap.
+- **Avatars are 4 instanced meshes for all players** (body, head, hands, eyes), animated per frame by writing instance matrices: walk bob and arm swing, air stretch, head pitch, and wave/dance/jump emotes.
+- **Chat is shown on the sender's screen only when the server echoes it**, so what you see is what everyone saw; offline sends show a local notice instead.
+- **Chat bubbles** appear above the speaker's name tag for 6 s.
+- **Emotes are also announced in the chat log**, and the local player gets a toast (first person cannot see its own avatar).
+- **Reconnect uses jittered exponential backoff** (1 s doubling to 15 s) and rejoins at the player's current position; a "Reconnected" toast confirms it.
+- **Private rooms get a "Copy invite link" button** in the pause menu (`?room=code`).

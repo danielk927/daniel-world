@@ -13,6 +13,7 @@ import {
   CLOSE_FLOOD,
   CLOSE_HELLO_TIMEOUT,
   CLOSE_ROOM_FULL,
+  CLOSE_TRY_AGAIN_LATER,
   startServer,
   type WorldServer,
 } from './server.ts';
@@ -188,8 +189,7 @@ describe('room server', () => {
     await b.waitForMessage('leave', (m) => m.id === welcomeA.id);
     b.ws.close();
     await b.waitForClose();
-    await new Promise((r) => setTimeout(r, 50));
-    expect(server.rooms.has('tmp')).toBe(false);
+    await b.waitFor(() => !server.rooms.has('tmp'));
   });
 
   it('rejects the player after the room is full', async () => {
@@ -209,6 +209,34 @@ describe('room server', () => {
     a.send({ t: 'hello', v: PROTOCOL_VERSION + 1, name: 'Old', room: 'lobby' });
     expect((await a.waitForMessage('error')).code).toBe('version');
     expect(await a.waitForClose()).toBe(CLOSE_BAD_HELLO);
+  });
+
+  it('ignores everything a rejected socket sends while it closes', async () => {
+    const watcher = client();
+    await watcher.join('Watcher', 'r');
+    const ghost = client();
+    await ghost.opened();
+    ghost.send({ t: 'hello', v: PROTOCOL_VERSION + 1, name: 'Ghost', room: 'r' });
+    ghost.send({ t: 'hello', v: PROTOCOL_VERSION, name: 'Ghost', room: 'r' });
+    await ghost.waitForClose();
+    expect(ghost.messages.some((m) => m.t === 'welcome')).toBe(false);
+    expect(server.rooms.get('r')?.players.size).toBe(1);
+    expect(watcher.messages.some((m) => m.t === 'join')).toBe(false);
+  });
+
+  it('gives duplicate names a number', async () => {
+    await client().join('Otter');
+    const second = await client().join('otter');
+    expect(second.players.map((p) => p.name).sort()).toEqual(['Otter', 'otter 2']);
+  });
+
+  it('limits connections per IP', async () => {
+    await server.close();
+    server = await startServer({ port: 0, host: '127.0.0.1', maxConnectionsPerIp: 2 });
+    await client().join('One');
+    await client().join('Two');
+    const third = client();
+    expect(await third.waitForClose()).toBe(CLOSE_TRY_AGAIN_LATER);
   });
 
   it('drops invalid messages without disconnecting', async () => {
@@ -252,5 +280,18 @@ describe('room server', () => {
     const response = await fetch(`http://127.0.0.1:${server.port}/rooms/LOBBY`);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
     expect(await response.json()).toEqual({ room: 'lobby', players: 2, max: MAX_PLAYERS_PER_ROOM });
+  });
+
+  it('does not reveal how many players are in private rooms', async () => {
+    await client().join('Alice', 'hideout');
+    const response = await fetch(`http://127.0.0.1:${server.port}/rooms/hideout`);
+    expect(response.status).toBe(404);
+  });
+
+  it('survives malformed HTTP requests', async () => {
+    const bad = await fetch(`http://127.0.0.1:${server.port}/rooms/%E0%A4%A`);
+    expect(bad.status).toBe(400);
+    const health = await fetch(`http://127.0.0.1:${server.port}/health`);
+    expect(health.status).toBe(200);
   });
 });

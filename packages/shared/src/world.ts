@@ -79,7 +79,8 @@ export const PLAZA_RADIUS = 9;
 export const FOUNTAIN = {
   basinRadius: 2.8,
   basinHeight: 0.55,
-  columnRadius: 0.5,
+  /** Collider radius: as wide as the column's capital so the camera cannot clip into it. */
+  columnRadius: 1.0,
   columnHeight: 2.4,
   crystalY: 3.5,
 } as const;
@@ -88,6 +89,11 @@ export const LORE_RING_RADIUS = 13;
 export const LORE_SLOT_COUNT = 8;
 export const PEDESTAL_RADIUS = 0.7;
 export const PEDESTAL_HEIGHT = 0.95;
+/**
+ * Pedestal colliders reach past the floating object, so nobody can jump on a pedestal and end up
+ * with their head inside the object. The object floats in that column of blocked space.
+ */
+export const PEDESTAL_COLLIDER_EXTRA = 2.6;
 
 /** Slots go clockwise (seen from above) starting just left of north, where a new player looks. */
 export const LORE_SLOTS: readonly LoreSlot[] = Array.from({ length: LORE_SLOT_COUNT }, (_, i) => {
@@ -114,7 +120,7 @@ export interface RuinBlock {
 function buildRuins(): RuinBlock[] {
   const blocks: RuinBlock[] = [];
 
-  // An old arch on the east side you can walk through (and jump on top of from the stairs, if bold).
+  // An old arch on the east side you can walk through.
   const archX = 24;
   const archBase = terrainHeight(archX, 0) - 0.4;
   blocks.push(
@@ -257,7 +263,7 @@ function buildColliders(): Collider[] {
       z: slot.z,
       radius: PEDESTAL_RADIUS,
       bottom: slot.pedestalTop - 3,
-      top: slot.pedestalTop,
+      top: slot.pedestalTop + PEDESTAL_COLLIDER_EXTRA,
     });
   }
   for (const tree of TREES) {

@@ -8,7 +8,13 @@ import {
   type PlayerState,
   type SnapshotMessage,
 } from '@world/shared';
-import { MAX_INPUT_CREDIT, MAX_QUEUED_INPUTS, Room, type QueuedInput } from './room.ts';
+import {
+  IDLE_STEP_AFTER_TICKS,
+  MAX_INPUT_CREDIT,
+  MAX_QUEUED_INPUTS,
+  Room,
+  type QueuedInput,
+} from './room.ts';
 
 function makeRoom() {
   const room = new Room('test');
@@ -84,6 +90,16 @@ describe('Room', () => {
     room.step();
     expect(p.lastSeq).toBe(MAX_INPUT_CREDIT - 1);
     expect(p.queue).toHaveLength(0);
+  });
+
+  it('keeps simulating a player who goes silent mid-jump', () => {
+    const { room, join } = makeRoom();
+    const p = join();
+    room.enqueueInput(p, { seq: 0, keys: Keys.Jump, yaw: 0, pitch: 0 });
+    room.step();
+    expect(p.state.grounded).toBe(false);
+    for (let i = 0; i < IDLE_STEP_AFTER_TICKS + 30; i++) room.step();
+    expect(p.state.grounded).toBe(true);
   });
 
   it('ignores duplicate and out-of-order inputs', () => {

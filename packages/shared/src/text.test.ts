@@ -14,6 +14,14 @@ describe('sanitizeName', () => {
     expect(Array.from(sanitizeName(emoji))).toHaveLength(NAME_MAX_LENGTH);
   });
 
+  it('strips invisible and blank-looking characters', () => {
+    const invisible = [0x3164, 0x115f, 0x00ad, 0x034f, 0x180e, 0x2800, 0x200b, 0x202e, 0xfeff]
+      .map((c) => String.fromCodePoint(c))
+      .join('');
+    expect(sanitizeName(`${invisible}Otter${invisible}`)).toBe('Otter');
+    expect(sanitizeName(invisible)).toBe('');
+  });
+
   it('returns empty for whitespace only', () => {
     expect(sanitizeName(' \u0000 ')).toBe('');
   });

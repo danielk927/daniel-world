@@ -16,7 +16,14 @@ import {
   type PlayerInput,
   type PlayerState,
 } from './sim.ts';
-import { COLLIDERS, FOUNTAIN, RUIN_BLOCKS, terrainHeight } from './world.ts';
+import {
+  COLLIDERS,
+  FOUNTAIN,
+  LORE_SLOTS,
+  RUIN_BLOCKS,
+  terrainHeight,
+  type BoxCollider,
+} from './world.ts';
 
 function run(state: PlayerState, input: PlayerInput, ticks: number): PlayerState {
   for (let i = 0; i < ticks; i++) stepPlayer(state, input);
@@ -133,6 +140,86 @@ describe('stepPlayer', () => {
       const b = JSON.parse(JSON.stringify(a)) as PlayerState;
       expect(b).toEqual(a);
     }
+  });
+});
+
+describe('collision edge cases', () => {
+  const box: BoxCollider = {
+    kind: 'box',
+    minX: -1,
+    maxX: 1,
+    minZ: -1,
+    maxZ: 1,
+    bottom: 2.5,
+    top: 3,
+  };
+
+  it('bumps its head on an overhang instead of passing through', () => {
+    const s = createPlayerState(20, 0, 0);
+    s.x = 0;
+    s.z = 0;
+    s.y = 0;
+    let highest = 0;
+    stepPlayer(s, { keys: Keys.Jump, yaw: 0, pitch: 0 }, [box]);
+    for (let i = 0; i < 20; i++) {
+      stepPlayer(s, idle, [box]);
+      highest = Math.max(highest, s.y);
+    }
+    expect(highest + 1.8).toBeLessThanOrEqual(box.bottom + 1e-3);
+  });
+
+  it('leaves a box through the nearest face when spawned inside it', () => {
+    const wall: BoxCollider = {
+      kind: 'box',
+      minX: -1,
+      maxX: 3,
+      minZ: -1,
+      maxZ: 1,
+      bottom: -1,
+      top: 5,
+    };
+    const s = createPlayerState(0, 0, 0);
+    s.x = -0.5;
+    s.z = 0.2;
+    s.y = 0;
+    stepPlayer(s, idle, [wall]);
+    expect(s.x).toBeCloseTo(-1 - PLAYER_RADIUS, 3);
+  });
+
+  it('lands on a platform even when falling fast', () => {
+    const platform: BoxCollider = {
+      kind: 'box',
+      minX: -2,
+      maxX: 2,
+      minZ: -2,
+      maxZ: 2,
+      bottom: -1,
+      top: 1,
+    };
+    const s = createPlayerState(0, 0, 0);
+    s.x = 0;
+    s.z = 0;
+    s.y = 12;
+    for (let i = 0; i < 40; i++) stepPlayer(s, idle, [platform]);
+    expect(s.y).toBeCloseTo(1, 3);
+    expect(s.grounded).toBe(true);
+  });
+
+  it('cannot climb onto a lore pedestal', () => {
+    const slot = LORE_SLOTS[0]!;
+    const s = createPlayerState(slot.x * 0.8, slot.z * 0.8, 0);
+    const yaw = Math.atan2(-(slot.x - s.x), -(slot.z - s.z));
+    for (let i = 0; i < 60; i++) {
+      stepPlayer(s, { keys: Keys.Forward | Keys.Jump, yaw, pitch: 0 });
+      if (s.grounded) expect(s.y).toBeLessThan(slot.pedestalTop - 0.5);
+    }
+    expect(Math.hypot(s.x - slot.x, s.z - slot.z)).toBeGreaterThan(1);
+  });
+
+  it('ignores non-finite look input', () => {
+    const s = createPlayerState();
+    stepPlayer(s, { keys: Keys.Forward, yaw: Number.NaN, pitch: Number.POSITIVE_INFINITY });
+    expect(Number.isFinite(s.x + s.z + s.yaw + s.pitch)).toBe(true);
   });
 });
 
