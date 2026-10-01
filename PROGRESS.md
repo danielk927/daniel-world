@@ -5,6 +5,15 @@
 All milestones (M0 to M6) are done and committed on `main`.
 The full definition of done passes from a fresh clone: `npm install`, `npm run lint`, `npm run typecheck`, `npm test` (84 tests), `npx playwright install chromium`, `npm run e2e` (10 tests, about 3 minutes), and `npm run build`.
 
+### Live deployment
+
+- **AWS (primary):** https://d1ivv0s5bbzyx0.cloudfront.net, stack `DanielWorld` in account 555300500704, `us-east-1`, deployed with `npm run deploy:aws`.
+  CloudFront serves the S3 site and proxies `/ws` to EC2 instance `i-03569030fe5cd4036` (t4g.micro); logs go to CloudWatch log group `DanielWorld-ServerLogsD9948953-dzKBRdipDtL4`.
+- **Vercel:** https://daniel-world-nine.vercel.app, with `VITE_SERVER_URL=wss://d1ivv0s5bbzyx0.cloudfront.net/ws`, so both front ends share one room server.
+- Verified live: two browsers joined, saw each other, chatted and emoted (27 ms ping); the instance refuses direct connections and has no SSH.
+- Cost is about $10/month (instance plus public IPv4), less on the free tier. `npm run destroy -w @world/infra` removes it all.
+- GitHub: https://github.com/danielk927/daniel-world (public).
+
 ### What was built
 
 - **A first-person 3D personal site**: a low-poly floating island at golden hour, built only from primitives and shaders.

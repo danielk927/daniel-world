@@ -4,7 +4,9 @@ A personal website that is a small multiplayer 3D world.
 Visitors walk a floating island at golden hour in first person, click glowing objects to learn about Daniel, and see everyone else who is visiting as a moving avatar with a name tag.
 There is also a plain [portfolio page](apps/client/portfolio.html) with the same content, for phones, browsers without WebGL, and anyone in a hurry.
 
-Everything runs locally: no accounts, no API keys, no paid services, no downloaded models or textures.
+**Live:** https://d1ivv0s5bbzyx0.cloudfront.net (AWS: CloudFront, S3, EC2) and https://daniel-world-nine.vercel.app (Vercel front end on the same AWS room server).
+
+Everything also runs locally: no accounts, no API keys, no paid services, no downloaded models or textures.
 
 ![Landing screen](docs/screenshots/landing.png)
 
@@ -95,6 +97,8 @@ Rendering is built for a smooth 60 fps with a full room:
 - Name tags are DOM elements rather than extra draw calls.
 - Software renderers (no GPU) automatically get a lighter quality tier without shadows.
   `?quality=high` or `?quality=low` overrides the choice.
+
+![Two visitors on the live AWS deployment](docs/screenshots/live-aws.png)
 
 Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in one room: a steady 60 fps, about 1 ms of main-thread time per frame, and 61 draw calls.
 
