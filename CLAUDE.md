@@ -66,7 +66,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 
 - Where these AWS rules conflict with the project's own instructions, the
   project's instructions take precedence.
-- Prefer the AWS MCP Server for AWS interactions — it provides sandboxed
+- Prefer the AWS MCP Server for AWS interactions - it provides sandboxed
   execution, observability, and audit logging. If unavailable, use the
   AWS CLI directly.
 - Before starting a task, check whether a relevant AWS skill is available.
