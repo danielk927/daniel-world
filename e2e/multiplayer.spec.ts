@@ -30,6 +30,7 @@ test('two players join the lobby and see each other', async ({ browser }) => {
   expect((await world(a)).remotePlayers.map((p) => p.name)).toEqual(['Bob']);
   expect((await world(b)).remotePlayers.map((p) => p.name)).toEqual(['Alice']);
   await expect(b.getByRole('region', { name: 'Players in this room' })).toContainText('2 / 16');
+  await expect(a.getByRole('img', { name: /Minimap/ })).toBeVisible();
 
   await a.context().close();
   await b.context().close();
@@ -84,7 +85,7 @@ test('chat from A arrives at B', async ({ browser }) => {
   // Clicking the world while typing ends the chat rather than leaving the keyboard stranded.
   await a.keyboard.press('Enter');
   await expectWorld(a, (w) => w.mode === 'chat', 'chat open');
-  await a.locator('canvas').click({ position: { x: 480, y: 200 } });
+  await a.locator('canvas.world-canvas').click({ position: { x: 480, y: 200 } });
   await expectWorld(a, (w) => w.mode === 'playing', 'clicking away closes chat');
 
   await a.context().close();
@@ -128,7 +129,7 @@ test('Esc closes an info panel and returns to play', async ({ browser }) => {
   await walkUntil(page, 'KeyA', (p) => p.x < -4.3);
   await walkUntil(page, 'KeyW', (p) => p.z < -9);
   await waitUntilStill(page);
-  const box = page.locator('canvas');
+  const box = page.locator('canvas.world-canvas');
   await page.mouse.move(480, 400);
   await page.mouse.down();
   for (let i = 1; i <= 10; i++) await page.mouse.move(480, 400 - i * 12);

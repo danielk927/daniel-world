@@ -13,6 +13,7 @@ import { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
 import { Hud } from '../ui/hud.ts';
 import { LabelLayer } from '../ui/labels.ts';
+import { Minimap } from '../ui/minimap.ts';
 import type { Landing } from '../ui/landing.ts';
 import { InfoPanel } from '../ui/panel.ts';
 import { PauseMenu } from '../ui/pause.ts';
@@ -56,6 +57,7 @@ export class Game {
   private readonly panel: InfoPanel;
   private readonly toasts: Toasts;
   private readonly scoreboard: Scoreboard;
+  private readonly minimap: Minimap;
 
   private lastFrame = performance.now();
   private elapsed = 0;
@@ -72,6 +74,8 @@ export class Game {
   private room = DEFAULT_ROOM;
   /** Smoothed main-thread time spent per frame (simulation, animation, render submission), in ms. */
   frameCpuMs = 0;
+  /** The minimap redraws at 30 Hz; dots on a small map look the same and it halves the cost. */
+  private minimapTimer = 0;
 
   constructor(world: WorldScene, overlay: HTMLElement, landing: Landing) {
     this.world = world;
@@ -81,6 +85,10 @@ export class Game {
     this.rig = new CameraRig(world.camera);
     this.labels = new LabelLayer(overlay, world.camera);
     this.hud = new Hud(overlay);
+    this.minimap = new Minimap(
+      this.hud.element,
+      world.lore.entries.map((entry) => entry.color),
+    );
     this.chat = new Chat(overlay, {
       onSend: (text) => this.multiplayer?.sendChat(text),
       onClose: () => this.closeChat(),
@@ -341,6 +349,7 @@ export class Game {
 
     this.multiplayer?.update(now, dt);
     this.updateCamera(dt);
+    this.updateMinimap(dt);
     // Labels and picking project through the camera, so its matrices must be current.
     this.world.camera.updateMatrixWorld();
     this.world.update(this.elapsed, dt);
@@ -384,6 +393,24 @@ export class Game {
       this.input.pitch,
       this.player.horizontalSpeed,
       s.grounded,
+    );
+  }
+
+  private updateMinimap(dt: number): void {
+    if (!this.inWorld) return;
+    this.minimapTimer -= dt;
+    if (this.minimapTimer > 0) return;
+    this.minimapTimer = 1 / 30;
+    const mp = this.multiplayer;
+    const it = mp?.game?.it ?? null;
+    this.minimap.markedId = it;
+    this.minimap.begin();
+    mp?.forEachRemote(this.minimap.drawPlayer);
+    this.minimap.drawSelf(
+      this.feet.x,
+      this.feet.z,
+      this.input.yaw,
+      it !== null && it === mp?.selfId,
     );
   }
 

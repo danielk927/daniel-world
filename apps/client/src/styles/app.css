@@ -452,7 +452,7 @@ kbd {
   inset: 0;
 }
 
-.hud.is-covered :is(.crosshair, .prompt, .hud-players, .hint) {
+.hud.is-covered :is(.crosshair, .prompt, .hud-players, .hint, .minimap) {
   visibility: hidden;
 }
 
@@ -808,6 +808,44 @@ kbd {
 
 .pause-wide {
   width: 100%;
+}
+
+/* ---------- Minimap ---------- */
+
+.minimap {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 184px;
+  height: 184px;
+  padding: 4px;
+  border-radius: 50%;
+  background: rgba(30, 22, 40, 0.55);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.minimap-canvas {
+  display: block;
+  width: 176px;
+  height: 176px;
+}
+
+.minimap-north {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--panel-strong);
+  border: 1px solid var(--panel-border);
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--ink-muted);
 }
 
 /* ---------- Tag scoreboard ---------- */
@@ -1269,6 +1307,12 @@ kbd {
   }
 }
 
+@media (max-width: 1000px) {
+  .hint {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .landing {
     place-items: center;
@@ -1277,7 +1321,8 @@ kbd {
 
   .landing-controls,
   .hint,
-  .hud-players {
+  .hud-players,
+  .minimap {
     display: none;
   }
 }

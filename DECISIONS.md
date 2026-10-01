@@ -139,3 +139,11 @@ Judgment calls made during the unattended build, with reasons.
 - **The server bundle now includes `ws`** (esbuild with a `createRequire` banner), so any host needs only Node.js.
 - **Known audit finding:** `npm audit` reports a `brace-expansion` advisory inside `aws-cdk-lib`'s bundled dependencies.
   It cannot be patched from here and only runs at deploy time on our own inputs, never in the site or server.
+
+## Minimap
+
+- **North-up, fixed orientation** with the player as a rotating arrow and view cone, so the island reads like a map rather than spinning with the camera.
+- **2D canvas, not a second WebGL view.** The island layer (grass, rim, plaza, fountain, trees, rocks, ruins, pedestals) is drawn once to an offscreen canvas; each redraw blits it and adds the player dots.
+  Redraws run at 30 Hz. Measured cost with 16 players is about 0.1 ms per frame.
+- **Shapes carry meaning:** circles are players (in their colors, red ring for whoever is it in tag), diamonds are lore pedestals.
+- **Hidden under menus and on small screens**, like the player list; the controls hint now hides below 1000 px wide so it never collides with the map.

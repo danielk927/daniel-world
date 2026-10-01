@@ -181,6 +181,17 @@ export class Multiplayer {
   private frameDt = 0;
   private frameTime = 0;
 
+  /** Visit every remote player's interpolated position (for the minimap). Allocation free. */
+  forEachRemote(visit: (id: number, x: number, z: number, color: string) => void): void {
+    this.remoteVisitor = visit;
+    this.remotes.forEach(this.visitRemote);
+  }
+
+  private remoteVisitor: ((id: number, x: number, z: number, color: string) => void) | null = null;
+  private readonly visitRemote = (remote: Remote, id: number): void => {
+    if (remote.hasPose) this.remoteVisitor?.(id, remote.pose.x, remote.pose.z, remote.info.color);
+  };
+
   /** Bound once, so the per-frame loop allocates nothing. */
   private readonly updateRemote = (remote: Remote, id: number): void => {
     if (!remote.buffer.sample(this.renderTime, remote.pose)) return;
