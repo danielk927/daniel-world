@@ -226,8 +226,18 @@ Judgment calls made during the unattended build, with reasons.
   A client and a room server from different deploys put the visitor in the kitchen in solo mode, and the client keeps retrying until the versions match.
 - **The player's arm is a CS2-style view model**: a white chef's sleeve and a hand in the cook's color, holding the knife or empty, with look sway, a figure-eight walk bob and breathing.
   It is drawn in a second pass, in its own scene, after clearing depth, so it never clips into walls and its parts still sort against each other.
-- **A throw releases at the end of the arm's snap, 0.12 s after F**, as in CS2: the wind-up leads and the knife leaves the hand on screen, then blends onto its true path from the eye within 0.12 s, so aim stays on the crosshair.
+- **A throw releases at the end of the arm's snap, 0.12 s after the click**, as in CS2: the wind-up leads and the knife leaves the hand on screen, then blends onto its true path from the eye within 0.12 s, so aim stays on the crosshair.
   The animation's curves are tested to be continuous; the snap is fastest at the release.
-- **Q switches between knife and bare hand** (F with the bare hand draws the knife).
+- **Q switches between knife and bare hand** (a click with the bare hand draws the knife).
   Holding the knife is a bit on every input and a flag in snapshots, so others see it, and the server refuses throws from a bare hand.
 - **Knives fly at 26 m/s** (up from 18) for a flatter, sharper throw, and tumble faster. Protocol version 4.
+- **Left click throws and E opens a station**, as in CS2 and Valorant, at Daniel's request: F threw before, and a click opened whatever station was under the crosshair.
+  A click always throws, even at a station, so throwing never depends on where you aim; the prompt says "Press E to open".
+  Without pointer lock, a click asks for it first, so the click that brings the mouse back does not throw; where the browser has never locked (it cannot, or always refuses), a click throws.
+  A browser that has locked before and refuses for a moment (Chrome, just after Esc) does not turn that click into a throw.
+  The throw starts on the button going down, not on release, and holding it keeps throwing as each knife is drawn; a press with the bare hand only draws the knife, even held.
+- **I inspects whatever is in hand**, after CS2: the wrist rolls the knife to lie across the view, flat to the eye, turns it to show the other side, tips it up and spins it home; the bare hand turns palm out, then over.
+  It is only on the player's screen (nothing on the wire), it waits for a throw or switch to finish, and a throw or Q cuts it short, blending out over 0.1 s instead of jumping.
+- **The loadout sits over the minimap in the bottom right**, as wide as it, like Valorant's weapon list: the knife over the fist, the one in hand bright and marked on a rail, the other dim with a Q.
+  After a throw the knife wipes back in from the handle as the next is drawn, so the cooldown reads at a glance.
+  It has a navy backing like the minimap, because white icons alone vanish against the light kitchen.

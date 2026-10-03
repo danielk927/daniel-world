@@ -47,12 +47,14 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 
 ### Knives (2026-10-03)
 
-- Every cook carries knives in every room; F throws one, and it sticks where it lands or knocks out the cook it hits.
+- Every cook carries knives in every room; a click throws one, and it sticks where it lands or knocks out the cook it hits.
 - Knocked-out cooks fall over, see who did it, and respawn after 3 s with 2 s of protection.
 - The server decides every hit, rewinding the other players to what the thrower saw; clients replay each flight with the shared simulation.
 - The tag game mode was removed.
 - With 16 players and bots throwing, it holds 60 fps at about 1 ms of frame CPU and 36 draw calls.
 - Deployed to AWS the same day (protocol version 3); a live two-player check on both the AWS and Vercel sites knocked a cook out and saw them respawn.
+- Then a CS2-style arm: the throw plays on a view model, Q switches to the bare hand, and knives fly faster (protocol version 4, deployed).
+- Then CS2 and Valorant controls: left click throws (hold to keep throwing), E opens stations, I inspects the knife or hand, and a loadout over the minimap shows what is in hand and the knife refilling.
 
 ### How to run it
 

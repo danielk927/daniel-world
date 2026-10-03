@@ -35,7 +35,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 1. **Landing screen**: site title, short tagline, name input (prefilled with a random adjective + animal, saved in `localStorage`), room code field (empty = public `lobby`), "Enter world" button, live player count for the lobby, and a "Skip to portfolio" link.
 2. **World**: a three-star French kitchen at real scale, laid out after the French Laundry, where the players are the cooks. Low-poly: a stainless cooking suite under a lit hood, charcoal-topped islands, white walls under a barrel vault with skylights, garden windows, live flames and steam, and The Bear's "Every Second Counts" sign. The walls are the boundary.
 3. **Controls**: pointer-lock first-person, WASD + mouse look, Space to jump, Shift to sprint, collision with ground and major objects. Esc releases the mouse and opens a pause menu.
-4. **Stations**: the eight stations of the classical brigade (le passe, saucier, poissonnier, rôtisseur, entremetier, garde manger, pâtisserie, plonge) are the clickable objects. Looking at one highlights it; clicking opens an info panel. For now each panel describes its station; linking stations to Daniel's sections (About, Projects, Experience, and so on) comes later. All content comes from `apps/client/src/content.ts`, with every personal placeholder marked `TODO(daniel)`.
+4. **Stations**: the eight stations of the classical brigade (le passe, saucier, poissonnier, rôtisseur, entremetier, garde manger, pâtisserie, plonge) are the objects you can open. Looking at one highlights it; E opens an info panel. For now each panel describes its station; linking stations to Daniel's sections (About, Projects, Experience, and so on) comes later. All content comes from `apps/client/src/content.ts`, with every personal placeholder marked `TODO(daniel)`.
 5. **Multiplayer**:
    - Everyone in the same room sees each other as simple stylized avatars (built from primitives, colored per player) with floating name tags.
    - Remote avatars move smoothly (snapshot interpolation) and animate (bob while walking, jump).
@@ -44,7 +44,9 @@ Build an original implementation. Do not copy code, assets, or content from that
    - Rooms: default public `lobby`, plus private rooms by code. Max 16 players per room.
 6. **Portfolio fallback**: `/portfolio.html`, a clean static page rendering the same `content.ts` data, for mobile, no-WebGL, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it.
 7. **Offline mode**: if the server is unreachable, the world still works in single player with a small notice, and retries in the background.
-8. **Knives**: every cook carries an endless supply in every room, and F throws one, about every 0.7 s.
+8. **Knives**: every cook carries an endless supply in every room, and a left click throws one; holding the button keeps throwing, about one every 0.8 s, as fast as each knife is drawn (the server allows one every 0.7 s).
+   Q switches between the knife and the bare hand, and I inspects whichever is in hand, as in CS2.
+   The bottom right corner shows both over the minimap, like a shooter's loadout: the one in hand bright, the other with its key, and the knife filling back in after each throw.
    A knife flies fast in a slight arc, tumbling, and sticks into whatever surface it hits; the newest 60 per room stay until the room empties, and newcomers see them.
    A knife that hits another cook knocks them out: they fall over, see "Knocked out by <name>" for 3 s, then respawn at a spawn point, protected for 2 s.
    Kills show in the chat and as a toast; there are no scores and no game modes.
