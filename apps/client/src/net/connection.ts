@@ -13,7 +13,7 @@ export interface ConnectionHandlers {
   onStatus(status: ConnectionStatus, retryInMs: number | null): void;
   onWelcome(welcome: WelcomeMessage): void;
   onMessage(message: ServerMessage): void;
-  /** The server refused us for good (room full, outdated client). No more retries. */
+  /** The server refused us for good (the room is full). No more retries. */
   onFatal(message: string): void;
 }
 
@@ -33,6 +33,11 @@ export class Connection {
   status: ConnectionStatus = 'connecting';
   /** Smoothed round-trip time in milliseconds, or null before the first pong. */
   rtt: number | null = null;
+  /**
+   * The server speaks another protocol version: this page and the room server come from different
+   * deploys. Not fatal: the world stays playable solo, and retrying joins once both sides match.
+   */
+  versionMismatch = false;
 
   private ws: WebSocket | null = null;
   private closed = false;
@@ -136,6 +141,7 @@ export class Connection {
       case 'welcome':
         window.clearTimeout(this.welcomeTimer);
         this.attempt = 0;
+        this.versionMismatch = false;
         this.setStatus('online');
         this.startPinging();
         this.handlers.onWelcome(message);
@@ -150,7 +156,9 @@ export class Connection {
         return;
       }
       case 'error':
-        if (message.code === 'room_full' || message.code === 'version') {
+        // The server closes the socket after this, which schedules the next attempt.
+        if (message.code === 'version') this.versionMismatch = true;
+        if (message.code === 'room_full') {
           this.closed = true;
           this.clearTimers();
           this.handlers.onFatal(message.message);

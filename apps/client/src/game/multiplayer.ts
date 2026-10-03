@@ -84,6 +84,8 @@ export class Multiplayer {
   /** Online right now, as far as the chat log is concerned. */
   private wasOnline = false;
   private hasBeenOnline = false;
+  /** Whether the chat has explained the version mismatch, so it says so only once. */
+  private toldAboutMismatch = false;
   private statusTimer = 0;
   /** The running round of tag, if any. */
   game: GameStateMessage | null = null;
@@ -233,15 +235,24 @@ export class Multiplayer {
       chat.addSystem('Lost connection to the server. Playing solo until it is back.');
       this.wasOnline = false;
     }
+    const mismatch = this.connection.versionMismatch;
+    if (mismatch && !this.toldAboutMismatch) {
+      chat.addSystem(
+        'Multiplayer is on a different version of the site right now, so you are cooking solo. You will join the others as soon as it matches; if this lasts, reload the page.',
+      );
+      this.toldAboutMismatch = true;
+    }
     const retryAt = performance.now() + (retryInMs ?? 0);
     const show = (): void => {
       const seconds = Math.max(0, Math.ceil((retryAt - performance.now()) / 1000));
-      hud.setStatus(
-        'offline',
-        seconds > 0
-          ? `Offline · solo mode · retrying in ${seconds}s`
-          : 'Offline · solo mode · retrying…',
-      );
+      if (mismatch) hud.setStatus('offline', 'Offline · solo mode · multiplayer is updating');
+      else
+        hud.setStatus(
+          'offline',
+          seconds > 0
+            ? `Offline · solo mode · retrying in ${seconds}s`
+            : 'Offline · solo mode · retrying…',
+        );
     };
     show();
     this.statusTimer = window.setInterval(show, 500);
