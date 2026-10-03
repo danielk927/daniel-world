@@ -105,6 +105,8 @@ Judgment calls made during the unattended build, with reasons.
 
 ## Game mode (M6)
 
+> Removed on 2026-10-03: Daniel wanted no game modes, only knife throwing in every room. The notes below record what tag was.
+
 - **Tag, in private rooms only.** The lobby is for wandering; a game there would hijack everyone's visit.
 - **Server-authoritative rules:** the server picks who is it, detects tags (1.3 m horizontally, similar height) after each simulation tick, and keeps score.
   Clients only ask to start a round.
@@ -145,7 +147,7 @@ Judgment calls made during the unattended build, with reasons.
 - **North-up, fixed orientation** with the player as a rotating arrow and view cone, so the island reads like a map rather than spinning with the camera.
 - **2D canvas, not a second WebGL view.** The island layer (grass, rim, plaza, fountain, trees, rocks, ruins, pedestals) is drawn once to an offscreen canvas; each redraw blits it and adds the player dots.
   Redraws run at 30 Hz. Measured cost with 16 players is about 0.1 ms per frame.
-- **Shapes carry meaning:** circles are players (in their colors, red ring for whoever is it in tag), diamonds are lore pedestals (stations, since the kitchen replaced the island; the map is now a rectangle).
+- **Shapes carry meaning:** circles are players (in their colors, red ring for whoever was it in tag, before tag was removed), diamonds are lore pedestals (stations, since the kitchen replaced the island; the map is now a rectangle).
 - **Hidden under menus and on small screens**, like the player list; the controls hint now hides below 1000 px wide so it never collides with the map.
 
 ## The kitchen (replacing the island)

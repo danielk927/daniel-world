@@ -50,12 +50,6 @@ async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 30_000 });
 }
 
-async function hold(page: Page, key: string, ms: number): Promise<void> {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(ms);
-  await page.keyboard.up(key);
-}
-
 /** Hold a key until the player reaches a spot, like a person walking there. */
 async function walkUntil(
   page: Page,
@@ -128,18 +122,6 @@ async function main(): Promise<void> {
     await reader.getByRole('dialog', { name: 'Pâtisserie' }).waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
-
-    // Two players in a private room with a round of tag running.
-    const runner = await context.newPage();
-    await enter(runner, 'Runner', 'docs-tag');
-    const chaser = await context.newPage();
-    await enter(chaser, 'Chaser', 'docs-tag');
-    await runner.keyboard.press('Escape');
-    await runner.getByRole('button', { name: 'Play tag' }).click();
-    await runner.waitForFunction(() => window.__world?.game !== null, null, { timeout: 10_000 });
-    await hold(runner, 'KeyD', 500);
-    await runner.waitForTimeout(1500);
-    await runner.screenshot({ path: `${outDir}/tag.png` });
 
     await page.goto(`${clientUrl}/portfolio.html`);
     await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });

@@ -44,10 +44,6 @@ Open a second browser window to see yourself from the outside.
 Leave the room code empty to join the public `lobby`, or type any code to get a private kitchen.
 Private rooms have a "Copy invite link" button in the menu, which links to `/?room=<code>`.
 
-Private rooms can also play **tag**: open the menu and press "Play tag".
-Whoever is it (marked with a red diamond and an IT badge) chases everyone else for 90 seconds.
-You score a point for every second you are not it, and the highest score wins.
-
 ## Editing the content
 
 All personal content lives in [`apps/client/src/content.ts`](apps/client/src/content.ts).

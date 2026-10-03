@@ -1,6 +1,4 @@
 import {
-  DEFAULT_ROOM,
-  TAG_MIN_PLAYERS,
   PLAYER_COLORS,
   MAX_PLAYERS_PER_ROOM,
   NAME_MAX_LENGTH,
@@ -15,7 +13,6 @@ import {
   type PlayerState,
   type ServerMessage,
 } from '@world/shared';
-import { TagRound, type TagEvent } from './tag.ts';
 
 /** Inputs waiting to be simulated are capped so a flood cannot build up unbounded latency. */
 export const MAX_QUEUED_INPUTS = 8;
@@ -60,13 +57,9 @@ export class Room {
   readonly players = new Map<number, RoomPlayer>();
   tick = 0;
   private arrivals = 0;
-  /** The current round of tag, if one is running. */
-  game: TagRound | null = null;
-  private readonly random: () => number;
 
-  constructor(code: string, random: () => number = Math.random) {
+  constructor(code: string) {
     this.code = code;
-    this.random = random;
   }
 
   get isFull(): boolean {
@@ -109,32 +102,12 @@ export class Room {
     };
     this.players.set(player.id, player);
     this.broadcast({ t: 'join', player: this.info(player) }, player.id);
-    this.game?.join(player.id);
     return player;
   }
 
   remove(id: number): void {
     if (!this.players.delete(id)) return;
     this.broadcast({ t: 'leave', id });
-    if (!this.game) return;
-    if (this.players.size < TAG_MIN_PLAYERS) this.game.end();
-    this.emit(this.game.leave(id, this.players, this.random));
-    if (this.game.finished) this.game = null;
-  }
-
-  /** Start a round of tag. Only in private rooms, with enough players, and not mid-round. */
-  startTag(): boolean {
-    if (this.code === DEFAULT_ROOM || this.game || this.players.size < TAG_MIN_PLAYERS)
-      return false;
-    const ids = [...this.players.keys()];
-    const firstIt = ids[Math.floor(this.random() * ids.length)]!;
-    this.game = new TagRound(this.players.values(), firstIt);
-    this.broadcast(this.game.state());
-    return true;
-  }
-
-  private emit(events: readonly TagEvent[]): void {
-    for (const event of events) this.broadcast(event);
   }
 
   /** `name`, or `name 2`, `name 3`... if someone in the room already has it. */
@@ -215,10 +188,6 @@ export class Room {
       tick: this.tick,
       players: [...this.players.values()].map((p) => this.snapshotOf(p)),
     });
-    if (this.game) {
-      this.emit(this.game.step(this.players));
-      if (this.game.finished) this.game = null;
-    }
   }
 
   broadcast(message: ServerMessage, exceptId?: number): void {

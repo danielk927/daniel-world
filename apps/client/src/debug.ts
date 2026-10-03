@@ -13,8 +13,6 @@ export interface WorldDebugState {
   /** Everyone in the room, including this player (1 when alone or offline). */
   readonly playerCount: number;
   readonly prediction: { pending: number; maxCorrection: number };
-  /** The running round of tag, if any. */
-  readonly game: { it: number | null; scores: { id: number; score: number }[] } | null;
   readonly renderer: {
     drawCalls: number;
     triangles: number;
@@ -64,10 +62,6 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     },
     get prediction() {
       return { pending: game.player.pendingInputs, maxCorrection: game.player.lastCorrection };
-    },
-    get game() {
-      const g = game.multiplayer?.game;
-      return g ? { it: g.it, scores: g.scores.map((s) => ({ ...s })) } : null;
     },
     get renderer() {
       return {

@@ -82,11 +82,3 @@ export const PLAYER_COLORS = [
   '#9be3b5',
   '#f25f5c',
 ] as const;
-
-// Tag, the game mode for private rooms.
-export const TAG_ROUND_SECONDS = 90;
-/** Horizontal distance between player centers that counts as a tag. */
-export const TAG_RANGE = 1.3;
-/** A freshly tagged player cannot tag the tagger straight back for this long. */
-export const TAG_NO_TAGBACK_SECONDS = 3;
-export const TAG_MIN_PLAYERS = 2;

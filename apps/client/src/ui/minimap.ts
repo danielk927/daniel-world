@@ -88,8 +88,6 @@ export class Minimap {
   private readonly dpr: number;
   /** View cone fill, created once; it is drawn in the arrow's local space. */
   private readonly cone: CanvasGradient;
-  /** Player whose dot gets the tag ring, if a round of tag is running. */
-  markedId: number | null = null;
 
   constructor(parent: HTMLElement, stationColors: readonly string[]) {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -131,17 +129,10 @@ export class Minimap {
   }
 
   /** Another player. Bound so it can be handed to an iterator without allocating per frame. */
-  readonly drawPlayer = (id: number, x: number, z: number, color: string): void => {
+  readonly drawPlayer = (x: number, z: number, color: string): void => {
     const ctx = this.ctx;
     const px = CENTER_X + x * SCALE;
     const py = CENTER_Y + z * SCALE;
-    if (id === this.markedId) {
-      ctx.beginPath();
-      ctx.arc(px, py, 6.5, 0, Math.PI * 2);
-      ctx.strokeStyle = '#ff5a5a';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
     ctx.beginPath();
     ctx.arc(px, py, 3.6, 0, Math.PI * 2);
     ctx.fillStyle = color;
@@ -152,7 +143,7 @@ export class Minimap {
   };
 
   /** The local player: an arrow pointing where the camera looks, with a soft view cone. */
-  drawSelf(x: number, z: number, yaw: number, marked: boolean): void {
+  drawSelf(x: number, z: number, yaw: number): void {
     const ctx = this.ctx;
     ctx.save();
     ctx.translate(CENTER_X + x * SCALE, CENTER_Y + z * SCALE);
@@ -166,13 +157,6 @@ export class Minimap {
     ctx.fillStyle = this.cone;
     ctx.fill();
 
-    if (marked) {
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx.strokeStyle = '#ff5a5a';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
     ctx.beginPath();
     ctx.moveTo(0, -7);
     ctx.lineTo(5, 5);

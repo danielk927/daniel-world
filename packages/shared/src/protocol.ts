@@ -48,19 +48,12 @@ export const pingSchema = z.object({
   id: z.number().int().nonnegative(),
 });
 
-/** Ask to start a round of tag (private rooms only). */
-export const gameStartSchema = z.object({
-  t: z.literal('game'),
-  action: z.literal('start'),
-});
-
 export const clientMessageSchema = z.discriminatedUnion('t', [
   helloSchema,
   inputSchema,
   chatSendSchema,
   emoteSendSchema,
   pingSchema,
-  gameStartSchema,
 ]);
 
 export type InputMessage = z.infer<typeof inputSchema>;
@@ -124,22 +117,6 @@ export const emoteBroadcastSchema = z.object({
 
 export const pongSchema = z.object({ t: z.literal('pong'), id: z.number().int() });
 
-/** State of the room's tag round. Sent on start, on every tag, once a second, and at the end. */
-export const gameStateSchema = z.object({
-  t: z.literal('game'),
-  phase: z.enum(['playing', 'ended']),
-  it: playerId.nullable(),
-  remainingMs: z.number().int().nonnegative(),
-  /** Seconds each player has spent not being it, highest first. */
-  scores: z.array(z.object({ id: playerId, score: z.number().int().nonnegative() })),
-});
-
-export const taggedSchema = z.object({
-  t: z.literal('tagged'),
-  from: playerId,
-  to: playerId,
-});
-
 export const ERROR_CODES = ['room_full', 'bad_hello', 'version', 'rate_limited'] as const;
 
 export const errorSchema = z.object({
@@ -157,8 +134,6 @@ export const serverMessageSchema = z.discriminatedUnion('t', [
   emoteBroadcastSchema,
   pongSchema,
   errorSchema,
-  gameStateSchema,
-  taggedSchema,
 ]);
 
 export type PlayerInfo = z.infer<typeof playerInfoSchema>;
@@ -166,7 +141,6 @@ export type PlayerSnapshot = z.infer<typeof playerSnapshotSchema>;
 export type WelcomeMessage = z.infer<typeof welcomeSchema>;
 export type SnapshotMessage = z.infer<typeof snapshotSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
-export type GameStateMessage = z.infer<typeof gameStateSchema>;
 
 function parseWith<T>(schema: z.ZodType<T>, raw: unknown): T | null {
   if (typeof raw !== 'string') return null;

@@ -139,6 +139,8 @@ npm run bots -- --count 5   # optional: some company
 
 ### M6 Stretch: tag
 
+Removed on 2026-10-03 in favor of knife throwing in every room.
+
 - Server `TagRound` (apps/server/src/tag.ts) with unit tests: private rooms only, two-player minimum, tag on contact, no tag-backs for 3 s, scoring, round end, it leaving, late joiners.
 - Client: "Play tag" in the pause menu, scoreboard with timer and ranking, IT badge on name tags, a floating red marker over whoever is it, toasts and chat announcements.
 - E2E: a round starts from the menu and both players see the scoreboard.

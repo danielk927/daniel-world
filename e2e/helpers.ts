@@ -24,7 +24,6 @@ export function world(page: Page): Promise<WorldDebugState> {
       remotePlayers: w.remotePlayers,
       playerCount: w.playerCount,
       prediction: w.prediction,
-      game: w.game,
       renderer: w.renderer,
     };
   });

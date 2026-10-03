@@ -155,24 +155,3 @@ test('Esc closes an info panel and returns to play', async ({ browser }) => {
   await expectWorld(page, (w) => w.mode === 'playing', 'resumed from the menu');
   await page.context().close();
 });
-
-test('a round of tag starts from the menu in a private room', async ({ browser }) => {
-  const a = await enterWorld(browser, { name: 'Host', room: 'e2e-tag' });
-  const b = await enterWorld(browser, { name: 'Guest', room: 'e2e-tag' });
-  await expectWorld(a, (w) => w.playerCount === 2, 'A sees B');
-
-  await a.keyboard.press('Escape');
-  await a.getByRole('button', { name: 'Play tag' }).click();
-
-  for (const page of [a, b]) {
-    const state = await expectWorld(page, (w) => w.game !== null, 'round is running');
-    expect(state.game!.scores).toHaveLength(2);
-    expect([state.selfId, ...state.remotePlayers.map((p) => p.id)]).toContain(state.game!.it);
-    await expect(page.getByRole('region', { name: 'Tag scoreboard' })).toContainText(
-      /is it|You're it/,
-    );
-  }
-  expect((await world(a)).mode).toBe('playing');
-  await a.context().close();
-  await b.context().close();
-});

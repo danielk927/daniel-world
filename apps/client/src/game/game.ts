@@ -10,7 +10,6 @@ import { Minimap } from '../ui/minimap.ts';
 import type { Landing } from '../ui/landing.ts';
 import { InfoPanel } from '../ui/panel.ts';
 import { PauseMenu } from '../ui/pause.ts';
-import { Scoreboard } from '../ui/scoreboard.ts';
 import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
 import { PICK_DISTANCE } from '../world/stations.ts';
@@ -50,7 +49,6 @@ export class Game {
   private readonly pause: PauseMenu;
   private readonly panel: InfoPanel;
   private readonly toasts: Toasts;
-  private readonly scoreboard: Scoreboard;
   private readonly minimap: Minimap;
 
   private lastFrame = performance.now();
@@ -90,7 +88,6 @@ export class Game {
       onSend: (text) => this.multiplayer?.sendChat(text),
       onClose: () => this.closeChat(),
     });
-    this.scoreboard = new Scoreboard(overlay);
     this.toasts = new Toasts(overlay);
     this.panel = new InfoPanel(overlay);
     this.pause = new PauseMenu(
@@ -100,7 +97,6 @@ export class Game {
         onLeave: () => this.leave(),
         onSensitivity: (value) => this.input.setSensitivity(value),
         onCopyInvite: () => void this.copyInvite(),
-        onStartTag: () => this.startTag(),
       },
       this.input.sensitivity,
     );
@@ -163,7 +159,6 @@ export class Game {
       labels: this.labels,
       hud: this.hud,
       chat: this.chat,
-      scoreboard: this.scoreboard,
       worldTime: () => this.elapsed,
       notify: (message) => this.toasts.show(message),
       onFatal: (message) => this.leave(message),
@@ -265,16 +260,6 @@ export class Game {
     this.lastEmoteAt = now;
     this.multiplayer?.sendEmote(emote);
     this.toasts.show(EMOTE_TOASTS[emote], 1600);
-  }
-
-  private startTag(): void {
-    if (!this.multiplayer) return;
-    const problem = this.multiplayer.startTag();
-    if (problem) {
-      this.toasts.show(problem, 3500);
-      return;
-    }
-    void this.resume();
   }
 
   private async copyInvite(): Promise<void> {
@@ -408,16 +393,9 @@ export class Game {
     if (this.minimapTimer > 0) return;
     this.minimapTimer = 1 / 30;
     const mp = this.multiplayer;
-    const it = mp?.game?.it ?? null;
-    this.minimap.markedId = it;
     this.minimap.begin();
     mp?.forEachRemote(this.minimap.drawPlayer);
-    this.minimap.drawSelf(
-      this.feet.x,
-      this.feet.z,
-      this.input.yaw,
-      it !== null && it === mp?.selfId,
-    );
+    this.minimap.drawSelf(this.feet.x, this.feet.z, this.input.yaw);
   }
 
   private updateHover(): void {
