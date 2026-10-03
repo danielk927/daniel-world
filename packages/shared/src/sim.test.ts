@@ -18,7 +18,15 @@ import {
   type PlayerInput,
   type PlayerState,
 } from './sim.ts';
-import { COLLIDERS, KITCHEN, SPAWN, STATIONS, spawnPoint, type BoxCollider } from './world.ts';
+import {
+  COLLIDERS,
+  KITCHEN,
+  PASS_DISHES,
+  SPAWN,
+  STATIONS,
+  spawnPoint,
+  type BoxCollider,
+} from './world.ts';
 
 /** The aisle between the piano and the pass, where the line cooks stand. */
 const LINE_Z = 2.9;
@@ -276,6 +284,22 @@ describe('world layout', () => {
       expect(covered, station.id).toBe(true);
     }
     expect(new Set(STATIONS.map((s) => s.id)).size).toBe(STATIONS.length);
+  });
+
+  it('sets every dish on the pass, without two plates overlapping', () => {
+    const { pass } = KITCHEN;
+    for (const dish of PASS_DISHES) {
+      expect(dish.x - dish.radius, dish.id).toBeGreaterThan(pass.minX);
+      expect(dish.x + dish.radius, dish.id).toBeLessThan(pass.maxX);
+      expect(dish.z, dish.id).toBeGreaterThan(pass.minZ);
+      expect(dish.z, dish.id).toBeLessThan(pass.maxZ);
+      expect(dish.y, dish.id).toBeGreaterThan(pass.top);
+    }
+    for (let i = 1; i < PASS_DISHES.length; i++) {
+      const [a, b] = [PASS_DISHES[i - 1]!, PASS_DISHES[i]!];
+      expect(b.x - a.x, `${a.id} / ${b.id}`).toBeGreaterThan(a.radius + b.radius);
+    }
+    expect(new Set(PASS_DISHES.map((d) => d.id)).size).toBe(PASS_DISHES.length);
   });
 
   it('only contains finite colliders', () => {

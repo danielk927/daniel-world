@@ -147,6 +147,31 @@ export const STATIONS: readonly Station[] = [
   { id: 'plonge', x: 7.2, y: ON_COUNTER, z: 6.15, radius: 0.8 },
 ];
 
+export type DishId = 'char-siu' | 'beetroot' | 'roti' | 'ricotta-toast' | 'truffle-croissant';
+
+/** A plate on the pass. Like a station it can be clicked, and it wins over the pass around it. */
+export interface Dish {
+  readonly id: DishId;
+  /** The middle of the plate's food: where it is picked. */
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  /** How close the crosshair ray must pass to the center to pick the dish. */
+  readonly radius: number;
+}
+
+const PASS_MIDDLE = (KITCHEN.pass.minZ + KITCHEN.pass.maxZ) / 2;
+const ON_PASS = KITCHEN.pass.top + 0.06;
+
+/** Daniel's five favorite dishes, waiting on the pass, left to right as seen from the dining room. */
+export const PASS_DISHES: readonly Dish[] = [
+  { id: 'char-siu', x: -3, y: ON_PASS, z: PASS_MIDDLE, radius: 0.24 },
+  { id: 'beetroot', x: -1.5, y: ON_PASS, z: PASS_MIDDLE, radius: 0.24 },
+  { id: 'roti', x: 0, y: ON_PASS, z: PASS_MIDDLE, radius: 0.24 },
+  { id: 'ricotta-toast', x: 1.5, y: ON_PASS, z: PASS_MIDDLE, radius: 0.24 },
+  { id: 'truffle-croissant', x: 3, y: ON_PASS, z: PASS_MIDDLE, radius: 0.24 },
+];
+
 /**
  * First player in a room stands here, at the chef's side of the pass by the dining room doors,
  * facing north across the pass and the piano to the windows.

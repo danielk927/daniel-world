@@ -1,6 +1,14 @@
 import { Color, LatheGeometry, TorusGeometry, Vector2, Vector3 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { COUNTER_HEIGHT, KITCHEN, STATIONS, createRandom, type StationId } from '@world/shared';
+import {
+  COUNTER_HEIGHT,
+  KITCHEN,
+  PASS_DISHES,
+  STATIONS,
+  createRandom,
+  type DishId,
+  type StationId,
+} from '@world/shared';
 import { at } from './builder.ts';
 import { paint, type Kit } from './kit.ts';
 
@@ -592,15 +600,14 @@ function truffleCroissant(kit: Kit, x: number, z: number): void {
     );
 }
 
-/** Where the plates stand along the pass, one under each heat lamp. */
-const DISH_X = [-3, -1.5, 0, 1.5, 3] as const;
-const FAVORITE_DISHES: readonly ((kit: Kit, x: number, z: number) => void)[] = [
-  charSiu,
+/** How each dish on the pass is modeled, at its place in the shared layout. */
+const DISH_MODELS: Readonly<Record<DishId, (kit: Kit, x: number, z: number) => void>> = {
+  'char-siu': charSiu,
   beetroot,
-  rotiAndDips,
-  ricottaToast,
-  truffleCroissant,
-];
+  roti: rotiAndDips,
+  'ricotta-toast': ricottaToast,
+  'truffle-croissant': truffleCroissant,
+};
 
 /** Le passe: plates under glowing heat lamps, and the ticket rail. */
 function passe(kit: Kit): void {
@@ -613,7 +620,7 @@ function passe(kit: Kit): void {
   }
   kit.box('steel', p.minX + 0.1, p.maxX - 0.1, housing, housing + 0.12, cz - 0.18, cz + 0.18);
   // One heat lamp over each plate.
-  for (const x of DISH_X) {
+  for (const { x } of PASS_DISHES) {
     kit.add('steel', LAMP_SHADE, at(x, housing - 0.15, cz));
     kit.sphere('light', x, housing - 0.13, cz, 0.06, { sy: 0.7, color: BULB });
   }
@@ -635,7 +642,7 @@ function passe(kit: Kit): void {
   }
 
   // Plates waiting to go out: Daniel's favorite dishes, left to right as seen from the dining room.
-  FAVORITE_DISHES.forEach((dish, i) => dish(kit, DISH_X[i]!, cz));
+  for (const dish of PASS_DISHES) DISH_MODELS[dish.id](kit, dish.x, dish.z);
   // The service bell.
   kit.cylinder('brass', 3.6, TOP, cz, 0.06, 0.012, { segments: 24 });
   kit.sphere('brass', 3.6, TOP + 0.012, cz, 0.05, { sy: 0.8 });
