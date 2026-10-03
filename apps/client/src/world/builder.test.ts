@@ -59,7 +59,13 @@ describe('StaticBuilder', () => {
     const [mesh] = builder.build().children as Mesh[];
     const position = mesh!.geometry.getAttribute('position');
     const index = mesh!.geometry.index!;
-    const [a, b, c, normal, centroid] = [0, 0, 0, 0, 0].map(() => new Vector3());
+    const [a, b, c, normal, centroid] = [
+      new Vector3(),
+      new Vector3(),
+      new Vector3(),
+      new Vector3(),
+      new Vector3(),
+    ];
     for (let i = 0; i < index.count; i += 3) {
       a.fromBufferAttribute(position, index.getX(i));
       b.fromBufferAttribute(position, index.getX(i + 1));
