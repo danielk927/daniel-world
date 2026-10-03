@@ -50,6 +50,23 @@ async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 30_000 });
 }
 
+/** Drag the view to a yaw and pitch, the way a visitor without pointer lock looks around. */
+async function turnTo(page: Page, yaw: number, pitch: number): Promise<void> {
+  for (let i = 0; i < 40; i++) {
+    const look = await page.evaluate(() => window.__world!.look);
+    const dYaw = look.yaw - yaw;
+    const dPitch = pitch - look.pitch;
+    if (Math.abs(dYaw) < 0.01 && Math.abs(dPitch) < 0.01) return;
+    const clamp = (v: number): number => Math.max(-200, Math.min(200, v * 250));
+    // Out and back, so even a tiny correction is a drag and never a click on a station.
+    await page.mouse.move(720, 450);
+    await page.mouse.down();
+    await page.mouse.move(720, 390, { steps: 2 });
+    await page.mouse.move(720 + clamp(dYaw), 450 - clamp(dPitch), { steps: 4 });
+    await page.mouse.up();
+  }
+}
+
 /** Hold a key until the player reaches a spot, like a person walking there. */
 async function walkUntil(
   page: Page,
@@ -122,6 +139,30 @@ async function main(): Promise<void> {
     await reader.getByRole('dialog', { name: 'Pâtisserie' }).waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
+
+    // Knives in a private room: two stuck in the wall past a cook, then one that knocks them out.
+    const thrower = await context.newPage();
+    await enter(thrower, 'Thrower', 'docs-knives');
+    const target = await context.newPage();
+    await enter(target, 'Target', 'docs-knives');
+    await thrower.waitForTimeout(1000);
+    const from = await thrower.evaluate(() => window.__world!.player);
+    const to = await target.evaluate(() => window.__world!.player);
+    const toward = Math.atan2(-(to.x - from.x), -(to.z - from.z));
+    for (const [yaw, pitch] of [
+      [toward + 0.35, 0.05],
+      [toward - 0.3, 0.1],
+    ] as const) {
+      await turnTo(thrower, yaw, pitch);
+      await thrower.keyboard.press('KeyF');
+      await thrower.waitForTimeout(900);
+    }
+    await turnTo(thrower, toward, -0.04);
+    await thrower.mouse.move(1300, 120);
+    await thrower.keyboard.press('KeyF');
+    await thrower.waitForFunction(() => window.__world!.remotePlayers.length > 0);
+    await thrower.waitForTimeout(900);
+    await thrower.screenshot({ path: `${outDir}/knives.png` });
 
     await page.goto(`${clientUrl}/portfolio.html`);
     await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });
