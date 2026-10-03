@@ -9,6 +9,12 @@ export interface WorldDebugState {
   readonly room: string | null;
   readonly selfId: number | null;
   readonly player: { x: number; y: number; z: number; grounded: boolean };
+  /** Where the player is looking, in radians. */
+  readonly look: { yaw: number; pitch: number };
+  /** Knocked out by a knife, waiting to respawn. */
+  readonly knockedOut: boolean;
+  /** Knives stuck around the room, and in the air, as this screen shows them. */
+  readonly knives: { stuck: number; flying: number };
   readonly remotePlayers: readonly RemoteDebugInfo[];
   /** Everyone in the room, including this player (1 when alone or offline). */
   readonly playerCount: number;
@@ -53,6 +59,15 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     get player() {
       const s = game.player.state;
       return { x: s.x, y: s.y, z: s.z, grounded: s.grounded };
+    },
+    get look() {
+      return { yaw: game.input.yaw, pitch: game.input.pitch };
+    },
+    get knockedOut() {
+      return game.knockedOut;
+    },
+    get knives() {
+      return { stuck: world.knives.stuckCount, flying: world.knives.flyingCount };
     },
     get remotePlayers() {
       return game.multiplayer?.remotePlayers() ?? [];

@@ -1,10 +1,22 @@
 import { Euler, Quaternion, Ray, Vector3 } from 'three';
-import { DEFAULT_ROOM, EYE_HEIGHT, SPAWN, TICK_SECONDS, type Emote } from '@world/shared';
+import {
+  DEFAULT_ROOM,
+  EYE_HEIGHT,
+  KNIFE_COOLDOWN_INPUTS,
+  Keys,
+  SPAWN,
+  TICK_SECONDS,
+  launchKnife,
+  type Emote,
+  type InputMessage,
+  type KnifeTarget,
+} from '@world/shared';
 import type { LoreEntry } from '../content.ts';
 import { SERVER_URL } from '../env.ts';
 import { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
 import { Hud } from '../ui/hud.ts';
+import { Knockout } from '../ui/knockout.ts';
 import { LabelLayer, type Label } from '../ui/labels.ts';
 import { Minimap } from '../ui/minimap.ts';
 import type { Landing } from '../ui/landing.ts';
@@ -13,6 +25,7 @@ import { PauseMenu } from '../ui/pause.ts';
 import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
 import { PICK_DISTANCE } from '../world/stations.ts';
+import { Viewmodel } from '../world/viewmodel.ts';
 import { CameraRig } from './cameraRig.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
@@ -29,6 +42,8 @@ const EMOTE_TOASTS: Record<Emote, string> = {
   dance: '💃 You dance',
   jump: '🎉 You jump for joy',
 };
+
+const NO_TARGETS: readonly KnifeTarget[] = [];
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
@@ -50,6 +65,13 @@ export class Game {
   private readonly panel: InfoPanel;
   private readonly toasts: Toasts;
   private readonly minimap: Minimap;
+  private readonly knockout: Knockout;
+  private readonly viewmodel: Viewmodel;
+  /** Down on the floor after a knife hit, until the server stands this player back up. */
+  knockedOut = false;
+  /** F was pressed; the next tick throws if the cooldown allows. */
+  private throwQueued = false;
+  private lastThrowSeq = -Infinity;
 
   private lastFrame = performance.now();
   private elapsed = 0;
@@ -89,6 +111,8 @@ export class Game {
       onClose: () => this.closeChat(),
     });
     this.toasts = new Toasts(overlay);
+    this.knockout = new Knockout(overlay);
+    this.viewmodel = new Viewmodel(world.camera);
     this.panel = new InfoPanel(overlay);
     this.pause = new PauseMenu(
       overlay,
@@ -141,6 +165,8 @@ export class Game {
     this.landing.hide();
     this.labels.element.hidden = false;
     this.player.reset();
+    this.world.knives.reset([]);
+    this.lastThrowSeq = -Infinity;
     this.input.yaw = SPAWN.yaw;
     this.input.pitch = 0;
     this.enterFrom.copy(this.world.camera.position);
@@ -160,7 +186,10 @@ export class Game {
       hud: this.hud,
       chat: this.chat,
       worldTime: () => this.elapsed,
+      knives: this.world.knives,
       notify: (message) => this.toasts.show(message),
+      onKnockedOut: (by) => this.knockOut(by),
+      onBackOnFeet: () => this.backOnFeet(),
       onFatal: (message) => this.leave(message),
       onSpawn: (yaw) => {
         this.input.yaw = yaw;
@@ -187,6 +216,9 @@ export class Game {
     this.toasts.clear();
     this.multiplayer?.close();
     this.multiplayer = null;
+    this.backOnFeet();
+    this.viewmodel.setShown(false);
+    this.world.knives.reset([]);
     this.landing.setNotice(reason);
     this.landing.show();
     // Labels would float over the landing card; the world behind it is just scenery.
@@ -201,6 +233,7 @@ export class Game {
 
   private beginPlaying(): void {
     this.mode = 'playing';
+    this.viewmodel.setShown(!this.knockedOut);
     this.input.enabled = true;
     this.hud.show();
     this.chat.show();
@@ -254,6 +287,38 @@ export class Game {
     this.input.enabled = true;
   }
 
+  /**
+   * Throw from the eye, after this input's step, as the server will: the knife is drawn at once and
+   * the server's version of it, when it arrives, takes over where it ends up.
+   */
+  private throwKnife(input: InputMessage, online: boolean): void {
+    this.lastThrowSeq = input.seq;
+    const s = this.player.state;
+    const knife = launchKnife(s.x, s.y + EYE_HEIGHT, s.z, input.yaw, input.pitch);
+    this.world.knives.throwOwn(input.seq, this.multiplayer?.selfId ?? -1, knife, online);
+    this.viewmodel.throw();
+  }
+
+  private knockOut(by: string): void {
+    this.knockedOut = true;
+    this.throwQueued = false;
+    if (this.mode === 'chat') this.chat.close();
+    this.rig.setKnockedOut(true);
+    this.viewmodel.setShown(false);
+    // Station labels would float over the knockout card.
+    this.labels.element.hidden = true;
+    this.knockout.show(by);
+  }
+
+  private backOnFeet(): void {
+    if (!this.knockedOut) return;
+    this.knockedOut = false;
+    this.rig.setKnockedOut(false);
+    this.knockout.hide();
+    this.viewmodel.setShown(this.inWorld);
+    this.labels.element.hidden = this.mode !== 'playing' && this.mode !== 'chat';
+  }
+
   private playEmote(emote: Emote): void {
     const now = performance.now();
     if (now - this.lastEmoteAt < EMOTE_COOLDOWN_MS) return;
@@ -294,6 +359,8 @@ export class Game {
       this.openChat();
     } else if (code in EMOTE_KEYS) {
       this.playEmote(EMOTE_KEYS[code]!);
+    } else if (code === 'KeyF') {
+      if (!this.knockedOut) this.throwQueued = true;
     } else {
       return false;
     }
@@ -314,7 +381,15 @@ export class Game {
     const wasGrounded = this.player.state.grounded;
     const fallSpeed = -this.player.state.vy;
     const online = this.multiplayer?.isOnline ?? false;
-    const input = this.player.tick(this.input.keys, this.input.yaw, this.input.pitch, online);
+    // Knocked out: lie still. The server ignores movement then anyway, so prediction agrees.
+    let keys = this.knockedOut ? 0 : this.input.keys;
+    if (this.throwQueued) {
+      this.throwQueued = false;
+      const ready = this.player.nextSeq - this.lastThrowSeq >= KNIFE_COOLDOWN_INPUTS;
+      if (ready && !this.knockedOut) keys |= Keys.Throw;
+    }
+    const input = this.player.tick(keys, this.input.yaw, this.input.pitch, online);
+    if (input.keys & Keys.Throw) this.throwKnife(input, online);
     if (online) this.multiplayer?.sendInput(input);
     if (!wasGrounded && this.player.state.grounded) this.rig.land(fallSpeed);
   }
@@ -340,7 +415,9 @@ export class Game {
     }
 
     this.multiplayer?.update(now, dt);
+    this.world.knives.update(dt, this.multiplayer?.knifeTargets() ?? NO_TARGETS);
     this.updateCamera(dt);
+    this.viewmodel.update(dt, 0);
     this.updateMinimap(dt);
     // Labels and picking project through the camera, so its matrices must be current.
     this.world.camera.updateMatrixWorld();

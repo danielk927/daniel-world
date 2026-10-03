@@ -13,8 +13,9 @@ import {
   Vector3,
   Euler,
 } from 'three';
-import { EMOTE_DURATION, MAX_PLAYERS_PER_ROOM, type Emote } from '@world/shared';
+import { EMOTE_DURATION, KNIFE_COOLDOWN_MS, MAX_PLAYERS_PER_ROOM, type Emote } from '@world/shared';
 import type { Pose } from '../net/interpolation.ts';
+import { GRIP, knifeGeometry, knifeMaterial } from './knifeModel.ts';
 
 /** Local-space layout of an avatar. Feet at y = 0, facing -Z. */
 const BODY_RADIUS = 0.34;
@@ -26,6 +27,12 @@ const HAND_RADIUS = 0.11;
 const EYE_RADIUS = 0.05;
 /** The chef's toque: a pleated band with a puffed crown, sitting on the head. */
 const HAT_HEIGHT = 0.36;
+/** A throw: wind up, then whip the knife hand forward. */
+const THROW_DURATION = 0.32;
+/** The knife leaves the hand this far into the throw. */
+const RELEASE = 0.55;
+/** The held knife points forward and a little up. */
+const KNIFE_TILT = 0.5;
 
 function toqueGeometry(): LatheGeometry {
   // Outside profile from the band's bottom edge up to the center of the crown.
@@ -54,6 +61,10 @@ interface Avatar {
   airAmount: number;
   emote: Emote | null;
   emoteStart: number;
+  /** World time the last throw started, or -Infinity. */
+  throwStart: number;
+  /** 0 standing, 1 knocked out flat on their back. */
+  fallAmount: number;
   /** Where the name tag should sit, updated every frame. */
   readonly tagAnchor: Vector3;
 }
@@ -72,6 +83,8 @@ export class Avatars {
   private readonly hands: InstancedMesh;
   private readonly eyes: InstancedMesh;
   private readonly hats: InstancedMesh;
+  /** The knife in each cook's right hand. */
+  private readonly knives: InstancedMesh;
   private readonly avatars = new Map<number, Avatar>();
   private readonly freeSlots: number[] = [];
 
@@ -105,9 +118,10 @@ export class Avatars {
       new MeshStandardMaterial({ color: '#fbfaf7', roughness: 0.85, flatShading: true }),
       capacity,
     );
-    for (const mesh of [this.bodies, this.heads, this.hands, this.eyes, this.hats]) {
+    this.knives = new InstancedMesh(knifeGeometry(), knifeMaterial(), capacity);
+    for (const mesh of [this.bodies, this.heads, this.hands, this.eyes, this.hats, this.knives]) {
       mesh.frustumCulled = false;
-      mesh.castShadow = mesh !== this.eyes;
+      mesh.castShadow = mesh !== this.eyes && mesh !== this.knives;
       for (let i = 0; i < mesh.count; i++) mesh.setMatrixAt(i, this.hidden);
       this.group.add(mesh);
     }
@@ -142,6 +156,8 @@ export class Avatars {
       airAmount: 0,
       emote: null,
       emoteStart: 0,
+      throwStart: -Infinity,
+      fallAmount: 0,
       tagAnchor: new Vector3(0, -1000, 0),
     };
     this.avatars.set(id, avatar);
@@ -163,7 +179,14 @@ export class Avatars {
     avatar.emoteStart = time;
   }
 
+  /** Swing the knife hand: this cook just threw. */
+  playThrow(id: number, time: number): void {
+    const avatar = this.avatars.get(id);
+    if (avatar) avatar.throwStart = time;
+  }
+
   private hideSlot(slot: number): void {
+    this.knives.setMatrixAt(slot, this.hidden);
     this.bodies.setMatrixAt(slot, this.hidden);
     this.heads.setMatrixAt(slot, this.hidden);
     this.hats.setMatrixAt(slot, this.hidden);
@@ -180,6 +203,7 @@ export class Avatars {
     this.hands.instanceMatrix.needsUpdate = true;
     this.eyes.instanceMatrix.needsUpdate = true;
     this.hats.instanceMatrix.needsUpdate = true;
+    this.knives.instanceMatrix.needsUpdate = true;
   }
 
   /** Write the current part matrix (relative to the avatar root) into `mesh` at `index`. */
@@ -239,8 +263,16 @@ export class Avatars {
     }
     const bob = Math.abs(Math.sin(avatar.walkPhase)) * 0.07 * avatar.walkAmount;
     const idleBreath = Math.sin(time * 2 + slot) * 0.012;
-    this.q.setFromEuler(this.euler.set(0, pose.yaw + spin, sway * 0.5, 'YXZ'));
-    this.root.compose(this.p.set(pose.x, pose.y + lift, pose.z), this.q, this.s.set(1, 1, 1));
+    // Knocked out: topple backward onto the floor, raised by the body's thickness so it lies on it.
+    avatar.fallAmount += ((pose.dead ? 1 : 0) - avatar.fallAmount) * Math.min(1, dt * 7);
+    const fall = avatar.fallAmount;
+    const topple = fall * fall * (Math.PI / 2);
+    this.q.setFromEuler(this.euler.set(topple, pose.yaw + spin, sway * 0.5, 'YXZ'));
+    this.root.compose(
+      this.p.set(pose.x, pose.y + lift + fall * BODY_RADIUS * 0.9, pose.z),
+      this.q,
+      this.s.set(1, 1, 1),
+    );
 
     // Body: squash while running, stretch in the air.
     const stretch = 1 + avatar.airAmount * 0.08 - avatar.walkAmount * 0.03;
@@ -297,6 +329,10 @@ export class Avatars {
       this.place(this.eyes, slot * 2 + k);
     }
 
+    // A throw in progress, as a fraction of its swing, or -1.
+    let throwT = (time - avatar.throwStart) / THROW_DURATION;
+    if (throwT >= 1) throwT = -1;
+
     // Hands: swing when walking, up in the air when jumping, waving or dancing.
     const swing = Math.sin(avatar.walkPhase) * 0.22 * avatar.walkAmount;
     for (let k = 0; k < 2; k++) {
@@ -318,8 +354,35 @@ export class Avatars {
         hy = 1.55;
         hz = 0;
       }
+      if (side === 1 && throwT >= 0) {
+        // Wind up behind the shoulder, then whip forward past the face.
+        const whip = throwT < RELEASE ? 0 : (throwT - RELEASE) / (1 - RELEASE);
+        const windUp = Math.min(1, throwT / RELEASE);
+        hx = 0.42;
+        hy = 1.2 + windUp * 0.35 - whip * 0.45;
+        hz = 0.22 * windUp - whip * 0.75;
+      }
       this.setPart(hx + sway * 0.3, hy, hz, 0, 0, 0);
       this.place(this.hands, slot * 2 + k);
+      if (side === 1) {
+        // The knife in the right hand, gripped by its handle, unless it is in flight or they are down.
+        const reloaded = time - avatar.throwStart > KNIFE_COOLDOWN_MS / 1000;
+        const inHand = fall < 0.05 && (throwT < 0 ? reloaded : throwT < RELEASE);
+        if (inHand) {
+          const tilt = throwT >= 0 ? KNIFE_TILT + Math.min(1, throwT / RELEASE) * 1.4 : KNIFE_TILT;
+          this.setPart(
+            hx + sway * 0.3,
+            hy + Math.sin(tilt) * GRIP,
+            hz - Math.cos(tilt) * GRIP,
+            tilt,
+            0,
+            0,
+          );
+          this.place(this.knives, slot);
+        } else {
+          this.knives.setMatrixAt(slot, this.hidden);
+        }
+      }
     }
 
     avatar.tagAnchor.set(pose.x, pose.y + lift + headY + HEAD_RADIUS + HAT_HEIGHT + 0.12, pose.z);

@@ -2,6 +2,7 @@ import type { Vector3 } from 'three';
 import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
+  type KnifeTarget,
   type Emote,
   type InputMessage,
   type PlayerInfo,
@@ -15,9 +16,12 @@ import { el } from '../ui/dom.ts';
 import type { Hud, HudPlayer } from '../ui/hud.ts';
 import type { Label, LabelLayer } from '../ui/labels.ts';
 import type { Avatars, AvatarPose } from '../world/avatars.ts';
+import type { Knives } from '../world/knives.ts';
 import type { LocalPlayer } from './localPlayer.ts';
 
 const BUBBLE_MS = 6000;
+/** A remote thrower's swing starts this long before their knife leaves the hand. */
+const THROW_LEAD = 0.18;
 const EMOTE_LABELS: Record<Emote, string> = {
   wave: 'waves',
   dance: 'dances',
@@ -48,12 +52,17 @@ export interface MultiplayerDeps {
   labels: LabelLayer;
   hud: Hud;
   chat: Chat;
+  knives: Knives;
   /** Seconds, the same clock the world animates with. */
   worldTime: () => number;
   notify: (message: string) => void;
   onFatal: (message: string) => void;
-  /** The server placed us somewhere new (first join); turn the view to match. */
+  /** The server placed us somewhere new (first join, respawn); turn the view to match. */
   onSpawn: (yaw: number) => void;
+  /** A knife knocked this player out; `by` is the thrower's name. */
+  onKnockedOut: (by: string) => void;
+  /** This player is standing again: respawned, rejoined, or playing solo. */
+  onBackOnFeet: () => void;
 }
 
 export interface RemoteDebugInfo {
@@ -122,7 +131,15 @@ export class Multiplayer {
 
   /** Called once per simulation tick with the input that was just predicted. */
   sendInput(input: InputMessage): void {
+    // Which moment of the world we were drawing other players at, so the server can check our
+    // knives against what we saw. Unknown until the first snapshot sets the clock.
+    if (this.hasClock) input.view = Math.max(0, this.renderTime / TICK_MS);
     this.connection.send(input);
+  }
+
+  /** Everyone a knife could hit, as drawn on this screen: other players, and this one. */
+  knifeTargets(): readonly KnifeTarget[] {
+    return this.targets;
   }
 
   sendChat(text: string): void {
@@ -159,7 +176,27 @@ export class Multiplayer {
     this.renderTime = this.clock.serverTime(now) - INTERPOLATION_DELAY_MS;
     this.frameDt = dt;
     this.frameTime = this.deps.worldTime();
+    this.targetCount = 0;
     this.remotes.forEach(this.updateRemote);
+    if (this.selfId !== null) {
+      const s = this.deps.player.state;
+      this.target(this.selfId, s.x, s.y, s.z);
+    }
+    this.targets.length = this.targetCount;
+  }
+
+  /** Reused target objects; only the first `targetCount` are current. */
+  private readonly targets: { id: number; x: number; y: number; z: number }[] = [];
+  private targetCount = 0;
+  private hasClock = false;
+
+  private target(id: number, x: number, y: number, z: number): void {
+    if (this.targets.length <= this.targetCount) this.targets.push({ id: 0, x: 0, y: 0, z: 0 });
+    const target = this.targets[this.targetCount++]!;
+    target.id = id;
+    target.x = x;
+    target.y = y;
+    target.z = z;
   }
 
   private renderTime = 0;
@@ -190,6 +227,7 @@ export class Multiplayer {
     remote.lastZ = pose.z;
     remote.hasPose = true;
     this.deps.avatars.update(id, pose, this.frameTime, dt);
+    if (!pose.dead) this.target(id, pose.x, pose.y, pose.z);
   };
 
   private onStatus(status: ConnectionStatus, retryInMs: number | null): void {
@@ -209,6 +247,9 @@ export class Multiplayer {
       return;
     }
     // Offline: everyone else vanishes, the world keeps working in single player.
+    this.hasClock = false;
+    this.deps.knives.goOffline();
+    this.deps.onBackOnFeet();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     this.selfId = null;
     this.clock.reset();
@@ -243,6 +284,8 @@ export class Multiplayer {
   private onWelcome(welcome: WelcomeMessage): void {
     this.selfId = welcome.id;
     this.deps.player.reset(welcome.self);
+    this.deps.onBackOnFeet();
+    this.deps.knives.reset(welcome.knives);
     if (!this.hasBeenOnline) this.deps.onSpawn(welcome.self.yaw);
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     for (const info of welcome.players) {
@@ -267,6 +310,7 @@ export class Multiplayer {
         const now = performance.now();
         const serverTime = message.tick * TICK_MS;
         this.clock.observe(serverTime, now);
+        this.hasClock = true;
         for (const s of message.players) {
           if (s.id === this.selfId) {
             this.deps.player.reconcile(s);
@@ -312,9 +356,81 @@ export class Multiplayer {
         this.deps.chat.addSystem(`${remote.info.name} ${EMOTE_LABELS[message.emote]}`);
         return;
       }
+      case 'knife': {
+        const self = message.from === this.selfId;
+        // Other players are drawn this far in the past; their knives leave their hands as drawn.
+        const delay = self ? 0 : INTERPOLATION_DELAY_MS / 1000;
+        const state = {
+          x: message.x,
+          y: message.y,
+          z: message.z,
+          vx: message.vx,
+          vy: message.vy,
+          vz: message.vz,
+          t: 0,
+        };
+        this.deps.knives.launch(message.id, message.from, message.seq, state, self, delay);
+        if (!self)
+          this.deps.avatars.playThrow(message.from, this.deps.worldTime() + delay - THROW_LEAD);
+        return;
+      }
+      case 'stuck':
+        this.deps.knives.resolve(message.knife.id, {
+          kind: 'stuck',
+          knife: message.knife,
+          at: message.at,
+        });
+        return;
+      case 'kill': {
+        const { knives } = this.deps;
+        // Tell everyone when the knife gets there on this screen, not when the server decided.
+        const wait = knives.timeUntil(message.knife, message.at);
+        knives.resolve(message.knife, { kind: 'kill', at: message.at });
+        window.setTimeout(() => this.announceKill(message.from, message.to), wait * 1000);
+        return;
+      }
+      case 'respawn': {
+        const s = message.player;
+        if (s.id === this.selfId) {
+          this.deps.player.reset(s);
+          this.deps.onSpawn(s.yaw);
+          this.deps.onBackOnFeet();
+          return;
+        }
+        // A teleport: start the pose history over so the avatar does not slide across the room.
+        this.remotes.get(s.id)?.buffer.clear();
+        return;
+      }
       default:
         return;
     }
+  }
+
+  private announceKill(from: number, to: number): void {
+    const { chat, notify } = this.deps;
+    const thrower = this.lookup(from)?.name ?? 'Someone';
+    const victim = this.lookup(to)?.name ?? 'someone';
+    if (to === this.selfId) {
+      chat.addSystem(`${thrower} got you`);
+      this.deps.onKnockedOut(thrower);
+    } else if (from === this.selfId) {
+      chat.addSystem(`You got ${victim}`);
+      notify(`You got ${victim}`);
+    } else {
+      chat.addSystem(`${thrower} got ${victim}`);
+    }
+  }
+
+  /** Name and color of anyone in the room, this player included. */
+  private lookup(id: number): { name: string; color: string } | null {
+    if (id === this.selfId) {
+      return {
+        name: this.selfInfo?.name ?? this.deps.name,
+        color: this.selfInfo?.color ?? '#fff8f0',
+      };
+    }
+    const remote = this.remotes.get(id);
+    return remote ? { name: remote.info.name, color: remote.info.color } : null;
   }
 
   private addRemote(info: PlayerInfo): void {
@@ -329,7 +445,7 @@ export class Multiplayer {
     const remote: Remote = {
       info,
       buffer: new SnapshotBuffer(),
-      pose: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, grounded: true, speed: 0 },
+      pose: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, grounded: true, dead: false, speed: 0 },
       lastX: 0,
       lastZ: 0,
       hasPose: false,

@@ -16,6 +16,7 @@ import { Avatars } from './avatars.ts';
 import { worldTime } from './clock.ts';
 import { createFlames, createSteam } from './effects.ts';
 import { Kit } from './kit.ts';
+import { Knives } from './knives.ts';
 import { buildKitchen } from './kitchen.ts';
 import { buildStationProps } from './props.ts';
 import { assignShadowDepthMaterials } from './shadowDepth.ts';
@@ -31,6 +32,8 @@ export class WorldScene {
   readonly stations: Stations;
   /** Remote players. Part of the scene from the start so their shaders compile during loading. */
   readonly avatars = new Avatars();
+  /** Every knife stuck in the kitchen or in the air. */
+  readonly knives = new Knives();
   /** Firelight from the burners on the piano, flickering. High quality only, with the pass light. */
   private readonly fireLight: PointLight | null = null;
 
@@ -104,6 +107,9 @@ export class WorldScene {
       createSteam(kit.steam),
       this.stations.group,
       this.avatars.group,
+      this.knives.mesh,
+      // In the scene so the knife in the player's hand, a child of the camera, is drawn.
+      this.camera,
     );
     assignShadowDepthMaterials(this.scene);
 

@@ -27,7 +27,7 @@ export class LocalPlayer {
   readonly state: PlayerState = createPlayerState();
   private readonly previous: PlayerState = createPlayerState();
   private readonly input: InputMessage = { t: 'input', seq: 0, keys: 0, yaw: 0, pitch: 0 };
-  private nextSeq = 0;
+  private sequence = 0;
 
   private readonly pending: InputMessage[] = Array.from({ length: PENDING_CAPACITY }, () => ({
     t: 'input' as const,
@@ -50,7 +50,7 @@ export class LocalPlayer {
    */
   tick(keys: number, yaw: number, pitch: number, record: boolean): InputMessage {
     const input = this.input;
-    input.seq = this.nextSeq++;
+    input.seq = this.sequence++;
     input.keys = keys;
     input.yaw = yaw;
     input.pitch = pitch;
@@ -72,6 +72,11 @@ export class LocalPlayer {
     slot.yaw = input.yaw;
     slot.pitch = input.pitch;
     this.pendingCount++;
+  }
+
+  /** The sequence number the next input will get. */
+  get nextSeq(): number {
+    return this.sequence;
   }
 
   get pendingInputs(): number {
