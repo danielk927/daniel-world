@@ -133,11 +133,10 @@ test('Esc closes an info panel and returns to play', async ({ browser }) => {
   await walkUntil(page, 'KeyD', (p) => p.x > -2.6);
   await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
   await waitUntilStill(page);
-  const box = page.locator('canvas.world-canvas');
   await page.mouse.move(480, 270);
-  await expect(page.locator('.prompt')).toHaveText('Click to open Entremetier');
+  await expect(page.locator('.prompt')).toHaveText('Press E to open Entremetier');
 
-  await box.click({ position: { x: 480, y: 270 } });
+  await page.keyboard.press('KeyE');
   const dialog = page.getByRole('dialog', { name: 'Entremetier' });
   await expect(dialog).toBeVisible();
   expect((await world(page)).mode).toBe('panel');

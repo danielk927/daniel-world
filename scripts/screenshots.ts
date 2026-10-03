@@ -132,10 +132,10 @@ async function main(): Promise<void> {
     await walkUntil(reader, 'KeyD', (p) => p.x > -3.2);
     await walkUntil(reader, 'KeyW', (p) => p.z < -2.9);
     await reader.mouse.move(720, 450);
-    await reader.getByText('Click to open Pâtisserie').waitFor();
+    await reader.getByText('Press E to open Pâtisserie').waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/lore-object.png` });
-    await reader.mouse.click(720, 450);
+    await reader.keyboard.press('KeyE');
     await reader.getByRole('dialog', { name: 'Pâtisserie' }).waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
@@ -154,15 +154,20 @@ async function main(): Promise<void> {
       [toward - 0.3, 0.1],
     ] as const) {
       await turnTo(thrower, yaw, pitch);
-      await thrower.keyboard.press('KeyF');
+      await thrower.mouse.click(720, 450);
       await thrower.waitForTimeout(900);
     }
     await turnTo(thrower, toward, -0.04);
-    await thrower.mouse.move(1300, 120);
-    await thrower.keyboard.press('KeyF');
+    await thrower.mouse.click(1300, 120);
     await thrower.waitForFunction(() => window.__world!.remotePlayers.length > 0);
     await thrower.waitForTimeout(900);
     await thrower.screenshot({ path: `${outDir}/knives.png` });
+
+    // Inspecting the knife (I), caught with the flat of the blade turned to the eye.
+    await thrower.waitForTimeout(1500);
+    await thrower.keyboard.press('KeyI');
+    await thrower.waitForTimeout(700);
+    await thrower.screenshot({ path: `${outDir}/inspect.png` });
 
     await page.goto(`${clientUrl}/portfolio.html`);
     await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });

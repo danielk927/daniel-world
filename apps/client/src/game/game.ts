@@ -18,6 +18,7 @@ import { el } from '../ui/dom.ts';
 import { Hud } from '../ui/hud.ts';
 import { Knockout } from '../ui/knockout.ts';
 import { LabelLayer, type Label } from '../ui/labels.ts';
+import { Loadout } from '../ui/loadout.ts';
 import { Minimap } from '../ui/minimap.ts';
 import type { Landing } from '../ui/landing.ts';
 import { InfoPanel } from '../ui/panel.ts';
@@ -65,6 +66,7 @@ export class Game {
   private readonly panel: InfoPanel;
   private readonly toasts: Toasts;
   private readonly minimap: Minimap;
+  private readonly loadout: Loadout;
   private readonly knockout: Knockout;
   private readonly viewmodel: Viewmodel;
   /** Down on the floor after a knife hit, until the server stands this player back up. */
@@ -105,8 +107,9 @@ export class Game {
     // The game starts on the landing screen, where labels stay hidden.
     this.labels.element.hidden = true;
     this.hud = new Hud(overlay);
+    this.loadout = new Loadout(this.hud.corner);
     this.minimap = new Minimap(
-      this.hud.element,
+      this.hud.corner,
       world.stations.entries.map((entry) => entry.color),
     );
     this.chat = new Chat(overlay, {
@@ -139,8 +142,9 @@ export class Game {
 
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKey = (code) => this.onKey(code);
+    this.input.onPrimary = () => this.primary();
     this.panel.onClose = () => void this.resume();
-    canvas.addEventListener('click', () => this.onCanvasClick());
+    canvas.addEventListener('click', () => void this.onCanvasClick());
     window.addEventListener('resize', () => {
       this.world.resize();
       this.labels.resize();
@@ -370,27 +374,45 @@ export class Game {
       this.openChat();
     } else if (code in EMOTE_KEYS) {
       this.playEmote(EMOTE_KEYS[code]!);
-    } else if (code === 'KeyF') {
-      // With the bare hand out, F draws the knife; with the knife out, it throws.
-      if (this.knockedOut) return true;
-      if (!this.armed) this.setArmed(true);
-      else if (this.viewmodel.startThrow()) this.throwAt = this.elapsed + THROW.release;
     } else if (code === 'KeyQ') {
       if (!this.knockedOut) this.setArmed(!this.armed);
+    } else if (code === 'KeyI') {
+      if (!this.knockedOut) this.viewmodel.startInspect();
+    } else if (code === 'KeyE') {
+      const entry = this.world.stations.hoveredEntry;
+      if (entry) this.openPanel(entry);
     } else {
       return false;
     }
     return true;
   }
 
-  private onCanvasClick(): void {
-    if (this.mode !== 'playing' || !this.input.pressWasClick) return;
-    const entry = this.world.stations.hoveredEntry;
-    if (entry) {
-      this.openPanel(entry);
-    } else if (!this.input.locked) {
-      void this.input.lock();
+  /**
+   * A click on the world without pointer lock asks for it, so the click that brings the mouse back
+   * does not throw. Where the browser never locks (it cannot, or always refuses), a click throws; a
+   * browser that has locked before and refuses now (Chrome does for a moment after Esc) is only
+   * asked again on the next click.
+   */
+  private async onCanvasClick(): Promise<void> {
+    if (this.mode !== 'playing' || this.input.locked || !this.input.pressWasClick) return;
+    if (!(await this.input.lock()) && !this.input.lockWorks) this.primary();
+  }
+
+  /** The left button: with the knife out it throws, with the bare hand out it draws the knife. */
+  private primary(): void {
+    if (this.mode !== 'playing' || this.knockedOut) return;
+    if (this.armed) {
+      this.throwWhenReady();
+    } else {
+      this.setArmed(true);
+      // Drawing is the whole press; holding on does not then throw the knife just drawn.
+      this.input.releasePrimary();
     }
+  }
+
+  /** Start a throw if the knife is up; the tick after the hand lets go launches it. */
+  private throwWhenReady(): void {
+    if (this.viewmodel.startThrow()) this.throwAt = this.elapsed + THROW.release;
   }
 
   private tick(): void {
@@ -422,6 +444,10 @@ export class Game {
     this.lastFrame = now;
     this.elapsed += dt;
 
+    // Holding the button down keeps throwing, as fast as each knife can be drawn.
+    if (this.mode === 'playing' && this.armed && !this.knockedOut && this.input.firing) {
+      this.throwWhenReady();
+    }
     if (this.inWorld) {
       this.accumulator += dt;
       let steps = 0;
@@ -448,6 +474,7 @@ export class Game {
       this.player.state.grounded,
     );
     this.updateMinimap(dt);
+    this.loadout.update(this.armed, this.viewmodel.knifeReadiness);
     // Labels and picking project through the camera, so its matrices must be current.
     this.world.camera.updateMatrixWorld();
     this.world.update(this.elapsed, dt);
@@ -539,6 +566,6 @@ export class Game {
     this.hoveredIndex = index;
     this.world.stations.setHovered(index);
     const entry = this.world.stations.hoveredEntry;
-    this.hud.setPrompt(entry ? `Click to open ${entry.title}` : null);
+    this.hud.setPrompt(entry ? `Press E to open ${entry.title}` : null);
   }
 }

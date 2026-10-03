@@ -116,7 +116,7 @@ export class Landing {
         ]),
         el('p', {
           class: 'landing-controls',
-          text: 'WASD to move · Mouse to look · Click a station to learn more',
+          text: 'WASD to move · Mouse to look · E to open a station',
         }),
       ],
     );

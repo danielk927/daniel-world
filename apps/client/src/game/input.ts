@@ -41,12 +41,17 @@ export class Input {
   /** Called for non-movement key presses while enabled, e.g. Enter or the emote number keys. */
   /** Return true if the key was handled, which also cancels its default browser action. */
   onKey: ((code: string) => boolean) | null = null;
+  /** Called when the left button goes down while playing with the pointer locked. */
+  onPrimary: (() => void) | null = null;
   onLockChange: ((locked: boolean) => void) | null = null;
 
   private held = 0;
   private readonly heldCodes = new Set<string>();
   private dragging = false;
   private dragTravel = 0;
+  private primaryHeld = false;
+  /** Pointer lock has worked at least once here, so a refusal now is temporary, not for good. */
+  lockWorks = false;
   /** Last cursor position in CSS pixels, used for picking when the pointer is not locked. */
   cursorX = window.innerWidth / 2;
   cursorY = window.innerHeight / 2;
@@ -68,6 +73,16 @@ export class Input {
 
   get keys(): number {
     return this.enabled ? this.held : 0;
+  }
+
+  /** The left button is held down while playing with the pointer locked, e.g. to keep throwing. */
+  get firing(): boolean {
+    return this.enabled && this.locked && this.primaryHeld;
+  }
+
+  /** Treat the left button as let go until it is pressed again. */
+  releasePrimary(): void {
+    this.primaryHeld = false;
   }
 
   get locked(): boolean {
@@ -111,6 +126,7 @@ export class Input {
     this.held = 0;
     this.heldCodes.clear();
     this.dragging = false;
+    this.primaryHeld = false;
   };
 
   private recomputeHeld(): void {
@@ -141,11 +157,18 @@ export class Input {
 
   private readonly onMouseDown = (event: MouseEvent): void => {
     this.dragTravel = 0;
-    if (event.button === 0 && !this.locked) this.dragging = true;
+    if (event.button !== 0) return;
+    if (!this.locked) {
+      this.dragging = true;
+    } else if (this.enabled) {
+      this.primaryHeld = true;
+      this.onPrimary?.();
+    }
   };
 
-  private readonly onMouseUp = (): void => {
+  private readonly onMouseUp = (event: MouseEvent): void => {
     this.dragging = false;
+    if (event.button === 0) this.primaryHeld = false;
   };
 
   private readonly onMouseMove = (event: MouseEvent): void => {
@@ -160,7 +183,8 @@ export class Input {
   };
 
   private readonly onPointerLockChange = (): void => {
-    if (!this.locked) this.releaseAll();
+    if (this.locked) this.lockWorks = true;
+    else this.releaseAll();
     this.onLockChange?.(this.locked);
   };
 }

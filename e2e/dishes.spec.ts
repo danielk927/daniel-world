@@ -10,12 +10,16 @@ test('each dish on the pass opens its own panel, with its photo', async ({ brows
   let y = 270;
   for (; y < 540; y += 6) {
     await page.mouse.move(480, y);
-    if ((await prompt.textContent()) === 'Click to open Roti and dips') break;
+    if ((await prompt.textContent()) === 'Press E to open Roti and dips') break;
   }
   expect(y, 'the cursor should find the roti').toBeLessThan(540);
 
-  await page.mouse.click(480, y);
+  // A click throws a knife, even at a station; E is what opens it.
   const dialog = page.getByRole('dialog', { name: 'Roti and dips' });
+  await page.mouse.click(480, y);
+  await expectWorld(page, (w) => w.knives.flying + w.knives.stuck === 1, 'the click throws');
+  await expect(dialog).toBeHidden();
+  await page.keyboard.press('KeyE');
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('Kabawa, New York');
   const photo = dialog.getByRole('img', { name: /roti/i });

@@ -23,6 +23,7 @@ export function world(page: Page): Promise<WorldDebugState> {
       player: w.player,
       look: w.look,
       armed: w.armed,
+      inspecting: w.inspecting,
       knockedOut: w.knockedOut,
       knives: w.knives,
       remotePlayers: w.remotePlayers,

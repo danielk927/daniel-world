@@ -32,10 +32,14 @@ export class Hud {
     ' jump ',
     el('kbd', { text: 'Shift' }),
     ' sprint ',
-    el('kbd', { text: 'F' }),
+    el('kbd', { text: 'Click' }),
     ' throw ',
     el('kbd', { text: 'Q' }),
     ' switch ',
+    el('kbd', { text: 'I' }),
+    ' inspect ',
+    el('kbd', { text: 'E' }),
+    ' open ',
     el('kbd', { text: 'Enter' }),
     ' chat ',
     el('kbd', { text: '1-3' }),
@@ -43,6 +47,8 @@ export class Hud {
     el('kbd', { text: 'Esc' }),
     ' menu',
   ]);
+  /** The bottom right corner, where the loadout stacks over the minimap. */
+  readonly corner = el('div', { class: 'hud-corner' });
   private hintTimer = 0;
   private promptText = '';
   private playersKey = '';
@@ -69,6 +75,7 @@ export class Hud {
         ],
       ),
       this.hint,
+      this.corner,
     ]);
     parent.append(this.element);
   }
