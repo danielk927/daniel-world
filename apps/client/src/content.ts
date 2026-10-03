@@ -1,4 +1,9 @@
-import type { StationId } from '@world/shared';
+import type { DishId, StationId } from '@world/shared';
+import beetrootPhoto from './assets/dishes/beetroot.webp';
+import charSiuPhoto from './assets/dishes/char-siu.webp';
+import ricottaToastPhoto from './assets/dishes/ricotta-toast.webp';
+import rotiPhoto from './assets/dishes/roti.webp';
+import truffleCroissantPhoto from './assets/dishes/truffle-croissant.webp';
 
 /**
  * Every piece of personal content on the site lives here.
@@ -21,6 +26,12 @@ export interface LoreItem {
   readonly tags?: readonly string[];
 }
 
+export interface LoreImage {
+  readonly src: string;
+  /** What the photo shows, for screen readers and when it fails to load. */
+  readonly alt: string;
+}
+
 export interface LoreEntry {
   readonly id: string;
   /** Label in the world and heading of the info panel. */
@@ -29,6 +40,8 @@ export interface LoreEntry {
   readonly kicker: string;
   /** Accent color of the label and panel, as a CSS hex color. */
   readonly color: string;
+  /** A photo shown above the text. */
+  readonly image?: LoreImage;
   readonly paragraphs?: readonly string[];
   readonly items?: readonly LoreItem[];
   readonly tags?: readonly string[];
@@ -250,5 +263,85 @@ export const stations: StationContent = {
     kicker: 'The dish pit',
     color: '#a9b8ff',
     paragraphs: ['Pots, pans and plates. No service survives without it.'],
+  },
+};
+
+export type DishContent = Readonly<Record<DishId, LoreEntry>>;
+
+/**
+ * What each plate on the pass says when it is clicked: Daniel's five favorite dishes, with his own
+ * photos of them. The kicker names the restaurant.
+ * TODO(daniel): add a line of your own to any of them, for example when you ate it and with whom.
+ */
+export const dishes: DishContent = {
+  'char-siu': {
+    id: 'char-siu',
+    title: 'Char siu',
+    kicker: 'Kamcentre Roast Goose, Hong Kong',
+    color: '#c0533a',
+    image: {
+      src: charSiuPhoto,
+      alt: 'A plate of glazed, charred char siu at Kamcentre Roast Goose',
+    },
+    paragraphs: [
+      'Cantonese barbecued pork, roasted until the honey glaze lacquers and blackens at the edges.',
+      'Kamcentre is a roast meat restaurant in the South China Athletic Association in Causeway Bay, led by chef Fung Hou Tong, who once ran the roast meats at Yung Kee. Its signature char siu is cut from the pork collar, so some pieces are nearly all fat and the rest are wonderfully juicy.',
+    ],
+  },
+  beetroot: {
+    id: 'beetroot',
+    title: 'Glazed beetroot and La Tur',
+    kicker: 'The Four Horsemen, Brooklyn',
+    color: '#b8325a',
+    image: {
+      src: beetrootPhoto,
+      alt: 'Glazed beets beside a spoon of La Tur cheese on a white plate at The Four Horsemen',
+    },
+    paragraphs: [
+      'Soft, deeply caramelized beets in a glaze of brown butter and balsamic, next to a spoon of La Tur, a creamy Piedmontese cheese of cow, sheep and goat milk.',
+      'The Four Horsemen is a wine bar and restaurant in Williamsburg. Order the house bread too, to mop up the sauce.',
+    ],
+  },
+  roti: {
+    id: 'roti',
+    title: 'Roti and dips',
+    kicker: 'Kabawa, New York',
+    color: '#d98a3a',
+    image: {
+      src: rotiPhoto,
+      alt: 'Flaky roti with small bowls of curried chickpeas, pepper sauce and chutney at Kabawa',
+    },
+    paragraphs: [
+      'Flaky, buttery roti made fresh, to tear and dip into curried chickpeas, pepper jelly and fruit chutneys.',
+      "Kabawa is Momofuku's Caribbean restaurant in the East Village, led by chef Paul Carmichael, formerly of Momofuku Seiobo in Sydney.",
+    ],
+  },
+  'ricotta-toast': {
+    id: 'ricotta-toast',
+    title: 'Ricotta toast',
+    kicker: 'Theodora, Brooklyn',
+    color: '#c9a04a',
+    image: {
+      src: ricottaToastPhoto,
+      alt: 'Sourdough toast piped with whipped ricotta, honey and black pepper at Theodora',
+    },
+    paragraphs: [
+      'Thick sourdough from Thea, the bakery two doors down, piped with whipped ricotta and finished with brown butter, honey, sage and black pepper.',
+      "Theodora is chef Tomer Blechman's wood-fired Mediterranean restaurant in Fort Greene.",
+    ],
+  },
+  'truffle-croissant': {
+    id: 'truffle-croissant',
+    title: 'Black truffle croissant',
+    kicker: 'Kasama, Chicago',
+    color: '#8a6a3a',
+    image: {
+      src: truffleCroissantPhoto,
+      alt: 'A croissant under pearl sugar and shaved black truffle, in a takeaway box from Kasama',
+    },
+    paragraphs: [
+      'Laminated with European butter and filled with black truffle and Délice de Bourgogne, then finished with honey, pearl sugar and shaved black truffle.',
+      'Kasama, in Ukrainian Village, is a Filipino bakery by day and a tasting menu restaurant by night, run by chefs Tim Flores and Genie Kwon.',
+    ],
   },
 };

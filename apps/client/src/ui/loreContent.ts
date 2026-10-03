@@ -35,6 +35,13 @@ function renderItem(item: LoreItem): HTMLElement {
 /** The body of a lore entry. Shared by the in-world info panel and the static portfolio page. */
 export function renderLoreBody(entry: LoreEntry): HTMLElement {
   return el('div', { class: 'lore-body' }, [
+    entry.image
+      ? el('figure', { class: 'lore-photo' }, [
+          el('img', {
+            attrs: { src: entry.image.src, alt: entry.image.alt, decoding: 'async' },
+          }),
+        ])
+      : null,
     ...(entry.paragraphs ?? []).map((p) => el('p', { class: 'lore-paragraph', text: p })),
     entry.items?.length ? el('ul', { class: 'lore-items' }, entry.items.map(renderItem)) : null,
     entry.tags?.length
