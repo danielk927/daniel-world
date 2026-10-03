@@ -10,7 +10,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { KITCHEN, ROOM_HALF_X, ROOM_HALF_Z } from '@world/shared';
-import type { StationContent } from '../content.ts';
+import type { DishContent, StationContent } from '../content.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { Avatars } from './avatars.ts';
 import { worldTime } from './clock.ts';
@@ -36,7 +36,12 @@ export class WorldScene {
 
   readonly quality: Quality;
 
-  constructor(canvas: HTMLCanvasElement, content: StationContent, quality: Quality) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    content: StationContent,
+    dishes: DishContent,
+    quality: Quality,
+  ) {
     this.quality = quality;
     const high = quality === 'high';
     this.renderer = new WebGLRenderer({
@@ -89,7 +94,7 @@ export class WorldScene {
     buildKitchen(kit);
     buildStationProps(kit);
 
-    this.stations = new Stations(content, high);
+    this.stations = new Stations(content, dishes, high);
     this.scene.add(
       hemi,
       key,

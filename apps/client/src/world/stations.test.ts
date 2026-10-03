@@ -1,7 +1,7 @@
 import { PointLight, Ray, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { STATIONS } from '@world/shared';
-import { stations } from '../content.ts';
+import { PASS_DISHES, STATIONS } from '@world/shared';
+import { dishes, stations } from '../content.ts';
 import { PICK_DISTANCE, Stations } from './stations.ts';
 
 function rayAt(from: Vector3, to: Vector3): Ray {
@@ -13,32 +13,70 @@ function station(id: string): Vector3 {
   return new Vector3(s.x, s.y, s.z);
 }
 
+function dish(id: string): Vector3 {
+  const d = PASS_DISHES.find((di) => di.id === id)!;
+  return new Vector3(d.x, d.y, d.z);
+}
+
+/** Standing in the aisle on the dining room side of the pass, at eye height. */
+function fromAisle(x: number): Vector3 {
+  return new Vector3(x, 1.62, 5.6);
+}
+
 describe('Stations', () => {
   it('has content for every station, in layout order', () => {
-    const s = new Stations(stations, false);
+    const s = new Stations(stations, dishes, false);
     expect(s.entries.map((e) => e.id)).toEqual(STATIONS.map((st) => st.id));
   });
 
   it('picks the station under the crosshair, nearest first', () => {
-    const s = new Stations(stations, false);
+    const s = new Stations(stations, dishes, false);
     // Standing at the entremetier, looking straight across the piano at the saucier behind it.
     const eye = new Vector3(-2.6, 1.62, 1.8);
     const ray = rayAt(eye, new Vector3(-2.6, 1.4, -2));
-    expect(s.entries[s.pick(ray)]!.id).toBe('entremetier');
+    expect(s.entryAt(s.pick(ray))?.id).toBe('entremetier');
     expect(s.pick(rayAt(eye, new Vector3(-2.6, 5, 1.8)))).toBe(-1);
   });
 
+  it('picks a dish on the pass over the pass around it', () => {
+    const s = new Stations(stations, dishes, false);
+    for (const d of PASS_DISHES) {
+      const picked = s.pick(rayAt(fromAisle(d.x), dish(d.id)));
+      expect(s.entryAt(picked)?.id, d.id).toBe(d.id);
+    }
+  });
+
+  it('still picks the pass between the dishes', () => {
+    const s = new Stations(stations, dishes, false);
+    const between = new Vector3(0.75, PASS_DISHES[0]!.y, PASS_DISHES[0]!.z);
+    expect(s.entryAt(s.pick(rayAt(fromAisle(0.75), between)))?.id).toBe('passe');
+  });
+
+  it('lets a nearer station win over a dish behind it', () => {
+    const s = new Stations(stations, dishes, false);
+    const roast = station('rotisseur');
+    const toast = dish('ricotta-toast');
+    // Just behind the roast, so only it stands between the eye and the toast on the pass.
+    const eye = roast.clone().sub(toast.clone().sub(roast).setLength(0.3));
+    expect(s.entryAt(s.pick(rayAt(eye, toast)))?.id).toBe('rotisseur');
+  });
+
+  it('keeps the dishes out of the station list the minimap and labels use', () => {
+    const s = new Stations(stations, dishes, false);
+    expect(s.entries).toHaveLength(STATIONS.length);
+  });
+
   it('does not pick stations beyond reach', () => {
-    const s = new Stations(stations, false);
+    const s = new Stations(stations, dishes, false);
     const target = station('plonge');
     const far = target.clone().add(new Vector3(0, 0, PICK_DISTANCE + 1));
     expect(s.pick(rayAt(far, target))).toBe(-1);
     const near = target.clone().add(new Vector3(0, 0, PICK_DISTANCE - 1));
-    expect(s.entries[s.pick(rayAt(near, target))]!.id).toBe('plonge');
+    expect(s.entryAt(s.pick(rayAt(near, target)))?.id).toBe('plonge');
   });
 
   it('fades its light out before moving it to a newly hovered station', () => {
-    const s = new Stations(stations, true);
+    const s = new Stations(stations, dishes, true);
     const light = s.group.children.find((c): c is PointLight => c instanceof PointLight)!;
     s.setHovered(0);
     for (let i = 0; i < 60; i++) s.update(1 / 60);
@@ -59,7 +97,7 @@ describe('Stations', () => {
   });
 
   it('adds no light on renderers that skip it', () => {
-    const s = new Stations(stations, false);
+    const s = new Stations(stations, dishes, false);
     expect(s.group.children.some((c) => c instanceof PointLight)).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import './styles/app.css';
 import { DEFAULT_ROOM } from '@world/shared';
-import { stations } from './content.ts';
+import { dishes, stations } from './content.ts';
 import type { Game } from './game/game.ts';
 import { el } from './ui/dom.ts';
 import { Landing } from './ui/landing.ts';
@@ -44,7 +44,7 @@ async function boot(): Promise<void> {
   ]);
   const canvas = el('canvas', { class: 'world-canvas' });
   app.prepend(canvas);
-  const world = new WorldScene(canvas, stations, pickQuality(webgl));
+  const world = new WorldScene(canvas, stations, dishes, pickQuality(webgl));
   loading.setText('Warming up shaders…');
   loading.setProgress(0.6);
   await world.compile();
