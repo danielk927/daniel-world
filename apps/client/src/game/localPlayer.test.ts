@@ -83,7 +83,7 @@ describe('LocalPlayer prediction and reconciliation', () => {
     player.tick(0, 0, 0, true);
     const out = new Vector3();
     const before = player.renderPosition(1, 0, out).clone();
-    const nudged = { id: 1, ...player.state, x: player.state.x + 0.5, ack: 0 };
+    const nudged = { id: 1, ...player.state, x: player.state.x + 0.5, dead: false, ack: 0 };
     player.reconcile(nudged);
     // Right after the correction the rendered position has not jumped...
     expect(player.renderPosition(1, 0, out).distanceTo(before)).toBeLessThan(1e-9);

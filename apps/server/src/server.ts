@@ -222,8 +222,8 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       tick: room.tick,
       players: room.playerList(),
       self: room.snapshotOf(player),
+      knives: room.stuckKnives(),
     });
-    // Late joiners see the round in progress straight away.
     log(`${name} (#${player.id}) joined ${code} (${room.players.size} players)`);
   };
 

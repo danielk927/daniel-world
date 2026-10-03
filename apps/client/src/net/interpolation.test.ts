@@ -3,7 +3,20 @@ import type { PlayerSnapshot } from '@world/shared';
 import { ServerClock, SnapshotBuffer, type Pose } from './interpolation.ts';
 
 function snap(x: number, yaw = 0): PlayerSnapshot {
-  return { id: 1, x, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw, pitch: 0, grounded: true, ack: 0 };
+  return {
+    id: 1,
+    x,
+    y: 0,
+    z: 0,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+    yaw,
+    pitch: 0,
+    grounded: true,
+    dead: false,
+    ack: 0,
+  };
 }
 
 const pose = (): Pose => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, grounded: true });

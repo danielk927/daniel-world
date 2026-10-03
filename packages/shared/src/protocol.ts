@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ALL_KEYS, EMOTES, MAX_PITCH } from './constants.ts';
+import { ALL_KEYS, EMOTES, KNIFE_MAX_STUCK, MAX_PITCH } from './constants.ts';
 
 /**
  * Wire protocol. Every message is one JSON object with a `t` discriminator.
@@ -31,6 +31,11 @@ export const inputSchema = z.object({
   keys: z.number().int().min(0).max(ALL_KEYS),
   yaw: finite.min(-1e6).max(1e6),
   pitch: finite.min(-MAX_PITCH - 0.01).max(MAX_PITCH + 0.01),
+  /**
+   * The server tick (fractional) other players were drawn at when this input was made. Lets the
+   * server check a thrown knife against where its thrower saw everyone.
+   */
+  view: finite.nonnegative().optional(),
 });
 
 export const chatSendSchema = z.object({
@@ -79,8 +84,24 @@ export const playerSnapshotSchema = z.object({
   yaw: finite,
   pitch: finite,
   grounded: z.boolean(),
+  /** Knocked out by a knife, lying on the floor until they respawn. */
+  dead: z.boolean(),
   /** Sequence number of the last input from this player that the server has applied. */
   ack: z.number().int(),
+});
+
+const knifeId = z.number().int().nonnegative();
+const unit = finite.min(-1.0001).max(1.0001);
+
+/** A knife stuck in a surface: where its tip is, and the way the blade points into it. */
+export const stuckKnifeSchema = z.object({
+  id: knifeId,
+  x: finite,
+  y: finite,
+  z: finite,
+  dx: unit,
+  dy: unit,
+  dz: unit,
 });
 
 export const welcomeSchema = z.object({
@@ -91,6 +112,8 @@ export const welcomeSchema = z.object({
   tick: z.number().int(),
   players: z.array(playerInfoSchema),
   self: playerSnapshotSchema,
+  /** Knives already stuck around the room, oldest first. */
+  knives: z.array(stuckKnifeSchema).max(KNIFE_MAX_STUCK),
 });
 
 export const joinSchema = z.object({ t: z.literal('join'), player: playerInfoSchema });
@@ -117,6 +140,42 @@ export const emoteBroadcastSchema = z.object({
 
 export const pongSchema = z.object({ t: z.literal('pong'), id: z.number().int() });
 
+/**
+ * A knife left someone's hand, from their eye at this velocity. Every client replays the flight with
+ * the shared simulation. `seq` is the input that threw it, so the thrower can match its own.
+ */
+export const knifeThrownSchema = z.object({
+  t: z.literal('knife'),
+  id: knifeId,
+  from: playerId,
+  seq: z.number().int().nonnegative(),
+  x: finite,
+  y: finite,
+  z: finite,
+  vx: finite,
+  vy: finite,
+  vz: finite,
+});
+
+/** A knife stuck where it landed, `at` seconds into its flight. */
+export const knifeStuckSchema = z.object({
+  t: z.literal('stuck'),
+  knife: stuckKnifeSchema,
+  at: finite.nonnegative(),
+});
+
+/** A knife hit `to`, `at` seconds into its flight, and knocked them out. */
+export const killSchema = z.object({
+  t: z.literal('kill'),
+  knife: knifeId,
+  from: playerId,
+  to: playerId,
+  at: finite.nonnegative(),
+});
+
+/** A knocked out player is back on their feet somewhere new. */
+export const respawnSchema = z.object({ t: z.literal('respawn'), player: playerSnapshotSchema });
+
 export const ERROR_CODES = ['room_full', 'bad_hello', 'version', 'rate_limited'] as const;
 
 export const errorSchema = z.object({
@@ -134,6 +193,10 @@ export const serverMessageSchema = z.discriminatedUnion('t', [
   emoteBroadcastSchema,
   pongSchema,
   errorSchema,
+  knifeThrownSchema,
+  knifeStuckSchema,
+  killSchema,
+  respawnSchema,
 ]);
 
 export type PlayerInfo = z.infer<typeof playerInfoSchema>;
@@ -141,6 +204,8 @@ export type PlayerSnapshot = z.infer<typeof playerSnapshotSchema>;
 export type WelcomeMessage = z.infer<typeof welcomeSchema>;
 export type SnapshotMessage = z.infer<typeof snapshotSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
+export type StuckKnife = z.infer<typeof stuckKnifeSchema>;
+export type KnifeThrownMessage = z.infer<typeof knifeThrownSchema>;
 
 function parseWith<T>(schema: z.ZodType<T>, raw: unknown): T | null {
   if (typeof raw !== 'string') return null;

@@ -133,7 +133,7 @@ describe('Room', () => {
       // Compare what actually crossed the wire, after JSON encoding.
       const snap = lastSnapshot(p.id).players.find((s) => s.id === p.id)!;
       expect(snap.ack).toBe(input.seq);
-      expect({ ...snap }).toEqual({ ...client, id: p.id, ack: input.seq });
+      expect({ ...snap }).toEqual({ ...client, id: p.id, dead: false, ack: input.seq });
     }
   });
 

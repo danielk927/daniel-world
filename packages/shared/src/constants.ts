@@ -7,7 +7,7 @@ export const TICK_MS = 1000 / TICK_RATE;
 export const INTERPOLATION_DELAY_MS = 100;
 
 /** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const DEFAULT_SERVER_PORT = 3001;
 
 // Rooms and players.
@@ -55,8 +55,10 @@ export const Keys = {
   Right: 8,
   Jump: 16,
   Sprint: 32,
+  /** Throw a knife on this input. Set on one input per press, not held. */
+  Throw: 64,
 } as const;
-export const ALL_KEYS = 63;
+export const ALL_KEYS = 127;
 
 export const EMOTES = ['wave', 'dance', 'jump'] as const;
 export type Emote = (typeof EMOTES)[number];
@@ -72,6 +74,11 @@ export const KNIFE_GRAVITY = 9.81;
 export const KNIFE_SPIN = 16;
 /** Shortest time between two throws by one player. */
 export const KNIFE_COOLDOWN_MS = 700;
+/**
+ * The cooldown counted in inputs (one per tick), which is how the server enforces it: catching up a
+ * burst of queued inputs in one tick cannot then swallow a throw the client was allowed to make.
+ */
+export const KNIFE_COOLDOWN_INPUTS = Math.round(KNIFE_COOLDOWN_MS / TICK_MS);
 /** A knife that has hit nothing after this long is dropped. */
 export const KNIFE_MAX_FLIGHT_SECONDS = 2.5;
 /** How deep a knife's tip sinks into whatever it hits. */

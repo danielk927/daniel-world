@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PLAYERS_PER_ROOM, PLAYER_COLORS } from './constants.ts';
+import { ALL_KEYS, Keys, MAX_PLAYERS_PER_ROOM, PLAYER_COLORS } from './constants.ts';
 import { encode, parseClientMessage, parseServerMessage } from './protocol.ts';
 
 describe('parseClientMessage', () => {
@@ -38,6 +38,21 @@ describe('parseClientMessage', () => {
     expect(parseClientMessage(raw)).toBeNull();
   });
 
+  it('accepts a throw, with the tick its sender was seeing', () => {
+    const input = {
+      t: 'input',
+      seq: 7,
+      keys: Keys.Forward | Keys.Throw,
+      yaw: 0,
+      pitch: 0,
+      view: 41.5,
+    };
+    expect(parseClientMessage(JSON.stringify(input))).toEqual(input);
+    expect(ALL_KEYS & Keys.Throw).toBe(Keys.Throw);
+    expect(parseClientMessage(JSON.stringify({ ...input, keys: ALL_KEYS + 1 }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ ...input, view: -1 }))).toBeNull();
+  });
+
   it('strips unknown properties', () => {
     const parsed = parseClientMessage('{"t":"ping","id":3,"admin":true}');
     expect(parsed).toEqual({ t: 'ping', id: 3 });
@@ -61,11 +76,26 @@ describe('parseServerMessage', () => {
           yaw: 0.5,
           pitch: 0,
           grounded: true,
+          dead: false,
           ack: 9,
         },
       ],
     };
     expect(parseServerMessage(encode(snap))).toEqual(snap);
+  });
+
+  it('round trips the knife events', () => {
+    const knife = { id: 3, x: 1, y: -0.04, z: 2, dx: 0, dy: -1, dz: 0 };
+    const messages = [
+      { t: 'knife', id: 3, from: 1, seq: 40, x: 0, y: 1.6, z: 5, vx: 0, vy: 0, vz: -18 },
+      { t: 'stuck', knife, at: 0.3 },
+      { t: 'kill', knife: 4, from: 1, to: 2, at: 0.12 },
+    ] as const;
+    for (const message of messages) expect(parseServerMessage(encode(message))).toEqual(message);
+    // A blade direction is a unit vector.
+    expect(
+      parseServerMessage(encode({ t: 'stuck', knife: { ...knife, dy: -3 }, at: 0.3 })),
+    ).toBeNull();
   });
 
   it('rejects malformed colors', () => {
