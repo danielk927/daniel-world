@@ -1,16 +1,18 @@
 /**
  * Simulated players for load testing and screenshots.
  *
- *   npm run bots -- --count 15 --room lobby --url ws://localhost:3001
+ *   npm run bots -- --count 15 --room lobby --url ws://localhost:3001 --knives
  *
  * Each bot joins like a browser would, then wanders: it walks, turns, sometimes sprints or jumps,
- * and now and then emotes or says something. Ctrl+C disconnects them all.
+ * and now and then emotes or says something. With --knives they also throw knives every few
+ * seconds. Ctrl+C disconnects them all.
  */
 import { parseArgs } from 'node:util';
 import { WebSocket } from 'ws';
 import {
   DEFAULT_SERVER_PORT,
   EMOTES,
+  KNIFE_COOLDOWN_INPUTS,
   Keys,
   PROTOCOL_VERSION,
   TICK_MS,
@@ -25,6 +27,7 @@ const { values } = parseArgs({
     room: { type: 'string', default: 'lobby' },
     url: { type: 'string', default: `ws://localhost:${DEFAULT_SERVER_PORT}` },
     chat: { type: 'boolean', default: true },
+    knives: { type: 'boolean', default: false },
   },
 });
 
@@ -36,6 +39,7 @@ interface Bot {
   seq: number;
   yaw: number;
   keys: number;
+  lastThrow: number;
   timer: NodeJS.Timeout | null;
 }
 
@@ -46,6 +50,7 @@ function startBot(index: number): Bot {
     seq: 0,
     yaw: Math.random() * Math.PI * 2,
     keys: Keys.Forward,
+    lastThrow: -Infinity,
     timer: null,
   };
   const send = (message: ClientMessage): void => {
@@ -72,7 +77,12 @@ function startBot(index: number): Bot {
       }
       bot.yaw += (Math.random() - 0.5) * 0.25;
       const jump = Math.random() < 0.02 ? Keys.Jump : 0;
-      send({ t: 'input', seq: bot.seq++, keys: bot.keys | jump, yaw: bot.yaw, pitch: 0 });
+      // A knife every two to six seconds or so, never faster than the cooldown allows.
+      const ready = bot.seq - bot.lastThrow >= KNIFE_COOLDOWN_INPUTS;
+      const knife = values.knives && ready && Math.random() < 1 / 80 ? Keys.Throw : 0;
+      if (knife) bot.lastThrow = bot.seq;
+      const pitch = knife ? (Math.random() - 0.6) * 0.6 : 0;
+      send({ t: 'input', seq: bot.seq++, keys: bot.keys | jump | knife, yaw: bot.yaw, pitch });
     }, TICK_MS);
   });
   ws.on('close', (code: number) => {

@@ -35,7 +35,15 @@ const ownServer = (await reachable(`http://localhost:${DEFAULT_SERVER_PORT}/heal
   : await startServer({ port: DEFAULT_SERVER_PORT });
 const bots = spawn(
   'node',
-  ['scripts/bots.ts', '--count', String(MAX_PLAYERS_PER_ROOM - 1), '--room', room, '--chat'],
+  [
+    'scripts/bots.ts',
+    '--count',
+    String(MAX_PLAYERS_PER_ROOM - 1),
+    '--room',
+    room,
+    '--chat',
+    '--knives',
+  ],
   { cwd: root, stdio: 'ignore' },
 );
 
@@ -80,12 +88,14 @@ try {
   const state = await page.evaluate(() => ({
     players: window.__world!.playerCount,
     maxCorrection: window.__world!.prediction.maxCorrection,
+    knives: window.__world!.knives,
   }));
 
   const avg = (key: keyof (typeof samples)[number]): number =>
     samples.reduce((sum, s) => sum + s[key], 0) / samples.length;
   const report = {
     players: state.players,
+    stuckKnives: state.knives.stuck,
     fpsAvg: Number(avg('fps').toFixed(1)),
     fpsMin: Number(Math.min(...samples.map((s) => s.fps)).toFixed(1)),
     frameCpuMsAvg: Number(avg('frameCpuMs').toFixed(2)),
