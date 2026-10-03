@@ -162,6 +162,9 @@ export class LabelLayer {
   }
 
   update(): void {
+    // Hidden labels measure 0 by 0, and a label is only measured once, so measuring now would leave
+    // it too small to ever give way to another.
+    if (this.element.hidden) return;
     const camPos = this.camera.position;
     for (let i = 0; i < this.labels.length; i++) {
       const label = this.labels[i]!;
