@@ -8,8 +8,10 @@ async function turnTo(page: Page, yaw: number, pitch = 0): Promise<void> {
     const dYaw = look.yaw - yaw;
     const dPitch = pitch - look.pitch;
     if (Math.abs(dYaw) < 0.02 && Math.abs(dPitch) < 0.02) return;
+    // Out and back, so even a tiny correction is a drag and never a click on a station.
     await page.mouse.move(480, 270);
     await page.mouse.down();
+    await page.mouse.move(480, 210, { steps: 2 });
     const clamp = (v: number) => Math.max(-150, Math.min(150, v * 250));
     await page.mouse.move(480 + clamp(dYaw), 270 - clamp(dPitch), { steps: 3 });
     await page.mouse.up();

@@ -385,7 +385,10 @@ export class Avatars {
       }
     }
 
-    avatar.tagAnchor.set(pose.x, pose.y + lift + headY + HEAD_RADIUS + HAT_HEIGHT + 0.12, pose.z);
+    // The name tag floats over the head, wherever it is: standing, or on the floor after a fall.
+    this.p.set(0, headY, 0).applyMatrix4(this.root);
+    const above = (HEAD_RADIUS + HAT_HEIGHT) * (1 - fall) + HEAD_RADIUS * fall + 0.12;
+    avatar.tagAnchor.set(this.p.x, this.p.y + above, this.p.z);
     this.markDirty();
   }
 }
