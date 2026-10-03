@@ -1168,6 +1168,8 @@ kbd {
   font-size: 32px;
   font-weight: 600;
   line-height: 1.1;
+  /* Even lines, so a long dish name never leaves one word on its own. */
+  text-wrap: balance;
 }
 
 .panel-body {
