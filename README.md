@@ -1,7 +1,7 @@
 # Daniel's World
 
 A personal website that is a small multiplayer 3D world.
-Visitors walk a floating island at golden hour in first person, click glowing objects to learn about Daniel, and see everyone else who is visiting as a moving avatar with a name tag.
+Visitors walk a low-poly three-star kitchen, laid out after the French Laundry, in first person, click its stations to learn about Daniel, and see everyone else who is visiting as a cook in a toque with a name tag.
 There is also a plain [portfolio page](apps/client/portfolio.html) with the same content, for phones, browsers without WebGL, and anyone in a hurry.
 
 **Live:** https://d1ivv0s5bbzyx0.cloudfront.net (AWS: CloudFront, S3, EC2) and https://daniel-world-nine.vercel.app (Vercel front end on the same AWS room server).
@@ -36,12 +36,12 @@ Open a second browser window to see yourself from the outside.
 | Mouse     | Look around (click the world to lock) |
 | Space     | Jump                                  |
 | Shift     | Sprint                                |
-| Click     | Open a glowing object                 |
+| Click     | Open a station                        |
 | Enter     | Chat (120 characters, plain text)     |
 | 1 / 2 / 3 | Wave / dance / jump for joy           |
 | Esc       | Menu                                  |
 
-Leave the room code empty to join the public `lobby`, or type any code to get a private island.
+Leave the room code empty to join the public `lobby`, or type any code to get a private kitchen.
 Private rooms have a "Copy invite link" button in the menu, which links to `/?room=<code>`.
 
 Private rooms can also play **tag**: open the menu and press "Play tag".
@@ -52,8 +52,8 @@ You score a point for every second you are not it, and the highest score wins.
 
 All personal content lives in [`apps/client/src/content.ts`](apps/client/src/content.ts).
 Every placeholder is marked `TODO(daniel)`; search for that tag and replace each one.
-The 3D world and the portfolio page both render from this file, so they never drift apart.
-The island has exactly eight pedestals, one per entry.
+The portfolio page renders the `lore` sections, and each of the kitchen's eight stations shows its entry in `stations`.
+Point a station at one of your sections (for example `saucier: lore[0]!`) to show it in the kitchen.
 
 ## Scripts
 
@@ -92,15 +92,17 @@ Networking follows the usual pattern for fast-paced games:
 
 Rendering is built for a smooth 60 fps with a full room:
 
-- Avatars, trees, rocks, grass and the rim wall are instanced.
-- Ambient motion (wind, clouds, water, drifting light motes) runs in shaders.
+- The static kitchen is merged into one mesh per material, about a dozen draw calls for every pot, knob and tile.
+- Avatars are instanced, and ambient motion (gas flames, steam) runs in shaders.
+- The look is low-poly: flat-shaded facets and plain colors, with no textures to sample and no reflections to compute.
 - Name tags are DOM elements rather than extra draw calls.
-- Software renderers (no GPU) automatically get a lighter quality tier without shadows.
+- Software renderers (no GPU) automatically get a lighter quality tier without shadows or accent lights.
   `?quality=high` or `?quality=low` overrides the choice.
 
 ![Two visitors on the live AWS deployment](docs/screenshots/live-aws.png)
 
-Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in one room: a steady 60 fps, about 1 ms of main-thread time per frame, and 61 draw calls.
+Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in one room: a steady 60 fps, about 1.1 ms of main-thread time per frame, 34 draw calls and 66k triangles.
+The earlier island measured 1.4 ms and 62 draw calls in a back-to-back run on the same machine.
 
 Judgment calls made while building are recorded in [DECISIONS.md](DECISIONS.md).
 

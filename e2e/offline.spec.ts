@@ -9,8 +9,8 @@ test('with the server stopped the world still loads in single-player mode', asyn
   await expect(page.locator('.hud-status')).toContainText('solo mode');
 
   // The world is fully playable: walking works without a server.
-  const before = state.player.z;
-  await walkUntil(page, 'KeyS', (p) => p.z > before + 1.5);
+  const before = state.player.x;
+  await walkUntil(page, 'KeyA', (p) => p.x < before - 1.5);
 
   // When the server comes back, the client reconnects on its own.
   const server = await startRoomServer();

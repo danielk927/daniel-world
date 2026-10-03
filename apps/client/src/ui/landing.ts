@@ -16,7 +16,7 @@ export interface LandingHandlers {
   onEnter(name: string, room: string): void;
 }
 
-/** Title card over the slowly orbiting island. */
+/** Title card over the slowly drifting view of the kitchen. */
 export class Landing {
   readonly element: HTMLElement;
   private readonly nameInput: HTMLInputElement;
@@ -116,7 +116,7 @@ export class Landing {
         ]),
         el('p', {
           class: 'landing-controls',
-          text: 'WASD to move · Mouse to look · Click glowing objects',
+          text: 'WASD to move · Mouse to look · Click a station to learn more',
         }),
       ],
     );
@@ -141,7 +141,7 @@ export class Landing {
     } else if (players === 0) {
       this.count.textContent = 'The lobby is empty. Be the first!';
     } else {
-      this.count.textContent = `${players} ${players === 1 ? 'explorer' : 'explorers'} in the lobby`;
+      this.count.textContent = `${players} ${players === 1 ? 'cook' : 'cooks'} in the kitchen`;
     }
   }
 

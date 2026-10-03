@@ -56,6 +56,24 @@ async function hold(page: Page, key: string, ms: number): Promise<void> {
   await page.keyboard.up(key);
 }
 
+/** Hold a key until the player reaches a spot, like a person walking there. */
+async function walkUntil(
+  page: Page,
+  key: string,
+  arrived: (p: { x: number; z: number }) => boolean,
+): Promise<void> {
+  await page.keyboard.down(key);
+  try {
+    for (let i = 0; i < 400; i++) {
+      if (arrived(await page.evaluate(() => window.__world!.player))) return;
+      await page.waitForTimeout(25);
+    }
+    throw new Error(`never arrived while holding ${key}`);
+  } finally {
+    await page.keyboard.up(key);
+  }
+}
+
 async function main(): Promise<void> {
   await mkdir(outDir, { recursive: true });
   if (!(await reachable(clientUrl))) {
@@ -83,7 +101,6 @@ async function main(): Promise<void> {
     // The lobby, with the bots wandering around.
     await page.getByRole('button', { name: 'Enter world' }).click();
     await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 30_000 });
-    await hold(page, 'KeyS', 900);
     await page.keyboard.press('Enter');
     await page.keyboard.type('hi everyone!');
     await page.keyboard.press('Enter');
@@ -95,19 +112,20 @@ async function main(): Promise<void> {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${outDir}/pause.png` });
 
-    // A private room, alone, walking up to the About object.
+    // A private room, alone, walking up to the pâtisserie and its croquembouche.
     const reader = await context.newPage();
     await enter(reader, 'Reader', 'docs');
-    await hold(reader, 'KeyA', 900);
-    await hold(reader, 'KeyW', 3300);
-    await reader.mouse.move(720, 600);
-    await reader.mouse.down();
-    for (let i = 1; i <= 10; i++) await reader.mouse.move(720, 600 - i * 14);
-    await reader.mouse.up();
-    await reader.waitForTimeout(500);
+    // Round the west end of the pass and the piano, then up to the pastry island.
+    await walkUntil(reader, 'KeyA', (p) => p.x < -5.3);
+    await walkUntil(reader, 'KeyW', (p) => p.z < -2.6);
+    await walkUntil(reader, 'KeyD', (p) => p.x > -3.2);
+    await walkUntil(reader, 'KeyW', (p) => p.z < -2.9);
+    await reader.mouse.move(720, 450);
+    await reader.getByText('Click to open Pâtisserie').waitFor();
+    await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/lore-object.png` });
     await reader.mouse.click(720, 450);
-    await reader.getByRole('dialog', { name: 'About' }).waitFor();
+    await reader.getByRole('dialog', { name: 'Pâtisserie' }).waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
 

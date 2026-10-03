@@ -1,7 +1,7 @@
 # Daniel's World - project guide
 
 A first-person 3D multiplayer personal website.
-Visitors walk a small floating island, click lore objects to learn about Daniel, and see each other in real time.
+Visitors walk a classical French brigade kitchen as cooks, click its stations to learn about Daniel, and see each other in real time.
 `SPEC.md` is the source of truth for scope, `DECISIONS.md` records judgment calls, `PROGRESS.md` tracks milestones.
 
 ## Commands
@@ -52,13 +52,15 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
 4. For visual changes, run `node scripts/screenshots.ts` and look at `docs/screenshots/`.
-5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 1 ms frame CPU, about 61 draw calls with 16 players).
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 1.1 ms frame CPU, about 34 draw calls with 16 players).
 
 ## Gotchas
 
 - Shadow-casting `InstancedMesh`es need `assignShadowDepthMaterials` (done in `WorldScene`), or three.js re-derives shader parameters every frame.
+- Static kitchen geometry goes through `Kit` (`apps/client/src/world/kit.ts`), which merges it into one mesh per material; do not add standalone meshes for static props.
+- Fixture footprints, stations and doors live in `packages/shared/src/world.ts`; colliders, the minimap and the renderer all read them, so move things there, not in the client.
 - E2E uses SwiftShader, which gets the low quality tier automatically; screenshots and perf use the real GPU and `?quality=high`.
-- The first player in a room spawns at `SPAWN`; E2E walking paths rely on that.
+- The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 
 <!-- BEGIN AWS Agent Toolkit rules -->
 

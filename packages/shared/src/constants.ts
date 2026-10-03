@@ -6,7 +6,8 @@ export const TICK_MS = 1000 / TICK_RATE;
 /** Remote players are rendered this far in the past so there are always two snapshots to blend. */
 export const INTERPOLATION_DELAY_MS = 100;
 
-export const PROTOCOL_VERSION = 1;
+/** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
+export const PROTOCOL_VERSION = 2;
 export const DEFAULT_SERVER_PORT = 3001;
 
 // Rooms and players.
@@ -34,11 +35,14 @@ export const AIR_ACCEL = 12;
 /** Collision is resolved this many times per tick so fast movement cannot tunnel. */
 export const SIM_SUBSTEPS = 2;
 
-// World bounds.
-/** Visual radius of the island top. */
-export const ISLAND_RADIUS = 36;
-/** Player centers are kept inside this radius (the low wall around the rim). */
-export const PLAY_RADIUS = 34;
+// World bounds: the kitchen is a box, centered on the origin, with its floor at y = 0.
+export const ROOM_HALF_X = 8;
+export const ROOM_HALF_Z = 6.5;
+/** Height of the walls; a barrel vault rises above them. */
+export const ROOM_HEIGHT = 3.4;
+/** Player centers stay within these extents, so bodies never poke through a wall. */
+export const PLAY_HALF_X = ROOM_HALF_X - PLAYER_RADIUS;
+export const PLAY_HALF_Z = ROOM_HALF_Z - PLAYER_RADIUS;
 export const MIN_Y = -30;
 export const MAX_Y = 60;
 export const MAX_PITCH = Math.PI / 2 - 0.01;

@@ -36,17 +36,17 @@ function setup(code = 'tag-test') {
 describe('tag', () => {
   it('only starts in private rooms with at least two players', () => {
     const lobby = setup('lobby');
-    lobby.join(0, 7);
-    lobby.join(5, 7);
+    lobby.join(0, 3);
+    lobby.join(5, 3);
     expect(lobby.room.startTag()).toBe(false);
 
     const solo = setup();
-    solo.join(0, 7);
+    solo.join(0, 3);
     expect(solo.room.startTag()).toBe(false);
 
     const { room, join, games } = setup();
-    join(0, 7);
-    join(6, 7);
+    join(0, 3);
+    join(6, 3);
     expect(room.startTag()).toBe(true);
     expect(room.startTag()).toBe(false);
     expect(games()[0]).toMatchObject({ phase: 'playing', it: 1 });
@@ -54,12 +54,12 @@ describe('tag', () => {
 
   it('passes it on contact, without instant tag-backs', () => {
     const { room, join, place, inbox } = setup();
-    const a = join(-6, 7);
-    const b = join(6, 7);
+    const a = join(-6, 3);
+    const b = join(6, 3);
     room.startTag();
     expect(room.game?.it).toBe(a.id);
 
-    place(a, 5.5, 7);
+    place(a, 5.5, 3);
     room.step();
     expect(room.game?.it).toBe(b.id);
     expect(inbox).toContainEqual({ t: 'tagged', from: a.id, to: b.id });
@@ -75,8 +75,8 @@ describe('tag', () => {
 
   it('scores seconds spent not being it and ends after the round', () => {
     const { room, join, games } = setup();
-    const a = join(-6, 7);
-    const b = join(6, 7);
+    const a = join(-6, 3);
+    const b = join(6, 3);
     room.startTag();
     for (let i = 0; i < TAG_ROUND_SECONDS * TICK_RATE; i++) {
       // Keep them apart so it never changes hands.
@@ -98,9 +98,9 @@ describe('tag', () => {
 
   it('hands it to someone else when it leaves, and ends when too few remain', () => {
     const { room, join, games } = setup();
-    const a = join(-6, 7);
-    const b = join(6, 7);
-    const c = join(0, 12);
+    const a = join(-6, 3);
+    const b = join(6, 3);
+    const c = join(0, -5.2);
     room.startTag();
     expect(room.game?.it).toBe(a.id);
     room.remove(a.id);
@@ -112,10 +112,10 @@ describe('tag', () => {
 
   it('includes late joiners in the scoreboard', () => {
     const { room, join, games } = setup();
-    join(-6, 7);
-    join(6, 7);
+    join(-6, 3);
+    join(6, 3);
     room.startTag();
-    const late = join(0, 12);
+    const late = join(0, -5.2);
     for (let i = 0; i < TICK_RATE; i++) room.step();
     expect(
       games()
@@ -126,8 +126,8 @@ describe('tag', () => {
 
   it('keeps movement authoritative while playing', () => {
     const { room, join } = setup();
-    const a = join(-6, 7);
-    join(6, 7);
+    const a = join(-6, 3);
+    join(6, 3);
     room.startTag();
     room.enqueueInput(a, { seq: 0, keys: Keys.Right | Keys.Sprint, yaw: 0, pitch: 0 });
     room.step();

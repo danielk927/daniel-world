@@ -262,7 +262,7 @@ export class Multiplayer {
     this.deps.chat.addSystem(
       others === 0
         ? `You joined ${welcome.room}. Nobody else is here yet.`
-        : `You joined ${welcome.room} with ${others} ${others === 1 ? 'other explorer' : 'other explorers'}.`,
+        : `You joined ${welcome.room} with ${others} ${others === 1 ? 'other cook' : 'other cooks'}.`,
     );
     if (this.hasBeenOnline) this.deps.notify('Reconnected');
     this.hasBeenOnline = true;
@@ -413,9 +413,12 @@ export class Multiplayer {
   private showBubble(remote: Remote, text: string): void {
     remote.bubble.textContent = text;
     remote.bubble.hidden = false;
+    // The tag changed size, so station labels must see its new outline.
+    if (remote.label) remote.label.measured = false;
     window.clearTimeout(remote.bubbleTimer);
     remote.bubbleTimer = window.setTimeout(() => {
       remote.bubble.hidden = true;
+      if (remote.label) remote.label.measured = false;
     }, BUBBLE_MS);
   }
 

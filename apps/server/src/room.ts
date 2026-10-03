@@ -5,6 +5,7 @@ import {
   MAX_PLAYERS_PER_ROOM,
   NAME_MAX_LENGTH,
   createPlayerState,
+  isInsideCollider,
   spawnPoint,
   encode,
   stepPlayer,
@@ -84,10 +85,17 @@ export class Room {
   /** Adds a player and tells everyone else. The caller must check `isFull` first. */
   add(joining: NewPlayer): RoomPlayer {
     // Golden-ratio steps spread arrivals evenly; the first player in a room gets the main spawn.
-    const spawn = joining.spawn ?? spawnPoint((this.arrivals++ * 0.381966) % 1);
-    const state = createPlayerState(spawn.x, spawn.z, spawn.yaw);
-    // One idle step settles a reconnecting player's hint: out of walls, inside the rim, on the ground.
+    const next = (): { x: number; z: number; yaw: number } =>
+      spawnPoint((this.arrivals++ * 0.381966) % 1);
+    const spawn = joining.spawn ?? next();
+    let state = createPlayerState(spawn.x, spawn.z, spawn.yaw);
+    // One idle step settles a reconnecting player's hint: out of counters, inside the walls, on the floor.
     stepPlayer(state, { keys: 0, yaw: state.yaw, pitch: 0 });
+    // A hint wedged between fixtures (or from an older world) can fail to settle; use a fresh spot.
+    if (isInsideCollider(state)) {
+      const fresh = next();
+      state = createPlayerState(fresh.x, fresh.z, fresh.yaw);
+    }
     const player: RoomPlayer = {
       id: joining.id,
       name: joining.name,

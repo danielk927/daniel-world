@@ -1,27 +1,25 @@
 import {
   ACESFilmicToneMapping,
+  Color,
   DirectionalLight,
-  Fog,
   HemisphereLight,
   PCFShadowMap,
   PerspectiveCamera,
+  PointLight,
   Scene,
   WebGLRenderer,
 } from 'three';
-import type { LoreEntry } from '../content.ts';
+import { KITCHEN, ROOM_HALF_X, ROOM_HALF_Z } from '@world/shared';
+import type { StationContent } from '../content.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { Avatars } from './avatars.ts';
-import { createCloudSea } from './clouds.ts';
-import { createDistantIslands } from './distant.ts';
-import { createIsland, type Island } from './island.ts';
-import { LoreObjects } from './lore.ts';
-import { SUN_DIRECTION, palette } from './palette.ts';
-import { createMotes } from './particles.ts';
-import { createPlaza, type Plaza } from './plaza.ts';
+import { worldTime } from './clock.ts';
+import { createFlames, createSteam } from './effects.ts';
+import { Kit } from './kit.ts';
+import { buildKitchen } from './kitchen.ts';
+import { buildStationProps } from './props.ts';
 import { assignShadowDepthMaterials } from './shadowDepth.ts';
-import { createSky } from './sky.ts';
-import { createVegetation } from './vegetation.ts';
-import { worldTime } from './wind.ts';
+import { Stations } from './stations.ts';
 
 export const BASE_FOV = 72;
 
@@ -29,17 +27,16 @@ export const BASE_FOV = 72;
 export class WorldScene {
   readonly renderer: WebGLRenderer;
   readonly scene = new Scene();
-  readonly camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 2000);
-  readonly lore: LoreObjects;
+  readonly camera = new PerspectiveCamera(BASE_FOV, 1, 0.05, 200);
+  readonly stations: Stations;
   /** Remote players. Part of the scene from the start so their shaders compile during loading. */
   readonly avatars = new Avatars();
-  private readonly island: Island;
-  private readonly plaza: Plaza;
-  private readonly sky = createSky();
+  /** Firelight from the burners on the piano, flickering. High quality only, with the pass light. */
+  private readonly fireLight: PointLight | null = null;
 
   readonly quality: Quality;
 
-  constructor(canvas: HTMLCanvasElement, entries: readonly LoreEntry[], quality: Quality) {
+  constructor(canvas: HTMLCanvasElement, content: StationContent, quality: Quality) {
     this.quality = quality;
     const high = quality === 'high';
     this.renderer = new WebGLRenderer({
@@ -54,43 +51,53 @@ export class WorldScene {
     this.renderer.shadowMap.enabled = high;
     this.renderer.shadowMap.type = PCFShadowMap;
 
-    this.scene.fog = new Fog(palette.fog, 60, 420);
-    this.scene.background = palette.horizon;
+    this.scene.background = new Color('#e9eef2');
 
-    const hemi = new HemisphereLight(palette.hemiSky, palette.hemiGround, 1.35);
-    const sun = new DirectionalLight(palette.sunLight, 2.6);
-    sun.position.copy(SUN_DIRECTION).multiplyScalar(90);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    const shadowCamera = sun.shadow.camera;
-    shadowCamera.left = -40;
-    shadowCamera.right = 40;
-    shadowCamera.top = 40;
-    shadowCamera.bottom = -40;
-    shadowCamera.near = 20;
-    shadowCamera.far = 180;
-    sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = 0.04;
-    sun.shadow.radius = 2;
+    const hemi = new HemisphereLight('#f5f8fc', '#c9c5bd', 1.25);
+    // Daylight from the skylights, as one key light from above that casts the shadows.
+    const key = new DirectionalLight('#fffaf2', 2.6);
+    // Angled toward the south, so the faces a new player looks at are lit, not only the tops.
+    key.position.set(5, 13, 9);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    const shadowCamera = key.shadow.camera;
+    shadowCamera.left = -ROOM_HALF_X - 2;
+    shadowCamera.right = ROOM_HALF_X + 2;
+    shadowCamera.top = ROOM_HALF_Z + 3;
+    shadowCamera.bottom = -ROOM_HALF_Z - 3;
+    shadowCamera.near = 4;
+    shadowCamera.far = 30;
+    key.shadow.bias = -0.0004;
+    key.shadow.normalBias = 0.03;
+    key.shadow.radius = 2;
 
-    this.island = createIsland();
-    this.plaza = createPlaza();
-    this.lore = new LoreObjects(entries);
+    // Every point light costs every lit pixel, so software renderers go without the accent lights.
+    if (high) {
+      const pass = KITCHEN.pass;
+      const passLight = new PointLight('#ff8a45', 5, 5, 1.6);
+      passLight.position.set(0, 1.9, (pass.minZ + pass.maxZ) / 2);
+      this.fireLight = new PointLight('#ff9b52', 0.9, 3, 1.6);
+      this.fireLight.position.set(0, 1.1, 0);
+      this.scene.add(passLight, this.fireLight);
+    }
+
+    const kit = new Kit();
+    buildKitchen(kit);
+    buildStationProps(kit);
+
+    this.stations = new Stations(content, high);
     this.scene.add(
       hemi,
-      sun,
-      sun.target,
-      this.sky,
-      createCloudSea(high ? 5 : 3),
-      createDistantIslands(),
-      this.island.group,
-      this.plaza.group,
-      createVegetation(),
-      this.lore.group,
-      createMotes(this.renderer.getPixelRatio()),
+      key,
+      key.target,
+      kit.builder.build(),
+      createFlames(kit.burners),
+      createSteam(kit.steam),
+      this.stations.group,
       this.avatars.group,
     );
     assignShadowDepthMaterials(this.scene);
+
     this.resize();
   }
 
@@ -109,10 +116,10 @@ export class WorldScene {
 
   update(time: number, dt: number): void {
     worldTime.value = time;
-    this.island.update(dt);
-    this.plaza.update(time);
-    this.lore.update(time, dt);
-    this.sky.position.copy(this.camera.position);
+    this.stations.update(dt);
+    if (this.fireLight) {
+      this.fireLight.intensity = 0.9 + Math.sin(time * 13) * 0.1 + Math.sin(time * 7.3) * 0.08;
+    }
   }
 
   render(): void {

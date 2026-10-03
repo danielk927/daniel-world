@@ -816,10 +816,8 @@ kbd {
   position: absolute;
   right: 16px;
   bottom: 16px;
-  width: 184px;
-  height: 184px;
   padding: 4px;
-  border-radius: 50%;
+  border-radius: 12px;
   background: rgba(30, 22, 40, 0.55);
   border: 1px solid var(--panel-border);
   box-shadow: var(--shadow);
@@ -829,8 +827,7 @@ kbd {
 
 .minimap-canvas {
   display: block;
-  width: 176px;
-  height: 176px;
+  border-radius: 8px;
 }
 
 .minimap-north {
@@ -993,6 +990,9 @@ kbd {
 
 .lore-label span {
   display: inline-block;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
   padding: 5px 12px;
   border-radius: 999px;
   background: rgba(30, 22, 40, 0.62);
@@ -1004,6 +1004,11 @@ kbd {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   box-shadow: 0 0 18px color-mix(in srgb, var(--accent-entry) 35%, transparent);
+}
+
+.lore-label.is-hovered span {
+  background: var(--accent-entry);
+  color: #1e1628;
 }
 
 /* ---------- Toasts ---------- */

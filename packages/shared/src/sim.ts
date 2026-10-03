@@ -8,7 +8,8 @@ import {
   MAX_PITCH,
   MAX_Y,
   MIN_Y,
-  PLAY_RADIUS,
+  PLAY_HALF_X,
+  PLAY_HALF_Z,
   PLAYER_HEIGHT,
   PLAYER_RADIUS,
   SIM_SUBSTEPS,
@@ -17,7 +18,7 @@ import {
   TICK_SECONDS,
   WALK_SPEED,
 } from './constants.ts';
-import { COLLIDERS, SPAWN, terrainHeight, type Collider } from './world.ts';
+import { COLLIDERS, SPAWN, type Collider } from './world.ts';
 
 /**
  * Deterministic player movement shared by client prediction and the server.
@@ -49,7 +50,7 @@ export function createPlayerState(
   z: number = SPAWN.z,
   yaw: number = SPAWN.yaw,
 ): PlayerState {
-  return { x, y: terrainHeight(x, z), z, vx: 0, vy: 0, vz: 0, yaw, pitch: 0, grounded: true };
+  return { x, y: 0, z, vx: 0, vy: 0, vz: 0, yaw, pitch: 0, grounded: true };
 }
 
 export function copyPlayerState(from: PlayerState, to: PlayerState): PlayerState {
@@ -78,18 +79,18 @@ export function wrapAngle(a: number): number {
   return wrapped;
 }
 
-function overlapsHorizontally(c: Collider, x: number, z: number): boolean {
+function overlapsHorizontally(c: Collider, x: number, z: number, radius = PLAYER_RADIUS): boolean {
   if (c.kind === 'cylinder') {
     const dx = x - c.x;
     const dz = z - c.z;
-    const reach = c.radius + PLAYER_RADIUS;
+    const reach = c.radius + radius;
     return dx * dx + dz * dz < reach * reach;
   }
   const px = Math.min(Math.max(x, c.minX), c.maxX);
   const pz = Math.min(Math.max(z, c.minZ), c.maxZ);
   const dx = x - px;
   const dz = z - pz;
-  return dx * dx + dz * dz < PLAYER_RADIUS * PLAYER_RADIUS;
+  return dx * dx + dz * dz < radius * radius;
 }
 
 /** Highest walkable surface under the player whose top is at most a step above their feet. */
@@ -99,7 +100,8 @@ export function floorHeight(
   feetY: number,
   colliders: readonly Collider[] = COLLIDERS,
 ): number {
-  let floor = terrainHeight(x, z);
+  // The kitchen floor is flat, at y = 0.
+  let floor = 0;
   for (let i = 0; i < colliders.length; i++) {
     const c = colliders[i]!;
     if (c.top > floor && c.top <= feetY + STEP_HEIGHT && overlapsHorizontally(c, x, z)) {
@@ -107,6 +109,25 @@ export function floorHeight(
     }
   }
   return floor;
+}
+
+/** Whether the player's body overlaps any collider it cannot step onto, at its current height. */
+export function isInsideCollider(
+  s: PlayerState,
+  colliders: readonly Collider[] = COLLIDERS,
+): boolean {
+  for (let i = 0; i < colliders.length; i++) {
+    const c = colliders[i]!;
+    if (
+      c.top > s.y + STEP_HEIGHT &&
+      c.bottom < s.y + PLAYER_HEIGHT &&
+      // A millimeter of slack: resting against a counter is not being inside it.
+      overlapsHorizontally(c, s.x, s.z, PLAYER_RADIUS - 1e-3)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Push the player out of a collider sideways and cancel velocity into it. */
@@ -143,11 +164,12 @@ function pushOut(s: PlayerState, c: Collider): void {
       s.x = px + nx * PLAYER_RADIUS;
       s.z = pz + nz * PLAYER_RADIUS;
     } else {
-      // Center is inside the box: leave through the nearest face.
-      const toMinX = s.x - c.minX;
-      const toMaxX = c.maxX - s.x;
-      const toMinZ = s.z - c.minZ;
-      const toMaxZ = c.maxZ - s.z;
+      // Center is inside the box: leave through the nearest face that opens into the room. A face
+      // against a wall does not count, or the wall clamp would put the player straight back inside.
+      const toMinX = c.minX - PLAYER_RADIUS >= -PLAY_HALF_X ? s.x - c.minX : Infinity;
+      const toMaxX = c.maxX + PLAYER_RADIUS <= PLAY_HALF_X ? c.maxX - s.x : Infinity;
+      const toMinZ = c.minZ - PLAYER_RADIUS >= -PLAY_HALF_Z ? s.z - c.minZ : Infinity;
+      const toMaxZ = c.maxZ + PLAYER_RADIUS <= PLAY_HALF_Z ? c.maxZ - s.z : Infinity;
       const least = Math.min(toMinX, toMaxX, toMinZ, toMaxZ);
       nx = 0;
       nz = 0;
@@ -229,7 +251,7 @@ export function stepPlayer(
   for (let i = 0; i < SIM_SUBSTEPS; i++) {
     s.vy = Math.max(s.vy - GRAVITY * h, -MAX_FALL_SPEED);
 
-    // Vertical: bump heads on overhangs such as the arch lintel.
+    // Vertical: bump heads on overhangs such as the hood over the piano.
     const prevFeet = s.y;
     const prevHead = s.y + PLAYER_HEIGHT;
     s.y += s.vy * h;
@@ -255,19 +277,14 @@ export function stepPlayer(
       if (c.top > s.y + STEP_HEIGHT && c.bottom < s.y + PLAYER_HEIGHT) pushOut(s, c);
     }
 
-    // Keep inside the rim wall.
-    const r2 = s.x * s.x + s.z * s.z;
-    if (r2 > PLAY_RADIUS * PLAY_RADIUS) {
-      const r = Math.sqrt(r2);
-      const nx = s.x / r;
-      const nz = s.z / r;
-      s.x = nx * PLAY_RADIUS;
-      s.z = nz * PLAY_RADIUS;
-      const out = s.vx * nx + s.vz * nz;
-      if (out > 0) {
-        s.vx -= out * nx;
-        s.vz -= out * nz;
-      }
+    // Keep inside the kitchen walls.
+    if (s.x > PLAY_HALF_X || s.x < -PLAY_HALF_X) {
+      s.x = s.x > 0 ? PLAY_HALF_X : -PLAY_HALF_X;
+      if (s.vx * s.x > 0) s.vx = 0;
+    }
+    if (s.z > PLAY_HALF_Z || s.z < -PLAY_HALF_Z) {
+      s.z = s.z > 0 ? PLAY_HALF_Z : -PLAY_HALF_Z;
+      if (s.vz * s.z > 0) s.vz = 0;
     }
 
     // Ground: land, step up, or stick to gentle downhill slopes.
@@ -303,7 +320,7 @@ export function stepPlayer(
 export function respawn(s: PlayerState): void {
   s.x = SPAWN.x;
   s.z = SPAWN.z;
-  s.y = terrainHeight(SPAWN.x, SPAWN.z);
+  s.y = 0;
   s.vx = 0;
   s.vy = 0;
   s.vz = 0;

@@ -1,6 +1,6 @@
 import './styles/app.css';
 import { DEFAULT_ROOM } from '@world/shared';
-import { lore } from './content.ts';
+import { stations } from './content.ts';
 import type { Game } from './game/game.ts';
 import { el } from './ui/dom.ts';
 import { Landing } from './ui/landing.ts';
@@ -34,7 +34,7 @@ async function boot(): Promise<void> {
     );
   }
 
-  loading.setText('Building the island…');
+  loading.setText('Firing up the kitchen…');
   loading.setProgress(0.15);
   // Let the loading screen paint before the heavy synchronous scene build.
   await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
@@ -44,7 +44,7 @@ async function boot(): Promise<void> {
   ]);
   const canvas = el('canvas', { class: 'world-canvas' });
   app.prepend(canvas);
-  const world = new WorldScene(canvas, lore, pickQuality(webgl));
+  const world = new WorldScene(canvas, stations, pickQuality(webgl));
   loading.setText('Warming up shaders…');
   loading.setProgress(0.6);
   await world.compile();

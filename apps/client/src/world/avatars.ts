@@ -5,11 +5,13 @@ import {
   Color,
   Group,
   InstancedMesh,
+  LatheGeometry,
   Matrix4,
   MeshBasicMaterial,
   MeshStandardMaterial,
   Quaternion,
-  SphereGeometry,
+  IcosahedronGeometry,
+  Vector2,
   Vector3,
   Euler,
 } from 'three';
@@ -24,6 +26,23 @@ const HEAD_RADIUS = 0.29;
 const HEAD_Y = 1.42;
 const HAND_RADIUS = 0.11;
 const EYE_RADIUS = 0.05;
+/** The chef's toque: a pleated band with a puffed crown, sitting on the head. */
+const HAT_HEIGHT = 0.36;
+
+function toqueGeometry(): LatheGeometry {
+  // Outside profile from the band's bottom edge up to the center of the crown.
+  const profile = [
+    [0.2, 0],
+    [0.205, 0.14],
+    [0.23, 0.18],
+    [0.27, 0.24],
+    [0.27, 0.3],
+    [0.23, 0.345],
+    [0.12, HAT_HEIGHT],
+    [0.001, HAT_HEIGHT],
+  ].map(([x, y]) => new Vector2(x, y));
+  return new LatheGeometry(profile, 10);
+}
 
 export interface AvatarPose extends Pose {
   /** Horizontal speed in m/s, drives the walk cycle. */
@@ -46,7 +65,7 @@ const white = new Color('#ffffff');
 
 /**
  * Every remote player, drawn with five instanced meshes in total (body, head, hands, eyes, and a
- * soft ground shadow comes from the shadow map). Per-frame updates only write instance matrices.
+ * chef's toque; the ground shadow comes from the shadow map). Per-frame updates only write instance matrices.
  */
 export class Avatars {
   readonly group = new Group();
@@ -54,6 +73,7 @@ export class Avatars {
   private readonly heads: InstancedMesh;
   private readonly hands: InstancedMesh;
   private readonly eyes: InstancedMesh;
+  private readonly hats: InstancedMesh;
   private readonly avatars = new Map<number, Avatar>();
   private readonly freeSlots: number[] = [];
   /** Floating marker over whoever is "it" in a round of tag. */
@@ -71,20 +91,26 @@ export class Avatars {
   private readonly hidden = new Matrix4().makeScale(0, 0, 0);
 
   constructor(capacity: number = MAX_PLAYERS_PER_ROOM) {
-    const skin = new MeshStandardMaterial({ roughness: 0.55, metalness: 0.02 });
+    // Faceted like the kitchen around them: flat shading on low-poly shapes.
+    const skin = new MeshStandardMaterial({ roughness: 0.7, flatShading: true });
     this.bodies = new InstancedMesh(
-      new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 6, 16),
+      new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 2, 8),
       skin,
       capacity,
     );
-    this.heads = new InstancedMesh(new SphereGeometry(HEAD_RADIUS, 20, 14), skin, capacity);
-    this.hands = new InstancedMesh(new SphereGeometry(HAND_RADIUS, 12, 8), skin, capacity * 2);
+    this.heads = new InstancedMesh(new IcosahedronGeometry(HEAD_RADIUS, 1), skin, capacity);
+    this.hands = new InstancedMesh(new IcosahedronGeometry(HAND_RADIUS, 0), skin, capacity * 2);
     this.eyes = new InstancedMesh(
-      new SphereGeometry(EYE_RADIUS, 10, 8),
+      new IcosahedronGeometry(EYE_RADIUS, 0),
       new MeshBasicMaterial({ color: '#2a1f2d' }),
       capacity * 2,
     );
-    for (const mesh of [this.bodies, this.heads, this.hands, this.eyes]) {
+    this.hats = new InstancedMesh(
+      toqueGeometry(),
+      new MeshStandardMaterial({ color: '#fbfaf7', roughness: 0.85, flatShading: true }),
+      capacity,
+    );
+    for (const mesh of [this.bodies, this.heads, this.hands, this.eyes, this.hats]) {
       mesh.frustumCulled = false;
       mesh.castShadow = mesh !== this.eyes;
       for (let i = 0; i < mesh.count; i++) mesh.setMatrixAt(i, this.hidden);
@@ -166,6 +192,7 @@ export class Avatars {
   private hideSlot(slot: number): void {
     this.bodies.setMatrixAt(slot, this.hidden);
     this.heads.setMatrixAt(slot, this.hidden);
+    this.hats.setMatrixAt(slot, this.hidden);
     for (let k = 0; k < 2; k++) {
       this.hands.setMatrixAt(slot * 2 + k, this.hidden);
       this.eyes.setMatrixAt(slot * 2 + k, this.hidden);
@@ -178,6 +205,7 @@ export class Avatars {
     this.heads.instanceMatrix.needsUpdate = true;
     this.hands.instanceMatrix.needsUpdate = true;
     this.eyes.instanceMatrix.needsUpdate = true;
+    this.hats.instanceMatrix.needsUpdate = true;
   }
 
   /** Write the current part matrix (relative to the avatar root) into `mesh` at `index`. */
@@ -262,6 +290,18 @@ export class Avatars {
     this.setPart(sway * 0.6, headY, -lean * 0.4, headPitch, 0, sway * 1.2);
     this.place(this.heads, slot);
 
+    // The toque sits on top of the head and tips with it.
+    const crown = HEAD_RADIUS * 0.72;
+    this.setPart(
+      sway * 0.6 - Math.sin(sway * 1.2) * crown,
+      headY + Math.cos(headPitch) * crown,
+      -lean * 0.4 + Math.sin(headPitch) * crown,
+      headPitch,
+      0,
+      sway * 1.2,
+    );
+    this.place(this.hats, slot);
+
     // Eyes sit on the front of the head and follow its pitch.
     const cosP = Math.cos(headPitch);
     const sinP = Math.sin(headPitch);
@@ -308,7 +348,7 @@ export class Avatars {
       this.place(this.hands, slot * 2 + k);
     }
 
-    avatar.tagAnchor.set(pose.x, pose.y + lift + headY + HEAD_RADIUS + 0.28, pose.z);
+    avatar.tagAnchor.set(pose.x, pose.y + lift + headY + HEAD_RADIUS + HAT_HEIGHT + 0.12, pose.z);
     if (id === this.markedId) {
       this.marker.position.set(
         pose.x,

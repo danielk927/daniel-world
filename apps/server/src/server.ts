@@ -4,7 +4,8 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import {
   DEFAULT_ROOM,
   MAX_PLAYERS_PER_ROOM,
-  PLAY_RADIUS,
+  PLAY_HALF_X,
+  PLAY_HALF_Z,
   PROTOCOL_VERSION,
   TICK_MS,
   encode,
@@ -91,9 +92,9 @@ function clampSpawn(spawn: { x: number; z: number; yaw: number }): {
   z: number;
   yaw: number;
 } {
-  const r = Math.hypot(spawn.x, spawn.z);
-  const scale = r > PLAY_RADIUS ? PLAY_RADIUS / r : 1;
-  return { x: spawn.x * scale, z: spawn.z * scale, yaw: spawn.yaw };
+  const x = Math.min(PLAY_HALF_X, Math.max(-PLAY_HALF_X, spawn.x));
+  const z = Math.min(PLAY_HALF_Z, Math.max(-PLAY_HALF_Z, spawn.z));
+  return { x, z, yaw: spawn.yaw };
 }
 
 export function startServer(options: ServerOptions): Promise<WorldServer> {

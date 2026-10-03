@@ -29,14 +29,7 @@ const { values } = parseArgs({
 });
 
 const count = Math.max(1, Math.min(64, Number(values.count)));
-const LINES = [
-  'hi!',
-  'nice island',
-  'where is the about page?',
-  'o/',
-  'this fountain is cool',
-  'brb',
-];
+const LINES = ['hi!', 'nice kitchen', 'which station is this?', 'o/', 'yes chef!', 'brb'];
 
 interface Bot {
   ws: WebSocket;

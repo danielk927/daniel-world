@@ -59,11 +59,8 @@ try {
     MAX_PLAYERS_PER_ROOM,
     { timeout: 30_000 },
   );
-  // Turn around so the plaza (and most bots) are in view, then let things settle.
-  await page.keyboard.down('KeyS');
-  await page.waitForTimeout(800);
-  await page.keyboard.up('KeyS');
-  await page.waitForTimeout(2000);
+  // Stay at the spawn, facing the piano with the bots wandering around it, and let things settle.
+  await page.waitForTimeout(2800);
 
   const heapBefore = await page.evaluate(
     () =>

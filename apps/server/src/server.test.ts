@@ -139,14 +139,15 @@ describe('room server', () => {
   it('moves a player from their inputs and acknowledges them', async () => {
     const a = client();
     const welcome = await a.join('Walker');
-    const startZ = welcome.self.z;
+    // Strafe along the open aisle by the dining room doors.
+    const startX = welcome.self.x;
     for (let seq = 0; seq < 10; seq++)
-      a.send({ t: 'input', seq, keys: Keys.Forward, yaw: 0, pitch: 0 });
+      a.send({ t: 'input', seq, keys: Keys.Left, yaw: 0, pitch: 0 });
     const snap = await a.waitFor(() => {
       const me = a.latestSnapshot()?.players.find((p) => p.id === welcome.id);
       return me && me.ack === 9 ? me : undefined;
     });
-    expect(snap.z).toBeLessThan(startZ - 1);
+    expect(snap.x).toBeLessThan(startX - 1);
   });
 
   it('broadcasts sanitized chat to the room, including the sender', async () => {

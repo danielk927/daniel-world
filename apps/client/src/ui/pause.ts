@@ -13,7 +13,7 @@ const CONTROLS: readonly (readonly [string, string])[] = [
   ['Mouse', 'Look around'],
   ['Space', 'Jump'],
   ['Shift', 'Sprint'],
-  ['Click', 'Open a glowing object'],
+  ['Click', 'Open a station'],
   ['Enter', 'Chat'],
   ['1 2 3', 'Wave, dance, jump'],
   ['Esc', 'Menu'],

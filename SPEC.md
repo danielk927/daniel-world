@@ -33,9 +33,9 @@ Build an original implementation. Do not copy code, assets, or content from that
 ## Experience
 
 1. **Landing screen**: site title, short tagline, name input (prefilled with a random adjective + animal, saved in `localStorage`), room code field (empty = public `lobby`), "Enter world" button, live player count for the lobby, and a "Skip to portfolio" link.
-2. **World**: a stylized, good-looking environment (for example a floating island or plaza at golden hour) with lighting, fog, sky, and some ambient motion. Clear boundaries so players cannot fall off forever.
+2. **World**: a three-star French kitchen at real scale, laid out after the French Laundry, where the players are the cooks. Low-poly: a stainless cooking suite under a lit hood, charcoal-topped islands, white walls under a barrel vault with skylights, garden windows, live flames and steam, and The Bear's "Every Second Counts" sign. The walls are the boundary.
 3. **Controls**: pointer-lock first-person, WASD + mouse look, Space to jump, Shift to sprint, collision with ground and major objects. Esc releases the mouse and opens a pause menu.
-4. **Lore objects**: 6 to 8 floating, slowly rotating objects (About, Projects, Experience, Skills, Contact, and a couple of fun ones). Looking at one highlights it; clicking opens an info panel. All content comes from `apps/client/src/content.ts`, with every placeholder marked `TODO(daniel)`.
+4. **Stations**: the eight stations of the classical brigade (le passe, saucier, poissonnier, rôtisseur, entremetier, garde manger, pâtisserie, plonge) are the clickable objects. Looking at one highlights it; clicking opens an info panel. For now each panel describes its station; linking stations to Daniel's sections (About, Projects, Experience, and so on) comes later. All content comes from `apps/client/src/content.ts`, with every personal placeholder marked `TODO(daniel)`.
 5. **Multiplayer**:
    - Everyone in the same room sees each other as simple stylized avatars (built from primitives, colored per player) with floating name tags.
    - Remote avatars move smoothly (snapshot interpolation) and animate (bob while walking, jump).

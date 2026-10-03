@@ -59,7 +59,9 @@ export async function enterWorld(
   const context = await browser.newContext({ viewport: { width: 960, height: 540 } });
   const page = await context.newPage();
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Enter world' })).toBeVisible({ timeout: 30_000 });
+  // Pages already in the world keep rendering in software on the same CPU, so a third page can take
+  // a while to build the kitchen and compile its shaders.
+  await expect(page.getByRole('button', { name: 'Enter world' })).toBeVisible({ timeout: 60_000 });
   await page.getByLabel('Your name').fill(options.name);
   if (options.room) await page.getByLabel('Room code').fill(options.room);
   await page.getByRole('button', { name: 'Enter world' }).click();

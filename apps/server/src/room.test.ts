@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  KITCHEN,
   Keys,
   MAX_PLAYERS_PER_ROOM,
+  PLAYER_RADIUS,
+  ROOM_HALF_X,
+  ROOM_HALF_Z,
   SPAWN,
   createPlayerState,
+  isInsideCollider,
   parseServerMessage,
   stepPlayer,
   type PlayerState,
@@ -135,7 +140,40 @@ describe('Room', () => {
   it('clamps and settles a spawn hint', () => {
     const { room } = makeRoom();
     const p = room.add({ id: 99, name: 'X', send: () => {}, spawn: { x: 0, z: 0, yaw: 0 } });
-    // Spawned inside the fountain: pushed out of it.
-    expect(Math.hypot(p.state.x, p.state.z)).toBeGreaterThan(2.8);
+    // Spawned inside the piano: pushed out through its nearest side.
+    expect(Math.abs(p.state.z)).toBeCloseTo(KITCHEN.piano.maxZ + PLAYER_RADIUS, 3);
+  });
+
+  it('never settles a spawn hint inside a counter against a wall', () => {
+    const { room } = makeRoom();
+    // Inside the dish pit, against the south wall: the nearest face is the wall, so it leaves north.
+    const plonge = room.add({
+      id: 98,
+      name: 'P',
+      send: () => {},
+      spawn: { x: 6.3, z: 6.4, yaw: 0 },
+    });
+    expect(plonge.state.z).toBeCloseTo(KITCHEN.plonge.minZ - PLAYER_RADIUS, 3);
+    // Wedged between the fridge and the shelving, 40 cm apart: no way out sideways, so the aisle.
+    const wedged = room.add({
+      id: 97,
+      name: 'F',
+      send: () => {},
+      spawn: { x: 7.8, z: 0.8, yaw: 0 },
+    });
+    expect(isInsideCollider(wedged.state)).toBe(false);
+    expect(wedged.state.z).toBe(SPAWN.z);
+  });
+
+  it('never leaves a player inside a fixture, wherever the hint was', () => {
+    const { room } = makeRoom();
+    let id = 1000;
+    for (let x = -ROOM_HALF_X; x <= ROOM_HALF_X; x += 0.35) {
+      for (let z = -ROOM_HALF_Z; z <= ROOM_HALF_Z; z += 0.35) {
+        const p = room.add({ id: id++, name: 'S', send: () => {}, spawn: { x, z, yaw: 0 } });
+        expect(isInsideCollider(p.state), `${x}, ${z}`).toBe(false);
+        room.remove(p.id);
+      }
+    }
   });
 });

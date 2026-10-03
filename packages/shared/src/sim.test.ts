@@ -3,7 +3,9 @@ import {
   JUMP_SPEED,
   GRAVITY,
   Keys,
-  PLAY_RADIUS,
+  PLAY_HALF_X,
+  PLAY_HALF_Z,
+  PLAYER_HEIGHT,
   PLAYER_RADIUS,
   SPRINT_SPEED,
   TICK_RATE,
@@ -16,15 +18,10 @@ import {
   type PlayerInput,
   type PlayerState,
 } from './sim.ts';
-import {
-  COLLIDERS,
-  FOUNTAIN,
-  LORE_SLOTS,
-  RUIN_BLOCKS,
-  spawnPoint,
-  terrainHeight,
-  type BoxCollider,
-} from './world.ts';
+import { COLLIDERS, KITCHEN, SPAWN, STATIONS, spawnPoint, type BoxCollider } from './world.ts';
+
+/** The aisle between the piano and the pass, where the line cooks stand. */
+const LINE_Z = 2.9;
 
 function run(state: PlayerState, input: PlayerInput, ticks: number): PlayerState {
   for (let i = 0; i < ticks; i++) stepPlayer(state, input);
@@ -36,46 +33,48 @@ const idle: PlayerInput = { keys: 0, yaw: 0, pitch: 0 };
 describe('stepPlayer', () => {
   it('keeps an idle player at rest on the ground', () => {
     const s = run(createPlayerState(), idle, TICK_RATE * 2);
-    expect(s.x).toBe(0);
-    expect(s.z).toBe(7.5);
-    expect(s.y).toBeCloseTo(terrainHeight(0, 7.5));
+    expect(s.x).toBe(SPAWN.x);
+    expect(s.z).toBe(SPAWN.z);
+    expect(s.y).toBe(0);
     expect(s.grounded).toBe(true);
   });
 
   it('walks forward (-Z at yaw 0) at walk speed', () => {
-    const s = createPlayerState(0, 10, 0);
+    // The open floor west of the piano and the pastry island.
+    const s = createPlayerState(-6.5, 2.6, 0);
     run(s, { keys: Keys.Forward, yaw: 0, pitch: 0 }, TICK_RATE);
     expect(Math.hypot(s.vx, s.vz)).toBeCloseTo(WALK_SPEED, 3);
     expect(s.vz).toBeLessThan(0);
     // Roughly one second of walking, minus a little acceleration time.
-    expect(10 - s.z).toBeGreaterThan(WALK_SPEED - 0.5);
-    expect(10 - s.z).toBeLessThan(WALK_SPEED);
+    expect(2.6 - s.z).toBeGreaterThan(WALK_SPEED - 0.5);
+    expect(2.6 - s.z).toBeLessThan(WALK_SPEED);
   });
 
   it('turns movement with yaw (yaw +90deg looks down -X)', () => {
-    const s = createPlayerState(0, 8, 0);
+    const s = createPlayerState();
     run(s, { keys: Keys.Forward, yaw: Math.PI / 2, pitch: 0 }, 10);
     expect(s.x).toBeLessThan(-1);
-    expect(Math.abs(s.z - 8)).toBeLessThan(1e-3);
+    expect(Math.abs(s.z - SPAWN.z)).toBeLessThan(1e-3);
   });
 
   it('sprints faster and does not move faster diagonally', () => {
     const sprint = run(
       createPlayerState(),
-      { keys: Keys.Back | Keys.Sprint, yaw: 0, pitch: 0 },
+      { keys: Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 },
       10,
     );
     expect(Math.hypot(sprint.vx, sprint.vz)).toBeCloseTo(SPRINT_SPEED, 3);
+    // In the line, between the pass and the piano: a quarter second is enough to reach full speed.
     const diagonal = run(
-      createPlayerState(),
-      { keys: Keys.Back | Keys.Right, yaw: 0, pitch: 0 },
-      10,
+      createPlayerState(0, LINE_Z),
+      { keys: Keys.Forward | Keys.Left, yaw: 0, pitch: 0 },
+      5,
     );
     expect(Math.hypot(diagonal.vx, diagonal.vz)).toBeCloseTo(WALK_SPEED, 3);
   });
 
   it('jumps to the expected apex and lands again', () => {
-    const s = createPlayerState(0, 7.5, 0);
+    const s = createPlayerState();
     const ground = s.y;
     let apex = ground;
     stepPlayer(s, { keys: Keys.Jump, yaw: 0, pitch: 0 });
@@ -91,25 +90,31 @@ describe('stepPlayer', () => {
     expect(s.y).toBeCloseTo(ground);
   });
 
-  it('cannot walk through the fountain', () => {
-    const s = run(createPlayerState(0, 7.5, 0), { keys: Keys.Forward, yaw: 0, pitch: 0 }, 60);
-    expect(s.z).toBeGreaterThanOrEqual(FOUNTAIN.basinRadius + PLAYER_RADIUS - 1e-3);
+  it('cannot walk through the piano', () => {
+    const s = run(createPlayerState(0, LINE_Z), { keys: Keys.Forward, yaw: 0, pitch: 0 }, 60);
+    expect(s.z).toBeCloseTo(KITCHEN.piano.maxZ + PLAYER_RADIUS, 3);
   });
 
-  it('never leaves the play area', () => {
-    const s = createPlayerState(0, 0, 0);
-    s.z = -20;
-    run(s, { keys: Keys.Forward | Keys.Sprint, yaw: 0.3, pitch: 0 }, TICK_RATE * 10);
-    expect(Math.hypot(s.x, s.z)).toBeLessThanOrEqual(PLAY_RADIUS + 1e-3);
+  it('never leaves the kitchen', () => {
+    // Sprint into the south-west corner, then along the walls.
+    const s = createPlayerState(-6, 5, 0);
+    run(s, { keys: Keys.Back | Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 }, TICK_RATE * 4);
+    expect(s.x).toBeCloseTo(-PLAY_HALF_X, 3);
+    expect(s.z).toBeCloseTo(PLAY_HALF_Z, 3);
+    run(s, { keys: Keys.Forward | Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 }, TICK_RATE * 2);
+    expect(s.x).toBeCloseTo(-PLAY_HALF_X, 3);
+    expect(Math.abs(s.z)).toBeLessThanOrEqual(PLAY_HALF_Z);
   });
 
-  it('walks up the west stairs onto the lookout platform', () => {
-    const platform = RUIN_BLOCKS[RUIN_BLOCKS.length - 1]!;
-    const s = createPlayerState(-17, 0, Math.PI / 2);
-    run(s, { keys: Keys.Forward, yaw: Math.PI / 2, pitch: 0 }, 44);
-    expect(s.x).toBeLessThan(platform.maxX);
-    expect(s.x).toBeGreaterThan(platform.minX);
-    expect(s.y).toBeCloseTo(platform.top, 3);
+  it('bumps its head on the hood when jumping beside the piano', () => {
+    const s = run(createPlayerState(0, LINE_Z), { keys: Keys.Forward, yaw: 0, pitch: 0 }, 40);
+    let highest = 0;
+    stepPlayer(s, { keys: Keys.Jump, yaw: 0, pitch: 0 });
+    for (let i = 0; i < 20; i++) {
+      stepPlayer(s, idle);
+      highest = Math.max(highest, s.y);
+    }
+    expect(highest + PLAYER_HEIGHT).toBeCloseTo(KITCHEN.hood.bottom, 3);
     expect(s.grounded).toBe(true);
   });
 
@@ -206,15 +211,14 @@ describe('collision edge cases', () => {
     expect(s.grounded).toBe(true);
   });
 
-  it('cannot climb onto a lore pedestal', () => {
-    const slot = LORE_SLOTS[0]!;
-    const s = createPlayerState(slot.x * 0.8, slot.z * 0.8, 0);
-    const yaw = Math.atan2(-(slot.x - s.x), -(slot.z - s.z));
+  it('cannot climb onto a counter', () => {
+    // Jump at the pass, in front of the spawn point, over and over.
+    const s = createPlayerState();
     for (let i = 0; i < 60; i++) {
-      stepPlayer(s, { keys: Keys.Forward | Keys.Jump, yaw, pitch: 0 });
-      if (s.grounded) expect(s.y).toBeLessThan(slot.pedestalTop - 0.5);
+      stepPlayer(s, { keys: Keys.Forward | Keys.Jump, yaw: 0, pitch: 0 });
+      if (s.grounded) expect(s.y).toBe(0);
     }
-    expect(Math.hypot(s.x - slot.x, s.z - slot.z)).toBeGreaterThan(1);
+    expect(s.z).toBeCloseTo(KITCHEN.pass.maxZ + PLAYER_RADIUS, 3);
   });
 
   it('ignores non-finite look input', () => {
@@ -233,17 +237,21 @@ describe('wrapAngle', () => {
 });
 
 describe('world layout', () => {
-  it('spreads spawn points around the plaza, facing the fountain', () => {
-    expect(spawnPoint(0)).toEqual({ x: 0, z: 7.5, yaw: 0 });
-    for (const t of [0.1, 0.37, 0.5, 0.83]) {
+  it('spreads spawn points along the aisle, facing the piano', () => {
+    expect(spawnPoint(0)).toEqual(SPAWN);
+    const xs = new Set<number>();
+    for (const t of [0.1, 0.37, 0.5, 0.83, 0.99]) {
       const p = spawnPoint(t);
-      expect(Math.hypot(p.x, p.z)).toBeCloseTo(7.5);
-      // Facing the center: the forward vector points back toward the origin.
-      expect(-Math.sin(p.yaw) * p.x + -Math.cos(p.yaw) * p.z).toBeCloseTo(-7.5);
+      xs.add(p.x);
+      expect(p.z).toBe(SPAWN.z);
+      expect(p.yaw).toBe(0);
+      expect(Math.abs(p.x)).toBeLessThanOrEqual(KITCHEN.piano.maxX);
+      // A clear spot: one idle step does not push the player anywhere.
       const s = createPlayerState(p.x, p.z, p.yaw);
       stepPlayer(s, { keys: 0, yaw: p.yaw, pitch: 0 });
       expect(Math.hypot(s.x - p.x, s.z - p.z)).toBeLessThan(1e-3);
     }
+    expect(xs.size).toBe(5);
   });
 
   it('has a clear spawn point', () => {
@@ -251,6 +259,23 @@ describe('world layout', () => {
     const before = { x: s.x, z: s.z };
     stepPlayer(s, idle);
     expect({ x: s.x, z: s.z }).toEqual(before);
+  });
+
+  it('puts every station above a fixture, where players cannot stand', () => {
+    for (const station of STATIONS) {
+      const covered = COLLIDERS.some(
+        (c) =>
+          c.kind === 'box' &&
+          station.x >= c.minX &&
+          station.x <= c.maxX &&
+          station.z >= c.minZ &&
+          station.z <= c.maxZ &&
+          c.bottom < station.y &&
+          c.top > station.y,
+      );
+      expect(covered, station.id).toBe(true);
+    }
+    expect(new Set(STATIONS.map((s) => s.id)).size).toBe(STATIONS.length);
   });
 
   it('only contains finite colliders', () => {

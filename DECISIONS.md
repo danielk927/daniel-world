@@ -145,5 +145,50 @@ Judgment calls made during the unattended build, with reasons.
 - **North-up, fixed orientation** with the player as a rotating arrow and view cone, so the island reads like a map rather than spinning with the camera.
 - **2D canvas, not a second WebGL view.** The island layer (grass, rim, plaza, fountain, trees, rocks, ruins, pedestals) is drawn once to an offscreen canvas; each redraw blits it and adds the player dots.
   Redraws run at 30 Hz. Measured cost with 16 players is about 0.1 ms per frame.
-- **Shapes carry meaning:** circles are players (in their colors, red ring for whoever is it in tag), diamonds are lore pedestals.
+- **Shapes carry meaning:** circles are players (in their colors, red ring for whoever is it in tag), diamonds are lore pedestals (stations, since the kitchen replaced the island; the map is now a rectangle).
 - **Hidden under menus and on small screens**, like the player list; the controls hint now hides below 1000 px wide so it never collides with the map.
+
+## The kitchen (replacing the island)
+
+- **The world is a classical French brigade kitchen at real scale; players are the cooks.**
+  Daniel asked for a setting that is personal (he worked in a Michelin-starred kitchen), and for a super classical French one.
+  The room is 26 by 20 m with a 5.2 m ceiling, big enough for 16 cooks and a round of tag.
+- **Eight stations are the clickable objects, with placeholder panels describing each station.**
+  Linking them to the personal sections is deliberately left for later; `content.ts` keeps the `lore` sections for the portfolio page, and `stations` maps each station id to a panel.
+- **The layout lives in `packages/shared/src/world.ts` as named fixtures.**
+  Colliders, station positions, the minimap and the renderer all read from it.
+  The floor is flat at y = 0 and the walls are a box clamp in the simulation, so there is no terrain function any more.
+- **Counter colliders reach 2.4 m**, so nobody jumps onto a work surface and ends up with their head in a heat lamp.
+  The hood is an overhang collider: jumping beside the piano bumps your head on it, as it would in a real kitchen.
+- **The first player spawns in the aisle between the pass and the piano, facing the piano.**
+  There is little room behind the spawn (the pass), so E2E tests walk sideways along the aisle.
+- **Static geometry is merged per material** (`StaticBuilder`), so the whole kitchen is about a dozen draw calls.
+  Small props use a lower-poly sphere.
+- **The layout follows the kitchen at the French Laundry, by Daniel's request** (from its floor plan and a photo).
+  The room shrank from 26 by 20 m to 16 by 13 m around the same 9.6 m cooking suite, so aisles are 1.2 to 2.5 m, like a real line.
+  The pass sits between the suite and the dining room doors, two charcoal-topped islands (garde manger and pâtisserie) stand behind the suite, a long white counter with sinks runs under a strip of garden windows, the dish pit is by the dining room, and storage is on the end walls.
+  The look follows the photo too: a white barrel vault with skylights, a stainless suite with a high shelf, a gridded and lit hood with three Michelin star plaques, white walls and a grey floor.
+  The copper wall and the hanging pans are gone; only the pots a station uses remain.
+- **"Every Second Counts", from The Bear, hangs on the north wall over the windows.**
+  From the spawn the line of sight runs under the hood straight to it; on the hood itself the pass's heat lamps hid it.
+- **The first player now spawns by the dining room doors, facing north over the pass.**
+  E2E routes go round the west end of the pass to reach the line.
+- **The kitchen is low-poly, by Daniel's request**: every material is flat-shaded and matte, round things have 6 to 12 sides, spheres are icospheres, and boxes get a single chamfer.
+  Colors live on the geometry (vertex colors) instead of textures, including a terracotta and cream checker floor built from real tiles.
+  The first pass used reflections and canvas textures; it read as unpolished realism rather than a style.
+- **No reflections.** Metals have a little sheen from the lights but never mirror the room, so there is no environment map in any tier.
+  Copper and brass do not receive shadows: under the hood they would turn maroon and olive.
+- **Blender stays an option for hero props** (the Blender MCP can author glTF models), but the code-built low-poly look came first; it needs no model files or extra loading.
+- **Hovering a station moves one small colored point light onto it** and fills its label with the station color.
+  Halo sprites read as flat discs at this distance, and one moving light costs the same no matter how many stations there are.
+- **Station labels declutter**: labels are placed nearest first, and a station label hides when it would overlap a nearer label that is showing.
+  Name tags always show, and so does the hovered station's label.
+  Station labels appear exactly as far away as stations can be clicked.
+- **The ceiling, upper walls and ceiling fixtures do not cast shadows.**
+  The key light sits above the ceiling; if the ceiling cast shadows, the whole room would be in shadow.
+- **`PROTOCOL_VERSION` is 2**, because the shared simulation changed: an old island tab gets the reload prompt instead of predicting against the wrong world.
+- **Spawn hints that cannot settle fall back to the spawn line.**
+  Leaving a box from the inside never uses a face against a wall, and a hint wedged between two fixtures (the fridge and the garde manger stand 20 cm apart) gets a fresh spawn point.
+- **The low quality tier has no accent lights and no hover light**, besides no shadows and a lower resolution.
+- **Avatars wear a chef's toque** (one more instanced mesh).
+- **The windows look out on Paris at dusk**, a canvas painting on a far plane, so the room has depth without rendering a city.

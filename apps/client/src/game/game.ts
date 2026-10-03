@@ -1,18 +1,11 @@
 import { Euler, Quaternion, Ray, Vector3 } from 'three';
-import {
-  DEFAULT_ROOM,
-  EYE_HEIGHT,
-  SPAWN,
-  TICK_SECONDS,
-  terrainHeight,
-  type Emote,
-} from '@world/shared';
+import { DEFAULT_ROOM, EYE_HEIGHT, SPAWN, TICK_SECONDS, type Emote } from '@world/shared';
 import type { LoreEntry } from '../content.ts';
 import { SERVER_URL } from '../env.ts';
 import { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
 import { Hud } from '../ui/hud.ts';
-import { LabelLayer } from '../ui/labels.ts';
+import { LabelLayer, type Label } from '../ui/labels.ts';
 import { Minimap } from '../ui/minimap.ts';
 import type { Landing } from '../ui/landing.ts';
 import { InfoPanel } from '../ui/panel.ts';
@@ -20,6 +13,7 @@ import { PauseMenu } from '../ui/pause.ts';
 import { Scoreboard } from '../ui/scoreboard.ts';
 import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
+import { PICK_DISTANCE } from '../world/stations.ts';
 import { CameraRig } from './cameraRig.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
@@ -70,6 +64,7 @@ export class Game {
   private readonly ray = new Ray();
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
   private hoveredIndex = -1;
+  private readonly stationLabels: Label[] = [];
   private lastEmoteAt = -Infinity;
   private room = DEFAULT_ROOM;
   /** Smoothed main-thread time spent per frame (simulation, animation, render submission), in ms. */
@@ -84,10 +79,12 @@ export class Game {
     this.input = new Input(canvas);
     this.rig = new CameraRig(world.camera);
     this.labels = new LabelLayer(overlay, world.camera);
+    // The game starts on the landing screen, where labels stay hidden.
+    this.labels.element.hidden = true;
     this.hud = new Hud(overlay);
     this.minimap = new Minimap(
       this.hud.element,
-      world.lore.entries.map((entry) => entry.color),
+      world.stations.entries.map((entry) => entry.color),
     );
     this.chat = new Chat(overlay, {
       onSend: (text) => this.multiplayer?.sendChat(text),
@@ -108,12 +105,13 @@ export class Game {
       this.input.sensitivity,
     );
 
-    this.world.lore.entries.forEach((entry, i) => {
-      const anchor = this.world.lore.anchor(i);
+    this.world.stations.entries.forEach((entry, i) => {
+      const anchor = this.world.stations.anchor(i);
       if (!anchor) return;
       const label = el('div', { class: 'lore-label' }, [el('span', { text: entry.title })]);
       label.style.setProperty('--accent-entry', entry.color);
-      this.labels.add(label, anchor, 1.05, 24);
+      // Labels show exactly as far away as the station can be clicked.
+      this.stationLabels.push(this.labels.add(label, anchor, 0.55, PICK_DISTANCE, 'yield'));
     });
 
     this.input.onLockChange = (locked) => this.onLockChange(locked);
@@ -145,6 +143,7 @@ export class Game {
     if (this.mode !== 'landing') return;
     this.room = room;
     this.landing.hide();
+    this.labels.element.hidden = false;
     this.player.reset();
     this.input.yaw = SPAWN.yaw;
     this.input.pitch = 0;
@@ -195,6 +194,8 @@ export class Game {
     this.multiplayer = null;
     this.landing.setNotice(reason);
     this.landing.show();
+    // Labels would float over the landing card; the world behind it is just scenery.
+    this.labels.element.hidden = true;
   }
 
   private beginPlaying(): void {
@@ -310,7 +311,7 @@ export class Game {
 
   private onCanvasClick(): void {
     if (this.mode !== 'playing' || !this.input.pressWasClick) return;
-    const entry = this.world.lore.hoveredEntry;
+    const entry = this.world.stations.hoveredEntry;
     if (entry) {
       this.openPanel(entry);
     } else if (!this.input.locked) {
@@ -362,23 +363,22 @@ export class Game {
   private updateCamera(dt: number): void {
     const camera = this.world.camera;
     if (this.mode === 'landing') {
-      const angle = this.elapsed * 0.035 + 2.4;
-      const sin = Math.sin(angle);
-      const cos = Math.cos(angle);
-      camera.position.set(sin * 46, 17, -cos * 46);
-      // On wide screens, aim left of the island so it sits beside the landing card, not under it.
-      const shift = camera.aspect > 1.3 ? 8 : 0;
-      camera.lookAt(-cos * shift, -1, -sin * shift);
+      // An establishing shot from the south-east corner, a little above head height, looking along
+      // the room under the hood toward the islands and the garden windows. It drifts gently.
+      const t = this.elapsed;
+      camera.position.set(6.7 + Math.sin(t * 0.07) * 0.5, 2.25, 5.7);
+      // On wide screens, aim left so the kitchen sits beside the landing card, not under it.
+      const shift = camera.aspect > 1.3 ? 1.6 : 0;
+      camera.lookAt(-2.6 - shift + Math.sin(t * 0.05) * 0.8, 1.15, -3.4);
       return;
     }
     if (this.mode === 'entering') {
       this.enterProgress = Math.min(1, this.enterProgress + dt / ENTER_DURATION);
       const t = easeInOutCubic(this.enterProgress);
       const s = this.player.state;
-      const eyeY = terrainHeight(s.x, s.z) + EYE_HEIGHT;
-      camera.position.set(s.x, eyeY, s.z).lerp(this.enterFrom, 1 - t);
-      // Arc up a little so the swoop does not clip through trees.
-      camera.position.y += Math.sin(t * Math.PI) * 6;
+      camera.position.set(s.x, EYE_HEIGHT, s.z).lerp(this.enterFrom, 1 - t);
+      // Arc up a little so the swoop clears the counters, staying under the hood.
+      camera.position.y += Math.sin(t * Math.PI) * 0.5;
       camera.quaternion.slerpQuaternions(this.enterFromQuat, this.enterToQuat, t);
       if (this.enterProgress >= 1) this.beginPlaying();
       return;
@@ -433,12 +433,22 @@ export class Game {
           .sub(camera.position)
           .normalize();
       }
-      index = this.world.lore.pick(this.ray);
+      index = this.world.stations.pick(this.ray);
     }
     if (index === this.hoveredIndex) return;
+    const previous = this.stationLabels[this.hoveredIndex];
+    if (previous) {
+      previous.element.classList.remove('is-hovered');
+      previous.pinned = false;
+    }
+    const next = this.stationLabels[index];
+    if (next) {
+      next.element.classList.add('is-hovered');
+      next.pinned = true;
+    }
     this.hoveredIndex = index;
-    this.world.lore.setHovered(index);
-    const entry = this.world.lore.hoveredEntry;
+    this.world.stations.setHovered(index);
+    const entry = this.world.stations.hoveredEntry;
     this.hud.setPrompt(entry ? `Click to open ${entry.title}` : null);
   }
 }

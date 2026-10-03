@@ -35,6 +35,16 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - **Performance** on an Apple M5 with 16 players: a steady 60 fps, about 1 ms of main-thread time per frame, and 61 draw calls.
   Software renderers automatically get a lighter quality tier.
 
+### The kitchen (after the final summary)
+
+- The floating island was replaced with a classical French brigade kitchen, at Daniel's request: a navy and brass piano under a steel hood, white tile, walls of copper, live flames and steam, and Paris at dusk through the windows.
+- The eight stations (le passe, saucier, poissonnier, rôtisseur, entremetier, garde manger, pâtisserie, plonge) are the clickable objects, each with a placeholder panel describing the station.
+  Linking stations to the personal sections is next, once Daniel decides the mapping.
+- Avatars wear chef's toques.
+- Restyled as low-poly: flat-shaded matte facets, low-sided round shapes, chamfered boxes, vertex colors instead of textures, a terracotta and cream checker floor, and faceted avatars.
+- Re-laid out after the French Laundry (16 by 13 m, white vault and skylights, stainless suite, charcoal islands, garden windows, three star plaques), with The Bear's "Every Second Counts" sign, and far fewer pots and pans.
+- Lint, typecheck, 120 unit tests, 10 E2E tests and the build pass; with 16 players it holds 60 fps at about 1.1 ms of frame CPU, 34 draw calls and 66k triangles.
+
 ### How to run it
 
 ```bash
