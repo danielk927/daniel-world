@@ -8,7 +8,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 ### Live deployment
 
 - **AWS (primary):** https://d1ivv0s5bbzyx0.cloudfront.net, stack `DanielWorld` in account 555300500704, `us-east-1`, deployed with `npm run deploy:aws`.
-  CloudFront serves the S3 site and proxies `/ws` to EC2 instance `i-03569030fe5cd4036` (t4g.micro); logs go to CloudWatch log group `DanielWorld-ServerLogsD9948953-dzKBRdipDtL4`.
+  CloudFront serves the S3 site and proxies `/ws` to EC2 instance `i-0d43c69c81a9b7a5f` (t4g.micro); logs go to CloudWatch log group `DanielWorld-ServerLogsD9948953-dzKBRdipDtL4`.
 - **Vercel:** https://daniel-world-nine.vercel.app, with `VITE_SERVER_URL=wss://d1ivv0s5bbzyx0.cloudfront.net/ws`, so both front ends share one room server.
 - Verified live: two browsers joined, saw each other, chatted and emoted (27 ms ping); the instance refuses direct connections and has no SSH.
 - Cost is about $10/month (instance plus public IPv4), less on the free tier. `npm run destroy -w @world/infra` removes it all.
@@ -52,7 +52,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - The server decides every hit, rewinding the other players to what the thrower saw; clients replay each flight with the shared simulation.
 - The tag game mode was removed.
 - With 16 players and bots throwing, it holds 60 fps at about 1 ms of frame CPU and 36 draw calls.
-- Multiplayer needs the room server redeployed (`npm run deploy:aws`): protocol version 3.
+- Deployed to AWS the same day (protocol version 3); a live two-player check on both the AWS and Vercel sites knocked a cook out and saw them respawn.
 
 ### How to run it
 
