@@ -37,6 +37,7 @@ Open a second browser window to see yourself from the outside.
 | Space     | Jump                                  |
 | Shift     | Sprint                                |
 | F         | Throw a knife                         |
+| Q         | Switch between knife and bare hand    |
 | Click     | Open a station                        |
 | Enter     | Chat (120 characters, plain text)     |
 | 1 / 2 / 3 | Wave / dance / jump for joy           |

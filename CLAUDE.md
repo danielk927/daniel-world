@@ -52,7 +52,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
 4. For visual changes, run `node scripts/screenshots.ts` and look at `docs/screenshots/`.
-5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 1 ms frame CPU, about 36 draw calls with 16 players and bots throwing knives).
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 1 ms frame CPU, about 40 draw calls with 16 players and bots throwing knives).
 
 ## Gotchas
 

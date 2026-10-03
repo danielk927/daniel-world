@@ -224,3 +224,10 @@ Judgment calls made during the unattended build, with reasons.
   The knife in each cook's hand is one more, and the player's own, in front of the camera, is drawn over everything so it never clips into a wall; it leaves with each throw and slides back as the cooldown ends.
 - **Version mismatches no longer lock visitors out.**
   A client and a room server from different deploys put the visitor in the kitchen in solo mode, and the client keeps retrying until the versions match.
+- **The player's arm is a CS2-style view model**: a white chef's sleeve and a hand in the cook's color, holding the knife or empty, with look sway, a figure-eight walk bob and breathing.
+  It is drawn in a second pass, in its own scene, after clearing depth, so it never clips into walls and its parts still sort against each other.
+- **A throw releases at the end of the arm's snap, 0.12 s after F**, as in CS2: the wind-up leads and the knife leaves the hand on screen, then blends onto its true path from the eye within 0.12 s, so aim stays on the crosshair.
+  The animation's curves are tested to be continuous; the snap is fastest at the release.
+- **Q switches between knife and bare hand** (F with the bare hand draws the knife).
+  Holding the knife is a bit on every input and a flag in snapshots, so others see it, and the server refuses throws from a bare hand.
+- **Knives fly at 26 m/s** (up from 18) for a flatter, sharper throw, and tumble faster. Protocol version 4.
