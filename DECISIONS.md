@@ -200,3 +200,27 @@ Judgment calls made during the unattended build, with reasons.
 - **The interface is French Laundry navy with ivory type**, like the kitchen's aprons and The Bear's navy: solid colors only, no gradients, glows or glass blur, hairline ivory borders, and 2 px corners.
 - **Titles are EB Garamond, the rest Jost**, with small capitals letterspaced like a printed menu. Cormorant Garamond was tried first; its circumflex rendered badly, and a French kitchen's accents must be right.
 - **Labels hide while a menu or panel is open, and on the landing screen**, so they never float over a dialog.
+
+## Knives
+
+- **Every room has knives, the public lobby included**, at Daniel's request; there are no game modes.
+  Tag was removed for it.
+- **The server decides every hit.**
+  A throw is a bit on an input, not a message of its own, so the server launches the knife on the very step the thrower's client predicted, from the same eye, and the input's sequence number lets the thrower match its own knife to the server's.
+  Letting a browser report its own hits would let anyone with devtools knock out the whole lobby.
+- **Hits are checked against what the thrower saw.**
+  Each input carries the server tick its sender was drawing other players at; the server keeps half a second of positions per player and tests each knife against them rewound by that much, capped at 400 ms.
+  Without it, a moving cook that was clearly hit on screen would often be missed.
+- **Flights are replayed, not streamed.**
+  The server announces a throw once (origin and velocity) and its end once (where it stuck, or whom it hit, and how far into the flight); every client flies the same arc with the shared simulation and applies the end when its drawn knife gets that far.
+  Other players' knives start 100 ms late, the same delay their avatars are drawn at, so a knife leaves the hand that threw it and arrives as the victim falls.
+- **The cooldown is counted in inputs (14, about 0.7 s)**, not milliseconds, so catching up a burst of queued inputs cannot swallow a throw the client was allowed to make, and client and server always agree.
+- **Knives stick into the room and the fixtures at their real height**, not the tall movement colliders over counters, which would leave knives hanging in the air.
+  Small props (pots, plates) do not stop a knife; the vault's shape moved into the shared layout for this.
+- **The newest 60 stuck knives per room are kept** and sent to newcomers in the welcome; older ones disappear.
+- **A knocked-out cook lies still for 3 s, then respawns protected for 2 s.**
+  While down, their inputs only let them fall; knives pass through them and through a protected cook.
+- **Knives are drawn 1.5 times life size** so one stuck across the room still reads as a knife, and all of them (stuck and flying) are one instanced mesh.
+  The knife in each cook's hand is one more, and the player's own, in front of the camera, is drawn over everything so it never clips into a wall; it leaves with each throw and slides back as the cooldown ends.
+- **Version mismatches no longer lock visitors out.**
+  A client and a room server from different deploys put the visitor in the kitchen in solo mode, and the client keeps retrying until the versions match.

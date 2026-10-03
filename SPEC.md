@@ -44,6 +44,10 @@ Build an original implementation. Do not copy code, assets, or content from that
    - Rooms: default public `lobby`, plus private rooms by code. Max 16 players per room.
 6. **Portfolio fallback**: `/portfolio.html`, a clean static page rendering the same `content.ts` data, for mobile, no-WebGL, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it.
 7. **Offline mode**: if the server is unreachable, the world still works in single player with a small notice, and retries in the background.
+8. **Knives**: every cook carries an endless supply in every room, and F throws one, about every 0.7 s.
+   A knife flies fast in a slight arc, tumbling, and sticks into whatever surface it hits; the newest 60 per room stay until the room empties, and newcomers see them.
+   A knife that hits another cook knocks them out: they fall over, see "Knocked out by <name>" for 3 s, then respawn at a spawn point, protected for 2 s.
+   Kills show in the chat and as a toast; there are no scores and no game modes.
 
 ## Networking
 
@@ -52,6 +56,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 - Remote players render ~100 ms in the past with interpolation.
 - Validate every inbound message with the shared zod schemas and drop invalid ones. Clamp speed and position on the server.
 - Per-connection rate limiting; disconnect flooders. Heartbeat to drop dead connections. Broadcast join and leave.
+- Knives are server-authoritative: a throw is a key bit on an input, the server flies every knife with the shared simulation and decides hits against where the thrower saw the other players (rewound up to 400 ms), and clients replay each flight and end it where the server says.
 - Server URL comes from `VITE_SERVER_URL` with a localhost default.
 - In dev and test builds only, expose `window.__world` with read-only debug state (local player position, list of remote players and positions, connection status) so E2E tests can assert on state instead of pixels.
 
@@ -74,6 +79,7 @@ After each one: run all checks, fix failures, commit locally with a clear messag
 - **M4 E2E**: Playwright tests (Chromium with software WebGL, for example `--use-angle=swiftshader`) that open two browser contexts and verify through `window.__world`: both join `lobby` and see 2 players, moving player A changes A's position as seen by B, chat from A arrives at B, a private room code isolates players, closing A drops B's count to 1, and with the server stopped the world still loads in single-player mode.
 - **M5 Polish**: visual QA with Playwright screenshots of landing, world, info panel, and portfolio page saved to `docs/screenshots/`; fix anything that looks off; performance check with 16 simulated bot clients; remove dead code; write `README.md` with a deployment section (for example client on GitHub Pages or Vercel, server on Fly.io or Railway) without actually deploying.
 - **M6 Stretch, only if everything above is green**: a lightweight game mode in private rooms, such as tag or a foam-blaster round, with a simple scoreboard.
+  Tag was built, then replaced by knife throwing in every room (see Experience, item 8).
 
 ## Verification (definition of done)
 

@@ -36,6 +36,7 @@ Open a second browser window to see yourself from the outside.
 | Mouse     | Look around (click the world to lock) |
 | Space     | Jump                                  |
 | Shift     | Sprint                                |
+| F         | Throw a knife                         |
 | Click     | Open a station                        |
 | Enter     | Chat (120 characters, plain text)     |
 | 1 / 2 / 3 | Wave / dance / jump for joy           |
@@ -43,6 +44,11 @@ Open a second browser window to see yourself from the outside.
 
 Leave the room code empty to join the public `lobby`, or type any code to get a private kitchen.
 Private rooms have a "Copy invite link" button in the menu, which links to `/?room=<code>`.
+
+Every cook carries knives, in every room.
+Press F to throw one; it flies in a slight arc and sticks into whatever it hits.
+A knife that hits another cook knocks them out for three seconds, then they get back up somewhere else, briefly protected.
+The newest 60 knives stay stuck around the kitchen until everyone leaves the room.
 
 ## Editing the content
 

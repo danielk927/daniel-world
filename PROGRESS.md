@@ -31,7 +31,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
   - Offline single-player mode with automatic reconnect.
 - **A hardened room server** that validates every message with zod.
   It rate limits and disconnects floods, runs a heartbeat, caps connections, blocks speed hacks, and drops slow clients.
-- **Tag**, a game mode for private rooms, with a scoreboard.
+- **Tag**, a game mode for private rooms, with a scoreboard (later replaced by knives).
 - **Performance** on an Apple M5 with 16 players: a steady 60 fps, about 1 ms of main-thread time per frame, and 61 draw calls.
   Software renderers automatically get a lighter quality tier.
 
@@ -44,6 +44,15 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Restyled as low-poly: flat-shaded matte facets, low-sided round shapes, chamfered boxes, vertex colors instead of textures, a terracotta and cream checker floor, and faceted avatars.
 - Re-laid out after the French Laundry (16 by 13 m, white vault and skylights, stainless suite, charcoal islands, garden windows, three star plaques), with The Bear's "Every Second Counts" sign, and far fewer pots and pans.
 - Lint, typecheck, 120 unit tests, 10 E2E tests and the build pass; with 16 players it holds 60 fps at about 1.1 ms of frame CPU, 34 draw calls and 66k triangles.
+
+### Knives (2026-10-03)
+
+- Every cook carries knives in every room; F throws one, and it sticks where it lands or knocks out the cook it hits.
+- Knocked-out cooks fall over, see who did it, and respawn after 3 s with 2 s of protection.
+- The server decides every hit, rewinding the other players to what the thrower saw; clients replay each flight with the shared simulation.
+- The tag game mode was removed.
+- With 16 players and bots throwing, it holds 60 fps at about 1 ms of frame CPU and 36 draw calls.
+- Multiplayer needs the room server redeployed (`npm run deploy:aws`): protocol version 3.
 
 ### How to run it
 
@@ -85,7 +94,7 @@ npm run bots -- --count 5   # optional: some company
 - [x] M3 Multiplayer client
 - [x] M4 E2E
 - [x] M5 Polish
-- [x] M6 Stretch (game mode)
+- [x] M6 Stretch (game mode; tag, since replaced by knives)
 
 ## Log
 
