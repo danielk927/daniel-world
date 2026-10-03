@@ -35,13 +35,23 @@ function setup() {
   /** Queue one input for a player, throwing a knife if asked. */
   const input = (
     player: RoomPlayer,
-    options: { throwKnife?: boolean; keys?: number; yaw?: number; pitch?: number; view?: number },
+    options: {
+      throwKnife?: boolean;
+      keys?: number;
+      yaw?: number;
+      pitch?: number;
+      view?: number;
+      bareHand?: boolean;
+    },
   ): void => {
     const seq = seqs.get(player.id) ?? 0;
     seqs.set(player.id, seq + 1);
     room.enqueueInput(player, {
       seq,
-      keys: (options.keys ?? 0) | (options.throwKnife ? Keys.Throw : 0),
+      keys:
+        (options.keys ?? 0) |
+        (options.throwKnife ? Keys.Throw : 0) |
+        (options.bareHand ? 0 : Keys.Armed),
       yaw: options.yaw ?? NORTH,
       pitch: options.pitch ?? 0,
       view: options.view,
@@ -128,6 +138,19 @@ describe('knives', () => {
     // Oldest first, and the oldest few were dropped.
     expect(knives[0]!.id).toBe(6);
     expect(knives.at(-1)!.id).toBe(KNIFE_MAX_STUCK + 5);
+  });
+
+  it('cannot throw with a bare hand, and shows everyone whether a knife is out', () => {
+    const { room, join, input, steps, received } = setup();
+    const a = join(0, 2.6);
+    input(a, { throwKnife: true, bareHand: true });
+    steps(1);
+    expect(received(a.id, 'knife')).toHaveLength(0);
+    expect(room.snapshotOf(a).armed).toBe(false);
+    input(a, { throwKnife: true });
+    steps(1);
+    expect(received(a.id, 'knife')).toHaveLength(1);
+    expect(room.snapshotOf(a).armed).toBe(true);
   });
 
   it('ignores throws inside the cooldown', () => {

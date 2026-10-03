@@ -82,7 +82,8 @@ function startBot(index: number): Bot {
       const knife = values.knives && ready && Math.random() < 1 / 80 ? Keys.Throw : 0;
       if (knife) bot.lastThrow = bot.seq;
       const pitch = knife ? (Math.random() - 0.6) * 0.6 : 0;
-      send({ t: 'input', seq: bot.seq++, keys: bot.keys | jump | knife, yaw: bot.yaw, pitch });
+      const keys = bot.keys | jump | knife | Keys.Armed;
+      send({ t: 'input', seq: bot.seq++, keys, yaw: bot.yaw, pitch });
     }, TICK_MS);
   });
   ws.on('close', (code: number) => {

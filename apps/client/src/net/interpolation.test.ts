@@ -15,11 +15,21 @@ function snap(x: number, yaw = 0): PlayerSnapshot {
     pitch: 0,
     grounded: true,
     dead: false,
+    armed: true,
     ack: 0,
   };
 }
 
-const pose = (): Pose => ({ x: 0, y: 0, z: 0, yaw: 0, pitch: 0, grounded: true, dead: false });
+const pose = (): Pose => ({
+  x: 0,
+  y: 0,
+  z: 0,
+  yaw: 0,
+  pitch: 0,
+  grounded: true,
+  dead: false,
+  armed: true,
+});
 
 describe('SnapshotBuffer', () => {
   it('interpolates between the two samples around the render time', () => {

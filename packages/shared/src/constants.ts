@@ -7,7 +7,7 @@ export const TICK_MS = 1000 / TICK_RATE;
 export const INTERPOLATION_DELAY_MS = 100;
 
 /** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 export const DEFAULT_SERVER_PORT = 3001;
 
 // Rooms and players.
@@ -57,8 +57,10 @@ export const Keys = {
   Sprint: 32,
   /** Throw a knife on this input. Set on one input per press, not held. */
   Throw: 64,
+  /** Holding the knife, not the bare hand. Set on every input while the knife is out. */
+  Armed: 128,
 } as const;
-export const ALL_KEYS = 127;
+export const ALL_KEYS = 255;
 
 export const EMOTES = ['wave', 'dance', 'jump'] as const;
 export type Emote = (typeof EMOTES)[number];
@@ -67,11 +69,11 @@ export const EMOTE_DURATION = 2.4;
 
 // Knives: every cook carries an endless supply and can throw one with F.
 /** Speed a knife leaves the hand at, in meters per second. */
-export const KNIFE_SPEED = 18;
+export const KNIFE_SPEED = 26;
 /** Knives drop a little on long throws. Lighter than player gravity, which is tuned for jumps. */
 export const KNIFE_GRAVITY = 9.81;
 /** End-over-end tumble while flying, in radians per second. Only for looks. */
-export const KNIFE_SPIN = 16;
+export const KNIFE_SPIN = 24;
 /** Shortest time between two throws by one player. */
 export const KNIFE_COOLDOWN_MS = 700;
 /**

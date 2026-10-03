@@ -77,6 +77,7 @@ describe('parseServerMessage', () => {
           pitch: 0,
           grounded: true,
           dead: false,
+          armed: true,
           ack: 9,
         },
       ],

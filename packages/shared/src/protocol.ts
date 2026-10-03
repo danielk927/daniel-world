@@ -86,6 +86,8 @@ export const playerSnapshotSchema = z.object({
   grounded: z.boolean(),
   /** Knocked out by a knife, lying on the floor until they respawn. */
   dead: z.boolean(),
+  /** Holding a knife (rather than the bare hand). */
+  armed: z.boolean(),
   /** Sequence number of the last input from this player that the server has applied. */
   ack: z.number().int(),
 });

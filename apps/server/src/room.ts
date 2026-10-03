@@ -63,6 +63,8 @@ export interface RoomPlayer {
   protectedUntil: number;
   /** Sequence of the input that last threw a knife. */
   lastThrowSeq: number;
+  /** Holding the knife, as of the latest input. */
+  armed: boolean;
   /** Where the player was over the last few ticks, so knives can be checked against the past. */
   readonly history: PositionHistory;
   send: (data: string) => void;
@@ -134,6 +136,7 @@ export class Room {
       deadUntil: null,
       protectedUntil: 0,
       lastThrowSeq: -Infinity,
+      armed: true,
       history: new PositionHistory(),
       send: joining.send,
     };
@@ -185,6 +188,7 @@ export class Room {
       pitch: s.pitch,
       grounded: s.grounded,
       dead: player.deadUntil !== null,
+      armed: player.armed,
       ack: player.lastSeq,
     };
   }
@@ -244,8 +248,12 @@ export class Room {
     const dead = player.deadUntil !== null;
     stepPlayer(player.state, dead ? { keys: 0, yaw: input.yaw, pitch: input.pitch } : input);
     player.lastSeq = input.seq;
+    player.armed = (input.keys & Keys.Armed) !== 0;
     const cooledDown = input.seq - player.lastThrowSeq >= KNIFE_COOLDOWN_INPUTS;
-    if (!dead && input.keys & Keys.Throw && cooledDown) this.throwKnife(player, input);
+    // Only a knife in hand can be thrown.
+    if (!dead && player.armed && input.keys & Keys.Throw && cooledDown) {
+      this.throwKnife(player, input);
+    }
   }
 
   /** The knife leaves the eye, after this input's step, exactly as the thrower's client predicts. */
