@@ -107,6 +107,12 @@ export class LabelLayer {
     this.element.setAttribute('aria-hidden', 'true');
     parent.append(this.element);
     this.resize();
+    // Sizes measured before the web fonts arrived are too small; measure again once they have.
+    const remeasure = (): void => {
+      for (const label of this.labels) label.measured = false;
+    };
+    void document.fonts.ready.then(remeasure);
+    document.fonts.addEventListener('loadingdone', remeasure);
   }
 
   add(

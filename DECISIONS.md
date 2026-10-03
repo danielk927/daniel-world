@@ -40,7 +40,7 @@ Judgment calls made during the unattended build, with reasons.
   Text stays crisp and costs no draw calls; 24 labels is trivially cheap.
 - **No post-processing.**
   Glows are additive sprites and emissive materials, which keeps the frame budget for 16 avatars on laptop GPUs.
-- **Fonts are system stacks** (`ui-rounded` for headings), so nothing is downloaded.
+- **Fonts are bundled, not fetched:** EB Garamond for titles and Jost for the interface, self-hosted from npm (`@fontsource`) so the site still needs no outside service. (They were system stacks until the navy restyle.)
 - **`?room=code` prefills the room field**, so private rooms can be shared as links.
 - **Server URL default is `ws://<page host>:3001`** rather than a hard-coded `localhost`, so LAN devices work in dev; `VITE_SERVER_URL` overrides it.
 
@@ -169,7 +169,7 @@ Judgment calls made during the unattended build, with reasons.
   The pass sits between the suite and the dining room doors, two charcoal-topped islands (garde manger and pâtisserie) stand behind the suite, a long white counter with sinks runs under a strip of garden windows, the dish pit is by the dining room, and storage is on the end walls.
   The look follows the photo too: a white barrel vault with skylights, a stainless suite with a high shelf, a gridded and lit hood with three Michelin star plaques, white walls and a grey floor.
   The copper wall and the hanging pans are gone; only the pots a station uses remain.
-- **"Every Second Counts", from The Bear, hangs on the north wall over the windows.**
+- **"Every Second Counts", the navy nameplate from The Bear, hangs on the north wall over the windows** (white capitals, black rails).
   From the spawn the line of sight runs under the hood straight to it; on the hood itself the pass's heat lamps hid it.
 - **The first player now spawns by the dining room doors, facing north over the pass.**
   E2E routes go round the west end of the pass to reach the line.
@@ -192,3 +192,9 @@ Judgment calls made during the unattended build, with reasons.
 - **The low quality tier has no accent lights and no hover light**, besides no shadows and a lower resolution.
 - **Avatars wear a chef's toque** (one more instanced mesh).
 - **The windows look out on Paris at dusk**, a canvas painting on a far plane, so the room has depth without rendering a city.
+
+## The navy house style
+
+- **The interface is French Laundry navy with ivory type**, like the kitchen's aprons and The Bear's navy: solid colors only, no gradients, glows or glass blur, hairline ivory borders, and 2 px corners.
+- **Titles are EB Garamond, the rest Jost**, with small capitals letterspaced like a printed menu. Cormorant Garamond was tried first; its circumflex rendered badly, and a French kitchen's accents must be right.
+- **Labels hide while a menu or panel is open, and on the landing screen**, so they never float over a dialog.

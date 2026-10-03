@@ -98,32 +98,18 @@ export const gardenTexture = once(() => {
 });
 
 /**
- * "Every Second Counts", the sign from the kitchen in The Bear: black block letters on white
- * paper, taped up at the corners.
+ * "Every Second Counts", the nameplate from The Bear: white capitals on a navy plate. The black
+ * rails that hold it are geometry, not paint.
  */
 export const everySecondCountsTexture = once(() => {
   const [element, ctx] = canvas(1024, 256);
-  ctx.fillStyle = '#f7f5ef';
+  ctx.fillStyle = '#1b2150';
   ctx.fillRect(0, 0, 1024, 256);
-  ctx.fillStyle = '#141414';
-  ctx.font = '900 104px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  ctx.fillStyle = '#f7f7f4';
+  ctx.font = '400 84px "Helvetica Neue", Helvetica, Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('EVERY SECOND COUNTS', 512, 134, 940);
-  // Masking tape across each corner.
-  ctx.fillStyle = 'rgba(226, 210, 160, 0.92)';
-  for (const [x, y, angle] of [
-    [0, 0, -0.6],
-    [1024, 0, 0.6],
-    [0, 256, 0.6],
-    [1024, 256, -0.6],
-  ] as const) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.fillRect(-70, -16, 140, 32);
-    ctx.restore();
-  }
+  ctx.fillText('EVERY SECOND COUNTS', 512, 132, 900);
   return texture(element);
 });
 

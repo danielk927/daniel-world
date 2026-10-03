@@ -1,13 +1,12 @@
 @import './tokens.css';
 
 :root {
-  --ink: #2a1f2d;
-  --ink-muted: #4a3d4c;
-  --ink-faint: #6e6070;
-  --paper: #fbf6ef;
+  --ink: var(--navy-deep);
+  --ink-muted: #3b4570;
+  --ink-faint: #6a7296;
+  --paper: var(--ivory);
   --card: #ffffff;
-  --line: #eadfd3;
-  --accent-entry: #ffb86b;
+  --line: #dcd8cc;
 }
 
 *,
@@ -36,9 +35,9 @@ body {
 }
 
 a:focus-visible {
-  outline: 3px solid #d9822b;
+  outline: 3px solid var(--navy);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .pf-header {
@@ -52,17 +51,17 @@ a:focus-visible {
   margin: 0;
   font-family: var(--font-display);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #b0601f;
+  color: var(--navy);
 }
 
 .pf-title {
   margin: 0;
   font-family: var(--font-display);
   font-size: clamp(40px, 7vw, 60px);
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.02;
   letter-spacing: -0.02em;
 }
@@ -88,16 +87,16 @@ a:focus-visible {
   align-items: center;
   min-height: 44px;
   padding: 0 20px;
-  border-radius: 12px;
-  background: #2a1f2d;
-  color: #fff8f0;
-  font-weight: 650;
+  border-radius: var(--radius-sm);
+  background: var(--navy);
+  color: var(--ivory);
+  font-weight: 500;
   text-decoration: none;
   transition: background-color 0.15s ease;
 }
 
 .pf-button:hover {
-  background: #45334a;
+  background: var(--navy-light);
 }
 
 .pf-nav {
@@ -112,7 +111,7 @@ a:focus-visible {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--ink);
@@ -126,11 +125,11 @@ a:focus-visible {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent-entry);
+  background: var(--navy);
 }
 
 .pf-nav-link:hover {
-  border-color: #d8c6b4;
+  border-color: #c9c5b8;
 }
 
 .pf-sections {
@@ -142,7 +141,7 @@ a:focus-visible {
 .pf-section {
   position: relative;
   padding: 26px 28px 28px;
-  border-radius: 20px;
+  border-radius: var(--radius-sm);
   background: var(--card);
   border: 1px solid var(--line);
   box-shadow: 0 1px 2px rgba(60, 30, 40, 0.04);
@@ -155,7 +154,7 @@ a:focus-visible {
   position: absolute;
   inset: 0 auto 0 0;
   width: 5px;
-  background: var(--accent-entry);
+  background: var(--navy);
 }
 
 .pf-section-head {
@@ -165,7 +164,7 @@ a:focus-visible {
 .pf-kicker {
   margin: 0 0 2px;
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -175,7 +174,7 @@ a:focus-visible {
   margin: 0;
   font-family: var(--font-display);
   font-size: 28px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 /* Shared lore content, restyled for a light page. */
@@ -201,7 +200,7 @@ a:focus-visible {
 
 .lore-item {
   padding: 14px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   border: 1px solid var(--line);
 }
@@ -216,12 +215,12 @@ a:focus-visible {
 .lore-item-title {
   margin: 0;
   font-size: 16.5px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .lore-item-link {
   color: inherit;
-  text-decoration-color: var(--accent-entry);
+  text-decoration-color: var(--navy);
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
@@ -254,9 +253,9 @@ a:focus-visible {
 
 .tag {
   padding: 4px 11px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-entry) 22%, white);
-  border: 1px solid color-mix(in srgb, var(--accent-entry) 50%, white);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--navy) 22%, white);
+  border: 1px solid color-mix(in srgb, var(--navy) 50%, white);
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
@@ -278,17 +277,17 @@ a:focus-visible {
   align-items: center;
   min-height: 40px;
   padding: 0 16px;
-  border-radius: 11px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
-  font-weight: 650;
+  font-weight: 500;
   text-decoration: none;
 }
 
 .lore-links .button:hover {
-  border-color: #d8c6b4;
-  background: #f6eee4;
+  border-color: #c9c5b8;
+  background: #efebe0;
 }
 
 .pf-footer {

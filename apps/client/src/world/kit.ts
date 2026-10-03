@@ -49,6 +49,7 @@ export const paint = {
   plaque: '#fbfbf8',
   filter: '#dfe3e6',
   seam: '#9da6ad',
+  rail: '#141414',
   ovenDoor: '#bcc4cb',
   wood: '#8a5a35',
   woodLight: '#b98a5a',

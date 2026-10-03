@@ -273,13 +273,14 @@ function createWindows(kit: Kit): void {
     new PlaneGeometry(to - from, top - bottom),
     at((from + to) / 2, (top + bottom) / 2, -HZ - 0.1),
   );
-  // Every Second Counts: The Bear's sign, taped to the wall over the windows. From the pass, the
+  // Every Second Counts: The Bear's nameplate, on the wall over the windows. From the pass, the
   // line of sight runs under the hood straight to it.
-  kit.add(
-    'sign',
-    new PlaneGeometry(2.24, 0.56),
-    at(0, (top + ROOM_HEIGHT - 0.08) / 2, -HZ + 0.004),
-  );
+  const signY = (top + ROOM_HEIGHT - 0.08) / 2;
+  kit.add('sign', new PlaneGeometry(2.2, 0.5), at(0, signY, -HZ + 0.012));
+  for (const side of [-1, 1]) {
+    const y = signY + side * 0.265;
+    kit.box('matte', -1.13, 1.13, y - 0.022, y + 0.022, -HZ, -HZ + 0.03, paint.rail);
+  }
   // The garden, far enough away that it moves with believable parallax.
   kit.add('garden', new PlaneGeometry(64, 32), at(0, 6, -26));
 }

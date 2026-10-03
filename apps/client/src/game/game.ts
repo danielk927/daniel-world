@@ -184,7 +184,7 @@ export class Game {
     this.panel.close();
     this.chat.hide();
     this.hud.hide();
-    this.hud.setCovered(false);
+    this.setCovered(false);
     this.hud.setPrompt(null);
     this.input.enabled = false;
     this.input.releaseAll();
@@ -196,6 +196,12 @@ export class Game {
     this.landing.show();
     // Labels would float over the landing card; the world behind it is just scenery.
     this.labels.element.hidden = true;
+  }
+
+  /** Menus and panels cover the HUD and the labels, which would otherwise float over them. */
+  private setCovered(covered: boolean): void {
+    this.hud.setCovered(covered);
+    this.labels.element.hidden = covered;
   }
 
   private beginPlaying(): void {
@@ -210,7 +216,7 @@ export class Game {
   private async resume(): Promise<void> {
     if (this.mode !== 'paused' && this.mode !== 'panel') return;
     this.pause.hide();
-    this.hud.setCovered(false);
+    this.setCovered(false);
     this.mode = 'playing';
     this.input.enabled = true;
     const locked = await this.input.lock();
@@ -225,7 +231,7 @@ export class Game {
     this.input.enabled = false;
     this.input.releaseAll();
     this.input.unlock();
-    this.hud.setCovered(true);
+    this.setCovered(true);
     this.pause.show(note);
   }
 
@@ -234,7 +240,7 @@ export class Game {
     this.input.enabled = false;
     this.input.releaseAll();
     this.hud.setPrompt(null);
-    this.hud.setCovered(true);
+    this.setCovered(true);
     this.input.unlock();
     this.panel.open(entry);
   }

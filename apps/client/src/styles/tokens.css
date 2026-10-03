@@ -1,25 +1,42 @@
+/* Self-hosted fonts, bundled at build time: nothing is fetched from a font service. */
+@import '@fontsource/eb-garamond/latin-500.css';
+@import '@fontsource/eb-garamond/latin-600.css';
+@import '@fontsource/eb-garamond/latin-500-italic.css';
+@import '@fontsource/jost/latin-400.css';
+@import '@fontsource/jost/latin-400-italic.css';
+@import '@fontsource/jost/latin-500.css';
+@import '@fontsource/jost/latin-600.css';
+
+/*
+ * The house style: French Laundry navy, like the aprons, with ivory type. Solid colors only (no
+ * gradients or glows), hairline borders, nearly square corners. Titles are set in EB Garamond; everything else in Jost, with small capitals letterspaced like a printed menu.
+ */
 :root {
-  --font-display:
-    ui-rounded, 'SF Pro Rounded', 'Nunito', 'Segoe UI Variable Display', system-ui, sans-serif;
-  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-display: 'EB Garamond', Garamond, 'Times New Roman', serif;
+  --font-body: 'Jost', 'Futura', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  --ink: #fff8f0;
-  --ink-muted: #e4d8cf;
-  --ink-faint: #b9aab3;
-  --panel: rgba(30, 22, 40, 0.78);
-  --panel-strong: rgba(24, 18, 33, 0.92);
-  --panel-border: rgba(255, 236, 214, 0.14);
-  --accent: #ffb86b;
-  --accent-strong: #ffa04d;
-  --accent-ink: #2b1606;
-  --danger: #ff8c8c;
-  --ok: #7be0a0;
-  --warn: #ffd36b;
+  --navy: #1f2a5a;
+  --navy-deep: #161e45;
+  --navy-light: #2b3870;
+  --ivory: #f6f3ea;
 
-  --radius-sm: 8px;
-  --radius: 14px;
-  --radius-lg: 22px;
-  --shadow: 0 18px 50px rgba(20, 8, 30, 0.35), 0 2px 8px rgba(20, 8, 30, 0.2);
-  --focus: 0 0 0 3px rgba(255, 184, 107, 0.65);
+  --ink: var(--ivory);
+  --ink-muted: #cfd3e2;
+  --ink-faint: #949cbb;
+  --panel: rgba(31, 42, 90, 0.96);
+  --panel-strong: var(--navy-deep);
+  --panel-border: rgba(246, 243, 234, 0.22);
+  --accent: var(--ivory);
+  --accent-strong: #ffffff;
+  --accent-ink: var(--navy-deep);
+  --danger: #ff9a8f;
+  --ok: #8fd9a8;
+  --warn: #f1d58a;
+
+  --radius-sm: 2px;
+  --radius: 2px;
+  --radius-lg: 3px;
+  --shadow: 0 10px 30px rgba(10, 14, 36, 0.28);
+  --focus: 0 0 0 2px var(--navy-deep), 0 0 0 3px var(--ivory);
 }
