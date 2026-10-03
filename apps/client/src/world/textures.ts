@@ -98,30 +98,50 @@ export const gardenTexture = once(() => {
 });
 
 /**
+ * A sign lettered in the interface's Jost, so the kitchen does not add typefaces of its own.
+ * Canvas text only uses a web font once it has loaded, so the sign is repainted when it arrives.
+ */
+function sign(
+  width: number,
+  height: number,
+  font: string,
+  paint: (ctx: CanvasRenderingContext2D) => void,
+): Texture {
+  const [element, ctx] = canvas(width, height);
+  const t = texture(element);
+  const draw = () => {
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    paint(ctx);
+    t.needsUpdate = true;
+  };
+  draw();
+  void document.fonts.load(font).then(draw);
+  return t;
+}
+
+/**
  * "Every Second Counts", the nameplate from The Bear: white capitals on a navy plate. The black
  * rails that hold it are geometry, not paint.
  */
-export const everySecondCountsTexture = once(() => {
-  const [element, ctx] = canvas(1024, 256);
-  ctx.fillStyle = '#1b2150';
-  ctx.fillRect(0, 0, 1024, 256);
-  ctx.fillStyle = '#f7f7f4';
-  ctx.font = '400 84px "Helvetica Neue", Helvetica, Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('EVERY SECOND COUNTS', 512, 132, 900);
-  return texture(element);
-});
+export const everySecondCountsTexture = once(() =>
+  sign(1024, 256, '500 80px Jost, sans-serif', (ctx) => {
+    ctx.fillStyle = '#1b2150';
+    ctx.fillRect(0, 0, 1024, 256);
+    ctx.fillStyle = '#f7f7f4';
+    ctx.letterSpacing = '6px';
+    ctx.fillText('EVERY SECOND COUNTS', 512, 132, 900);
+  }),
+);
 
 /** The green exit sign over the back door. */
-export const exitSignTexture = once(() => {
-  const [element, ctx] = canvas(256, 96);
-  ctx.fillStyle = '#0d3b24';
-  ctx.fillRect(0, 0, 256, 96);
-  ctx.fillStyle = '#7dffb0';
-  ctx.font = 'bold 54px ui-rounded, system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('SORTIE', 128, 52);
-  return texture(element);
-});
+export const exitSignTexture = once(() =>
+  sign(256, 96, '600 54px Jost, sans-serif', (ctx) => {
+    ctx.fillStyle = '#0d3b24';
+    ctx.fillRect(0, 0, 256, 96);
+    ctx.fillStyle = '#7dffb0';
+    ctx.letterSpacing = '3px';
+    ctx.fillText('SORTIE', 128, 52);
+  }),
+);

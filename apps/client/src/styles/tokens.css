@@ -1,20 +1,18 @@
 /* Self-hosted fonts, bundled at build time: nothing is fetched from a font service. */
-@import '@fontsource/eb-garamond/latin-500.css';
 @import '@fontsource/eb-garamond/latin-600.css';
-@import '@fontsource/eb-garamond/latin-500-italic.css';
 @import '@fontsource/jost/latin-400.css';
-@import '@fontsource/jost/latin-400-italic.css';
 @import '@fontsource/jost/latin-500.css';
 @import '@fontsource/jost/latin-600.css';
 
 /*
  * The house style: French Laundry navy, like the aprons, with ivory type. Solid colors only (no
- * gradients or glows), hairline borders, nearly square corners. Titles are set in EB Garamond; everything else in Jost, with small capitals letterspaced like a printed menu.
+ * gradients or glows), hairline borders, nearly square corners.
+ * Two typefaces only: EB Garamond for headings, Jost for everything else (labels, body, numbers),
+ * with small capitals letterspaced like a printed menu. Numbers use tabular figures, not a mono.
  */
 :root {
   --font-display: 'EB Garamond', Garamond, 'Times New Roman', serif;
   --font-body: 'Jost', 'Futura', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --navy: #1f2a5a;
   --navy-deep: #161e45;

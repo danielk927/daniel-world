@@ -69,7 +69,8 @@ kbd {
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-bottom-width: 2px;
   background: rgba(255, 255, 255, 0.1);
-  font-family: var(--font-mono);
+  font-family: inherit;
+  font-weight: 500;
   font-size: 0.8em;
   text-align: center;
   color: var(--ink);
@@ -104,7 +105,6 @@ kbd {
 
 .loading-text {
   margin: 0;
-  font-family: var(--font-display);
   font-size: 17px;
   letter-spacing: 0.02em;
   color: var(--ink-muted);
@@ -336,7 +336,6 @@ kbd {
 
 .landing-eyebrow {
   margin: 0;
-  font-family: var(--font-display);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -553,7 +552,6 @@ kbd {
 }
 
 .hud-room-name {
-  font-family: var(--font-display);
   font-size: 16px;
   font-weight: 600;
 }
@@ -609,7 +607,7 @@ kbd {
 }
 
 .hud-players-count {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--ink-muted);
 }
@@ -712,7 +710,6 @@ kbd {
   background: rgba(22, 30, 69, 0.85);
   color: var(--ink-muted);
   font-size: 13px;
-  font-style: italic;
 }
 
 .chat-form {
@@ -738,7 +735,7 @@ kbd {
   right: 12px;
   top: 50%;
   transform: translateY(-50%);
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--ink-faint);
 }
@@ -762,7 +759,7 @@ kbd {
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #fff;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -828,7 +825,6 @@ kbd {
   border-radius: var(--radius-sm);
   background: var(--panel-strong);
   border: 1px solid var(--panel-border);
-  font-family: var(--font-display);
   font-size: 10.5px;
   font-weight: 600;
   color: var(--ink-muted);
@@ -855,7 +851,6 @@ kbd {
 }
 
 .scoreboard-title {
-  font-family: var(--font-display);
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -864,7 +859,7 @@ kbd {
 }
 
 .scoreboard-timer {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 15px;
   font-weight: 600;
 }
@@ -913,7 +908,7 @@ kbd {
 }
 
 .scoreboard-rank {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--ink-faint);
   text-align: right;
@@ -952,7 +947,7 @@ kbd {
 }
 
 .scoreboard-score {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   grid-column: 5;
 }
@@ -985,7 +980,6 @@ kbd {
   background: rgba(22, 30, 69, 0.85);
   border: 1px solid color-mix(in srgb, var(--ivory) 60%, transparent);
   color: #fff;
-  font-family: var(--font-display);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -1077,7 +1071,7 @@ kbd {
 
 .slider-value {
   min-width: 3ch;
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--ink-muted);
 }

@@ -9,13 +9,13 @@ export interface PauseHandlers {
 }
 
 const CONTROLS: readonly (readonly [string, string])[] = [
-  ['W A S D', 'Move'],
+  ['WASD', 'Move'],
   ['Mouse', 'Look around'],
   ['Space', 'Jump'],
   ['Shift', 'Sprint'],
   ['Click', 'Open a station'],
   ['Enter', 'Chat'],
-  ['1 2 3', 'Wave, dance, jump'],
+  ['1-3', 'Wave, dance, jump'],
   ['Esc', 'Menu'],
 ];
 
