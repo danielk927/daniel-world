@@ -89,7 +89,19 @@ export class StaticBuilder {
     }
     part.morphAttributes = {};
     part.clearGroups();
-    if (matrix) part.applyMatrix4(matrix);
+    if (matrix) {
+      part.applyMatrix4(matrix);
+      // A mirroring transform (a negative scale) reverses the winding, which would turn the part
+      // inside out: the GPU culls its outside and draws its inside, fighting anything it rests on.
+      if (matrix.determinant() < 0) {
+        const index = part.index!;
+        for (let i = 0; i < index.count; i += 3) {
+          const second = index.getX(i + 1);
+          index.setX(i + 1, index.getX(i + 2));
+          index.setX(i + 2, second);
+        }
+      }
+    }
     layer.parts.push(part);
     return this;
   }

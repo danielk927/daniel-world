@@ -4,6 +4,7 @@ import {
   Float32BufferAttribute,
   MeshBasicMaterial,
   SphereGeometry,
+  Vector3,
   type Mesh,
 } from 'three';
 import { describe, expect, it } from 'vitest';
@@ -48,6 +49,26 @@ describe('StaticBuilder', () => {
     expect(children.map((c) => c.name)).toEqual(['full']);
     expect(children[0]!.castShadow).toBe(true);
     expect(children[0]!.matrixAutoUpdate).toBe(false);
+  });
+
+  it('keeps faces pointing outward when a transform mirrors the geometry', () => {
+    // A negative scale on one axis (a box given its extents in reverse, say) flips the winding; if
+    // nothing flips it back, the GPU culls the outside and draws the inside of the box.
+    const builder = new StaticBuilder().layer('a', new MeshBasicMaterial());
+    builder.add('a', new BoxGeometry(1, 1, 1), at(0, 0, 0, { sz: -2 }));
+    const [mesh] = builder.build().children as Mesh[];
+    const position = mesh!.geometry.getAttribute('position');
+    const index = mesh!.geometry.index!;
+    const [a, b, c, normal, centroid] = [0, 0, 0, 0, 0].map(() => new Vector3());
+    for (let i = 0; i < index.count; i += 3) {
+      a.fromBufferAttribute(position, index.getX(i));
+      b.fromBufferAttribute(position, index.getX(i + 1));
+      c.fromBufferAttribute(position, index.getX(i + 2));
+      normal.subVectors(b, a).cross(c.clone().sub(a));
+      centroid.copy(a).add(b).add(c).divideScalar(3);
+      // The box is centered on the origin, so an outward face points away from it.
+      expect(normal.dot(centroid)).toBeGreaterThan(0);
+    }
   });
 
   it('refuses unknown layers', () => {
