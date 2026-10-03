@@ -188,7 +188,14 @@ export const stations: StationContent = {
     color: '#ffb86b',
     paragraphs: [
       'Every plate stops here under the heat lamps for one last look before it goes out to the dining room.',
-      'The chef calls the orders, and the tickets on the rail keep the whole brigade in step.',
+      'Tonight the pass holds my five favorite dishes of all time, each one from a meal I actually ate.',
+    ],
+    items: [
+      { title: 'Char siu', meta: 'Kamcentre Roast Goose, Hong Kong' },
+      { title: 'Glazed beetroot and La Tur', meta: 'The Four Horsemen, Brooklyn' },
+      { title: 'Roti and dips', meta: 'Kabawa, New York' },
+      { title: 'Ricotta toast', meta: 'Theodora, Brooklyn' },
+      { title: 'Truffle croissant', meta: 'Kasama, Chicago' },
     ],
   },
   saucier: {

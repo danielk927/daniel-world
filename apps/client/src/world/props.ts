@@ -1,4 +1,5 @@
 import { Color, LatheGeometry, TorusGeometry, Vector2, Vector3 } from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { COUNTER_HEIGHT, KITCHEN, STATIONS, createRandom, type StationId } from '@world/shared';
 import { at } from './builder.ts';
 import { paint, type Kit } from './kit.ts';
@@ -12,7 +13,7 @@ const TOP = COUNTER_HEIGHT;
 /** Height of a cooking zone's cast iron plate. */
 const ZONE = TOP + 0.01;
 /** Heat lamp bulbs glow brighter than any paint, so their color goes past 1. */
-const BULB = new Color(paint.bulb).multiplyScalar(2.2);
+const BULB = new Color(paint.bulb).multiplyScalar(1.4);
 /** A heat lamp shade with a thin wall, so it reads from above and below. */
 const LAMP_SHADE = new LatheGeometry(
   [
@@ -320,6 +321,287 @@ function pianoCenter(kit: Kit): void {
   }
 }
 
+/** A plain round plate with a raised rim. Returns the height its food sits on. */
+function plate(kit: Kit, x: number, z: number, radius: number, color: string, rim = color): number {
+  kit.cylinder('gloss', x, TOP, z, radius, 0.016, { segments: 12, color });
+  kit.add(
+    'gloss',
+    new TorusGeometry(radius - 0.012, 0.008, 3, 14),
+    at(x, TOP + 0.016, z, { rx: Math.PI / 2 }),
+    rim,
+  );
+  return TOP + 0.016;
+}
+
+/** A point `along` the axis at angle `ry` from (x, z), and `across` it. */
+function onAxis(x: number, z: number, ry: number, along: number, across = 0): [number, number] {
+  return [
+    x + Math.cos(ry) * along + Math.sin(ry) * across,
+    z - Math.sin(ry) * along + Math.cos(ry) * across,
+  ];
+}
+
+/** Kamcentre Roast Goose, Hong Kong: char siu, lacquered and charred at the edges. */
+function charSiu(kit: Kit, x: number, z: number): void {
+  const y = plate(kit, x, z, 0.19, paint.porcelain);
+  kit.cylinder('gloss', x + 0.03, y, z + 0.03, 0.08, 0.002, { color: '#b58450' });
+  const random = createRandom(7);
+  const chunks: [number, number, number][] = [
+    [-0.09, -0.05, 0],
+    [-0.02, -0.08, 0],
+    [0.07, -0.06, 0],
+    [-0.07, 0.04, 0],
+    [0.01, 0.02, 0],
+    [0.09, 0.04, 0],
+    [-0.01, 0.1, 0],
+    [-0.03, -0.02, 1],
+    [0.05, 0.0, 1],
+  ];
+  for (const [dx, dz, layer] of chunks) {
+    const cx = x + dx;
+    const cz = z + dz;
+    const ry = random() * Math.PI;
+    const tilt = (random() - 0.5) * 0.5;
+    const cy = y + 0.022 + layer * 0.034;
+    // Sliced so the pink-brown cut face shows on top, ringed by lacquer, one edge charred black.
+    kit.boxAt('gloss', cx, cy, cz, 0.07, 0.04, 0.045, { ry, rz: tilt, color: '#4f1d16' });
+    kit.boxAt('matte', cx, cy + 0.0205, cz, 0.06, 0.002, 0.036, { ry, rz: tilt, color: '#a8705f' });
+    const [ex, ez] = onAxis(cx, cz, ry, 0, -0.019);
+    kit.boxAt('gloss', ex, cy + 0.018, ez, 0.072, 0.01, 0.01, { ry, rz: tilt, color: '#1f0c08' });
+  }
+}
+
+/** The Four Horsemen, Brooklyn: glazed beetroot with La Tur, in a pool of its own juices. */
+function beetroot(kit: Kit, x: number, z: number): void {
+  const y = plate(kit, x, z, 0.19, paint.porcelain);
+  kit.cylinder('gloss', x, y, z, 0.13, 0.003, { segments: 12, color: '#d6c08e' });
+  // Glazed halves, dark and shiny, and wedges showing their magenta flesh.
+  const halves: [number, number, number][] = [
+    [-0.07, 0.05, 0.05],
+    [-0.06, -0.06, 0.042],
+    [0.02, -0.08, 0.04],
+  ];
+  for (const [dx, dz, r] of halves)
+    kit.sphere('gloss', x + dx, y + 0.004, z + dz, r, { sy: 0.55, color: '#3d0a17' });
+  const wedges: [number, number, number][] = [
+    [0.0, 0.0, 0.4],
+    [0.04, 0.07, 1.9],
+    [-0.1, -0.005, 2.6],
+  ];
+  for (const [dx, dz, ry] of wedges)
+    kit.cylinder('gloss', x + dx, y + 0.003, z + dz, 0.042, 0.04, {
+      segments: 3,
+      ry,
+      color: '#7c1232',
+    });
+  // A spoon of La Tur, edged with chopped herbs.
+  kit.sphere('matte', x + 0.085, y + 0.016, z - 0.015, 0.05, {
+    sx: 0.8,
+    sy: 0.6,
+    sz: 1.35,
+    ry: -0.3,
+    color: '#f6f2e8',
+  });
+  for (let i = 0; i < 5; i++)
+    kit.sphere('matte', x + 0.124 - i * 0.004, y + 0.024, z - 0.07 + i * 0.026, 0.007, {
+      color: '#5f8a3a',
+    });
+  for (const [dx, dz] of [
+    [-0.12, 0.09],
+    [-0.13, 0.06],
+    [0.03, 0.12],
+  ] as const)
+    kit.cylinder('gloss', x + dx, y + 0.003, z + dz, 0.012, 0.002, { color: '#8e1b3a' });
+}
+
+/** Kabawa, New York: flaky roti and fried bake, with chickpea curry and dips to tear into. */
+function rotiAndDips(kit: Kit, x: number, z: number): void {
+  const y = plate(kit, x, z + 0.02, 0.2, '#ece0c4', '#d8c7a2');
+  // Two folded roti, each a few loose, crumpled layers, golden and blistered.
+  const random = createRandom(17);
+  for (const [dx, dz, ry] of [
+    [0.02, 0.07, 0.5],
+    [0.07, 0.02, 2.5],
+  ] as const) {
+    for (let layer = 0; layer < 3; layer++) {
+      const lx = x + dx + (random() - 0.5) * 0.02;
+      const lz = z + dz + (random() - 0.5) * 0.02;
+      const ly = y + layer * 0.011;
+      kit.cylinder('matte', lx, ly, lz, 0.1 - layer * 0.01, 0.008, {
+        segments: 4 + layer,
+        ry: ry + (random() - 0.5) * 0.6,
+        rx: (random() - 0.5) * 0.2,
+        rz: (random() - 0.5) * 0.2,
+        color: ['#8a4c1e', '#9a5a24', '#a8682a'][layer],
+      });
+      // Browned blisters on each layer.
+      for (let k = 0; k < 2; k++)
+        kit.cylinder(
+          'matte',
+          lx + (random() - 0.5) * 0.06,
+          ly + 0.0085,
+          lz + (random() - 0.5) * 0.06,
+          0.012,
+          0.002,
+          {
+            color: '#6a3412',
+          },
+        );
+    }
+  }
+  // Fried bake, two golden cubes.
+  for (const [dx, dz, ry] of [
+    [-0.1, 0.09, 0.2],
+    [-0.05, 0.13, -0.3],
+  ] as const)
+    kit.boxAt('matte', x + dx, y + 0.022, z + dz, 0.045, 0.045, 0.045, { ry, color: '#dda255' });
+  // The dips, in dark stoneware bowls behind the roti, and guava chutney in a cream one.
+  const bowl = (bx: number, bz: number, outside: string, inside: string): number => {
+    kit.cylinder('gloss', bx, y, bz, 0.04, 0.035, { taper: 1.3, color: outside });
+    kit.cylinder('gloss', bx, y + 0.026, bz, 0.046, 0.004, { color: inside });
+    return y + 0.03;
+  };
+  const curry = bowl(x, z - 0.09, '#2c2622', '#7a3e18');
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    kit.sphere(
+      'matte',
+      x + Math.cos(a) * 0.02,
+      curry + 0.004,
+      z - 0.09 + Math.sin(a) * 0.02,
+      0.009,
+      {
+        color: '#c48a48',
+      },
+    );
+  }
+  bowl(x - 0.095, z - 0.04, '#2c2622', '#8a5226');
+  const pepper = bowl(x + 0.095, z - 0.05, '#2c2622', '#4a3d1c');
+  kit.sphere('gloss', x + 0.105, pepper + 0.002, z - 0.055, 0.02, { sy: 0.45, color: '#f2c64a' });
+  bowl(x - 0.13, z + 0.03, '#efe7d6', '#a8461f');
+}
+
+/** Theodora, Brooklyn: whipped ricotta piped over toast, with honey, black pepper and rosemary. */
+function ricottaToast(kit: Kit, x: number, z: number): void {
+  const ry = 0.45;
+  // An oval stoneware dish: a terracotta edge around a pale grey glaze. Its long axis follows `ry`.
+  kit.cylinder('matte', x, TOP, z, 0.11, 0.022, {
+    segments: 12,
+    depthScale: 1.9,
+    ry: ry + Math.PI / 2,
+    color: '#b0613c',
+  });
+  kit.cylinder('gloss', x, TOP + 0.012, z, 0.1, 0.012, {
+    segments: 12,
+    depthScale: 1.9,
+    ry: ry + Math.PI / 2,
+    color: '#d9d6cf',
+  });
+  const y = TOP + 0.024;
+  kit.boxAt('matte', x, y + 0.012, z, 0.27, 0.024, 0.1, { ry, color: '#71472a' });
+  // Ricotta piped across the toast in plump, soft ridges.
+  const ridge = new RoundedBoxGeometry(0.028, 0.026, 0.088, 2, 0.012);
+  for (let i = 0; i < 8; i++) {
+    const [px, pz] = onAxis(x, z, ry, -0.105 + i * 0.03);
+    kit.add('matte', ridge, at(px, y + 0.034, pz, { ry }), '#f8f5ee');
+  }
+  const random = createRandom(31);
+  for (let i = 0; i < 14; i++) {
+    const [px, pz] = onAxis(x, z, ry, (random() - 0.5) * 0.24, (random() - 0.5) * 0.07);
+    kit.sphere('matte', px, y + 0.041, pz, 0.003, { color: '#2a2622' });
+  }
+  for (const [along, across, turn] of [
+    [-0.06, 0.0, 0.6],
+    [0.04, 0.01, -0.5],
+  ] as const) {
+    const [ax, az] = onAxis(x, z, ry, along - 0.025, across - 0.02);
+    const [bx, bz] = onAxis(x, z, ry, along + 0.025, across + 0.02 * Math.sign(turn));
+    kit.rod('matte', new Vector3(ax, y + 0.041, az), new Vector3(bx, y + 0.043, bz), 0.003, 3);
+  }
+  // Honey pooling on the dish beside the toast.
+  const [hx, hz] = onAxis(x, z, ry, 0.08, 0.07);
+  kit.cylinder('gloss', hx, TOP + 0.024, hz, 0.012, 0.002, { color: '#c98f2e' });
+}
+
+/** Kasama, Chicago: a truffle croissant under pearl sugar, in its takeaway box. */
+function truffleCroissant(kit: Kit, x: number, z: number): void {
+  const kraft = '#b98d5c';
+  const half = 0.13;
+  const wall = 0.07;
+  kit.boxAt('matte', x, TOP + 0.002, z, half * 2, 0.004, half * 2, { color: kraft });
+  for (const [dx, dz, w, d] of [
+    [0, -half, half * 2, 0.004],
+    [0, half, half * 2, 0.004],
+    [-half, 0, 0.004, half * 2],
+    [half, 0, 0.004, half * 2],
+  ] as const)
+    kit.boxAt('matte', x + dx, TOP + wall / 2, z + dz, w, wall, d, { color: kraft });
+  // The lid, folded open toward the kitchen.
+  kit.boxAt(
+    'matte',
+    x,
+    TOP + wall + 0.94 * half,
+    z - half - 0.34 * half,
+    half * 2,
+    0.004,
+    half * 2,
+    {
+      rx: -1.92,
+      color: kraft,
+    },
+  );
+  kit.boxAt('matte', x, TOP + 0.005, z, 0.2, 0.002, 0.2, { ry: 0.25, color: '#efe3c8' });
+  // The croissant: a plump crescent with its horns curling back, and a darker laminated band.
+  const y = TOP + 0.006;
+  const bend = 0.08;
+  const cz = z - 0.035;
+  const crescent = (tube: number, arc: number, color: string): void => {
+    const geometry = new TorusGeometry(bend, tube, 6, 9, arc).rotateZ(Math.PI / 2 - arc / 2);
+    kit.add('matte', geometry, at(x, y + tube * 0.8, cz, { rx: Math.PI / 2, sz: 0.8 }), color);
+  };
+  crescent(0.05, 2.6, '#c47a30');
+  crescent(0.052, 0.5, '#d48c42');
+  for (const side of [-1, 1]) {
+    const a = Math.PI / 2 + side * 1.3;
+    const hx = x + Math.cos(a) * bend;
+    const hz = cz + Math.sin(a) * bend;
+    kit.sphere('matte', hx, y + 0.02, hz, 0.03, { sy: 0.7, color: '#b86e2a' });
+  }
+  // Pearl sugar over the top, and a pinch of shaved truffle in the middle.
+  const random = createRandom(53);
+  for (let i = 0; i < 44; i++) {
+    const a = Math.PI / 2 + (random() - 0.5) * 2.4;
+    const r = bend + (random() - 0.5) * 0.05;
+    kit.sphere('matte', x + Math.cos(a) * r, y + 0.08, cz + Math.sin(a) * r, 0.008, {
+      color: '#f5f0e4',
+    });
+  }
+  for (let i = 0; i < 7; i++)
+    kit.boxAt(
+      'matte',
+      x + (random() - 0.5) * 0.035,
+      y + 0.085,
+      cz + bend + (random() - 0.5) * 0.02,
+      0.012,
+      0.002,
+      0.006,
+      {
+        ry: random() * Math.PI,
+        color: '#4e3d2a',
+      },
+    );
+}
+
+/** Where the plates stand along the pass, one under each heat lamp. */
+const DISH_X = [-3, -1.5, 0, 1.5, 3] as const;
+const FAVORITE_DISHES: readonly ((kit: Kit, x: number, z: number) => void)[] = [
+  charSiu,
+  beetroot,
+  rotiAndDips,
+  ricottaToast,
+  truffleCroissant,
+];
+
 /** Le passe: plates under glowing heat lamps, and the ticket rail. */
 function passe(kit: Kit): void {
   const p = KITCHEN.pass;
@@ -330,8 +612,8 @@ function passe(kit: Kit): void {
     kit.cylinder('steel', x, TOP, cz, 0.028, housing + 0.12 - TOP);
   }
   kit.box('steel', p.minX + 0.1, p.maxX - 0.1, housing, housing + 0.12, cz - 0.18, cz + 0.18);
-  for (let i = 0; i < 6; i++) {
-    const x = -3.75 + i * 1.5;
+  // One heat lamp over each plate.
+  for (const x of DISH_X) {
     kit.add('steel', LAMP_SHADE, at(x, housing - 0.15, cz));
     kit.sphere('light', x, housing - 0.13, cz, 0.06, { sy: 0.7, color: BULB });
   }
@@ -352,39 +634,8 @@ function passe(kit: Kit): void {
     });
   }
 
-  // Plates waiting to go out, each a different dish.
-  const dishes: ((x: number) => void)[] = [
-    (x) => {
-      kit.sphere('gloss', x, TOP + 0.04, cz, 0.05, { sx: 1.5, sy: 0.6, sz: 0.8, color: '#5a2e1a' });
-      kit.cylinder('gloss', x + 0.06, TOP + 0.022, cz + 0.04, 0.03, 0.004, { color: '#9e1b1b' });
-    },
-    (x) => {
-      kit.boxAt('gloss', x, TOP + 0.04, cz, 0.12, 0.03, 0.06, { ry: 0.3, color: '#f3ead8' });
-      for (let i = 0; i < 4; i++)
-        kit.sphere('matte', x - 0.06 + i * 0.04, TOP + 0.03, cz + 0.06, 0.011, {
-          color: '#4f8a2e',
-        });
-    },
-    (x) => {
-      kit.cylinder('matte', x, TOP + 0.02, cz, 0.045, 0.035, { color: '#8e1b3a' });
-      kit.sphere('gloss', x, TOP + 0.06, cz, 0.014, { color: '#f2c94c' });
-    },
-    (x) => {
-      kit.sphere('gloss', x, TOP + 0.022, cz, 0.06, { sy: 0.75, color: '#3a1d12' });
-      kit.sphere('gloss', x + 0.02, TOP + 0.07, cz - 0.01, 0.012, { color: '#d4af37' });
-    },
-  ];
-  dishes.forEach((dish, i) => {
-    const x = -2.25 + i * 1.5;
-    kit.cylinder('gloss', x, TOP, cz, 0.16, 0.018, { segments: 36, color: paint.porcelain });
-    kit.add(
-      'gloss',
-      new TorusGeometry(0.145, 0.008, 3, 14),
-      at(x, TOP + 0.018, cz, { rx: Math.PI / 2 }),
-      paint.porcelain,
-    );
-    dish(x);
-  });
+  // Plates waiting to go out: Daniel's favorite dishes, left to right as seen from the dining room.
+  FAVORITE_DISHES.forEach((dish, i) => dish(kit, DISH_X[i]!, cz));
   // The service bell.
   kit.cylinder('brass', 3.6, TOP, cz, 0.06, 0.012, { segments: 24 });
   kit.sphere('brass', 3.6, TOP + 0.012, cz, 0.05, { sy: 0.8 });
