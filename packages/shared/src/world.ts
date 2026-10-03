@@ -1,4 +1,4 @@
-import { ROOM_HALF_X, ROOM_HALF_Z } from './constants.ts';
+import { ROOM_HALF_X, ROOM_HALF_Z, ROOM_HEIGHT } from './constants.ts';
 
 /**
  * The static world layout: a classical French brigade kitchen. Client and server both build
@@ -215,3 +215,27 @@ function buildColliders(): Collider[] {
 }
 
 export const COLLIDERS: readonly Collider[] = buildColliders();
+
+/** How far the barrel vault rises above the top of the walls. */
+export const VAULT_RISE = 1.8;
+const VAULT_RADIUS = (ROOM_HALF_Z * ROOM_HALF_Z + VAULT_RISE * VAULT_RISE) / (2 * VAULT_RISE);
+
+/** Height of the barrel vault above the floor at a given z. */
+export function vaultHeight(z: number): number {
+  return ROOM_HEIGHT + Math.sqrt(VAULT_RADIUS * VAULT_RADIUS - z * z) - (VAULT_RADIUS - VAULT_RISE);
+}
+
+/**
+ * What a thrown knife can stick into, besides the floor, walls and vault: each fixture at its real
+ * height (unlike COLLIDERS, which reach far above counters to stop players jumping onto them), and
+ * the hood. Small props on the counters do not stop a knife.
+ */
+export const KNIFE_SOLIDS: readonly BoxCollider[] = Object.values(KITCHEN).map((fixture) => ({
+  kind: 'box',
+  minX: fixture.minX,
+  maxX: fixture.maxX,
+  minZ: fixture.minZ,
+  maxZ: fixture.maxZ,
+  bottom: 'bottom' in fixture ? fixture.bottom : 0,
+  top: fixture.top,
+}));

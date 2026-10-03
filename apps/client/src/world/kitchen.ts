@@ -14,6 +14,8 @@ import {
   ROOM_HALF_X,
   ROOM_HALF_Z,
   ROOM_HEIGHT,
+  VAULT_RISE,
+  vaultHeight,
   WINDOWS,
   createRandom,
   type Fixture,
@@ -33,15 +35,8 @@ const HZ = ROOM_HALF_Z;
 const TOP = COUNTER_HEIGHT;
 /** Counters are a body under a 6 cm work surface. */
 const SLAB = 0.06;
-/** How far the barrel vault rises above the top of the walls. */
-export const VAULT_RISE = 1.8;
 const VAULT_SEGMENTS = 12;
 const VAULT_RADIUS = (HZ * HZ + VAULT_RISE * VAULT_RISE) / (2 * VAULT_RISE);
-
-/** Height of the barrel vault above the floor at a given z. */
-export function vaultHeight(z: number): number {
-  return ROOM_HEIGHT + Math.sqrt(VAULT_RADIUS * VAULT_RADIUS - z * z) - (VAULT_RADIUS - VAULT_RISE);
-}
 
 interface Opening {
   readonly from: number;

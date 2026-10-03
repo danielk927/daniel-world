@@ -63,6 +63,31 @@ export type Emote = (typeof EMOTES)[number];
 /** How long an emote animation plays, in seconds. */
 export const EMOTE_DURATION = 2.4;
 
+// Knives: every cook carries an endless supply and can throw one with F.
+/** Speed a knife leaves the hand at, in meters per second. */
+export const KNIFE_SPEED = 18;
+/** Knives drop a little on long throws. Lighter than player gravity, which is tuned for jumps. */
+export const KNIFE_GRAVITY = 9.81;
+/** End-over-end tumble while flying, in radians per second. Only for looks. */
+export const KNIFE_SPIN = 16;
+/** Shortest time between two throws by one player. */
+export const KNIFE_COOLDOWN_MS = 700;
+/** A knife that has hit nothing after this long is dropped. */
+export const KNIFE_MAX_FLIGHT_SECONDS = 2.5;
+/** How deep a knife's tip sinks into whatever it hits. */
+export const KNIFE_EMBED = 0.04;
+/** Only the newest stuck knives in a room are kept, so the kitchen never fills up. */
+export const KNIFE_MAX_STUCK = 60;
+/** A knife hits a player when it passes through this cylinder around their feet, toque included. */
+export const KNIFE_HIT_RADIUS = 0.42;
+export const KNIFE_HIT_HEIGHT = 1.95;
+/** A knocked-out cook lies on the floor this long before respawning. */
+export const DEATH_SECONDS = 3;
+/** A respawned cook cannot be hit for this long. */
+export const RESPAWN_PROTECTION_SECONDS = 2;
+/** The server rewinds other players at most this far to match what a thrower saw on screen. */
+export const MAX_REWIND_MS = 400;
+
 /** One distinct avatar color per player slot in a room. */
 export const PLAYER_COLORS = [
   '#ff7a59',
