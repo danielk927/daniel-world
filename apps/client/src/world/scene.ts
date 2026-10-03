@@ -47,15 +47,16 @@ export class WorldScene {
     // Low quality renders below native resolution; the browser scales the canvas up.
     this.renderer.setPixelRatio(high ? Math.min(window.devicePixelRatio, 2) : 0.75);
     this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = high;
     this.renderer.shadowMap.type = PCFShadowMap;
 
     this.scene.background = new Color('#e9eef2');
 
-    const hemi = new HemisphereLight('#f5f8fc', '#c9c5bd', 1.25);
+    // Soft, even daylight: most of the light is fill, so faces never fall into dark shade.
+    const hemi = new HemisphereLight('#f5f8fc', '#d6d2ca', 1.9);
     // Daylight from the skylights, as one key light from above that casts the shadows.
-    const key = new DirectionalLight('#fffaf2', 2.6);
+    const key = new DirectionalLight('#fffaf2', 1.7);
     // Angled toward the south, so the faces a new player looks at are lit, not only the tops.
     key.position.set(5, 13, 9);
     key.castShadow = true;
@@ -69,14 +70,17 @@ export class WorldScene {
     shadowCamera.far = 30;
     key.shadow.bias = -0.0004;
     key.shadow.normalBias = 0.03;
-    key.shadow.radius = 2;
+    key.shadow.radius = 4;
+    // Shadows only hint at contact and depth; full-strength ones read as dark holes in a white room.
+    key.shadow.intensity = 0.45;
 
     // Every point light costs every lit pixel, so software renderers go without the accent lights.
     if (high) {
       const pass = KITCHEN.pass;
-      const passLight = new PointLight('#ff8a45', 5, 5, 1.6);
-      passLight.position.set(0, 1.9, (pass.minZ + pass.maxZ) / 2);
-      this.fireLight = new PointLight('#ff9b52', 0.9, 3, 1.6);
+      // A short reach, so the lamps warm the plates without washing the vault and walls orange.
+      const passLight = new PointLight('#ffc08a', 1.6, 1.8, 2);
+      passLight.position.set(0, 1.7, (pass.minZ + pass.maxZ) / 2);
+      this.fireLight = new PointLight('#ffb070', 0.45, 2.2, 2);
       this.fireLight.position.set(0, 1.1, 0);
       this.scene.add(passLight, this.fireLight);
     }
@@ -118,7 +122,7 @@ export class WorldScene {
     worldTime.value = time;
     this.stations.update(dt);
     if (this.fireLight) {
-      this.fireLight.intensity = 0.9 + Math.sin(time * 13) * 0.1 + Math.sin(time * 7.3) * 0.08;
+      this.fireLight.intensity = 0.45 + Math.sin(time * 13) * 0.03 + Math.sin(time * 7.3) * 0.02;
     }
   }
 
