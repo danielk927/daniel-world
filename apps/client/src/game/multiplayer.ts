@@ -137,6 +137,11 @@ export class Multiplayer {
     this.connection.send(input);
   }
 
+  /** This player's color in the room, once the server has assigned one. */
+  get selfColor(): string | null {
+    return this.selfInfo?.color ?? null;
+  }
+
   /** Everyone a knife could hit, as drawn on this screen: other players, and this one. */
   knifeTargets(): readonly KnifeTarget[] {
     return this.targets;
@@ -445,7 +450,17 @@ export class Multiplayer {
     const remote: Remote = {
       info,
       buffer: new SnapshotBuffer(),
-      pose: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, grounded: true, dead: false, speed: 0 },
+      pose: {
+        x: 0,
+        y: 0,
+        z: 0,
+        yaw: 0,
+        pitch: 0,
+        grounded: true,
+        dead: false,
+        armed: true,
+        speed: 0,
+      },
       lastX: 0,
       lastZ: 0,
       hasPose: false,

@@ -22,6 +22,7 @@ export function world(page: Page): Promise<WorldDebugState> {
       selfId: w.selfId,
       player: w.player,
       look: w.look,
+      armed: w.armed,
       knockedOut: w.knockedOut,
       knives: w.knives,
       remotePlayers: w.remotePlayers,

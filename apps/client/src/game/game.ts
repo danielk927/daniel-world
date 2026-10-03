@@ -25,7 +25,7 @@ import { PauseMenu } from '../ui/pause.ts';
 import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
 import { PICK_DISTANCE } from '../world/stations.ts';
-import { Viewmodel } from '../world/viewmodel.ts';
+import { THROW, type Viewmodel } from '../world/viewmodel.ts';
 import { CameraRig } from './cameraRig.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
@@ -69,8 +69,11 @@ export class Game {
   private readonly viewmodel: Viewmodel;
   /** Down on the floor after a knife hit, until the server stands this player back up. */
   knockedOut = false;
-  /** F was pressed; the next tick throws if the cooldown allows. */
-  private throwQueued = false;
+  /** Holding the knife (true) or the bare hand. Q switches. */
+  armed = true;
+  /** World time the throw animation lets go of the knife; the tick after that throws it. */
+  private throwAt: number | null = null;
+  private readonly hand = new Vector3();
   private lastThrowSeq = -Infinity;
 
   private lastFrame = performance.now();
@@ -112,7 +115,7 @@ export class Game {
     });
     this.toasts = new Toasts(overlay);
     this.knockout = new Knockout(overlay);
-    this.viewmodel = new Viewmodel(world.camera);
+    this.viewmodel = world.viewmodel;
     this.panel = new InfoPanel(overlay);
     this.pause = new PauseMenu(
       overlay,
@@ -167,6 +170,7 @@ export class Game {
     this.player.reset();
     this.world.knives.reset([]);
     this.lastThrowSeq = -Infinity;
+    this.setArmed(true);
     this.input.yaw = SPAWN.yaw;
     this.input.pitch = 0;
     this.enterFrom.copy(this.world.camera.position);
@@ -295,19 +299,26 @@ export class Game {
     this.lastThrowSeq = input.seq;
     const s = this.player.state;
     const knife = launchKnife(s.x, s.y + EYE_HEIGHT, s.z, input.yaw, input.pitch);
-    this.world.knives.throwOwn(input.seq, this.multiplayer?.selfId ?? -1, knife, online);
-    this.viewmodel.throw();
+    // Drawn leaving the hand on screen, flying from the eye where it can hit.
+    const hand = this.viewmodel.knifeCenter(this.hand);
+    this.world.knives.throwOwn(input.seq, this.multiplayer?.selfId ?? -1, knife, online, hand);
   }
 
   private knockOut(by: string): void {
     this.knockedOut = true;
-    this.throwQueued = false;
+    this.throwAt = null;
     if (this.mode === 'chat') this.chat.close();
     this.rig.setKnockedOut(true);
     this.viewmodel.setShown(false);
     // Station labels would float over the knockout card.
     this.labels.element.hidden = true;
     this.knockout.show(by);
+  }
+
+  private setArmed(armed: boolean): void {
+    this.armed = armed;
+    this.throwAt = null;
+    this.viewmodel.setArmed(armed);
   }
 
   private backOnFeet(): void {
@@ -360,7 +371,12 @@ export class Game {
     } else if (code in EMOTE_KEYS) {
       this.playEmote(EMOTE_KEYS[code]!);
     } else if (code === 'KeyF') {
-      if (!this.knockedOut) this.throwQueued = true;
+      // With the bare hand out, F draws the knife; with the knife out, it throws.
+      if (this.knockedOut) return true;
+      if (!this.armed) this.setArmed(true);
+      else if (this.viewmodel.startThrow()) this.throwAt = this.elapsed + THROW.release;
+    } else if (code === 'KeyQ') {
+      if (!this.knockedOut) this.setArmed(!this.armed);
     } else {
       return false;
     }
@@ -383,10 +399,14 @@ export class Game {
     const online = this.multiplayer?.isOnline ?? false;
     // Knocked out: lie still. The server ignores movement then anyway, so prediction agrees.
     let keys = this.knockedOut ? 0 : this.input.keys;
-    if (this.throwQueued) {
-      this.throwQueued = false;
-      const ready = this.player.nextSeq - this.lastThrowSeq >= KNIFE_COOLDOWN_INPUTS;
-      if (ready && !this.knockedOut) keys |= Keys.Throw;
+    if (this.armed) keys |= Keys.Armed;
+    if (this.throwAt !== null && this.elapsed >= this.throwAt) {
+      // The hand has let go: throw on this input, as soon as the server's cooldown allows.
+      if (this.knockedOut || !this.armed) this.throwAt = null;
+      else if (this.player.nextSeq - this.lastThrowSeq >= KNIFE_COOLDOWN_INPUTS) {
+        keys |= Keys.Throw;
+        this.throwAt = null;
+      }
     }
     const input = this.player.tick(keys, this.input.yaw, this.input.pitch, online);
     if (input.keys & Keys.Throw) this.throwKnife(input, online);
@@ -417,7 +437,16 @@ export class Game {
     this.multiplayer?.update(now, dt);
     this.world.knives.update(dt, this.multiplayer?.knifeTargets() ?? NO_TARGETS);
     this.updateCamera(dt);
-    this.viewmodel.update(dt, 0);
+    const color = this.multiplayer?.selfColor;
+    if (color) this.viewmodel.setColor(color);
+    this.viewmodel.update(
+      dt,
+      this.world.camera,
+      this.input.yaw,
+      this.input.pitch,
+      this.player.horizontalSpeed,
+      this.player.state.grounded,
+    );
     this.updateMinimap(dt);
     // Labels and picking project through the camera, so its matrices must be current.
     this.world.camera.updateMatrixWorld();

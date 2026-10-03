@@ -21,6 +21,7 @@ import { buildKitchen } from './kitchen.ts';
 import { buildStationProps } from './props.ts';
 import { assignShadowDepthMaterials } from './shadowDepth.ts';
 import { Stations } from './stations.ts';
+import { Viewmodel } from './viewmodel.ts';
 
 export const BASE_FOV = 72;
 
@@ -34,6 +35,8 @@ export class WorldScene {
   readonly avatars = new Avatars();
   /** Every knife stuck in the kitchen or in the air. */
   readonly knives = new Knives();
+  /** The player's own arm, drawn over the world. */
+  readonly viewmodel = new Viewmodel();
   /** Firelight from the burners on the piano, flickering. High quality only, with the pass light. */
   private readonly fireLight: PointLight | null = null;
 
@@ -55,6 +58,7 @@ export class WorldScene {
     // Low quality renders below native resolution; the browser scales the canvas up.
     this.renderer.setPixelRatio(high ? Math.min(window.devicePixelRatio, 2) : 0.75);
     this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.info.autoReset = false;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = high;
     this.renderer.shadowMap.type = PCFShadowMap;
@@ -108,8 +112,6 @@ export class WorldScene {
       this.stations.group,
       this.avatars.group,
       this.knives.mesh,
-      // In the scene so the knife in the player's hand, a child of the camera, is drawn.
-      this.camera,
     );
     assignShadowDepthMaterials(this.scene);
 
@@ -127,6 +129,7 @@ export class WorldScene {
   /** Compile every shader up front so the first frames in the world do not hitch. */
   async compile(): Promise<void> {
     await this.renderer.compileAsync(this.scene, this.camera);
+    await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
   }
 
   update(time: number, dt: number): void {
@@ -138,6 +141,9 @@ export class WorldScene {
   }
 
   render(): void {
+    // Two passes (the world, then the arm over it), so draw call counts add up across both.
+    this.renderer.info.reset();
     this.renderer.render(this.scene, this.camera);
+    this.viewmodel.render(this.renderer, this.camera);
   }
 }

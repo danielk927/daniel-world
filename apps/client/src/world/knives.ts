@@ -15,6 +15,8 @@ import { KNIFE_CENTER, knifeGeometry, knifeMaterial } from './knifeModel.ts';
 const MAX_FLYING = 32;
 /** World knives are drawn larger than life, so one stuck across the room still reads as a knife. */
 const SCALE = 1.5;
+/** Own throws start at the hand on screen and blend onto their true path this fast, in seconds. */
+const HAND_BLEND = 0.12;
 /** A knife that landed on this screen waits this long for the server's verdict, then settles. */
 const VERDICT_TIMEOUT = 2;
 
@@ -39,6 +41,10 @@ interface Flight {
   landed: KnifeImpact | null;
   /** Seconds spent landed, waiting for the verdict. */
   waited: number;
+  /** Where it is drawn, relative to where it flies, at release; fades to nothing over HAND_BLEND. */
+  readonly ox: number;
+  readonly oy: number;
+  readonly oz: number;
 }
 
 const FORWARD = new Vector3(0, 0, -1);
@@ -86,7 +92,17 @@ export class Knives {
   }
 
   /** This player threw a knife: draw it at once, before the server hears of it. */
-  throwOwn(seq: number, from: number, state: KnifeState, online: boolean): void {
+  throwOwn(
+    seq: number,
+    from: number,
+    state: KnifeState,
+    online: boolean,
+    hand?: { x: number; y: number; z: number },
+  ): void {
+    // It flies from the eye, where it can hit, but starts where the hand let go and blends in.
+    const ox = hand ? hand.x - state.x : 0;
+    const oy = hand ? hand.y - state.y : 0;
+    const oz = hand ? hand.z - state.z : 0;
     this.add({
       id: null,
       seq,
@@ -97,6 +113,9 @@ export class Knives {
       outcome: null,
       landed: null,
       waited: 0,
+      ox,
+      oy,
+      oz,
     });
   }
 
@@ -130,6 +149,9 @@ export class Knives {
       outcome: null,
       landed: null,
       waited: 0,
+      ox: 0,
+      oy: 0,
+      oz: 0,
     });
   }
 
@@ -247,7 +269,9 @@ export class Knives {
       this.q.setFromUnitVectors(FORWARD, this.v.set(s.vx, s.vy, s.vz).normalize());
       this.spin.setFromAxisAngle(this.xAxis, -f.clock * KNIFE_SPIN);
       this.q.multiply(this.spin);
-      this.m.compose(this.p.set(s.x, s.y, s.z), this.q, this.scale).multiply(this.offset);
+      const fromHand = f.clock < HAND_BLEND ? 1 - easeOut(f.clock / HAND_BLEND) : 0;
+      this.p.set(s.x + f.ox * fromHand, s.y + f.oy * fromHand, s.z + f.oz * fromHand);
+      this.m.compose(this.p, this.q, this.scale).multiply(this.offset);
       this.mesh.setMatrixAt(n++, this.m);
     }
     this.mesh.count = n;
@@ -255,6 +279,8 @@ export class Knives {
     this.dirty = false;
   }
 }
+
+const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
 
 function pose(impact: Extract<KnifeImpact, { kind: 'surface' }>): Omit<StuckKnife, 'id'> {
   return { x: impact.x, y: impact.y, z: impact.z, dx: impact.dx, dy: impact.dy, dz: impact.dz };

@@ -34,6 +34,8 @@ export class Hud {
     ' sprint ',
     el('kbd', { text: 'F' }),
     ' throw ',
+    el('kbd', { text: 'Q' }),
+    ' switch ',
     el('kbd', { text: 'Enter' }),
     ' chat ',
     el('kbd', { text: '1-3' }),

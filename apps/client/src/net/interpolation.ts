@@ -10,6 +10,8 @@ export interface Pose {
   grounded: boolean;
   /** Knocked out by a knife. */
   dead: boolean;
+  /** Holding a knife. */
+  armed: boolean;
 }
 
 interface Sample extends Pose {
@@ -40,6 +42,7 @@ export class SnapshotBuffer {
     pitch: 0,
     grounded: true,
     dead: false,
+    armed: true,
   }));
   private head = -1;
   private count = 0;
@@ -56,6 +59,7 @@ export class SnapshotBuffer {
     sample.pitch = s.pitch;
     sample.grounded = s.grounded;
     sample.dead = s.dead;
+    sample.armed = s.armed;
     this.count = Math.min(CAPACITY, this.count + 1);
   }
 
@@ -90,6 +94,7 @@ export class SnapshotBuffer {
       this.blend(prev, newest, t, out);
       out.grounded = newest.grounded;
       out.dead = newest.dead;
+      out.armed = newest.armed;
       return true;
     }
     for (let i = 1; i < this.count; i++) {
@@ -100,6 +105,7 @@ export class SnapshotBuffer {
         this.blend(older, newer, t, out);
         out.grounded = t < 0.5 ? older.grounded : newer.grounded;
         out.dead = t < 0.5 ? older.dead : newer.dead;
+        out.armed = t < 0.5 ? older.armed : newer.armed;
         return true;
       }
     }

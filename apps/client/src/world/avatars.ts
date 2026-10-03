@@ -367,7 +367,7 @@ export class Avatars {
       if (side === 1) {
         // The knife in the right hand, gripped by its handle, unless it is in flight or they are down.
         const reloaded = time - avatar.throwStart > KNIFE_COOLDOWN_MS / 1000;
-        const inHand = fall < 0.05 && (throwT < 0 ? reloaded : throwT < RELEASE);
+        const inHand = pose.armed && fall < 0.05 && (throwT < 0 ? reloaded : throwT < RELEASE);
         if (inHand) {
           const tilt = throwT >= 0 ? KNIFE_TILT + Math.min(1, throwT / RELEASE) * 1.4 : KNIFE_TILT;
           this.setPart(

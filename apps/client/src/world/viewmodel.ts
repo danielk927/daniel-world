@@ -1,60 +1,390 @@
-import { Mesh, type PerspectiveCamera } from 'three';
-import { KNIFE_COOLDOWN_MS } from '@world/shared';
-import { GRIP, knifeGeometry, knifeMaterial } from './knifeModel.ts';
-
-/** Where the hand holding the knife sits in view: low and to the right, in camera space. */
-const REST = { x: 0.2, y: -0.19, z: -0.3 };
-/** Held pointing ahead and a little up, angled in toward the crosshair. */
-const TILT = 0.32;
-const TURN = 0.32;
-const SIZE = 0.68;
+import {
+  Color,
+  CylinderGeometry,
+  DirectionalLight,
+  Euler,
+  Group,
+  HemisphereLight,
+  Mesh,
+  MeshStandardMaterial,
+  Scene,
+  Vector3,
+  type PerspectiveCamera,
+  type WebGLRenderer,
+} from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { GRIP, KNIFE_CENTER, knifeGeometry, knifeMaterial } from './knifeModel.ts';
 
 /**
- * The knife in this player's own hand, drawn in front of the camera. It leaves with each throw and
- * slides back in as the next one is ready, so the cooldown is visible without any UI.
+ * The player's own arm, in the style of a CS2 view model: a white chef's sleeve and a hand coming
+ * up from the bottom right, holding a knife or empty. It sways behind the mouse, bobs with each
+ * step, breathes, and plays the throw (wind up, snap, follow through, draw a fresh knife) and the
+ * switch between knife and bare hand.
+ *
+ * It is drawn as a second pass, in its own scene, after clearing depth: it never clips into a wall,
+ * and its parts still sort correctly against each other.
  */
+
+/** Throw timeline, in seconds from the key press. The knife leaves the hand at RELEASE. */
+export const THROW = {
+  windUp: 0.09,
+  release: 0.12,
+  snap: 0.16,
+  followThrough: 0.34,
+  drawFrom: 0.5,
+  drawTo: 0.8,
+} as const;
+/** Switching between knife and hand: the one lowers, then the other rises. */
+export const SWITCH = { lower: 0.12, raise: 0.34 } as const;
+
+/** Offsets from the resting pose, in camera space (meters and radians). */
+export interface ArmPose {
+  x: number;
+  y: number;
+  z: number;
+  rx: number;
+  ry: number;
+  rz: number;
+  /** The knife is in the hand (not thrown yet, or drawn again). */
+  knife: boolean;
+  /** The flourish of a fresh knife being drawn: a spin about its own length. */
+  spin: number;
+}
+
+const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
+const easeInCubic = (t: number): number => t * t * t;
+const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+/** Overshoots a little and settles, like a hand snapping into place. */
+const easeOutBack = (t: number): number => {
+  const c = 1.7;
+  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
+};
+const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
+
+function set(
+  out: ArmPose,
+  x: number,
+  y: number,
+  z: number,
+  rx: number,
+  ry: number,
+  rz: number,
+): void {
+  out.x = x;
+  out.y = y;
+  out.z = z;
+  out.rx = rx;
+  out.ry = ry;
+  out.rz = rz;
+}
+
+/** Below the screen, where the arm goes while nothing is in hand. */
+const LOWERED = { y: -0.34, rx: 0.5 };
+/** Where the follow-through ends, out of view; the next knife is drawn up from here. */
+const SPENT = { x: -0.04, y: LOWERED.y, z: 0, rx: 1.1, ry: -0.2, rz: 0.15 };
+
+/** The arm `t` seconds into a throw. */
+export function throwPose(t: number, out: ArmPose): ArmPose {
+  out.spin = 0;
+  out.knife = t < THROW.release || t >= THROW.drawFrom;
+  if (t < THROW.windUp) {
+    // Draw back past the ear, blade tipping back.
+    const k = easeOutCubic(t / THROW.windUp);
+    set(out, 0.03 * k, 0.07 * k, 0.1 * k, -0.75 * k, 0.15 * k, -0.1 * k);
+  } else if (t < THROW.snap) {
+    // The snap: fastest at the moment of release, through the middle of the view and down.
+    const k = easeInOutCubic(clamp01((t - THROW.windUp) / (THROW.snap - THROW.windUp)));
+    set(
+      out,
+      0.03 - 0.11 * k,
+      0.07 - 0.1 * k,
+      0.1 - 0.27 * k,
+      -0.75 + 1.6 * k,
+      0.15 - 0.35 * k,
+      -0.1 + 0.25 * k,
+    );
+  } else if (t < THROW.followThrough) {
+    // Follow through: the empty hand, extended, drops away out of view.
+    const k = easeInCubic((t - THROW.snap) / (THROW.followThrough - THROW.snap));
+    const e = SPENT;
+    set(
+      out,
+      -0.08 + (e.x + 0.08) * k,
+      -0.03 + (e.y + 0.03) * k,
+      -0.17 + (e.z + 0.17) * k,
+      0.85 + (e.rx - 0.85) * k,
+      -0.2 + (e.ry + 0.2) * k,
+      0.15 + (e.rz - 0.15) * k,
+    );
+  } else if (t < THROW.drawFrom) {
+    set(out, SPENT.x, SPENT.y, SPENT.z, SPENT.rx, SPENT.ry, SPENT.rz);
+  } else if (t < THROW.drawTo) {
+    // A fresh knife comes up from below, flipping once about its length as it settles.
+    const k = (t - THROW.drawFrom) / (THROW.drawTo - THROW.drawFrom);
+    const down = 1 - easeOutBack(k);
+    set(
+      out,
+      SPENT.x * down,
+      SPENT.y * down,
+      SPENT.z * down,
+      SPENT.rx * down,
+      SPENT.ry * down,
+      SPENT.rz * down,
+    );
+    out.spin = (1 - easeOutCubic(k)) * Math.PI * 2;
+  } else {
+    set(out, 0, 0, 0, 0, 0, 0);
+  }
+  return out;
+}
+
+/** The arm `t` seconds into a switch: lowering what was held, then raising the other. */
+export function switchPose(t: number, out: ArmPose): ArmPose {
+  out.spin = 0;
+  out.knife = true;
+  if (t < SWITCH.lower) {
+    const k = easeInCubic(t / SWITCH.lower);
+    set(out, 0, LOWERED.y * k, 0, LOWERED.rx * k, 0, 0);
+  } else {
+    const k = easeOutBack(clamp01((t - SWITCH.lower) / (SWITCH.raise - SWITCH.lower)));
+    set(out, 0, LOWERED.y * (1 - k), 0, LOWERED.rx * (1 - k), 0, 0);
+  }
+  return out;
+}
+
+/** Where the hand rests in view: low and to the right. */
+const REST = new Vector3(0.17, -0.19, -0.36);
+/** The forearm runs back and down to the bottom right corner, out of view. */
+const REST_ROTATION = new Euler(0.55, 0.45, 0.12, 'YXZ');
+/** The knife stands up out of the fist, leaning forward. */
+const BLADE_UP = new Vector3(0, 0.82, -0.57).normalize();
+const KNIFE_SIZE = 0.78;
+/** The whole arm, hand and knife, scaled to sit in view the way a CS2 view model does. */
+const ARM_SCALE = 0.72;
+
+const SLEEVE = '#f2f0e9';
+const CUFF = '#dedad0';
+
 export class Viewmodel {
-  readonly mesh: Mesh;
-  /** Seconds since the last throw. */
-  private sinceThrow = Infinity;
+  readonly scene = new Scene();
+  private readonly root = new Group();
+  private readonly arm = new Group();
+  private readonly fist: Mesh;
+  private readonly open: Group;
+  private readonly knife: Mesh;
+  private readonly knifeHolder = new Group();
+  private readonly skin = new MeshStandardMaterial({
+    color: '#ff7a59',
+    roughness: 0.7,
+    flatShading: true,
+  });
+
   private shown = false;
+  /** What the player asked to hold, and what the hand holds right now (they differ mid-switch). */
+  private armed = true;
+  private holding: 'knife' | 'hand' = 'knife';
+  private sinceThrow = Infinity;
+  private sinceSwitch = Infinity;
+  private time = 0;
 
-  constructor(camera: PerspectiveCamera) {
-    // Always drawn on top, so it never clips into a wall the player is pressed against.
-    const material = knifeMaterial().clone();
-    material.depthTest = false;
-    material.depthWrite = false;
-    this.mesh = new Mesh(knifeGeometry(), material);
-    this.mesh.name = 'viewmodel';
-    this.mesh.renderOrder = 1000;
-    this.mesh.frustumCulled = false;
-    this.mesh.scale.setScalar(SIZE);
-    this.mesh.visible = false;
-    camera.add(this.mesh);
+  // Sway, bob and breathing state.
+  private lastYaw = 0;
+  private lastPitch = 0;
+  private swayX = 0;
+  private swayY = 0;
+  private swayVX = 0;
+  private swayVY = 0;
+  private bobPhase = 0;
+  private bobAmount = 0;
+  private air = 0;
+
+  private readonly pose: ArmPose = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, knife: true, spin: 0 };
+  private readonly euler = new Euler(0, 0, 0, 'YXZ');
+
+  constructor() {
+    const sleeveMaterial = new MeshStandardMaterial({
+      color: SLEEVE,
+      roughness: 0.9,
+      flatShading: true,
+    });
+    const cuffMaterial = new MeshStandardMaterial({
+      color: CUFF,
+      roughness: 0.9,
+      flatShading: true,
+    });
+    // The forearm runs along +Z, from the wrist at the origin back toward the elbow.
+    const sleeve = new Mesh(
+      new CylinderGeometry(0.036, 0.05, 0.36, 8).rotateX(Math.PI / 2),
+      sleeveMaterial,
+    );
+    sleeve.position.z = 0.24;
+    const cuff = new Mesh(
+      new CylinderGeometry(0.041, 0.041, 0.035, 8).rotateX(Math.PI / 2),
+      cuffMaterial,
+    );
+    cuff.position.z = 0.065;
+    this.fist = new Mesh(new RoundedBoxGeometry(0.068, 0.072, 0.082, 2, 0.022), this.skin);
+    const thumb = new Mesh(new RoundedBoxGeometry(0.026, 0.026, 0.05, 1, 0.01), this.skin);
+    thumb.position.set(-0.03, 0.022, -0.012);
+    thumb.rotation.y = 0.35;
+    this.fist.add(thumb);
+    // The bare hand: a flat palm with the fingers relaxed and a little curled.
+    this.open = new Group();
+    const palm = new Mesh(new RoundedBoxGeometry(0.074, 0.024, 0.08, 2, 0.01), this.skin);
+    const fingers = new Mesh(new RoundedBoxGeometry(0.07, 0.02, 0.06, 2, 0.009), this.skin);
+    fingers.position.set(0, -0.006, -0.064);
+    fingers.rotation.x = -0.35;
+    const openThumb = new Mesh(new RoundedBoxGeometry(0.022, 0.02, 0.048, 1, 0.009), this.skin);
+    openThumb.position.set(-0.042, 0.004, -0.02);
+    openThumb.rotation.y = 0.55;
+    this.open.add(palm, fingers, openThumb);
+    this.open.rotation.set(0.15, 0.1, -0.3);
+
+    // The knife, gripped by its handle in the fist, the blade up. The holder spins it on draws.
+    this.knife = new Mesh(knifeGeometry(), knifeMaterial());
+    this.knife.scale.setScalar(KNIFE_SIZE);
+    this.knife.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), BLADE_UP);
+    // The tip is the model's origin; put the grip at the holder's origin.
+    this.knife.position.copy(BLADE_UP).multiplyScalar(GRIP * KNIFE_SIZE);
+    this.knifeHolder.add(this.knife);
+
+    this.arm.add(sleeve, cuff, this.fist, this.open, this.knifeHolder);
+    this.arm.scale.setScalar(ARM_SCALE);
+    this.root.add(this.arm);
+    // Lit like the kitchen, so the arm belongs in the room.
+    const key = new DirectionalLight('#fffaf2', 1.7);
+    key.position.set(5, 13, 9);
+    this.scene.add(new HemisphereLight('#f5f8fc', '#d6d2ca', 1.9), key, this.root);
+    this.apply();
   }
 
-  /** Whether the player is holding a knife at all (in the world and standing). */
+  /** The hand takes the player's color, like their cook's hands. */
+  setColor(color: string): void {
+    this.skin.color.set(new Color(color));
+  }
+
+  /** Whether the arm is in view at all (in the world and standing). */
   setShown(shown: boolean): void {
+    if (shown && !this.shown) {
+      // Back in view: whatever is held comes up fresh.
+      this.sinceThrow = Infinity;
+      this.sinceSwitch = SWITCH.lower;
+      this.holding = this.armed ? 'knife' : 'hand';
+    }
     this.shown = shown;
-    if (!shown) this.mesh.visible = false;
   }
 
-  throw(): void {
+  get isShown(): boolean {
+    return this.shown;
+  }
+
+  /** Hold the knife (true) or the bare hand (false). Switching plays the lower-and-raise. */
+  setArmed(armed: boolean): void {
+    if (armed === this.armed) return;
+    this.armed = armed;
+    this.sinceThrow = Infinity;
+    this.sinceSwitch = 0;
+  }
+
+  /** Ready to throw: the knife is in hand, up, and no throw or switch is under way. */
+  get canThrow(): boolean {
+    return (
+      this.armed &&
+      this.holding === 'knife' &&
+      this.sinceThrow >= THROW.drawTo &&
+      this.sinceSwitch >= SWITCH.raise
+    );
+  }
+
+  /** Start the throw animation. The caller launches the knife THROW.release seconds later. */
+  startThrow(): boolean {
+    if (!this.canThrow) return false;
     this.sinceThrow = 0;
+    return true;
   }
 
-  update(dt: number, bob: number): void {
+  /** The knife's middle in the world right now, where a knife leaving the hand starts from. */
+  knifeCenter(out: Vector3): Vector3 {
+    this.root.updateMatrixWorld(true);
+    return this.knife.localToWorld(out.set(0, 0, KNIFE_CENTER));
+  }
+
+  /** Follow the camera and animate. `speed` and `grounded` drive the walk bob. */
+  update(
+    dt: number,
+    camera: PerspectiveCamera,
+    yaw: number,
+    pitch: number,
+    speed: number,
+    grounded: boolean,
+  ): void {
+    this.time += dt;
     this.sinceThrow += dt;
+    this.sinceSwitch += dt;
+    if (this.sinceSwitch >= SWITCH.lower) this.holding = this.armed ? 'knife' : 'hand';
+    this.root.position.copy(camera.position);
+    this.root.quaternion.copy(camera.quaternion);
+
+    // Sway: the arm lags behind the look and springs back, like a weight in the hand.
+    if (dt > 0) {
+      let dYaw = yaw - this.lastYaw;
+      dYaw -= Math.PI * 2 * Math.round(dYaw / (Math.PI * 2));
+      const dPitch = pitch - this.lastPitch;
+      const targetX = Math.max(-0.035, Math.min(0.035, (dYaw / dt) * 0.006));
+      const targetY = Math.max(-0.03, Math.min(0.03, (-dPitch / dt) * 0.006));
+      const stiffness = 160;
+      const damping = 2 * Math.sqrt(stiffness) * 0.85;
+      this.swayVX += ((targetX - this.swayX) * stiffness - this.swayVX * damping) * dt;
+      this.swayVY += ((targetY - this.swayY) * stiffness - this.swayVY * damping) * dt;
+      this.swayX += this.swayVX * dt;
+      this.swayY += this.swayVY * dt;
+    }
+    this.lastYaw = yaw;
+    this.lastPitch = pitch;
+    // Walk bob: a figure eight, stronger when sprinting.
+    const walking = grounded && speed > 0.5;
+    this.bobAmount +=
+      ((walking ? Math.min(1.4, speed / 5) : 0) - this.bobAmount) * Math.min(1, dt * 8);
+    if (walking) this.bobPhase += dt * (4.5 + speed * 0.9);
+    this.air += ((grounded ? 0 : 1) - this.air) * Math.min(1, dt * 10);
+    this.apply();
+  }
+
+  /** Draw the arm over the world. */
+  render(renderer: WebGLRenderer, camera: PerspectiveCamera): void {
     if (!this.shown) return;
-    const cooldown = KNIFE_COOLDOWN_MS / 1000;
-    // Gone while the throw follows through, then rising back into view as the cooldown ends.
-    const back = Math.min(1, Math.max(0, (this.sinceThrow - cooldown * 0.45) / (cooldown * 0.55)));
-    const ease = 1 - (1 - back) ** 3;
-    this.mesh.visible = ease > 0.01;
-    const drop = (1 - ease) * 0.25;
-    this.mesh.position.set(REST.x, REST.y - drop + bob, REST.z);
-    // The grip sits at the hand; the model's tip is its origin, so offset along the blade.
-    this.mesh.rotation.set(TILT - (1 - ease) * 0.6, TURN, 0, 'YXZ');
-    this.mesh.translateZ(-GRIP * SIZE);
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(this.scene, camera);
+    renderer.autoClear = true;
+  }
+
+  private apply(): void {
+    const pose = this.pose;
+    if (this.sinceSwitch < SWITCH.raise) switchPose(this.sinceSwitch, pose);
+    else if (this.holding === 'knife') throwPose(this.sinceThrow, pose);
+    else switchPose(SWITCH.raise, pose);
+    const knife = this.holding === 'knife' && pose.knife;
+    this.knifeHolder.visible = knife;
+    this.fist.visible = this.holding === 'knife';
+    this.open.visible = this.holding === 'hand';
+    this.knifeHolder.rotation.set(0, 0, 0);
+    if (pose.spin) this.knifeHolder.rotateOnAxis(BLADE_UP, pose.spin);
+
+    const bobX = Math.sin(this.bobPhase) * 0.011 * this.bobAmount;
+    const bobY = Math.sin(this.bobPhase * 2) * 0.006 * this.bobAmount - 0.004 * this.bobAmount;
+    const breath = Math.sin(this.time * 1.7) * 0.0022;
+    this.arm.position.set(
+      REST.x + pose.x - this.swayX + bobX,
+      REST.y + pose.y + this.swayY + bobY + breath - this.air * 0.012,
+      REST.z + pose.z,
+    );
+    this.euler.set(
+      REST_ROTATION.x + pose.rx + this.swayY * 2,
+      REST_ROTATION.y + pose.ry + this.swayX * 3,
+      REST_ROTATION.z + pose.rz + this.swayX * 4 + bobX * 2,
+      'YXZ',
+    );
+    this.arm.quaternion.setFromEuler(this.euler);
   }
 }

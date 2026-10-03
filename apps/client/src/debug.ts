@@ -11,6 +11,8 @@ export interface WorldDebugState {
   readonly player: { x: number; y: number; z: number; grounded: boolean };
   /** Where the player is looking, in radians. */
   readonly look: { yaw: number; pitch: number };
+  /** Holding the knife rather than the bare hand. */
+  readonly armed: boolean;
   /** Knocked out by a knife, waiting to respawn. */
   readonly knockedOut: boolean;
   /** Knives stuck around the room, and in the air, as this screen shows them. */
@@ -62,6 +64,9 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     },
     get look() {
       return { yaw: game.input.yaw, pitch: game.input.pitch };
+    },
+    get armed() {
+      return game.armed;
     },
     get knockedOut() {
       return game.knockedOut;

@@ -13,6 +13,7 @@ const CONTROLS: readonly (readonly [string, string])[] = [
   ['Space', 'Jump'],
   ['Shift', 'Sprint'],
   ['F', 'Throw a knife'],
+  ['Q', 'Knife or bare hand'],
   ['Click', 'Open a station'],
   ['Enter', 'Chat'],
   ['1-3', 'Wave, dance, jump'],
