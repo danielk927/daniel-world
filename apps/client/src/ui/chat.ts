@@ -62,7 +62,7 @@ export class Chat {
         event.stopPropagation();
         this.close();
       }
-      // Keep game shortcuts (like the emote number keys) from firing while typing.
+      // Keep game shortcuts (like Q, I and E) from firing while typing.
       event.stopPropagation();
     });
     parent.append(this.element);

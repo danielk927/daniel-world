@@ -1350,7 +1350,7 @@ kbd {
 }
 
 /* Below this the controls hint would run into the loadout and minimap; the menu lists them too. */
-@media (max-width: 1240px) {
+@media (max-width: 860px) {
   .hint {
     display: none;
   }

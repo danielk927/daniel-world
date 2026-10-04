@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ALL_KEYS, EMOTES, KNIFE_MAX_STUCK, MAX_PITCH } from './constants.ts';
+import { ALL_KEYS, KNIFE_MAX_STUCK, MAX_PITCH } from './constants.ts';
 
 /**
  * Wire protocol. Every message is one JSON object with a `t` discriminator.
@@ -43,11 +43,6 @@ export const chatSendSchema = z.object({
   text: z.string().max(500),
 });
 
-export const emoteSendSchema = z.object({
-  t: z.literal('emote'),
-  emote: z.enum(EMOTES),
-});
-
 export const pingSchema = z.object({
   t: z.literal('ping'),
   id: z.number().int().nonnegative(),
@@ -57,7 +52,6 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   helloSchema,
   inputSchema,
   chatSendSchema,
-  emoteSendSchema,
   pingSchema,
 ]);
 
@@ -134,12 +128,6 @@ export const chatBroadcastSchema = z.object({
   text: z.string(),
 });
 
-export const emoteBroadcastSchema = z.object({
-  t: z.literal('emote'),
-  id: playerId,
-  emote: z.enum(EMOTES),
-});
-
 export const pongSchema = z.object({ t: z.literal('pong'), id: z.number().int() });
 
 /**
@@ -192,7 +180,6 @@ export const serverMessageSchema = z.discriminatedUnion('t', [
   leaveSchema,
   snapshotSchema,
   chatBroadcastSchema,
-  emoteBroadcastSchema,
   pongSchema,
   errorSchema,
   knifeThrownSchema,

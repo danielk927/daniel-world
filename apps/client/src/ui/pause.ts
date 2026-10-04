@@ -17,7 +17,6 @@ const CONTROLS: readonly (readonly [string, string])[] = [
   ['I', 'Inspect what is in hand'],
   ['E', 'Open a station'],
   ['Enter', 'Chat'],
-  ['1-3', 'Wave, dance, jump'],
   ['Esc', 'Menu'],
 ];
 

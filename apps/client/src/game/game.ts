@@ -7,7 +7,6 @@ import {
   SPAWN,
   TICK_SECONDS,
   launchKnife,
-  type Emote,
   type InputMessage,
   type KnifeTarget,
 } from '@world/shared';
@@ -36,13 +35,6 @@ export type Mode = 'landing' | 'entering' | 'playing' | 'chat' | 'paused' | 'pan
 
 const ENTER_DURATION = 1.6;
 const MAX_CATCH_UP_TICKS = 5;
-const EMOTE_COOLDOWN_MS = 1000;
-const EMOTE_KEYS: Record<string, Emote> = { Digit1: 'wave', Digit2: 'dance', Digit3: 'jump' };
-const EMOTE_TOASTS: Record<Emote, string> = {
-  wave: '👋 You wave',
-  dance: '💃 You dance',
-  jump: '🎉 You jump for joy',
-};
 
 const NO_TARGETS: readonly KnifeTarget[] = [];
 
@@ -90,7 +82,6 @@ export class Game {
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
   private hoveredIndex = -1;
   private readonly stationLabels: Label[] = [];
-  private lastEmoteAt = -Infinity;
   private room = DEFAULT_ROOM;
   /** Smoothed main-thread time spent per frame (simulation, animation, render submission), in ms. */
   frameCpuMs = 0;
@@ -334,14 +325,6 @@ export class Game {
     this.labels.element.hidden = this.mode !== 'playing' && this.mode !== 'chat';
   }
 
-  private playEmote(emote: Emote): void {
-    const now = performance.now();
-    if (now - this.lastEmoteAt < EMOTE_COOLDOWN_MS) return;
-    this.lastEmoteAt = now;
-    this.multiplayer?.sendEmote(emote);
-    this.toasts.show(EMOTE_TOASTS[emote], 1600);
-  }
-
   private async copyInvite(): Promise<void> {
     const url = new URL(location.href);
     url.search = '';
@@ -372,8 +355,6 @@ export class Game {
       this.openPause();
     } else if (code === 'Enter' || code === 'NumpadEnter') {
       this.openChat();
-    } else if (code in EMOTE_KEYS) {
-      this.playEmote(EMOTE_KEYS[code]!);
     } else if (code === 'KeyQ') {
       if (!this.knockedOut) this.setArmed(!this.armed);
     } else if (code === 'KeyI') {

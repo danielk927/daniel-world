@@ -32,20 +32,10 @@ export class Hud {
     ' jump ',
     el('kbd', { text: 'Shift' }),
     ' sprint ',
-    el('kbd', { text: 'Click' }),
-    ' throw ',
     el('kbd', { text: 'Q' }),
     ' switch ',
     el('kbd', { text: 'I' }),
-    ' inspect ',
-    el('kbd', { text: 'E' }),
-    ' open ',
-    el('kbd', { text: 'Enter' }),
-    ' chat ',
-    el('kbd', { text: '1-3' }),
-    ' emotes ',
-    el('kbd', { text: 'Esc' }),
-    ' menu',
+    ' inspect',
   ]);
   /** The bottom right corner, where the loadout stacks over the minimap. */
   readonly corner = el('div', { class: 'hud-corner' });

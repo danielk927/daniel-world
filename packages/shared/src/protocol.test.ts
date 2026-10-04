@@ -16,10 +16,6 @@ describe('parseClientMessage', () => {
       t: 'input',
       seq: 5,
     });
-    expect(parseClientMessage('{"t":"emote","emote":"wave"}')).toEqual({
-      t: 'emote',
-      emote: 'wave',
-    });
   });
 
   it.each([
@@ -31,7 +27,7 @@ describe('parseClientMessage', () => {
     ['fractional seq', '{"t":"input","seq":1.5,"keys":0,"yaw":0,"pitch":0}'],
     ['pitch out of range', '{"t":"input","seq":1,"keys":0,"yaw":0,"pitch":3}'],
     ['huge chat', JSON.stringify({ t: 'chat', text: 'x'.repeat(501) })],
-    ['unknown emote', '{"t":"emote","emote":"backflip"}'],
+    ['an emote, which no longer exists', '{"t":"emote","emote":"wave"}'],
     ['array', '[1,2,3]'],
     ['null', 'null'],
   ])('rejects %s', (_label, raw) => {

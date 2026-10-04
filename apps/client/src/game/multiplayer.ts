@@ -3,7 +3,6 @@ import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
   type KnifeTarget,
-  type Emote,
   type InputMessage,
   type PlayerInfo,
   type ServerMessage,
@@ -22,11 +21,6 @@ import type { LocalPlayer } from './localPlayer.ts';
 const BUBBLE_MS = 6000;
 /** A remote thrower's swing starts this long before their knife leaves the hand. */
 const THROW_LEAD = 0.18;
-const EMOTE_LABELS: Record<Emote, string> = {
-  wave: 'waves',
-  dance: 'dances',
-  jump: 'jumps for joy',
-};
 
 interface Remote {
   readonly info: PlayerInfo;
@@ -76,7 +70,7 @@ export interface RemoteDebugInfo {
 
 /**
  * Everything about being in a room with other people: the connection, reconciling the local player,
- * interpolating and drawing remote players, name tags, chat and emotes.
+ * interpolating and drawing remote players, name tags and chat.
  */
 export class Multiplayer {
   readonly room: string;
@@ -153,10 +147,6 @@ export class Multiplayer {
       return;
     }
     this.connection.send({ t: 'chat', text });
-  }
-
-  sendEmote(emote: Emote): void {
-    this.connection.send({ t: 'emote', emote });
   }
 
   close(): void {
@@ -352,13 +342,6 @@ export class Multiplayer {
         this.deps.chat.addMessage(message.name, color, message.text);
         const remote = this.remotes.get(message.id);
         if (remote) this.showBubble(remote, message.text);
-        return;
-      }
-      case 'emote': {
-        const remote = this.remotes.get(message.id);
-        if (!remote) return;
-        this.deps.avatars.playEmote(message.id, message.emote, this.deps.worldTime());
-        this.deps.chat.addSystem(`${remote.info.name} ${EMOTE_LABELS[message.emote]}`);
         return;
       }
       case 'knife': {

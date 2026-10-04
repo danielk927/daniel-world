@@ -68,7 +68,6 @@ interface Connection {
   player: RoomPlayer | null;
   readonly messages: TokenBucket;
   readonly chat: TokenBucket;
-  readonly emotes: TokenBucket;
   readonly strikes: StrikeCounter;
 }
 
@@ -248,10 +247,6 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
         if (text) room.broadcast({ t: 'chat', id: player.id, name: player.name, text });
         break;
       }
-      case 'emote':
-        if (conn.emotes.take())
-          room.broadcast({ t: 'emote', id: player.id, emote: message.emote }, player.id);
-        break;
     }
   };
 
@@ -286,7 +281,6 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       // ~21 messages per second is normal (20 inputs + pings); allow bursts well above that.
       messages: new TokenBucket(60, 40),
       chat: new TokenBucket(4, 0.5),
-      emotes: new TokenBucket(3, 1),
       strikes: new StrikeCounter(40, 10),
     };
     connections.add(conn);

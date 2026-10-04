@@ -38,7 +38,7 @@ export class Input {
   /** When false, movement keys and mouse look are ignored (menus, chat, landing). */
   enabled = false;
   sensitivity: number;
-  /** Called for non-movement key presses while enabled, e.g. Enter or the emote number keys. */
+  /** Called for non-movement key presses while enabled, e.g. Enter, Q or I. */
   /** Return true if the key was handled, which also cancels its default browser action. */
   onKey: ((code: string) => boolean) | null = null;
   /** Called when the left button goes down while playing with the pointer locked. */

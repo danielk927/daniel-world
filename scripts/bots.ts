@@ -4,14 +4,13 @@
  *   npm run bots -- --count 15 --room lobby --url ws://localhost:3001 --knives
  *
  * Each bot joins like a browser would, then wanders: it walks, turns, sometimes sprints or jumps,
- * and now and then emotes or says something. With --knives they also throw knives every few
+ * and now and then says something. With --knives they also throw knives every few
  * seconds. Ctrl+C disconnects them all.
  */
 import { parseArgs } from 'node:util';
 import { WebSocket } from 'ws';
 import {
   DEFAULT_SERVER_PORT,
-  EMOTES,
   KNIFE_COOLDOWN_INPUTS,
   Keys,
   PROTOCOL_VERSION,
@@ -70,8 +69,6 @@ function startBot(index: number): Bot {
         ticksUntilChange = 20 + Math.floor(Math.random() * 40);
         const roll = Math.random();
         bot.keys = roll < 0.15 ? 0 : Keys.Forward | (roll > 0.8 ? Keys.Sprint : 0);
-        if (Math.random() < 0.08)
-          send({ t: 'emote', emote: EMOTES[Math.floor(Math.random() * EMOTES.length)]! });
         if (values.chat && Math.random() < 0.03)
           send({ t: 'chat', text: LINES[Math.floor(Math.random() * LINES.length)]! });
       }

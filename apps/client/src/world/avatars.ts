@@ -13,7 +13,7 @@ import {
   Vector3,
   Euler,
 } from 'three';
-import { EMOTE_DURATION, KNIFE_COOLDOWN_MS, MAX_PLAYERS_PER_ROOM, type Emote } from '@world/shared';
+import { KNIFE_COOLDOWN_MS, MAX_PLAYERS_PER_ROOM } from '@world/shared';
 import type { Pose } from '../net/interpolation.ts';
 import { GRIP, knifeGeometry, knifeMaterial } from './knifeModel.ts';
 
@@ -59,8 +59,6 @@ interface Avatar {
   walkPhase: number;
   walkAmount: number;
   airAmount: number;
-  emote: Emote | null;
-  emoteStart: number;
   /** World time the last throw started, or -Infinity. */
   throwStart: number;
   /** 0 standing, 1 knocked out flat on their back. */
@@ -154,8 +152,6 @@ export class Avatars {
       walkPhase: Math.random() * Math.PI * 2,
       walkAmount: 0,
       airAmount: 0,
-      emote: null,
-      emoteStart: 0,
       throwStart: -Infinity,
       fallAmount: 0,
       tagAnchor: new Vector3(0, -1000, 0),
@@ -170,13 +166,6 @@ export class Avatars {
     this.avatars.delete(id);
     this.freeSlots.push(avatar.slot);
     this.hideSlot(avatar.slot);
-  }
-
-  playEmote(id: number, emote: Emote, time: number): void {
-    const avatar = this.avatars.get(id);
-    if (!avatar) return;
-    avatar.emote = emote;
-    avatar.emoteStart = time;
   }
 
   /** Swing the knife hand: this cook just threw. */
@@ -238,38 +227,16 @@ export class Avatars {
     avatar.airAmount += ((pose.grounded ? 0 : 1) - avatar.airAmount) * Math.min(1, dt * 12);
     avatar.walkPhase += dt * (5 + pose.speed * 1.4) * (walking > 0 ? 1 : 0.2);
 
-    let emoteT = -1;
-    if (avatar.emote) {
-      emoteT = (time - avatar.emoteStart) / EMOTE_DURATION;
-      if (emoteT >= 1) {
-        avatar.emote = null;
-        emoteT = -1;
-      }
-    }
-
-    // Root: position and facing, plus whole-body motion from emotes.
-    let lift = 0;
-    let spin = 0;
-    let sway = 0;
-    if (avatar.emote === 'jump') {
-      // Two happy hops, the second with a full spin.
-      const hop = (emoteT * 2) % 1;
-      lift = Math.sin(hop * Math.PI) * 0.8;
-      if (emoteT > 0.5) spin = hop * Math.PI * 2;
-    } else if (avatar.emote === 'dance') {
-      sway = Math.sin(time * 9) * 0.22;
-      spin = Math.sin(time * 3) * 0.6;
-      lift = Math.abs(Math.sin(time * 9)) * 0.12;
-    }
+    // Root: position and facing.
     const bob = Math.abs(Math.sin(avatar.walkPhase)) * 0.07 * avatar.walkAmount;
     const idleBreath = Math.sin(time * 2 + slot) * 0.012;
     // Knocked out: topple backward onto the floor, raised by the body's thickness so it lies on it.
     avatar.fallAmount += ((pose.dead ? 1 : 0) - avatar.fallAmount) * Math.min(1, dt * 7);
     const fall = avatar.fallAmount;
     const topple = fall * fall * (Math.PI / 2);
-    this.q.setFromEuler(this.euler.set(topple, pose.yaw + spin, sway * 0.5, 'YXZ'));
+    this.q.setFromEuler(this.euler.set(topple, pose.yaw, 0, 'YXZ'));
     this.root.compose(
-      this.p.set(pose.x, pose.y + lift + fall * BODY_RADIUS * 0.9, pose.z),
+      this.p.set(pose.x, pose.y + fall * BODY_RADIUS * 0.9, pose.z),
       this.q,
       this.s.set(1, 1, 1),
     );
@@ -278,12 +245,12 @@ export class Avatars {
     const stretch = 1 + avatar.airAmount * 0.08 - avatar.walkAmount * 0.03;
     const lean = avatar.walkAmount * 0.12;
     this.setPart(
-      sway * 0.3,
+      0,
       BODY_Y + bob + idleBreath,
       0,
       -lean,
       0,
-      sway,
+      0,
       1 / Math.sqrt(stretch),
       stretch,
       1 / Math.sqrt(stretch),
@@ -293,18 +260,18 @@ export class Avatars {
     // Head follows look pitch (softened) and bobs with the body.
     const headY = HEAD_Y + bob * 1.2 + idleBreath * 1.5 + avatar.airAmount * 0.05;
     const headPitch = -pose.pitch * 0.45 - lean * 0.5;
-    this.setPart(sway * 0.6, headY, -lean * 0.4, headPitch, 0, sway * 1.2);
+    this.setPart(0, headY, -lean * 0.4, headPitch, 0, 0);
     this.place(this.heads, slot);
 
     // The toque sits on top of the head and tips with it.
     const crown = HEAD_RADIUS * 0.72;
     this.setPart(
-      sway * 0.6 - Math.sin(sway * 1.2) * crown,
+      0,
       headY + Math.cos(headPitch) * crown,
       -lean * 0.4 + Math.sin(headPitch) * crown,
       headPitch,
       0,
-      sway * 1.2,
+      0,
     );
     this.place(this.hats, slot);
 
@@ -312,7 +279,7 @@ export class Avatars {
     const cosP = Math.cos(headPitch);
     const sinP = Math.sin(headPitch);
     for (let k = 0; k < 2; k++) {
-      const ex = (k === 0 ? -1 : 1) * 0.105 + sway * 0.6;
+      const ex = (k === 0 ? -1 : 1) * 0.105;
       const localY = 0.06;
       const localZ = -HEAD_RADIUS + 0.035;
       this.setPart(
@@ -333,27 +300,13 @@ export class Avatars {
     let throwT = (time - avatar.throwStart) / THROW_DURATION;
     if (throwT >= 1) throwT = -1;
 
-    // Hands: swing when walking, up in the air when jumping, waving or dancing.
+    // Hands: swing when walking, up in the air when jumping.
     const swing = Math.sin(avatar.walkPhase) * 0.22 * avatar.walkAmount;
     for (let k = 0; k < 2; k++) {
       const side = k === 0 ? -1 : 1;
       let hx = side * 0.47;
       let hy = 0.72 + bob + avatar.airAmount * 0.35;
       let hz = side * swing;
-      if (avatar.emote === 'wave' && side === 1) {
-        hx = 0.5 + Math.sin(time * 14) * 0.12;
-        hy = 1.62;
-        hz = -0.05;
-      } else if (avatar.emote === 'dance') {
-        const beat = Math.sin(time * 9 + (side === 1 ? Math.PI : 0));
-        hx = side * (0.5 + beat * 0.08);
-        hy = 1.1 + beat * 0.45;
-        hz = -0.1;
-      } else if (avatar.emote === 'jump') {
-        hx = side * 0.52;
-        hy = 1.55;
-        hz = 0;
-      }
       if (side === 1 && throwT >= 0) {
         // Wind up behind the shoulder, then whip forward past the face.
         const whip = throwT < RELEASE ? 0 : (throwT - RELEASE) / (1 - RELEASE);
@@ -362,7 +315,7 @@ export class Avatars {
         hy = 1.2 + windUp * 0.35 - whip * 0.45;
         hz = 0.22 * windUp - whip * 0.75;
       }
-      this.setPart(hx + sway * 0.3, hy, hz, 0, 0, 0);
+      this.setPart(hx, hy, hz, 0, 0, 0);
       this.place(this.hands, slot * 2 + k);
       if (side === 1) {
         // The knife in the right hand, gripped by its handle, unless it is in flight or they are down.
@@ -370,14 +323,7 @@ export class Avatars {
         const inHand = pose.armed && fall < 0.05 && (throwT < 0 ? reloaded : throwT < RELEASE);
         if (inHand) {
           const tilt = throwT >= 0 ? KNIFE_TILT + Math.min(1, throwT / RELEASE) * 1.4 : KNIFE_TILT;
-          this.setPart(
-            hx + sway * 0.3,
-            hy + Math.sin(tilt) * GRIP,
-            hz - Math.cos(tilt) * GRIP,
-            tilt,
-            0,
-            0,
-          );
+          this.setPart(hx, hy + Math.sin(tilt) * GRIP, hz - Math.cos(tilt) * GRIP, tilt, 0, 0);
           this.place(this.knives, slot);
         } else {
           this.knives.setMatrixAt(slot, this.hidden);
