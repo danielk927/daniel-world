@@ -130,6 +130,9 @@ export const chatBroadcastSchema = z.object({
 
 export const pongSchema = z.object({ t: z.literal('pong'), id: z.number().int() });
 
+/** Someone punched with the bare hand. Only for looks: a punch hits nothing. */
+export const punchSchema = z.object({ t: z.literal('punch'), id: playerId });
+
 /**
  * A knife left someone's hand, from their eye at this velocity. Every client replays the flight with
  * the shared simulation. `seq` is the input that threw it, so the thrower can match its own.
@@ -180,6 +183,7 @@ export const serverMessageSchema = z.discriminatedUnion('t', [
   leaveSchema,
   snapshotSchema,
   chatBroadcastSchema,
+  punchSchema,
   pongSchema,
   errorSchema,
   knifeThrownSchema,

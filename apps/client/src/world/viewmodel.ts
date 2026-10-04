@@ -19,7 +19,8 @@ import { GRIP, KNIFE_CENTER, knifeGeometry, knifeMaterial } from './knifeModel.t
  * The player's own arm, in the style of a CS2 view model: a white chef's sleeve and a hand coming
  * up from the bottom right, holding a knife or empty. It sways behind the mouse, bobs with each
  * step, breathes, and plays the throw (wind up, snap, follow through, draw a fresh knife), the
- * switch between knife and bare hand, and the inspect: a long look at whatever is in hand.
+ * switch between knife and bare hand, the bare hand's punch, and the inspect: a long look at the
+ * knife.
  *
  * It is drawn as a second pass, in its own scene, after clearing depth: it never clips into a wall,
  * and its parts still sort correctly against each other.
@@ -36,9 +37,11 @@ export const THROW = {
 } as const;
 /** Switching between knife and hand: the one lowers, then the other rises. */
 export const SWITCH = { lower: 0.12, raise: 0.34 } as const;
-/** How long each inspect lasts, in seconds. */
-export const INSPECT = { knife: 2.6, hand: 2 } as const;
-/** An inspect cut short by a throw or a switch blends into it over this long, instead of jumping. */
+/** How long the knife inspect lasts, in seconds. */
+export const INSPECT = 2.6;
+/** Punch timeline, in seconds from the press: a short draw back, the jab, and back to rest. */
+export const PUNCH = { windUp: 0.05, hit: 0.13, recover: 0.42 } as const;
+/** An inspect or punch cut short blends into what follows over this long, instead of jumping. */
 const INTERRUPT_BLEND = 0.1;
 
 /** Offsets from the resting pose, in camera space (meters and radians). */
@@ -208,17 +211,15 @@ const KNIFE_INSPECT: readonly Keyframe[] = [
   [1.15, -0.075, 0.072, 0.055, -0.14, 0.05, 1.28, Math.PI / 2 + 0.1],
   [1.6, -0.07, 0.07, 0.05, -0.1, 0, 1.2, (Math.PI * 3) / 2],
   [2.05, -0.06, 0.075, 0.05, -0.3, 0, 0.7, (Math.PI * 3) / 2 + 0.1],
-  [INSPECT.knife, 0, 0, 0, 0, 0, 0, Math.PI * 2],
+  [INSPECT, 0, 0, 0, 0, 0, 0, Math.PI * 2],
 ];
 
-/** The bare hand inspect: the palm turns up to the eye, then over to the back of the hand. */
-const HAND_INSPECT: readonly Keyframe[] = [
+/** The bare hand's jab: drawn back a touch, then straight out toward the crosshair and home. */
+const PUNCH_FRAMES: readonly Keyframe[] = [
   [0, 0, 0, 0, 0, 0, 0, 0],
-  [0.4, -0.05, 0.05, 0.03, -0.25, 0, -2.3, 0],
-  [0.9, -0.055, 0.055, 0.035, -0.3, 0, -2.4, 0],
-  [1.35, -0.05, 0.045, 0.03, -0.6, 0, 0.4, 0],
-  [1.6, -0.052, 0.047, 0.032, -0.62, 0, 0.45, 0],
-  [INSPECT.hand, 0, 0, 0, 0, 0, 0, 0],
+  [PUNCH.windUp, 0.01, -0.01, 0.03, 0.1, 0, 0, 0],
+  [PUNCH.hit, -0.075, 0.05, -0.1, -0.2, -0.12, -0.15, 0],
+  [PUNCH.recover, 0, 0, 0, 0, 0, 0, 0],
 ];
 
 /** The arm `t` seconds into inspecting the knife. */
@@ -226,9 +227,9 @@ export function knifeInspectPose(t: number, out: ArmPose): ArmPose {
   return keyframes(KNIFE_INSPECT, t, out);
 }
 
-/** The arm `t` seconds into inspecting the bare hand. */
-export function handInspectPose(t: number, out: ArmPose): ArmPose {
-  return keyframes(HAND_INSPECT, t, out);
+/** The arm `t` seconds into a punch. */
+export function punchPose(t: number, out: ArmPose): ArmPose {
+  return keyframes(PUNCH_FRAMES, t, out);
 }
 
 /** Where the hand rests in view: low and to the right. */
@@ -265,8 +266,7 @@ export class Viewmodel {
   private sinceThrow = Infinity;
   private sinceSwitch = Infinity;
   private sinceInspect = Infinity;
-  /** What is being inspected; the hand can change mid-switch, the inspect cannot. */
-  private inspected: 'knife' | 'hand' = 'knife';
+  private sincePunch = Infinity;
   private sinceInterrupt = Infinity;
   private time = 0;
 
@@ -355,6 +355,7 @@ export class Viewmodel {
       this.sinceThrow = Infinity;
       this.sinceSwitch = SWITCH.lower;
       this.sinceInspect = Infinity;
+      this.sincePunch = Infinity;
       this.sinceInterrupt = Infinity;
       this.holding = this.armed ? 'knife' : 'hand';
     }
@@ -368,7 +369,7 @@ export class Viewmodel {
   /** Hold the knife (true) or the bare hand (false). Switching plays the lower-and-raise. */
   setArmed(armed: boolean): void {
     if (armed === this.armed) return;
-    this.interruptInspect();
+    this.interrupt();
     this.armed = armed;
     this.sinceThrow = Infinity;
     this.sinceSwitch = 0;
@@ -385,7 +386,7 @@ export class Viewmodel {
    */
   startThrow(): boolean {
     if (!this.canThrow) return false;
-    this.interruptInspect();
+    this.interrupt();
     this.sinceThrow = 0;
     return true;
   }
@@ -399,14 +400,30 @@ export class Viewmodel {
 
   /** Mid-inspect. */
   get inspecting(): boolean {
-    return this.sinceInspect < INSPECT[this.inspected];
+    return this.sinceInspect < INSPECT;
   }
 
-  /** Take a long look at what is in hand, if nothing else is going on. */
+  /** Take a long look at the knife, if it is up and nothing else is going on. */
   startInspect(): boolean {
-    if (!this.shown || this.inspecting || !this.idle) return false;
-    this.inspected = this.holding;
+    if (!this.shown || !this.armed || this.holding !== 'knife' || this.inspecting || !this.idle) {
+      return false;
+    }
     this.sinceInspect = 0;
+    this.sinceInterrupt = Infinity;
+    return true;
+  }
+
+  /** Mid-punch. */
+  get punching(): boolean {
+    return this.sincePunch < PUNCH.recover;
+  }
+
+  /** Jab with the bare hand, if it is up and not already punching. */
+  startPunch(): boolean {
+    if (!this.shown || this.armed || this.holding !== 'hand' || this.punching || !this.idle) {
+      return false;
+    }
+    this.sincePunch = 0;
     this.sinceInterrupt = Infinity;
     return true;
   }
@@ -418,10 +435,12 @@ export class Viewmodel {
     return raised && (this.holding === 'hand' || this.sinceThrow >= THROW.drawTo);
   }
 
-  private interruptInspect(): void {
-    if (!this.inspecting) return;
+  /** Cut an inspect or a punch short, blending out of wherever the arm was. */
+  private interrupt(): void {
+    if (!this.inspecting && !this.punching) return;
     Object.assign(this.interrupted, this.pose);
     this.sinceInspect = Infinity;
+    this.sincePunch = Infinity;
     this.sinceInterrupt = 0;
   }
 
@@ -444,6 +463,7 @@ export class Viewmodel {
     this.sinceThrow += dt;
     this.sinceSwitch += dt;
     this.sinceInspect += dt;
+    this.sincePunch += dt;
     this.sinceInterrupt += dt;
     if (this.sinceSwitch >= SWITCH.lower) this.holding = this.armed ? 'knife' : 'hand';
     this.root.position.copy(camera.position);
@@ -485,18 +505,19 @@ export class Viewmodel {
 
   private apply(): void {
     const pose = this.pose;
-    if (this.inspecting) {
-      if (this.inspected === 'knife') knifeInspectPose(this.sinceInspect, pose);
-      else handInspectPose(this.sinceInspect, pose);
-    } else if (this.sinceSwitch < SWITCH.raise) switchPose(this.sinceSwitch, pose);
+    if (this.inspecting) knifeInspectPose(this.sinceInspect, pose);
+    else if (this.punching) punchPose(this.sincePunch, pose);
+    else if (this.sinceSwitch < SWITCH.raise) switchPose(this.sinceSwitch, pose);
     else if (this.holding === 'knife') throwPose(this.sinceThrow, pose);
     else switchPose(SWITCH.raise, pose);
     if (this.sinceInterrupt < INTERRUPT_BLEND)
       blend(this.interrupted, pose, this.sinceInterrupt / INTERRUPT_BLEND);
     const knife = this.holding === 'knife' && pose.knife;
     this.knifeHolder.visible = knife;
-    this.fist.visible = this.holding === 'knife';
-    this.open.visible = this.holding === 'hand';
+    // The bare hand clenches into a fist to punch.
+    const fist = this.holding === 'knife' || this.punching;
+    this.fist.visible = fist;
+    this.open.visible = !fist;
     this.knifeHolder.rotation.set(0, 0, 0);
     if (pose.spin) this.knifeHolder.rotateOnAxis(BLADE_UP, pose.spin);
 

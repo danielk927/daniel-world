@@ -80,11 +80,6 @@ export class Input {
     return this.enabled && this.locked && this.primaryHeld;
   }
 
-  /** Treat the left button as let go until it is pressed again. */
-  releasePrimary(): void {
-    this.primaryHeld = false;
-  }
-
   get locked(): boolean {
     return document.pointerLockElement === this.target;
   }

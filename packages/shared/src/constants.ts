@@ -7,7 +7,7 @@ export const TICK_MS = 1000 / TICK_RATE;
 export const INTERPOLATION_DELAY_MS = 100;
 
 /** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 export const DEFAULT_SERVER_PORT = 3001;
 
 // Rooms and players.
@@ -59,8 +59,14 @@ export const Keys = {
   Throw: 64,
   /** Holding the knife, not the bare hand. Set on every input while the knife is out. */
   Armed: 128,
+  /** Punch with the bare hand on this input. Set on one input per press, like Throw. */
+  Punch: 256,
 } as const;
-export const ALL_KEYS = 255;
+export const ALL_KEYS = 511;
+
+/** Shortest time between two punches; the arm's jab takes a little longer, so it never waits. */
+export const PUNCH_COOLDOWN_MS = 400;
+export const PUNCH_COOLDOWN_INPUTS = Math.round(PUNCH_COOLDOWN_MS / TICK_MS);
 
 // Knives: every cook carries an endless supply and can throw one with a left click.
 /** Speed a knife leaves the hand at, in meters per second. */

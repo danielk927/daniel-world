@@ -323,7 +323,7 @@ kbd {
 /* ---------- Landing ---------- */
 
 .landing {
-  place-items: center start;
+  place-items: center;
   padding: clamp(20px, 6vw, 88px);
   animation: fade-in 0.8s ease both;
 }
@@ -416,9 +416,13 @@ kbd {
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
+  /* The same pill as the in-world controls hint; bare text was lost on the light floor. */
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(22, 30, 69, 0.85);
+  border: 1px solid var(--panel-border);
   font-size: 13px;
-  color: rgba(255, 248, 240, 0.8);
-  text-shadow: 0 1px 6px rgba(10, 14, 36, 0.6);
+  color: var(--ink-muted);
   white-space: nowrap;
 }
 
@@ -1358,7 +1362,6 @@ kbd {
 
 @media (max-width: 640px) {
   .landing {
-    place-items: center;
     background: rgba(10, 14, 36, 0.35);
   }
 

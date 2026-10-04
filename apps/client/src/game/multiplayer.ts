@@ -35,6 +35,8 @@ interface Remote {
   readonly tag: HTMLElement;
   readonly bubble: HTMLElement;
   bubbleTimer: number;
+  /** Punches seen from this player, exposed for tests. */
+  punches: number;
 }
 
 export interface MultiplayerDeps {
@@ -66,6 +68,8 @@ export interface RemoteDebugInfo {
   x: number;
   y: number;
   z: number;
+  /** Punches seen from this player. */
+  punches: number;
 }
 
 /**
@@ -163,6 +167,7 @@ export class Multiplayer {
       x: r.server.x,
       y: r.server.y,
       z: r.server.z,
+      punches: r.punches,
     }));
   }
 
@@ -362,6 +367,17 @@ export class Multiplayer {
           this.deps.avatars.playThrow(message.from, this.deps.worldTime() + delay - THROW_LEAD);
         return;
       }
+      case 'punch': {
+        const remote = this.remotes.get(message.id);
+        if (!remote) return;
+        remote.punches++;
+        // Drawn as far in the past as the rest of them.
+        this.deps.avatars.playPunch(
+          message.id,
+          this.deps.worldTime() + INTERPOLATION_DELAY_MS / 1000,
+        );
+        return;
+      }
       case 'stuck':
         this.deps.knives.resolve(message.knife.id, {
           kind: 'stuck',
@@ -452,6 +468,7 @@ export class Multiplayer {
       tag,
       bubble,
       bubbleTimer: 0,
+      punches: 0,
     };
     this.remotes.set(info.id, remote);
   }

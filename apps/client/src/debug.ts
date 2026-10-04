@@ -13,8 +13,10 @@ export interface WorldDebugState {
   readonly look: { yaw: number; pitch: number };
   /** Holding the knife rather than the bare hand. */
   readonly armed: boolean;
-  /** Taking a long look at the knife or hand (I). */
+  /** Taking a long look at the knife (I). */
   readonly inspecting: boolean;
+  /** Mid-punch with the bare hand. */
+  readonly punching: boolean;
   /** Knocked out by a knife, waiting to respawn. */
   readonly knockedOut: boolean;
   /** Knives stuck around the room, and in the air, as this screen shows them. */
@@ -72,6 +74,9 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     },
     get inspecting() {
       return world.viewmodel.inspecting;
+    },
+    get punching() {
+      return world.viewmodel.punching;
     },
     get knockedOut() {
       return game.knockedOut;

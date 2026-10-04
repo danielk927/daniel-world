@@ -2,11 +2,12 @@ import type { Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   INSPECT,
+  PUNCH,
   SWITCH,
   THROW,
   Viewmodel,
-  handInspectPose,
   knifeInspectPose,
+  punchPose,
   switchPose,
   throwPose,
   type ArmPose,
@@ -58,32 +59,44 @@ describe('the throw animation', () => {
 
 describe('the inspect animation', () => {
   it('starts and ends at rest, with the knife in hand and no spin left over', () => {
-    for (const [pose, end] of [
-      [knifeInspectPose, INSPECT.knife],
-      [handInspectPose, INSPECT.hand],
-    ] as const) {
-      const start = pose(0, blank());
-      const done = pose(end, blank());
-      for (const k of keys) {
-        expect(start[k]).toBeCloseTo(0, 6);
-        expect(done[k]).toBeCloseTo(0, 6);
-      }
-      expect(done.spin).toBe(0);
-      for (let t = 0; t <= end; t += 0.05) expect(pose(t, blank()).knife).toBe(true);
+    const start = knifeInspectPose(0, blank());
+    const done = knifeInspectPose(INSPECT, blank());
+    for (const k of keys) {
+      expect(start[k]).toBeCloseTo(0, 6);
+      expect(done[k]).toBeCloseTo(0, 6);
     }
+    expect(done.spin).toBe(0);
+    for (let t = 0; t <= INSPECT; t += 0.05) expect(knifeInspectPose(t, blank()).knife).toBe(true);
   });
 
   it('turns the knife over to show its other side', () => {
     let most = 0;
-    for (let t = 0; t <= INSPECT.knife; t += 0.01) {
+    for (let t = 0; t <= INSPECT; t += 0.01) {
       most = Math.max(most, knifeInspectPose(t, blank()).spin);
     }
     expect(most).toBeGreaterThanOrEqual(Math.PI);
   });
 
   it('moves smoothly, without jumping between its phases', () => {
-    expect(largestJump(knifeInspectPose, INSPECT.knife)).toBeLessThan(0.004);
-    expect(largestJump(handInspectPose, INSPECT.hand)).toBeLessThan(0.004);
+    expect(largestJump(knifeInspectPose, INSPECT)).toBeLessThan(0.004);
+  });
+});
+
+describe('the punch animation', () => {
+  it('jabs out toward the middle of the view and comes back to rest', () => {
+    const start = punchPose(0, blank());
+    const done = punchPose(PUNCH.recover, blank());
+    for (const k of keys) {
+      expect(start[k]).toBeCloseTo(0, 6);
+      expect(done[k]).toBeCloseTo(0, 6);
+    }
+    const hit = punchPose(PUNCH.hit, blank());
+    expect(hit.z).toBeLessThan(-0.08);
+    expect(hit.x).toBeLessThan(-0.05);
+  });
+
+  it('moves smoothly, fast as a jab is', () => {
+    expect(largestJump(punchPose, PUNCH.recover)).toBeLessThan(0.006);
   });
 });
 
@@ -101,18 +114,45 @@ describe('the view model', () => {
     return vm;
   };
 
-  it('inspects whatever is in hand, once at a time, until it is done', () => {
+  it('inspects the knife, once at a time, until it is done, and never the bare hand', () => {
     const vm = ready();
     expect(vm.startInspect()).toBe(true);
     expect(vm.inspecting).toBe(true);
     expect(vm.startInspect()).toBe(false);
-    step(vm, INSPECT.knife + 0.05);
+    step(vm, INSPECT + 0.05);
     expect(vm.inspecting).toBe(false);
     vm.setArmed(false);
     step(vm, 1);
-    expect(vm.startInspect()).toBe(true);
-    step(vm, INSPECT.hand + 0.05);
+    expect(vm.startInspect()).toBe(false);
     expect(vm.inspecting).toBe(false);
+  });
+
+  it('punches with the bare hand, clenched into a fist, one jab at a time', () => {
+    const vm = ready();
+    const parts = vm as unknown as { fist: Object3D; open: Object3D };
+    expect(vm.startPunch()).toBe(false);
+    vm.setArmed(false);
+    step(vm, 1);
+    expect(parts.open.visible).toBe(true);
+    expect(vm.startPunch()).toBe(true);
+    step(vm, 1 / 60);
+    expect(vm.punching).toBe(true);
+    expect(parts.fist.visible).toBe(true);
+    expect(parts.open.visible).toBe(false);
+    expect(vm.startPunch()).toBe(false);
+    step(vm, PUNCH.recover);
+    expect(vm.punching).toBe(false);
+    expect(parts.open.visible).toBe(true);
+    expect(vm.startPunch()).toBe(true);
+  });
+
+  it('stops a punch to switch to the knife', () => {
+    const vm = ready();
+    vm.setArmed(false);
+    step(vm, 1);
+    vm.startPunch();
+    vm.setArmed(true);
+    expect(vm.punching).toBe(false);
   });
 
   it('stops inspecting to throw or switch, and not mid-throw', () => {

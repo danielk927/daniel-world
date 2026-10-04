@@ -67,6 +67,8 @@ export class Game {
   armed = true;
   /** World time the throw animation lets go of the knife; the tick after that throws it. */
   private throwAt: number | null = null;
+  /** A punch the next input carries to the server. */
+  private punchPending = false;
   private readonly hand = new Vector3();
   private lastThrowSeq = -Infinity;
 
@@ -379,21 +381,21 @@ export class Game {
     if (!(await this.input.lock()) && !this.input.lockWorks) this.primary();
   }
 
-  /** The left button: with the knife out it throws, with the bare hand out it draws the knife. */
+  /** The left button: with the knife out it throws, with the bare hand out it punches. */
   private primary(): void {
     if (this.mode !== 'playing' || this.knockedOut) return;
-    if (this.armed) {
-      this.throwWhenReady();
-    } else {
-      this.setArmed(true);
-      // Drawing is the whole press; holding on does not then throw the knife just drawn.
-      this.input.releasePrimary();
-    }
+    if (this.armed) this.throwWhenReady();
+    else this.punchWhenReady();
   }
 
   /** Start a throw if the knife is up; the tick after the hand lets go launches it. */
   private throwWhenReady(): void {
     if (this.viewmodel.startThrow()) this.throwAt = this.elapsed + THROW.release;
+  }
+
+  /** Jab if the hand is up; the next input tells the room, so others see it. */
+  private punchWhenReady(): void {
+    if (this.viewmodel.startPunch()) this.punchPending = true;
   }
 
   private tick(): void {
@@ -403,6 +405,10 @@ export class Game {
     // Knocked out: lie still. The server ignores movement then anyway, so prediction agrees.
     let keys = this.knockedOut ? 0 : this.input.keys;
     if (this.armed) keys |= Keys.Armed;
+    if (this.punchPending) {
+      if (!this.knockedOut && !this.armed) keys |= Keys.Punch;
+      this.punchPending = false;
+    }
     if (this.throwAt !== null && this.elapsed >= this.throwAt) {
       // The hand has let go: throw on this input, as soon as the server's cooldown allows.
       if (this.knockedOut || !this.armed) this.throwAt = null;
@@ -425,9 +431,10 @@ export class Game {
     this.lastFrame = now;
     this.elapsed += dt;
 
-    // Holding the button down keeps throwing, as fast as each knife can be drawn.
-    if (this.mode === 'playing' && this.armed && !this.knockedOut && this.input.firing) {
-      this.throwWhenReady();
+    // Holding the button down keeps throwing, as fast as each knife can be drawn, or punching.
+    if (this.mode === 'playing' && !this.knockedOut && this.input.firing) {
+      if (this.armed) this.throwWhenReady();
+      else this.punchWhenReady();
     }
     if (this.inWorld) {
       this.accumulator += dt;
@@ -472,9 +479,7 @@ export class Game {
       // the room under the hood toward the islands and the garden windows. It drifts gently.
       const t = this.elapsed;
       camera.position.set(6.7 + Math.sin(t * 0.07) * 0.5, 2.25, 5.7);
-      // On wide screens, aim left so the kitchen sits beside the landing card, not under it.
-      const shift = camera.aspect > 1.3 ? 1.6 : 0;
-      camera.lookAt(-2.6 - shift + Math.sin(t * 0.05) * 0.8, 1.15, -3.4);
+      camera.lookAt(-2.6 + Math.sin(t * 0.05) * 0.8, 1.15, -3.4);
       return;
     }
     if (this.mode === 'entering') {

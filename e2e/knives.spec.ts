@@ -69,7 +69,20 @@ test('knives stick where they land when playing solo', async ({ browser }) => {
   await page.context().close();
 });
 
-test('I inspects what is in hand, a throw cuts it short, and the loadout follows Q', async ({
+/** Click until the bare hand punches; mid-switch, a click does nothing yet. */
+async function punch(page: Page): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        await throwKnife(page);
+        return (await world(page)).punching;
+      },
+      { message: 'the bare hand punches' },
+    )
+    .toBe(true);
+}
+
+test('I inspects the knife, a throw cuts it short, and the fist punches instead', async ({
   browser,
 }) => {
   const page = await enterWorld(browser, { name: 'Inspector', online: false });
@@ -91,22 +104,42 @@ test('I inspects what is in hand, a throw cuts it short, and the loadout follows
   await expectWorld(page, (w) => !w.armed, 'Q puts the knife away');
   await expect(hand).toHaveClass(/is-active/);
   await expect(knife).not.toHaveClass(/is-active/);
-  // Mid-switch there is nothing to inspect yet; press again, as a person would, until it starts.
-  await expect
-    .poll(
-      async () => {
-        await page.keyboard.press('KeyI');
-        return (await world(page)).inspecting;
-      },
-      { message: 'the bare hand is being inspected' },
-    )
-    .toBe(true);
-  await expectWorld(page, (w) => !w.inspecting, 'the inspect ends by itself', 5000);
 
-  // With the bare hand out, a click draws the knife rather than throwing one.
-  await throwKnife(page);
-  await expectWorld(page, (w) => w.armed, 'a click draws the knife');
+  // With the bare hand out, a click punches: the knife stays away and nothing is thrown.
+  await punch(page);
+  await expectWorld(page, (w) => !w.punching, 'the punch comes back');
+  const after = await world(page);
+  expect(after.armed).toBe(false);
+  expect(after.knives.flying + after.knives.stuck).toBe(1);
+
+  // There is nothing to inspect on a bare hand.
+  await page.keyboard.press('KeyI');
+  await page.waitForTimeout(300);
+  expect((await world(page)).inspecting).toBe(false);
+
+  await page.keyboard.press('KeyQ');
+  await expectWorld(page, (w) => w.armed, 'Q draws the knife again');
   await expect(knife).toHaveClass(/is-active/);
-  expect((await world(page)).knives.stuck).toBe(1);
   await page.context().close();
+});
+
+test('other cooks see a punch', async ({ browser }) => {
+  const server = await startRoomServer();
+  try {
+    const boxer = await enterWorld(browser, { name: 'Boxer', room: 'e2e-punch' });
+    const watcher = await enterWorld(browser, { name: 'Watcher', room: 'e2e-punch' });
+    await expectWorld(watcher, (w) => w.playerCount === 2, 'the watcher sees the boxer');
+    await boxer.keyboard.press('KeyQ');
+    await expectWorld(boxer, (w) => !w.armed, 'the boxer puts the knife away');
+    await punch(boxer);
+    await expectWorld(
+      watcher,
+      (w) => (w.remotePlayers[0]?.punches ?? 0) >= 1,
+      'the watcher sees the punch',
+    );
+    await boxer.context().close();
+    await watcher.context().close();
+  } finally {
+    await server.close();
+  }
 });

@@ -86,16 +86,6 @@ describe('the left button', () => {
     expect(presses()).toBe(0);
     expect(input.firing).toBe(false);
   });
-
-  it('can be let go of until the next press, so a press that draws the knife does not throw it', async () => {
-    const { input } = playing();
-    await input.lock();
-    mouse(canvas, 'mousedown');
-    input.releasePrimary();
-    expect(input.firing).toBe(false);
-    mouse(canvas, 'mousedown');
-    expect(input.firing).toBe(true);
-  });
 });
 
 describe('pointer lock', () => {

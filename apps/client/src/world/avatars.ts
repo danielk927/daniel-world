@@ -31,6 +31,8 @@ const HAT_HEIGHT = 0.36;
 const THROW_DURATION = 0.32;
 /** The knife leaves the hand this far into the throw. */
 const RELEASE = 0.55;
+/** A punch: the right fist jabs straight out in front of the face and comes back. */
+const PUNCH_DURATION = 0.36;
 /** The held knife points forward and a little up. */
 const KNIFE_TILT = 0.5;
 
@@ -61,6 +63,8 @@ interface Avatar {
   airAmount: number;
   /** World time the last throw started, or -Infinity. */
   throwStart: number;
+  /** World time the last punch started, or -Infinity. */
+  punchStart: number;
   /** 0 standing, 1 knocked out flat on their back. */
   fallAmount: number;
   /** Where the name tag should sit, updated every frame. */
@@ -153,6 +157,7 @@ export class Avatars {
       walkAmount: 0,
       airAmount: 0,
       throwStart: -Infinity,
+      punchStart: -Infinity,
       fallAmount: 0,
       tagAnchor: new Vector3(0, -1000, 0),
     };
@@ -172,6 +177,12 @@ export class Avatars {
   playThrow(id: number, time: number): void {
     const avatar = this.avatars.get(id);
     if (avatar) avatar.throwStart = time;
+  }
+
+  /** Jab the right fist: this cook just punched. */
+  playPunch(id: number, time: number): void {
+    const avatar = this.avatars.get(id);
+    if (avatar) avatar.punchStart = time;
   }
 
   private hideSlot(slot: number): void {
@@ -299,6 +310,9 @@ export class Avatars {
     // A throw in progress, as a fraction of its swing, or -1.
     let throwT = (time - avatar.throwStart) / THROW_DURATION;
     if (throwT >= 1) throwT = -1;
+    // A punch in progress, likewise.
+    let punchT = (time - avatar.punchStart) / PUNCH_DURATION;
+    if (punchT < 0 || punchT >= 1) punchT = -1;
 
     // Hands: swing when walking, up in the air when jumping.
     const swing = Math.sin(avatar.walkPhase) * 0.22 * avatar.walkAmount;
@@ -314,6 +328,14 @@ export class Avatars {
         hx = 0.42;
         hy = 1.2 + windUp * 0.35 - whip * 0.45;
         hz = 0.22 * windUp - whip * 0.75;
+      } else if (side === 1 && punchT >= 0) {
+        // Out fast, back slower: the fist reaches full stretch a third of the way in.
+        const reach =
+          punchT < 0.3 ? Math.sin((punchT / 0.3) * (Math.PI / 2)) : 1 - (punchT - 0.3) / 0.7;
+        const out = reach * reach * (3 - 2 * reach);
+        hx += (0.22 - hx) * out;
+        hy += (1.22 - hy) * out;
+        hz += (-0.72 - hz) * out;
       }
       this.setPart(hx, hy, hz, 0, 0, 0);
       this.place(this.hands, slot * 2 + k);

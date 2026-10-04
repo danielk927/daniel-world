@@ -2,6 +2,7 @@ import {
   DEATH_SECONDS,
   EYE_HEIGHT,
   KNIFE_COOLDOWN_INPUTS,
+  PUNCH_COOLDOWN_INPUTS,
   Keys,
   PLAYER_COLORS,
   RESPAWN_PROTECTION_SECONDS,
@@ -63,6 +64,8 @@ export interface RoomPlayer {
   protectedUntil: number;
   /** Sequence of the input that last threw a knife. */
   lastThrowSeq: number;
+  /** Sequence of the input that last punched. */
+  lastPunchSeq: number;
   /** Holding the knife, as of the latest input. */
   armed: boolean;
   /** Where the player was over the last few ticks, so knives can be checked against the past. */
@@ -136,6 +139,7 @@ export class Room {
       deadUntil: null,
       protectedUntil: 0,
       lastThrowSeq: -Infinity,
+      lastPunchSeq: -Infinity,
       armed: true,
       history: new PositionHistory(),
       send: joining.send,
@@ -243,7 +247,7 @@ export class Room {
     });
   }
 
-  /** Simulate one input. A knocked-out player only falls; a standing one may throw a knife. */
+  /** Simulate one input. A knocked-out player only falls; a standing one may throw or punch. */
   private apply(player: RoomPlayer, input: QueuedInput): void {
     const dead = player.deadUntil !== null;
     stepPlayer(player.state, dead ? { keys: 0, yaw: input.yaw, pitch: input.pitch } : input);
@@ -253,6 +257,12 @@ export class Room {
     // Only a knife in hand can be thrown.
     if (!dead && player.armed && input.keys & Keys.Throw && cooledDown) {
       this.throwKnife(player, input);
+    }
+    // Only a bare hand punches. The puncher's own screen already shows it.
+    const rested = input.seq - player.lastPunchSeq >= PUNCH_COOLDOWN_INPUTS;
+    if (!dead && !player.armed && input.keys & Keys.Punch && rested) {
+      player.lastPunchSeq = input.seq;
+      this.broadcast({ t: 'punch', id: player.id }, player.id);
     }
   }
 
