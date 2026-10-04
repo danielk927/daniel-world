@@ -241,3 +241,7 @@ Judgment calls made during the unattended build, with reasons.
 - **The loadout sits over the minimap in the bottom right**, as wide as it, like Valorant's weapon list: the knife over the fist, the one in hand bright and marked on a rail, the other dim with a Q.
   After a throw the knife wipes back in from the handle as the next is drawn, so the cooldown reads at a glance.
   It has a navy backing like the minimap, because white icons alone vanish against the light kitchen.
+- **Emotes are gone** (wave, dance and jump on 1 to 3), at Daniel's request; the earlier notes on them above are history.
+  The messages left the protocol, so it is version 5, and the server no longer has an emote rate limit.
+- **The controls hint teaches only moving and the hand**: WASD, Space, Shift, Q and I.
+  The station prompt already says "Press E to open", and the pause menu still lists every control; the hint hides below 860 px, where it would meet the loadout and minimap.

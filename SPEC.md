@@ -40,7 +40,7 @@ Build an original implementation. Do not copy code, assets, or content from that
    - Everyone in the same room sees each other as simple stylized avatars (built from primitives, colored per player) with floating name tags.
    - Remote avatars move smoothly (snapshot interpolation) and animate (bob while walking, jump).
    - HUD: room code, player list and count, connection status.
-   - Text chat (Enter to open, 120 char max, plain text only) and a few emotes (wave, dance, jump) on number keys.
+   - Text chat (Enter to open, 120 char max, plain text only).
    - Rooms: default public `lobby`, plus private rooms by code. Max 16 players per room.
 6. **Portfolio fallback**: `/portfolio.html`, a clean static page rendering the same `content.ts` data, for mobile, no-WebGL, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it.
 7. **Offline mode**: if the server is unreachable, the world still works in single player with a small notice, and retries in the background.
