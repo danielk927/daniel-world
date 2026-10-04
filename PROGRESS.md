@@ -54,8 +54,9 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - With 16 players and bots throwing, it holds 60 fps at about 1 ms of frame CPU and 36 draw calls.
 - Deployed to AWS the same day (protocol version 3); a live two-player check on both the AWS and Vercel sites knocked a cook out and saw them respawn.
 - Then a CS2-style arm: the throw plays on a view model, Q switches to the bare hand, and knives fly faster (protocol version 4, deployed).
-- Then CS2 and Valorant controls: left click throws (hold to keep throwing), E opens stations, I inspects the knife or hand, and a loadout over the minimap shows what is in hand and the knife refilling.
+- Then CS2 and Valorant controls: left click throws (hold to keep throwing), E opens stations, I inspects the knife, and a loadout over the minimap shows what is in hand and the knife refilling.
 - Then emotes were removed (protocol version 5), and the controls hint cut down to WASD, Space, Shift, Q and I.
+- Then the bare hand punches (others see it, protocol version 6), I inspects only the knife, and the landing card is centered.
 
 ### How to run it
 

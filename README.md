@@ -30,18 +30,18 @@ Open a second browser window to see yourself from the outside.
 
 ## Controls
 
-| Key     | Action                                |
-| ------- | ------------------------------------- |
-| W A S D | Move (arrow keys work too)            |
-| Mouse   | Look around (click the world to lock) |
-| Space   | Jump                                  |
-| Shift   | Sprint                                |
-| Click   | Throw a knife (hold to keep throwing) |
-| Q       | Switch between knife and bare hand    |
-| I       | Inspect the knife or hand             |
-| E       | Open the station you are looking at   |
-| Enter   | Chat (120 characters, plain text)     |
-| Esc     | Menu                                  |
+| Key     | Action                                                      |
+| ------- | ----------------------------------------------------------- |
+| W A S D | Move (arrow keys work too)                                  |
+| Mouse   | Look around (click the world to lock)                       |
+| Space   | Jump                                                        |
+| Shift   | Sprint                                                      |
+| Click   | Throw a knife, or punch with the bare hand (hold to repeat) |
+| Q       | Switch between knife and bare hand                          |
+| I       | Inspect the knife                                           |
+| E       | Open the station you are looking at                         |
+| Enter   | Chat (120 characters, plain text)                           |
+| Esc     | Menu                                                        |
 
 Leave the room code empty to join the public `lobby`, or type any code to get a private kitchen.
 Private rooms have a "Copy invite link" button in the menu, which links to `/?room=<code>`.
