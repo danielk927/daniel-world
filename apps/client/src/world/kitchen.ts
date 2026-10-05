@@ -2,9 +2,11 @@ import {
   CircleGeometry,
   Color,
   ExtrudeGeometry,
+  LatheGeometry,
   PlaneGeometry,
   Shape,
   TorusGeometry,
+  Vector2,
   Vector3,
 } from 'three';
 import {
@@ -575,6 +577,43 @@ function island(kit: Kit, f: Fixture): void {
   }
 }
 
+/** The bottom of the brass pendant shades over the islands, above any head, even mid-jump. */
+const PENDANT_Y = 2.95;
+
+/** Where the pendant lamps over the two islands hang: a pair along each, by their bulbs. */
+export const PENDANTS: readonly Vector3[] = [KITCHEN.pastryIsland, KITCHEN.gardeManger].flatMap(
+  (f) => {
+    const cx = (f.minX + f.maxX) / 2;
+    const cz = (f.minZ + f.maxZ) / 2;
+    return [-1, 1].map((side) => new Vector3(cx + side * 1.05, PENDANT_Y + 0.06, cz));
+  },
+);
+
+/** A wide brass dome, open below, with a thin wall so it reads from above and below. */
+const PENDANT_SHADE = new LatheGeometry(
+  [
+    [0.001, 0.2],
+    [0.05, 0.2],
+    [0.17, 0.14],
+    [0.25, 0.0],
+    [0.24, 0.0],
+    [0.16, 0.13],
+    [0.045, 0.19],
+    [0.001, 0.19],
+  ].map(([x, y]) => new Vector2(x, y)),
+  12,
+);
+
+/** Brass pendants on long rods from the vault, each with a glowing bulb inside the shade. */
+function createPendants(kit: Kit): void {
+  for (const p of PENDANTS) {
+    kit.add('brass', PENDANT_SHADE, at(p.x, PENDANT_Y, p.z));
+    kit.sphere('light', p.x, p.y, p.z, 0.055, { sy: 0.8, color: paint.lamp });
+    const top = vaultHeight(p.z);
+    kit.cylinder('iron', p.x, PENDANT_Y + 0.2, p.z, 0.008, top - PENDANT_Y - 0.2, { segments: 4 });
+  }
+}
+
 function createCounters(kit: Kit): void {
   const { pass, gardeManger, pastryIsland, windowCounter, plonge, fridge, shelving, panRack } =
     KITCHEN;
@@ -627,7 +666,8 @@ function createCounters(kit: Kit): void {
     0.2,
     fr.top - 0.2,
     new Vector3(-1, 0, 0),
-    '#dbe9ee',
+    // A cool glow from inside; lamps shine past white (see Kit), and this would blow out.
+    '#7e9cad',
   );
   const bottleColors = ['#3d6b35', '#8c1c2b', '#e8d9a8', '#f2f2f2'];
   for (let shelf = 0; shelf < 3; shelf++) {
@@ -714,4 +754,5 @@ export function buildKitchen(kit: Kit): void {
   createPiano(kit);
   createHood(kit);
   createCounters(kit);
+  createPendants(kit);
 }

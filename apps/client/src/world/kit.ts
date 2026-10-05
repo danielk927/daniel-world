@@ -11,7 +11,7 @@ import {
   IcosahedronGeometry,
   TorusGeometry,
   Vector3,
-  type Color,
+  Color,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { StaticBuilder, at } from './builder.ts';
@@ -45,7 +45,7 @@ export const paint = {
   cabinet: '#f1f1ee',
   charcoal: '#34373b',
   windowFrame: '#3c3f43',
-  skylight: '#e4f1fb',
+  skylight: '#3c557a',
   plaque: '#fbfbf8',
   filter: '#dfe3e6',
   seam: '#9da6ad',
@@ -72,6 +72,8 @@ export interface SteamSource {
   readonly position: Vector3;
   readonly strength: number;
 }
+
+const glow = (scale: number): Color => new Color(scale, scale, scale);
 
 const unitBox = new BoxGeometry(1, 1, 1);
 /** Faceted spheres: an icosphere for anything sizable, a bare icosahedron for small things. */
@@ -122,9 +124,11 @@ export class Kit {
   readonly burners: Burner[] = [];
   readonly steam: SteamSource[] = [];
 
-  constructor() {
-    // Low-poly look: every surface is flat-shaded and matte, so each facet reads as one color.
-    // Metals keep a little sheen from the lights but never mirror the room.
+  /** `hdr`: lamps and glowing things shine brighter than white, for the bloom to catch. */
+  constructor(hdr = false) {
+    // Low-poly look: every surface is flat-shaded, so each facet reads as one color. Painted
+    // surfaces are matte; metals take soft reflections of the room, as on Ratatouille, where they
+    // were kept soft so the steel reads as worked, not new.
     const standard = (params: ConstructorParameters<typeof MeshStandardMaterial>[0]) =>
       new MeshStandardMaterial({ flatShading: true, ...params });
     const painted = (roughness: number) =>
@@ -132,39 +136,47 @@ export class Kit {
     this.builder
       .layer('floor', painted(0.85), { vertexColors: true })
       .layer('tile', painted(0.6), { vertexColors: true })
-      // The room's shell (ceiling, upper walls, ceiling fixtures) never casts shadows: the key light
-      // sits above the ceiling, which would otherwise shadow the whole room.
+      // The room's shell (ceiling, upper walls, ceiling fixtures) never casts shadows: the overhead
+      // light sits above the ceiling, which would otherwise shadow the whole room.
       .layer('shell', painted(0.9), { vertexColors: true })
       .layer('matte', painted(0.85), { castShadow: true, vertexColors: true })
       .layer('gloss', painted(0.45), { castShadow: true, vertexColors: true })
-      .layer('steel', standard({ color: '#d3dbe1', metalness: 0.2, roughness: 0.5 }), {
-        castShadow: true,
-      })
-      .layer('iron', standard({ color: '#55575e', metalness: 0.15, roughness: 0.75 }), {
-        castShadow: true,
-      })
+      .layer(
+        'steel',
+        standard({ color: '#cfd3d4', metalness: 0.55, roughness: 0.34, envMapIntensity: 12 }),
+        { castShadow: true },
+      )
+      .layer(
+        'iron',
+        standard({ color: '#4c4846', metalness: 0.3, roughness: 0.62, envMapIntensity: 6 }),
+        { castShadow: true },
+      )
       // Brass and copper are small polished pieces; shadows would only turn them maroon and olive.
-      .layer('brass', standard({ color: '#e2b450', metalness: 0.35, roughness: 0.45 }), {
-        castShadow: true,
-        receiveShadow: false,
-      })
-      .layer('copper', standard({ color: '#dc7744', metalness: 0.3, roughness: 0.5 }), {
-        castShadow: true,
-        receiveShadow: false,
-      })
+      .layer(
+        'brass',
+        standard({ color: '#e0b052', metalness: 0.75, roughness: 0.3, envMapIntensity: 14 }),
+        { castShadow: true, receiveShadow: false },
+      )
+      .layer(
+        'copper',
+        standard({ color: '#d9774a', metalness: 0.75, roughness: 0.3, envMapIntensity: 14 }),
+        { castShadow: true, receiveShadow: false },
+      )
       .layer('marble', standard({ color: '#f2eee6', roughness: 0.55 }), { castShadow: true })
       .layer(
         'glass',
+        // Night glass: dark, with the lit kitchen reflected in it.
         standard({
-          color: '#dff1f5',
-          roughness: 0.2,
+          color: '#16202c',
+          roughness: 0.05,
+          envMapIntensity: 10,
           transparent: true,
-          opacity: 0.35,
+          opacity: 0.25,
           depthWrite: false,
           side: DoubleSide,
         }),
       )
-      .layer('light', new MeshBasicMaterial({ vertexColors: true }), {
+      .layer('light', new MeshBasicMaterial({ vertexColors: true, color: glow(hdr ? 2.2 : 1) }), {
         vertexColors: true,
         receiveShadow: false,
       })

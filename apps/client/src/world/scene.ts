@@ -1,15 +1,12 @@
 import {
   ACESFilmicToneMapping,
   Color,
-  DirectionalLight,
-  HemisphereLight,
+  NoToneMapping,
   PCFShadowMap,
   PerspectiveCamera,
-  PointLight,
   Scene,
   WebGLRenderer,
 } from 'three';
-import { KITCHEN, ROOM_HALF_X, ROOM_HALF_Z } from '@world/shared';
 import type { DishContent, StationContent } from '../content.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { Avatars } from './avatars.ts';
@@ -18,6 +15,8 @@ import { createFlames, createSteam } from './effects.ts';
 import { Kit } from './kit.ts';
 import { Knives } from './knives.ts';
 import { buildKitchen } from './kitchen.ts';
+import { createLighting, type Lighting } from './lighting.ts';
+import type { PostProcessing } from './post.ts';
 import { buildStationProps } from './props.ts';
 import { assignShadowDepthMaterials } from './shadowDepth.ts';
 import { Stations } from './stations.ts';
@@ -37,8 +36,10 @@ export class WorldScene {
   readonly knives = new Knives();
   /** The player's own arm, drawn over the world. */
   readonly viewmodel = new Viewmodel();
-  /** Firelight from the burners on the piano, flickering. High quality only, with the pass light. */
-  private readonly fireLight: PointLight | null = null;
+  private readonly lighting: Lighting;
+  /** Ambient occlusion, bloom, tone mapping and the grade. High quality only. */
+  private post: PostProcessing | null = null;
+  private frameDt = 0;
 
   readonly quality: Quality;
 
@@ -57,55 +58,23 @@ export class WorldScene {
     });
     // Low quality renders below native resolution; the browser scales the canvas up.
     this.renderer.setPixelRatio(high ? Math.min(window.devicePixelRatio, 2) : 0.75);
-    this.renderer.toneMapping = ACESFilmicToneMapping;
+    // With post-processing, tone mapping happens there, after bloom, instead of in every material.
+    this.renderer.toneMapping = high ? NoToneMapping : ACESFilmicToneMapping;
     this.renderer.info.autoReset = false;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = high;
     this.renderer.shadowMap.type = PCFShadowMap;
 
     this.scene.background = new Color('#e9eef2');
+    this.lighting = createLighting(this.scene, this.renderer, quality);
+    this.viewmodel.matchLighting(high, this.scene.environment, this.scene.environmentIntensity);
 
-    // Soft, even daylight: most of the light is fill, so faces never fall into dark shade.
-    const hemi = new HemisphereLight('#f5f8fc', '#d6d2ca', 1.9);
-    // Daylight from the skylights, as one key light from above that casts the shadows.
-    const key = new DirectionalLight('#fffaf2', 1.7);
-    // Angled toward the south, so the faces a new player looks at are lit, not only the tops.
-    key.position.set(5, 13, 9);
-    key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
-    const shadowCamera = key.shadow.camera;
-    shadowCamera.left = -ROOM_HALF_X - 2;
-    shadowCamera.right = ROOM_HALF_X + 2;
-    shadowCamera.top = ROOM_HALF_Z + 3;
-    shadowCamera.bottom = -ROOM_HALF_Z - 3;
-    shadowCamera.near = 4;
-    shadowCamera.far = 30;
-    key.shadow.bias = -0.0004;
-    key.shadow.normalBias = 0.03;
-    key.shadow.radius = 4;
-    // Shadows only hint at contact and depth; full-strength ones read as dark holes in a white room.
-    key.shadow.intensity = 0.45;
-
-    // Every point light costs every lit pixel, so software renderers go without the accent lights.
-    if (high) {
-      const pass = KITCHEN.pass;
-      // A short reach, so the lamps warm the plates without washing the vault and walls orange.
-      const passLight = new PointLight('#ffc08a', 1.6, 1.8, 2);
-      passLight.position.set(0, 1.7, (pass.minZ + pass.maxZ) / 2);
-      this.fireLight = new PointLight('#ffb070', 0.45, 2.2, 2);
-      this.fireLight.position.set(0, 1.1, 0);
-      this.scene.add(passLight, this.fireLight);
-    }
-
-    const kit = new Kit();
+    const kit = new Kit(high);
     buildKitchen(kit);
     buildStationProps(kit);
 
     this.stations = new Stations(content, dishes, high);
     this.scene.add(
-      hemi,
-      key,
-      key.target,
       kit.builder.build(),
       createFlames(kit.burners),
       createSteam(kit.steam),
@@ -124,25 +93,40 @@ export class WorldScene {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.post?.setSize(width, height);
   }
 
   /** Compile every shader up front so the first frames in the world do not hitch. */
   async compile(): Promise<void> {
+    // Post-processing and the area lights' tables are only for the high tier, so only it downloads
+    // them, while loading.
+    if (this.quality === 'high') {
+      const [{ PostProcessing }, { RectAreaLightUniformsLib }] = await Promise.all([
+        import('./post.ts'),
+        import('three/addons/lights/RectAreaLightUniformsLib.js'),
+      ]);
+      RectAreaLightUniformsLib.init();
+      this.post = new PostProcessing(this.renderer, this.scene, this.camera, this.viewmodel.scene);
+      this.post.setSize(window.innerWidth, window.innerHeight);
+    }
     await this.renderer.compileAsync(this.scene, this.camera);
     await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
   }
 
   update(time: number, dt: number): void {
     worldTime.value = time;
+    this.frameDt = dt;
     this.stations.update(dt);
-    if (this.fireLight) {
-      this.fireLight.intensity = 0.45 + Math.sin(time * 13) * 0.03 + Math.sin(time * 7.3) * 0.02;
-    }
+    this.lighting.update(time);
   }
 
   render(): void {
     // Two passes (the world, then the arm over it), so draw call counts add up across both.
     this.renderer.info.reset();
+    if (this.post) {
+      this.post.render(this.frameDt, this.viewmodel.isShown);
+      return;
+    }
     this.renderer.render(this.scene, this.camera);
     this.viewmodel.render(this.renderer, this.camera);
   }

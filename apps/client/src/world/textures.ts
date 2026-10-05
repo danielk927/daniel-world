@@ -43,17 +43,29 @@ export const softTexture = once(() => {
   return texture(element);
 });
 
-/** The kitchen garden across the road on a bright day, seen through the north windows. */
+/**
+ * The kitchen garden across the road at the blue hour, seen through the north windows: a deep blue
+ * sky with the last peach glow on the horizon, the hills and trees gone to silhouette, and a strand
+ * of warm string lights along the hedge.
+ */
 export const gardenTexture = once(() => {
   const width = 2048;
   const height = 1024;
   const [element, ctx] = canvas(width, height);
   const random = createRandom(404);
-  const sky = ctx.createLinearGradient(0, 0, 0, height * 0.6);
-  sky.addColorStop(0, '#9fc7e8');
-  sky.addColorStop(1, '#e4f0f6');
+  const sky = ctx.createLinearGradient(0, 0, 0, height * 0.58);
+  sky.addColorStop(0, '#16233f');
+  sky.addColorStop(0.55, '#3b4d78');
+  sky.addColorStop(0.85, '#8a7f9c');
+  sky.addColorStop(1, '#e3a98a');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
+  // A few early stars, high up where the sky is darkest.
+  for (let i = 0; i < 70; i++) {
+    ctx.fillStyle = `rgba(235, 240, 255, ${0.25 + random() * 0.5})`;
+    const r = random() < 0.15 ? 2 : 1.2;
+    ctx.fillRect(random() * width, random() * height * 0.32, r, r);
+  }
 
   // Rolling hills of the valley, in two flat bands, each a run of straight facets.
   const hills = (base: number, amplitude: number, color: string, step: number): void => {
@@ -67,13 +79,13 @@ export const gardenTexture = once(() => {
     ctx.closePath();
     ctx.fill();
   };
-  hills(height * 0.5, 90, '#a9b9b4', 160);
-  hills(height * 0.56, 60, '#8fae86', 120);
+  hills(height * 0.5, 90, '#3c4763', 160);
+  hills(height * 0.56, 60, '#2c3a45', 120);
 
-  // Rows of vines and garden beds, then a hedge, then trees with faceted crowns.
+  // Rows of vines and garden beds, then trees with faceted crowns, all in the dusk.
   for (let row = 0; row < 6; row++) {
     const y = height * (0.6 + row * 0.045);
-    ctx.fillStyle = row % 2 === 0 ? '#7ea364' : '#6d9455';
+    ctx.fillStyle = row % 2 === 0 ? '#25362f' : '#203029';
     ctx.fillRect(0, y, width, height * 0.03);
   }
   for (let i = 0; i < 26; i++) {
@@ -81,7 +93,7 @@ export const gardenTexture = once(() => {
     const cy = height * (0.5 + random() * 0.08);
     const r = 50 + random() * 70;
     const sides = 6 + Math.floor(random() * 3);
-    ctx.fillStyle = ['#5f8f4a', '#6e9d52', '#557f43'][i % 3]!;
+    ctx.fillStyle = ['#1e2d2a', '#233430', '#1a2724'][i % 3]!;
     ctx.beginPath();
     for (let k = 0; k < sides; k++) {
       const a = (k / sides) * Math.PI * 2 + random() * 0.3;
@@ -89,11 +101,30 @@ export const gardenTexture = once(() => {
     }
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = '#6b5440';
+    ctx.fillStyle = '#1c1714';
     ctx.fillRect(cx - 6, cy + r * 0.6, 12, height * 0.06);
   }
-  ctx.fillStyle = '#4f7a3f';
+  ctx.fillStyle = '#16211c';
   ctx.fillRect(0, height * 0.86, width, height * 0.14);
+
+  // String lights, swagged between posts along the hedge, each bulb with a soft halo.
+  const posts = 9;
+  const top = height * 0.8;
+  for (let p = 0; p < posts; p++) {
+    const x0 = (p / posts) * width;
+    const x1 = ((p + 1) / posts) * width;
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10;
+      const x = x0 + (x1 - x0) * t;
+      const y = top + Math.sin(t * Math.PI) * 26;
+      const halo = ctx.createRadialGradient(x, y, 0, x, y, 14);
+      halo.addColorStop(0, 'rgba(255, 214, 150, 0.95)');
+      halo.addColorStop(0.3, 'rgba(255, 190, 120, 0.45)');
+      halo.addColorStop(1, 'rgba(255, 170, 100, 0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(x - 14, y - 14, 28, 28);
+    }
+  }
   return texture(element);
 });
 

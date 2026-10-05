@@ -1,13 +1,19 @@
 import {
   AdditiveBlending,
+  Color,
   ConeGeometry,
+  DoubleSide,
+  Float32BufferAttribute,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  Mesh,
   PlaneGeometry,
   ShaderMaterial,
   Vector3,
+  type BufferGeometry,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createRandom } from '@world/shared';
 import { worldTime } from './clock.ts';
 import { softTexture } from './textures.ts';
@@ -150,5 +156,83 @@ export function createFlames(
   geometry.setAttribute('aSeed', new InstancedBufferAttribute(seeds, 1));
   mesh.frustumCulled = false;
   mesh.name = 'flames';
+  return mesh;
+}
+
+export interface LightCone {
+  /** Where the light leaves the lamp. */
+  readonly apex: Vector3;
+  /** How far down the beam is drawn, and how wide it gets there. */
+  readonly height: number;
+  readonly radius: number;
+  readonly color: string;
+}
+
+/**
+ * Beams of light under the lamps, as the haze and steam of a working kitchen catch them: open
+ * cones drawn additively, brightest by the lamp and fading to nothing before the counter, thickest
+ * through the middle where the eye looks through the most air. All of them are one mesh.
+ */
+export function createLightCones(cones: readonly LightCone[]): Mesh {
+  const parts: BufferGeometry[] = cones.map((cone) => {
+    const geometry = new ConeGeometry(cone.radius, cone.height, 20, 6, true);
+    // Apex at the top: move it to the origin, with the cone hanging below.
+    geometry.translate(0, -cone.height / 2, 0);
+    const position = geometry.getAttribute('position');
+    const along = new Float32Array(position.count);
+    const colors = new Float32Array(position.count * 3);
+    const color = new Color(cone.color);
+    for (let i = 0; i < position.count; i++) {
+      along[i] = -position.getY(i) / cone.height;
+      colors.set([color.r, color.g, color.b], i * 3);
+    }
+    geometry.setAttribute('aAlong', new Float32BufferAttribute(along, 1));
+    geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+    geometry.translate(cone.apex.x, cone.apex.y, cone.apex.z);
+    return geometry;
+  });
+  const geometry = mergeGeometries(parts);
+  if (!geometry) throw new Error('Could not build the light cones');
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    vertexColors: true,
+    vertexShader: /* glsl */ `
+      attribute float aAlong;
+      varying float vAlong;
+      varying vec3 vColor;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vAlong = aAlong;
+        vColor = color;
+        vec4 view = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalMatrix * normal;
+        vView = -view.xyz;
+        gl_Position = projectionMatrix * view;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      varying float vAlong;
+      varying vec3 vColor;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        // Facing the eye: looking through the middle of the beam, where there is the most air.
+        float through = pow(abs(dot(normalize(vNormal), normalize(vView))), 1.6);
+        // Clamped: a hair past the ends, pow() of a negative is NaN, and bloom spreads a NaN over
+        // the whole frame.
+        float along = clamp(vAlong, 0.0, 1.0);
+        float fade = smoothstep(0.0, 0.12, along) * pow(1.0 - along, 2.2);
+        float a = through * fade * 0.2;
+        gl_FragColor = vec4(vColor * a, a);
+      }
+    `,
+  });
+  const mesh = new Mesh(geometry, material);
+  mesh.renderOrder = 3;
+  mesh.name = 'light-cones';
   return mesh;
 }

@@ -75,5 +75,7 @@ export function knifeMaterial(): MeshStandardMaterial {
     flatShading: true,
     metalness: 0.35,
     roughness: 0.45,
+    // Steel shows the kitchen in it, like the counters (see the environment in lighting.ts).
+    envMapIntensity: 10,
   }));
 }

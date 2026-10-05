@@ -10,6 +10,7 @@ import {
   Scene,
   Vector3,
   type PerspectiveCamera,
+  type Texture,
   type WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -264,6 +265,9 @@ export class Viewmodel {
     flatShading: true,
   });
 
+  /** Lit like the kitchen around it; see matchLighting. */
+  private readonly fill = new HemisphereLight('#f5f8fc', '#d6d2ca', 1.9);
+  private readonly key = new DirectionalLight('#fffaf2', 1.7);
   private shown = false;
   /** What the player asked to hold, and what the hand holds right now (they differ mid-switch). */
   private armed = true;
@@ -339,11 +343,26 @@ export class Viewmodel {
     this.arm.add(sleeve, cuff, this.fist, this.open, this.knifeHolder);
     this.arm.scale.setScalar(ARM_SCALE);
     this.root.add(this.arm);
-    // Lit like the kitchen, so the arm belongs in the room.
-    const key = new DirectionalLight('#fffaf2', 1.7);
-    key.position.set(5, 13, 9);
-    this.scene.add(new HemisphereLight('#f5f8fc', '#d6d2ca', 1.9), key, this.root);
+    this.key.position.set(5, 13, 9);
+    this.scene.add(this.fill, this.key, this.root);
     this.apply();
+  }
+
+  /**
+   * Light the arm like the room it is in: in the evening kitchen of the high tier, a warm key from
+   * the lamps over a low, cool fill, instead of the bright even daylight of the low tier.
+   */
+  matchLighting(evening: boolean, environment: Texture | null, environmentIntensity: number): void {
+    // The blade reflects the same kitchen as everything else in it.
+    this.scene.environment = environment;
+    this.scene.environmentIntensity = environmentIntensity;
+    if (!evening) return;
+    this.fill.color.set('#7d90b0');
+    this.fill.groundColor.set('#6f5a4b');
+    this.fill.intensity = 0.8;
+    this.key.color.set('#ffd6a8');
+    this.key.intensity = 1.5;
+    this.key.position.set(2, 8, 5);
   }
 
   /** The hand takes the player's color, like their cook's hands. */
