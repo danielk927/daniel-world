@@ -52,7 +52,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
 4. For visual changes, run `node scripts/screenshots.ts` and look at `docs/screenshots/`.
-5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 1 ms frame CPU, about 40 draw calls with 16 players and bots throwing knives).
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 2 ms frame CPU, about 72 draw calls with 16 players and bots throwing knives; about 30 of the calls are post-processing passes).
 
 ## Gotchas
 
@@ -61,6 +61,9 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 - Fixture footprints, stations and doors live in `packages/shared/src/world.ts`; colliders, the minimap and the renderer all read them, so move things there, not in the client.
 - E2E uses SwiftShader, which gets the low quality tier automatically; screenshots and perf use the real GPU and `?quality=high`.
 - A protocol or shared-simulation change bumps `PROTOCOL_VERSION`; Vercel deploys the client on every push to `main`, but the AWS room server only with `npm run deploy:aws`, so until then visitors play solo.
+- The look (evening service, after Ratatouille) is split by quality tier: `world/lighting.ts` has the lights for both, and the high tier adds shadows, the practical lights and `world/post.ts` (N8AO, bloom, AgX, the grade).
+  Lamps and glowing things are the `light` layer, which shines past white on the high tier so bloom catches it; keep new glowing paint dim, or it blows out.
+  Keep `scene.environmentIntensity` tiny and raise `envMapIntensity` on metals instead; a brighter environment lights everything from every side and flattens the room.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 
 <!-- BEGIN AWS Agent Toolkit rules -->

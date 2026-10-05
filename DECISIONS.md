@@ -249,3 +249,18 @@ Judgment calls made during the unattended build, with reasons.
   The messages left the protocol, so it is version 5, and the server no longer has an emote rate limit.
 - **The controls hint teaches only moving and the hand**: WASD, Space, Shift, Q and I.
   The station prompt already says "Press E to open", and the pause menu still lists every control; the hint hides below 860 px, where it would meet the loadout and minimap.
+
+### The look: evening service, after Ratatouille (2026-10-05)
+
+- **The reference is Gusteau's kitchen in Ratatouille**, lit by Sharon Calahan, Pixar's director of photography for lighting: a classical French kitchen, a neutral white and black set so the food and faces carry the color, and lighting rules written down in interviews about the film.
+  The rules used: the human world is warm and the world outside is cool; food looks best in slightly warm light; shadows go to "warm blacks", a very dark red-brown, never grey or black; reflections stay soft so steel reads as worked, not new; and the frame should look photographed, not filled in.
+- **It is evening service, not daylight.** A daylit room of white walls under skylights is evenly lit by nature; a golden-hour sun through the windows was tried, and its patches read but stayed small.
+  At the blue hour the windows and skylights go deep blue, and the kitchen is lit by its own lamps, in pools, which is both the film's warm/cool idea and the most striking contrast this room can have.
+- **The light comes from the fixtures you can see**: soft-edged spots under the pass's heat lamps and under new brass pendants over the two islands, a warm area light under the hood, cove light from the strips where the vault meets the long walls, the burners' flicker, and a weak warm overhead light for grounding shadows. Fill is low and cool.
+- **The environment map is for reflections only** (intensity 0.05, with steel, brass, copper, knives and glass turning theirs up): bright enough to light the painted surfaces, it lit them from every side and flattened the room more than any light.
+- **High quality post-processing** (pmndrs `postprocessing` and N8AO): the scene into a 4x multisampled half-float buffer, N8AO ambient occlusion at half resolution tinted warm brown, the arm drawn over it, then one pass for bloom, AgX tone mapping, a grade (warm-black lift, warm highlights, a gentle S-curve), a vignette and faint grain.
+  AgX over ACES (which washed the scene out) and Neutral (which clipped the brightest pools to cyan).
+  Its code and the area lights' lookup tables load only on the high tier, during loading.
+- **Beams under the lamps** are open cones drawn additively, thickest through the middle, all in one mesh; their shader clamps its inputs, since a single NaN, spread by the bloom, turned a whole frame black while tuning.
+- **The low tier keeps the same evening** (blue windows and skylights, haze) with a brighter warm-neutral fill and no shadows, practical lights, environment or post-processing, so software renderers stay fast; a cool fill without warm lamps to balance it turned the room blue.
+- **Performance** with 16 players and bots throwing: a steady 60 fps, about 2.1 ms of main-thread time per frame (the post-processing passes) and 72 draw calls.
