@@ -251,6 +251,11 @@ export class Viewmodel {
   private readonly arm = new Group();
   private readonly fist: Mesh;
   private readonly open: Group;
+  /** The bare hand's fingers hinge here, at the knuckles, to curl into a fist. */
+  private readonly knuckles = new Group();
+  private readonly openThumb: Mesh;
+  /** How far the bare hand is curled into a fist: 0 open, 1 clenched. */
+  private curl = 0;
   private readonly knife: Mesh;
   private readonly knifeHolder = new Group();
   private readonly skin = new MeshStandardMaterial({
@@ -317,13 +322,11 @@ export class Viewmodel {
     this.open = new Group();
     const palm = new Mesh(new RoundedBoxGeometry(0.074, 0.024, 0.08, 2, 0.01), this.skin);
     const fingers = new Mesh(new RoundedBoxGeometry(0.07, 0.02, 0.06, 2, 0.009), this.skin);
-    fingers.position.set(0, -0.006, -0.064);
-    fingers.rotation.x = -0.35;
-    const openThumb = new Mesh(new RoundedBoxGeometry(0.022, 0.02, 0.048, 1, 0.009), this.skin);
-    openThumb.position.set(-0.042, 0.004, -0.02);
-    openThumb.rotation.y = 0.55;
-    this.open.add(palm, fingers, openThumb);
-    this.open.rotation.set(0.15, 0.1, -0.3);
+    fingers.position.set(0, -0.002, -0.028);
+    this.knuckles.position.set(0, -0.004, -0.038);
+    this.knuckles.add(fingers);
+    this.openThumb = new Mesh(new RoundedBoxGeometry(0.022, 0.02, 0.048, 1, 0.009), this.skin);
+    this.open.add(palm, this.knuckles, this.openThumb);
 
     // The knife, gripped by its handle in the fist, the blade up. The holder spins it on draws.
     this.knife = new Mesh(knifeGeometry(), knifeMaterial());
@@ -357,6 +360,7 @@ export class Viewmodel {
       this.sinceInspect = Infinity;
       this.sincePunch = Infinity;
       this.sinceInterrupt = Infinity;
+      this.curl = 0;
       this.holding = this.armed ? 'knife' : 'hand';
     }
     this.shown = shown;
@@ -418,6 +422,11 @@ export class Viewmodel {
     return this.sincePunch < PUNCH.recover;
   }
 
+  /** How far the bare hand is curled into a fist: 0 open, 1 clenched. */
+  get handCurl(): number {
+    return this.curl;
+  }
+
   /** Jab with the bare hand, if it is up and not already punching. */
   startPunch(): boolean {
     if (!this.shown || this.armed || this.holding !== 'hand' || this.punching || !this.idle) {
@@ -465,6 +474,11 @@ export class Viewmodel {
     this.sinceInspect += dt;
     this.sincePunch += dt;
     this.sinceInterrupt += dt;
+    // The hand clenches quickly for the jab and opens again more slowly once it is on the way back;
+    // easing toward the target means it can never snap, even mid-punch or when punches overlap.
+    const clench = this.sincePunch < PUNCH.hit + 0.1 ? 1 : 0;
+    const rate = clench > this.curl ? 45 : 9;
+    this.curl += (clench - this.curl) * (1 - Math.exp(-dt * rate));
     if (this.sinceSwitch >= SWITCH.lower) this.holding = this.armed ? 'knife' : 'hand';
     this.root.position.copy(camera.position);
     this.root.quaternion.copy(camera.quaternion);
@@ -514,10 +528,19 @@ export class Viewmodel {
       blend(this.interrupted, pose, this.sinceInterrupt / INTERRUPT_BLEND);
     const knife = this.holding === 'knife' && pose.knife;
     this.knifeHolder.visible = knife;
-    // The bare hand clenches into a fist to punch.
-    const fist = this.holding === 'knife' || this.punching;
-    this.fist.visible = fist;
-    this.open.visible = !fist;
+    this.fist.visible = this.holding === 'knife';
+    this.open.visible = this.holding === 'hand';
+    // The bare hand curls into a fist: fingers fold under the palm, the thumb across them, and the
+    // wrist straightens behind the knuckles.
+    const c = this.curl;
+    this.knuckles.rotation.x = lerp(-0.35, -2.6, c);
+    this.openThumb.position.set(
+      lerp(-0.042, -0.03, c),
+      lerp(0.004, -0.02, c),
+      lerp(-0.02, -0.036, c),
+    );
+    this.openThumb.rotation.set(0, lerp(0.55, -0.45, c), 0);
+    this.open.rotation.set(lerp(0.15, 0, c), lerp(0.1, 0, c), lerp(-0.3, 0, c));
     this.knifeHolder.rotation.set(0, 0, 0);
     if (pose.spin) this.knifeHolder.rotateOnAxis(BLADE_UP, pose.spin);
 

@@ -127,23 +127,43 @@ describe('the view model', () => {
     expect(vm.inspecting).toBe(false);
   });
 
-  it('punches with the bare hand, clenched into a fist, one jab at a time', () => {
+  it('punches with the bare hand, one jab at a time', () => {
     const vm = ready();
-    const parts = vm as unknown as { fist: Object3D; open: Object3D };
     expect(vm.startPunch()).toBe(false);
     vm.setArmed(false);
     step(vm, 1);
-    expect(parts.open.visible).toBe(true);
     expect(vm.startPunch()).toBe(true);
     step(vm, 1 / 60);
     expect(vm.punching).toBe(true);
-    expect(parts.fist.visible).toBe(true);
-    expect(parts.open.visible).toBe(false);
     expect(vm.startPunch()).toBe(false);
     step(vm, PUNCH.recover);
     expect(vm.punching).toBe(false);
-    expect(parts.open.visible).toBe(true);
     expect(vm.startPunch()).toBe(true);
+  });
+
+  it('curls the hand into a fist to punch and opens it again gradually, never in one frame', () => {
+    const vm = ready();
+    const parts = vm as unknown as { fist: Object3D; open: Object3D };
+    vm.setArmed(false);
+    step(vm, 1);
+    expect(vm.handCurl).toBe(0);
+    vm.startPunch();
+    let worst = 0;
+    let most = 0;
+    let previous = vm.handCurl;
+    for (let i = 0; i < 60; i++) {
+      step(vm, 1 / 60);
+      // The same hand all along: the knife's fist never stands in for it.
+      expect(parts.open.visible).toBe(true);
+      expect(parts.fist.visible).toBe(false);
+      most = Math.max(most, vm.handCurl);
+      if (i > 6) worst = Math.max(worst, Math.abs(vm.handCurl - previous));
+      previous = vm.handCurl;
+    }
+    expect(most).toBeGreaterThan(0.9);
+    // Opening takes several frames.
+    expect(worst).toBeLessThan(0.2);
+    expect(vm.handCurl).toBeLessThan(0.05);
   });
 
   it('stops a punch to switch to the knife', () => {
