@@ -248,6 +248,10 @@ export class Game {
     this.setCovered(false);
     this.mode = 'playing';
     this.input.enabled = true;
+    // Chrome on macOS lets go of the pointer lock when Esc comes up, so a lock taken while the Esc
+    // that closed the menu is still down is lost at once, and losing it opens the pause menu.
+    await this.input.released('Escape');
+    if (this.mode !== 'playing') return;
     const locked = await this.input.lock();
     if (!locked && this.mode === 'playing') {
       this.toasts.show('Click the world to look around with the mouse');

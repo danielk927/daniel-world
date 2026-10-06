@@ -141,10 +141,28 @@ test('Esc closes an info panel and returns to play', async ({ browser }) => {
   await expect(dialog).toBeVisible();
   expect((await world(page)).mode).toBe('panel');
 
-  await page.keyboard.press('Escape');
+  // Record when the game asks for pointer lock. Chrome on macOS lets go of the lock when Esc comes
+  // back up, so a lock taken while the Esc that closed the panel is still down is lost at once,
+  // and losing it while playing opens the pause menu.
+  await page.evaluate(() => {
+    const record = window as unknown as { lockRequests: number };
+    record.lockRequests = 0;
+    HTMLCanvasElement.prototype.requestPointerLock = function () {
+      record.lockRequests++;
+      return Promise.reject(new DOMException('No pointer lock in this test', 'NotSupportedError'));
+    };
+  });
+  const lockRequests = () =>
+    page.evaluate(() => (window as unknown as { lockRequests: number }).lockRequests);
+
+  await page.keyboard.down('Escape');
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeHidden();
   await expectWorld(page, (w) => w.mode === 'playing', 'back to playing');
+  await page.waitForTimeout(300);
+  expect(await lockRequests()).toBe(0);
+  await page.keyboard.up('Escape');
+  await expect.poll(lockRequests).toBeGreaterThan(0);
+  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeHidden();
 
   // Esc opens the menu, and Esc again closes it.
   await page.keyboard.press('Escape');

@@ -102,3 +102,30 @@ describe('pointer lock', () => {
     expect(input.lockWorks).toBe(true);
   });
 });
+
+describe('waiting for a key to come up', () => {
+  const key = (type: string, code: string) =>
+    (window as unknown as EventTarget).dispatchEvent(Object.assign(new Event(type), { code }));
+
+  it('resolves at once for a key that is up, and on release for one that is down', async () => {
+    const { input } = playing();
+    let released = false;
+    await input.released('Escape');
+    key('keydown', 'Escape');
+    void input.released('Escape').then(() => (released = true));
+    key('keyup', 'KeyW');
+    await Promise.resolve();
+    expect(released).toBe(false);
+    key('keyup', 'Escape');
+    await Promise.resolve();
+    expect(released).toBe(true);
+  });
+
+  it('gives up waiting when the window loses focus, since the release will never arrive', async () => {
+    const { input } = playing();
+    key('keydown', 'Escape');
+    const waiting = input.released('Escape');
+    (window as unknown as EventTarget).dispatchEvent(new Event('blur'));
+    await expect(waiting).resolves.toBeUndefined();
+  });
+});
