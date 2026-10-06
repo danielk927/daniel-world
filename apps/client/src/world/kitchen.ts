@@ -171,6 +171,29 @@ function createFloor(kit: Kit): void {
   }
 }
 
+/** Where the vault's facets meet, north to south. */
+const VAULT_POINTS: readonly { z: number; y: number }[] = Array.from(
+  { length: VAULT_SEGMENTS + 1 },
+  (_, i) => {
+    const maxAngle = Math.asin(HZ / VAULT_RADIUS);
+    const angle = -maxAngle + (i / VAULT_SEGMENTS) * maxAngle * 2;
+    const z = i === 0 ? -HZ : i === VAULT_SEGMENTS ? HZ : VAULT_RADIUS * Math.sin(angle);
+    return { z, y: vaultHeight(z) };
+  },
+);
+
+/** The skylights' openings in the vault, each as its four corners. */
+export const SKYLIGHT_OPENINGS: readonly (readonly Vector3[])[] = SKYLIGHT_SEGMENTS.map((i) => {
+  const a = VAULT_POINTS[i]!;
+  const b = VAULT_POINTS[i + 1]!;
+  return [
+    new Vector3(-SKYLIGHT_HALF, a.y, a.z),
+    new Vector3(SKYLIGHT_HALF, a.y, a.z),
+    new Vector3(SKYLIGHT_HALF, b.y, b.z),
+    new Vector3(-SKYLIGHT_HALF, b.y, b.z),
+  ];
+});
+
 /** White walls, a grey cove at the floor, and the barrel vault with its skylights and light lines. */
 function createShell(kit: Kit): void {
   createFloor(kit);
@@ -180,13 +203,7 @@ function createShell(kit: Kit): void {
   }
 
   // The vault: a faceted arc spanning north to south, running the length of the room.
-  const maxAngle = Math.asin(HZ / VAULT_RADIUS);
-  const points: { z: number; y: number }[] = [];
-  for (let i = 0; i <= VAULT_SEGMENTS; i++) {
-    const angle = -maxAngle + (i / VAULT_SEGMENTS) * maxAngle * 2;
-    const z = i === 0 ? -HZ : i === VAULT_SEGMENTS ? HZ : VAULT_RADIUS * Math.sin(angle);
-    points.push({ z, y: vaultHeight(z) });
-  }
+  const points = VAULT_POINTS;
   for (let i = 0; i < VAULT_SEGMENTS; i++) {
     const a = points[i]!;
     const b = points[i + 1]!;
@@ -258,7 +275,8 @@ function createShell(kit: Kit): void {
     const rx = Math.atan2(-(b.y - a.y), b.z - a.z);
     for (let k = 1; k < SKYLIGHT_PANES; k++) {
       const x = -h + (2 * h * k) / SKYLIGHT_PANES;
-      kit.boxAt('matte', x, mid.y, mid.z, 0.05, 0.05, length, { rx, color: paint.windowFrame });
+      // On the shell, which casts no shadow: the overhead light sits above the ceiling.
+      kit.boxAt('shell', x, mid.y, mid.z, 0.05, 0.05, length, { rx, color: paint.windowFrame });
     }
   }
   // Light lines where the vault springs from the long walls.

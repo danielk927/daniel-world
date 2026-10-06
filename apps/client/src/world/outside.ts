@@ -33,8 +33,9 @@ const WALL_Z = -ROOM_HALF_Z - 0.25;
 const GROUND = -0.3;
 /** Where the haze and the sky's directions are measured from: a cook at the windows. */
 const EYE = new Vector3(0, 1.6, WALL_Z);
-/** The sky dome, inside the camera's far plane from anywhere in the room. */
-const SKY_RADIUS = 178;
+/** The sky dome, centered on the windows like the land, inside the camera's far plane from anywhere in the room. */
+export const SKY_RADIUS = 178;
+export const SKY_CENTER = new Vector3(0, 0, WALL_Z);
 /** The land, out to the far side of the mountains. */
 const LAND_RADIUS = 166;
 
@@ -115,7 +116,9 @@ const reach = (x: number, z: number): number => Math.hypot(x, z - WALL_Z);
 export function landHeight(x: number, z: number): number {
   const r = reach(x, z);
   const hills = MathUtils.smoothstep(r, 36, 85) * (1.5 + 11 * fbm(x / 38, z / 38));
-  const mountains = MathUtils.smoothstep(r, 92, 160) * (14 + 44 * ridged(x / 52, z / 52));
+  // The mountains come back down before the land ends, so the skyline is a ridge, not a cut edge.
+  const range = MathUtils.smoothstep(r, 92, 145) * (1 - MathUtils.smoothstep(r, 150, LAND_RADIUS));
+  const mountains = range * (14 + 44 * ridged(x / 52, z / 52));
   return GROUND + hills + mountains;
 }
 
@@ -282,25 +285,29 @@ function paintSky(painter: Painter): void {
   const point = (row: number, column: number): Vector3 => {
     const e = MathUtils.degToRad(rows[row]!);
     const t = (column / columns) * Math.PI * 2;
-    return new Vector3(
-      Math.cos(e) * Math.sin(t),
-      Math.sin(e),
-      -Math.cos(e) * Math.cos(t),
-    ).multiplyScalar(SKY_RADIUS);
+    return new Vector3(Math.cos(e) * Math.sin(t), Math.sin(e), -Math.cos(e) * Math.cos(t));
   };
   const inward = new Vector3();
   for (let row = 0; row < rows.length - 1; row++) {
     for (let column = 0; column < columns; column++) {
-      const p0 = point(row, column);
-      const p1 = point(row, column + 1);
-      const p2 = point(row + 1, column + 1);
-      const p3 = point(row + 1, column);
-      const [c0, c1, c2, c3] = [p0, p1, p2, p3].map((p) => skyColor(p));
-      inward.copy(p0).add(p2).negate();
-      painter.triangle(p0, p1, p2, c0!, c1!, c2!, inward);
-      if (row < rows.length - 2) painter.triangle(p0, p2, p3, c0!, c2!, c3!, inward);
+      const directions = [
+        point(row, column),
+        point(row, column + 1),
+        point(row + 1, column + 1),
+        point(row + 1, column),
+      ];
+      const [c0, c1, c2, c3] = directions.map((d) => skyColor(d));
+      const [p0, p1, p2, p3] = directions.map((d) => aloft(d, SKY_RADIUS));
+      inward.copy(directions[0]!).add(directions[2]!).negate();
+      painter.triangle(p0!, p1!, p2!, c0!, c1!, c2!, inward);
+      if (row < rows.length - 2) painter.triangle(p0!, p2!, p3!, c0!, c2!, c3!, inward);
     }
   }
+}
+
+/** The point `distance` out along `direction` from the middle of the sky. */
+function aloft(direction: Vector3, distance: number): Vector3 {
+  return direction.clone().multiplyScalar(distance).add(SKY_CENTER);
 }
 
 /** A direction in the sky by azimuth (degrees east of north) and elevation (degrees). */
@@ -326,7 +333,7 @@ function paintNight(painter: Painter): void {
 
   // The moon's halo: a fan, brighter in the middle, that fades out into the sky.
   const [right, up] = skyFrame(MOON);
-  const center = MOON.clone().multiplyScalar(SKY_RADIUS - 3);
+  const center = aloft(MOON, SKY_RADIUS - 3);
   const middle = skyColor(MOON).add(new Color(0.05, 0.045, 0.04));
   const sides = 28;
   const haloRadius = 11;
@@ -341,7 +348,8 @@ function paintNight(painter: Painter): void {
     };
     const r0 = rim(i);
     const r1 = rim(i + 1);
-    painter.triangle(center, r0, r1, middle, skyColor(r0), skyColor(r1), inward);
+    const color = (p: Vector3) => skyColor(p.clone().sub(SKY_CENTER));
+    painter.triangle(center, r0, r1, middle, color(r0), color(r1), inward);
   }
 
   // The crescent: between the lit limb (a half circle) and the terminator (a half ellipse),
@@ -350,7 +358,7 @@ function paintNight(painter: Painter): void {
   const angle = MathUtils.degToRad(-75);
   const lit = right.clone().multiplyScalar(Math.cos(angle)).addScaledVector(up, Math.sin(angle));
   const along = new Vector3().crossVectors(MOON, lit).normalize();
-  const moonCenter = MOON.clone().multiplyScalar(SKY_RADIUS - 5);
+  const moonCenter = aloft(MOON, SKY_RADIUS - 5);
   const steps = 18;
   const limb = (t: number, width: number): Vector3 =>
     moonCenter
@@ -383,7 +391,7 @@ function paintNight(painter: Painter): void {
     color.lerpColors(sky, PALETTE.star, brightness * fade);
     const size = 0.22 + random() * 0.18 + (random() < 0.08 ? 0.2 : 0);
     const [r, u] = skyFrame(direction);
-    const p = direction.clone().multiplyScalar(SKY_RADIUS - 6);
+    const p = aloft(direction, SKY_RADIUS - 6);
     const corner = (x: number, y: number): Vector3 =>
       p
         .clone()

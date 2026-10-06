@@ -94,6 +94,16 @@ describe('StaticBuilder', () => {
     expect(Array.from({ length: 6 }, (_, i) => color.getY(i))).toEqual([0, 1, 0, 1, 1, 1]);
   });
 
+  it('refuses vertex colors it could not merge with the ones it paints', () => {
+    const builder = new StaticBuilder().layer('painted', new MeshBasicMaterial(), {
+      vertexColors: true,
+    });
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+    g.setAttribute('color', new Float32BufferAttribute(new Array(12).fill(1), 4));
+    expect(() => builder.add('painted', g)).toThrow(/RGB floats/);
+  });
+
   it('refuses unknown layers', () => {
     expect(() => new StaticBuilder().add('nope', new BoxGeometry())).toThrow(/Unknown layer/);
   });

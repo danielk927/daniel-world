@@ -188,7 +188,8 @@ export class Kit {
           depthWrite: false,
           side: DoubleSide,
         }),
-        { receiveShadow: false },
+        // Before the clear glass, so a tumbler seen against a window is not tinted as if behind it.
+        { receiveShadow: false, renderOrder: -1 },
       )
       .layer('light', new MeshBasicMaterial({ vertexColors: true, color: glow(hdr ? 2.2 : 1) }), {
         vertexColors: true,

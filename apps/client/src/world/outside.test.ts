@@ -1,7 +1,8 @@
 import { FrontSide, Mesh, MeshBasicMaterial, Raycaster, Vector3 } from 'three';
-import { EYE_HEIGHT, PLAY_HALF_X, ROOM_HALF_Z, WINDOWS } from '@world/shared';
+import { EYE_HEIGHT, PLAY_HALF_X, PLAY_HALF_Z, ROOM_HALF_Z, WINDOWS } from '@world/shared';
 import { describe, expect, it } from 'vitest';
-import { landHeight, paintOutside } from './outside.ts';
+import { SKYLIGHT_OPENINGS } from './kitchen.ts';
+import { SKY_CENTER, SKY_RADIUS, landHeight, paintOutside } from './outside.ts';
 
 const outside = paintOutside();
 // Front faces only, as drawn: a ray that only finds the back of something sees through it.
@@ -33,23 +34,37 @@ describe('the view outside', () => {
     expect(misses).toEqual([]);
   });
 
-  it('closes over the top, so the skylights look into sky in every direction', () => {
+  it('fills the skylights, seen from anywhere on the floor', () => {
     const misses: string[] = [];
-    for (let i = 0; i < 64; i++) {
-      // Off the dome's seams, where a ray along a shared edge can slip between two triangles.
-      const azimuth = ((i + 0.37) / 64) * Math.PI * 2;
-      for (const elevation of [0.15, 0.6, 1.2, 1.55]) {
-        const direction = new Vector3(
-          Math.cos(elevation) * Math.sin(azimuth),
-          Math.sin(elevation),
-          Math.cos(elevation) * Math.cos(azimuth),
-        );
-        for (const z of [-4, 4]) {
-          if (!sees(new Vector3(0, 4.5, z), direction)) misses.push(`${i} ${elevation}`);
+    const point = new Vector3();
+    for (const x of [-PLAY_HALF_X, -3, 0, 3, PLAY_HALF_X]) {
+      for (const z of [-PLAY_HALF_Z, -2, 2, PLAY_HALF_Z]) {
+        const eye = new Vector3(x, EYE_HEIGHT, z);
+        for (const [a, b, , d] of SKYLIGHT_OPENINGS) {
+          for (let i = 0; i <= 6; i++) {
+            for (const v of [0.05, 0.5, 0.95]) {
+              // A point in the opening, across its length and its width.
+              point
+                .copy(a!)
+                .lerp(b!, i / 6)
+                .addScaledVector(d!.clone().sub(a!), v);
+              if (!sees(point, point.clone().sub(eye))) misses.push(`${x}, ${z} -> ${i}, ${v}`);
+            }
+          }
         }
       }
     }
     expect(misses).toEqual([]);
+  });
+
+  it('keeps everything under the sky, so no summit is cut off by the dome', () => {
+    const position = outside.geometry.getAttribute('position');
+    const point = new Vector3();
+    let farthest = 0;
+    for (let i = 0; i < position.count; i++) {
+      farthest = Math.max(farthest, point.fromBufferAttribute(position, i).distanceTo(SKY_CENTER));
+    }
+    expect(farthest).toBeLessThanOrEqual(SKY_RADIUS + 1e-3);
   });
 
   it('stays outside the kitchen', () => {

@@ -280,7 +280,8 @@ Judgment calls made during the unattended build, with reasons.
   The card (a 64 by 32 m plane, 20 m out) was flat, and from the ends of the window strip a glance along the wall ran past its edges into the white background.
   Now it is layers at their true distances, so each slides past the next as you walk: herb planters under the windows, a lane, a hedged kitchen garden with raised beds, a glasshouse lit from inside and string lights, vines up the slope, poplars along the lane, a farm and a village with their lamps lit, copses on the hills, firs below a ring of mountains, and a dome of sky with the afterglow low in the north-west, early stars and a new moon.
 - **It closes in every direction a window or skylight can see.** The land is a fan half a circle wide around the windows, out to the far side of the mountains, and the sky is a whole sphere inside the camera's far plane.
-  `outside.test.ts` raycasts from both ends and the middle of the windows through every part of the strip, and up through the skylights in every direction, and fails on any ray that misses.
+  The dome is centered on the windows, like the land, and the mountains come back down before the land ends, so the skyline is always a ridge inside the sky, never a cut edge clipped by it.
+  `outside.test.ts` raycasts from both ends and the middle of the windows through every part of the strip, and from all over the floor through the skylight openings, fails on any ray that misses, and checks that everything stays under the dome.
 - **It is unlit, like a matte painting, and costs one draw call.** Each face's dusk light (a cool sky from above, a warm rim from the afterglow) and its haze are baked into vertex colors at startup, about 30 ms.
   The haze is blended in sRGB, as paint: blended in linear light, even a little of the bright horizon turned every dark green tan.
   Only the string lights' bulbs are on the kitchen's `light` layer, so the bloom catches them.

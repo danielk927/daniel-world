@@ -17,6 +17,8 @@ export interface LayerOptions {
   readonly receiveShadow?: boolean;
   /** Write a per-vertex color for every part, so one material can paint many objects. */
   readonly vertexColors?: boolean;
+  /** Draw order among meshes, for transparent layers that overlap (lower draws first). */
+  readonly renderOrder?: number;
 }
 
 interface Layer {
@@ -70,6 +72,13 @@ export class StaticBuilder {
     // Geometry that brings its own vertex colors keeps them, unless the caller paints over them.
     const ownColors =
       layer.options.vertexColors && color === undefined && 'color' in part.attributes;
+    if (ownColors) {
+      const own = part.getAttribute('color');
+      // Merged with the RGB floats painted for every other part, so it must be the same kind.
+      if (own.itemSize !== 3 || !(own.array instanceof Float32Array) || own.normalized) {
+        throw new Error(`Layer ${name} needs vertex colors as RGB floats`);
+      }
+    }
     for (const attribute of Object.keys(part.attributes)) {
       if (attribute === 'color' && ownColors) continue;
       if (attribute !== 'position' && attribute !== 'normal' && attribute !== 'uv') {
@@ -123,6 +132,7 @@ export class StaticBuilder {
       mesh.name = name;
       mesh.castShadow = layer.options.castShadow ?? false;
       mesh.receiveShadow = layer.options.receiveShadow ?? true;
+      mesh.renderOrder = layer.options.renderOrder ?? 0;
       // Everything is static: compute the matrix once and never again.
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
