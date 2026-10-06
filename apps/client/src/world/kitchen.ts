@@ -785,14 +785,6 @@ function createCounters(kit: Kit): void {
       }
     }
   }
-
-  // A couple of floor drains.
-  for (const [x, z] of [
-    [-5.6, 2.6],
-    [6.3, 5.2],
-  ] as const) {
-    kit.box('iron', x - 0.15, x + 0.15, 0, 0.004, z - 0.15, z + 0.15);
-  }
 }
 
 /** The room, its fixtures and decoration. Station centerpieces are added separately. */
