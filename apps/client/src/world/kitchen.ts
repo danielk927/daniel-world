@@ -25,6 +25,7 @@ import {
 } from '@world/shared';
 import { at } from './builder.ts';
 import { paint, type Kit, type LayerName } from './kit.ts';
+import { buildOutside } from './outside.ts';
 
 /**
  * The room after the kitchen at the French Laundry: white walls under a white barrel vault with
@@ -38,6 +39,10 @@ const TOP = COUNTER_HEIGHT;
 /** Counters are a body under a 6 cm work surface. */
 const SLAB = 0.06;
 const VAULT_SEGMENTS = 12;
+/** The vault segments with a skylight, over the aisles either side of the hood. */
+const SKYLIGHT_SEGMENTS = [2, VAULT_SEGMENTS - 3];
+const SKYLIGHT_HALF = 6;
+const SKYLIGHT_PANES = 6;
 const VAULT_RADIUS = (HZ * HZ + VAULT_RISE * VAULT_RISE) / (2 * VAULT_RISE);
 
 interface Opening {
@@ -186,17 +191,26 @@ function createShell(kit: Kit): void {
     const a = points[i]!;
     const b = points[i + 1]!;
     const down = new Vector3(0, -1, -(a.z + b.z) / 2 / VAULT_RADIUS);
-    kit.quad(
-      'shell',
-      [
-        new Vector3(-HX, a.y, a.z),
-        new Vector3(HX, a.y, a.z),
-        new Vector3(HX, b.y, b.z),
-        new Vector3(-HX, b.y, b.z),
-      ],
-      down,
-      paint.vault,
-    );
+    // Skylight segments leave the middle open.
+    const spans: [number, number][] = SKYLIGHT_SEGMENTS.includes(i)
+      ? [
+          [-HX, -SKYLIGHT_HALF],
+          [SKYLIGHT_HALF, HX],
+        ]
+      : [[-HX, HX]];
+    for (const [x0, x1] of spans) {
+      kit.quad(
+        'shell',
+        [
+          new Vector3(x0, a.y, a.z),
+          new Vector3(x1, a.y, a.z),
+          new Vector3(x1, b.y, b.z),
+          new Vector3(x0, b.y, b.z),
+        ],
+        down,
+        paint.vault,
+      );
+    }
     // The end walls rise into the vault's arch.
     for (const wall of [WALLS.east, WALLS.west]) {
       kit.quad(
@@ -212,22 +226,40 @@ function createShell(kit: Kit): void {
       );
     }
   }
-  // Skylights: two long strips set into the vault over the aisles, either side of the hood.
-  for (const i of [2, VAULT_SEGMENTS - 3]) {
+  // Skylights: two long strips open to the evening sky over the aisles, either side of the hood,
+  // each a shallow well through the vault with night glass and glazing bars at the top.
+  for (const i of SKYLIGHT_SEGMENTS) {
     const a = points[i]!;
     const b = points[i + 1]!;
-    const inset = 0.015;
+    const h = SKYLIGHT_HALF;
+    const out = new Vector3(0, 1, (a.z + b.z) / 2 / VAULT_RADIUS).normalize();
+    const lift = (p: Vector3, depth: number) => p.clone().addScaledVector(out, depth);
+    const [a0, a1] = [new Vector3(-h, a.y, a.z), new Vector3(h, a.y, a.z)];
+    const [b0, b1] = [new Vector3(-h, b.y, b.z), new Vector3(h, b.y, b.z)];
+    const across = new Vector3(0, b.y - a.y, b.z - a.z).normalize();
+    const well = 0.22;
+    kit.quad('shell', [a0, a1, lift(a1, well), lift(a0, well)], across, paint.vault);
     kit.quad(
-      'light',
-      [
-        new Vector3(-6, a.y - inset, a.z),
-        new Vector3(6, a.y - inset, a.z),
-        new Vector3(6, b.y - inset, b.z),
-        new Vector3(-6, b.y - inset, b.z),
-      ],
-      new Vector3(0, -1, 0),
-      paint.skylight,
+      'shell',
+      [b0, b1, lift(b1, well), lift(b0, well)],
+      across.clone().negate(),
+      paint.vault,
     );
+    kit.quad('shell', [a0, b0, lift(b0, well), lift(a0, well)], new Vector3(1, 0, 0), paint.vault);
+    kit.quad('shell', [a1, b1, lift(b1, well), lift(a1, well)], new Vector3(-1, 0, 0), paint.vault);
+    const glass = well - 0.04;
+    kit.quad(
+      'window',
+      [lift(a0, glass), lift(a1, glass), lift(b1, glass), lift(b0, glass)],
+      out.clone().negate(),
+    );
+    const mid = lift(a0.clone().add(b1).multiplyScalar(0.5), glass - 0.03);
+    const length = a0.distanceTo(b0);
+    const rx = Math.atan2(-(b.y - a.y), b.z - a.z);
+    for (let k = 1; k < SKYLIGHT_PANES; k++) {
+      const x = -h + (2 * h * k) / SKYLIGHT_PANES;
+      kit.boxAt('matte', x, mid.y, mid.z, 0.05, 0.05, length, { rx, color: paint.windowFrame });
+    }
   }
   // Light lines where the vault springs from the long walls.
   for (const wall of [WALLS.north, WALLS.south]) {
@@ -266,7 +298,7 @@ function createWindows(kit: Kit): void {
     wallBox(kit, 'matte', wall, u - bar / 2, u + bar / 2, bottom, top, frame - 0.03, frame, color);
   }
   kit.add(
-    'glass',
+    'window',
     new PlaneGeometry(to - from, top - bottom),
     at((from + to) / 2, (top + bottom) / 2, -HZ - 0.1),
   );
@@ -278,8 +310,7 @@ function createWindows(kit: Kit): void {
     const y = signY + side * 0.265;
     kit.box('matte', -1.13, 1.13, y - 0.022, y + 0.022, -HZ, -HZ + 0.03, paint.rail);
   }
-  // The garden, far enough away that it moves with believable parallax.
-  kit.add('garden', new PlaneGeometry(64, 32), at(0, 6, -26));
+  buildOutside(kit);
 }
 
 function createDoors(kit: Kit): void {

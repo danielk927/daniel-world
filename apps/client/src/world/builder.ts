@@ -67,7 +67,11 @@ export class StaticBuilder {
       const vertices = part.getAttribute('position').count;
       part.setIndex(Array.from({ length: vertices }, (_, i) => i));
     }
+    // Geometry that brings its own vertex colors keeps them, unless the caller paints over them.
+    const ownColors =
+      layer.options.vertexColors && color === undefined && 'color' in part.attributes;
     for (const attribute of Object.keys(part.attributes)) {
+      if (attribute === 'color' && ownColors) continue;
       if (attribute !== 'position' && attribute !== 'normal' && attribute !== 'uv') {
         part.deleteAttribute(attribute);
       }
@@ -77,7 +81,7 @@ export class StaticBuilder {
     if (!part.getAttribute('uv')) {
       part.setAttribute('uv', new BufferAttribute(new Float32Array(count * 2), 2));
     }
-    if (layer.options.vertexColors) {
+    if (layer.options.vertexColors && !ownColors) {
       const c = color instanceof Color ? color : new Color(color ?? '#ffffff');
       const colors = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {

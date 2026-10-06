@@ -70,7 +70,8 @@ export class WorldScene {
     this.renderer.shadowMap.enabled = high;
     this.renderer.shadowMap.type = PCFShadowMap;
 
-    this.scene.background = new Color('#e9eef2');
+    // The sky outside covers every opening; this is the night above it, should a seam ever show.
+    this.scene.background = new Color('#151f38');
     this.lighting = createLighting(this.scene, this.renderer, quality);
     this.viewmodel.matchLighting(high, this.scene.environment, this.scene.environmentIntensity);
 

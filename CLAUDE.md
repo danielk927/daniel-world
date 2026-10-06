@@ -52,7 +52,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
 4. For visual changes, run `node scripts/screenshots.ts` and look at `docs/screenshots/`.
-5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 2 ms frame CPU, about 72 draw calls with 16 players and bots throwing knives; about 30 of the calls are post-processing passes).
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 2 ms frame CPU, about 73 draw calls with 16 players and bots throwing knives; about 30 of the calls are post-processing passes).
 
 ## Gotchas
 
@@ -66,6 +66,8 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
   Keep `scene.environmentIntensity` tiny and raise `envMapIntensity` on metals instead; a brighter environment lights everything from every side and flattens the room.
 - A GPU-bound frame is input lag, not just a lower frame rate (the browser queues frames). `world/governor.ts` steps the high tier's resolution, MSAA and AO down to keep up with the display; the level it settles on is stored in `localStorage` (`world.renderLevel`), so clear it when judging a visual change.
   Perf and screenshots run at device pixel ratio 1; check retina (ratio 2) too, where the high tier costs four times the pixels.
+- The view outside the windows is real geometry in `world/outside.ts`, one unlit layer with its dusk light and haze baked into vertex colors.
+  `outside.test.ts` raycasts every pane and skylight; keep it passing when moving the land, the sky or the windows, or a visitor will see an edge.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 
 <!-- BEGIN AWS Agent Toolkit rules -->

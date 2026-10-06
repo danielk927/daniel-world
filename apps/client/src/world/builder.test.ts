@@ -77,6 +77,23 @@ describe('StaticBuilder', () => {
     }
   });
 
+  it('keeps a geometry its own vertex colors unless the caller paints over them', () => {
+    const builder = new StaticBuilder().layer('painted', new MeshBasicMaterial(), {
+      vertexColors: true,
+    });
+    const triangle = () => {
+      const g = new BufferGeometry();
+      g.setAttribute('position', new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+      g.setAttribute('color', new Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1], 3));
+      return g;
+    };
+    builder.add('painted', triangle());
+    builder.add('painted', triangle(), undefined, '#ffffff');
+    const [mesh] = builder.build().children as Mesh[];
+    const color = mesh!.geometry.getAttribute('color');
+    expect(Array.from({ length: 6 }, (_, i) => color.getY(i))).toEqual([0, 1, 0, 1, 1, 1]);
+  });
+
   it('refuses unknown layers', () => {
     expect(() => new StaticBuilder().add('nope', new BoxGeometry())).toThrow(/Unknown layer/);
   });

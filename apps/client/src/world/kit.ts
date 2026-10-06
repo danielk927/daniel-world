@@ -15,7 +15,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { StaticBuilder, at } from './builder.ts';
-import { everySecondCountsTexture, exitSignTexture, gardenTexture } from './textures.ts';
+import { everySecondCountsTexture, exitSignTexture } from './textures.ts';
 
 /** Layers of the static kitchen. Each becomes one mesh (one draw call). */
 export type LayerName =
@@ -30,8 +30,9 @@ export type LayerName =
   | 'copper'
   | 'marble'
   | 'glass'
+  | 'window'
   | 'light'
-  | 'garden'
+  | 'outside'
   | 'sign'
   | 'exit';
 
@@ -45,7 +46,6 @@ export const paint = {
   cabinet: '#f1f1ee',
   charcoal: '#34373b',
   windowFrame: '#3c3f43',
-  skylight: '#3c557a',
   plaque: '#fbfbf8',
   filter: '#dfe3e6',
   seam: '#9da6ad',
@@ -165,24 +165,41 @@ export class Kit {
       .layer('marble', standard({ color: '#f2eee6', roughness: 0.55 }), { castShadow: true })
       .layer(
         'glass',
-        // Night glass: dark, with the lit kitchen reflected in it.
+        // Clear glass and plastic: tumblers, the cloche, tubs, the fridge door. Front faces only,
+        // so a glass never draws its far side over its near side.
         standard({
-          color: '#16202c',
-          roughness: 0.05,
-          envMapIntensity: 10,
+          color: '#e4ecef',
+          roughness: 0.08,
+          envMapIntensity: 8,
           transparent: true,
-          opacity: 0.25,
+          opacity: 0.2,
+          depthWrite: false,
+        }),
+        { receiveShadow: false },
+      )
+      .layer(
+        'window',
+        // Night glass: a dark tint, unlit. Smooth lit glass would catch the kitchen's lamps as
+        // soft highlights smeared across the view outside.
+        new MeshBasicMaterial({
+          color: '#16202c',
+          transparent: true,
+          opacity: 0.22,
           depthWrite: false,
           side: DoubleSide,
         }),
+        { receiveShadow: false },
       )
       .layer('light', new MeshBasicMaterial({ vertexColors: true, color: glow(hdr ? 2.2 : 1) }), {
         vertexColors: true,
         receiveShadow: false,
       })
-      .layer('garden', new MeshBasicMaterial({ map: gardenTexture(), toneMapped: false }), {
-        receiveShadow: false,
-      })
+      // The view outside (see outside.ts): unlit, its dusk light and haze baked into its colors.
+      .layer(
+        'outside',
+        new MeshBasicMaterial({ vertexColors: true, fog: false, toneMapped: false }),
+        { vertexColors: true, receiveShadow: false },
+      )
       .layer('sign', standard({ map: everySecondCountsTexture(), roughness: 0.9 }))
       .layer('exit', new MeshBasicMaterial({ map: exitSignTexture() }), { receiveShadow: false });
   }
