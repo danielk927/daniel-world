@@ -23,13 +23,16 @@ test('two players join the lobby and see each other', async ({ browser }) => {
   const a = await enterWorld(browser, { name: 'Alice' });
   const b = await enterWorld(browser, { name: 'Bob' });
 
+  // Chef Skinner keeps the lobby company.
   for (const page of [a, b]) {
-    const state = await expectWorld(page, (w) => w.playerCount === 2, 'both should see 2 players');
+    const state = await expectWorld(page, (w) => w.playerCount === 3, 'both should see 3 cooks');
     expect(state.room).toBe('lobby');
   }
-  expect((await world(a)).remotePlayers.map((p) => p.name)).toEqual(['Bob']);
-  expect((await world(b)).remotePlayers.map((p) => p.name)).toEqual(['Alice']);
-  await expect(b.getByRole('region', { name: 'Players in this room' })).toContainText('2 / 16');
+  const names = async (page: typeof a) =>
+    (await world(page)).remotePlayers.map((p) => p.name).sort();
+  expect(await names(a)).toEqual(['Bob', 'Chef Skinner']);
+  expect(await names(b)).toEqual(['Alice', 'Chef Skinner']);
+  await expect(b.getByRole('region', { name: 'Players in this room' })).toContainText('3 / 16');
   await expect(a.getByRole('img', { name: /Minimap/ })).toBeVisible();
 
   await a.context().close();
@@ -105,8 +108,8 @@ test('a private room code isolates players', async ({ browser }) => {
   // Give the lobby a moment to (not) hear about them.
   await lobby.waitForTimeout(500);
   const lobbyState = await world(lobby);
-  expect(lobbyState.playerCount).toBe(1);
-  expect(lobbyState.remotePlayers).toEqual([]);
+  expect(lobbyState.playerCount).toBe(2);
+  expect(lobbyState.remotePlayers.map((p) => p.name)).toEqual(['Chef Skinner']);
 
   for (const page of [lobby, x, y]) await page.context().close();
 });

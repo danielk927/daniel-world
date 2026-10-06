@@ -5,9 +5,12 @@ import { E2E_SERVER_PORT } from './ports.ts';
 
 export type { WorldDebugState };
 
-/** Run the real room server inside the test process so tests can stop and restart it. */
+/**
+ * Run the real room server inside the test process so tests can stop and restart it. Chef Skinner
+ * is in the lobby, as in production.
+ */
 export function startRoomServer(): Promise<WorldServer> {
-  return startServer({ port: E2E_SERVER_PORT, host: '127.0.0.1' });
+  return startServer({ port: E2E_SERVER_PORT, host: '127.0.0.1', chef: true });
 }
 
 /** Read the page's debug state. */

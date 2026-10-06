@@ -295,3 +295,13 @@ Judgment calls made during the unattended build, with reasons.
 - **Esc also closes it, but leaves the mouse free** until the world is clicked; so does closing the pause menu with Esc.
   Taking pointer lock back during that Esc press, or even just after it, opened the pause menu on Chrome for macOS: the browser releases the lock on Esc, and losing the lock while playing means "pause".
   Waiting for Esc to come up before locking was tried first and was not enough, so the game no longer locks on Esc at all.
+
+### Chef Skinner, the lobby's resident cook (2026-10-06)
+
+- **A quiet portfolio should not feel empty, so the public lobby always has a cook in it**: Chef Skinner, the head chef who chases Linguini round the kitchen in Ratatouille.
+  He walks the aisles, pauses at stations, and every 6 to 14 seconds throws a knife at someone.
+- **He lives in the room server, as a player like any other** (`apps/server/src/chef.ts`). Each tick he queues one input, which the room simulates with the same movement, cooldown and knife physics as a visitor's, so every screen sees the same chef and nothing changed in the protocol or the client.
+  He joins with the lobby's first visitor and leaves with its last; private rooms do not get one, and the landing page's "cooks in the kitchen" counts visitors only. `CHEF=off` turns him off.
+- **He is fair, and leaves readers alone.** He walks a hand-made graph of the aisles rather than finding paths, which is enough in one room and never wedges him against a counter.
+  Before throwing he stops and turns to face his target for 0.6 s, so the throw can be seen coming and dodged; he leads a moving target along the knife's real arc, with enough error that most throws at a cook on the move miss (about 10 throws and 4 or 5 knockouts in two minutes of pacing, in the tests).
+  He ignores anyone in their first 8 seconds and anyone who has stood still for 3, which is what reading a station looks like, and he speaks at most every 25 seconds.

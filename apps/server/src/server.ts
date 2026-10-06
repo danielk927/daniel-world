@@ -17,6 +17,7 @@ import {
   type ServerMessage,
 } from '@world/shared';
 import { StrikeCounter, TokenBucket } from './rateLimit.ts';
+import { Chef } from './chef.ts';
 import { Room, type RoomPlayer } from './room.ts';
 
 export interface ServerOptions {
@@ -34,6 +35,8 @@ export interface ServerOptions {
   trustProxy?: boolean;
   /** Path prefix in front of the HTTP routes, e.g. `/ws` when a CDN routes `/ws*` here. */
   basePath?: string;
+  /** Keep Chef Skinner in the public lobby whenever anyone is there (see chef.ts). */
+  chef?: boolean;
   log?: (message: string) => void;
 }
 
@@ -102,6 +105,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
   const helloTimeoutMs = options.helloTimeoutMs ?? 10_000;
   const log = options.log ?? (() => {});
   const rooms = new Map<string, Room>();
+  const chefs = new Map<Room, Chef>();
   const connections = new Set<Connection>();
   let nextPlayerId = 1;
 
@@ -145,7 +149,8 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       }
       sendJson(res, 200, {
         room: code,
-        players: rooms.get(code)?.players.size ?? 0,
+        // Visitors only: Chef Skinner is always in, so he is not news.
+        players: rooms.get(code)?.visitors ?? 0,
         max: MAX_PLAYERS_PER_ROOM,
       });
       return;
@@ -182,8 +187,11 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     conn.room = null;
     conn.player = null;
     room.remove(player.id);
-    log(`${player.name} (#${player.id}) left ${room.code} (${room.players.size} left)`);
-    if (room.isEmpty) rooms.delete(room.code);
+    log(`${player.name} (#${player.id}) left ${room.code} (${room.visitors} left)`);
+    if (room.isEmpty) {
+      rooms.delete(room.code);
+      chefs.delete(room);
+    }
   };
 
   const handleHello = (conn: Connection, message: Extract<ClientMessage, { t: 'hello' }>): void => {
@@ -203,6 +211,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     if (!room) {
       room = new Room(code);
       rooms.set(code, room);
+      if (options.chef && code === DEFAULT_ROOM) addChef(room);
     }
     const name = room.uniqueName(sanitizeName(message.name) || 'Guest');
     const player = room.add({
@@ -223,7 +232,16 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       self: room.snapshotOf(player),
       knives: room.stuckKnives(),
     });
-    log(`${name} (#${player.id}) joined ${code} (${room.players.size} players)`);
+    log(`${name} (#${player.id}) joined ${code} (${room.visitors} visitors)`);
+  };
+
+  const addChef = (room: Room): void => {
+    const chef = new Chef(room, nextPlayerId++);
+    chefs.set(room, chef);
+    room.onKnockout = (from, to) => {
+      if (from === chef.player.id) chef.onKnockout(to);
+      if (to === chef.player.id) chef.onKnockedOut();
+    };
   };
 
   const handleMessage = (conn: Connection, message: ClientMessage): void => {
@@ -349,6 +367,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     for (const room of rooms.values()) {
       // One broken room must never stop the loop for everyone else.
       try {
+        chefs.get(room)?.think();
         room.step();
       } catch (error) {
         log(`tick failed in room ${room.code}: ${String(error)}`);

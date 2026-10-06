@@ -26,7 +26,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 
 - `packages/shared` - protocol (zod schemas), constants, world colliders, deterministic movement simulation.
   Consumed as TypeScript source by both apps (no build step).
-- `apps/server` - Node WebSocket room server (`ws`).
+- `apps/server` - Node WebSocket room server (`ws`), and Chef Skinner, the lobby's resident knife-throwing cook (`chef.ts`).
   Runs TypeScript natively in dev (`node --watch src/index.ts`), bundled with esbuild for production.
 - `apps/client` - Vite + Three.js client.
   `src/content.ts` holds all personal content (placeholders marked `TODO(daniel)`).

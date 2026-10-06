@@ -49,6 +49,8 @@ export interface QueuedInput extends PlayerInput {
 
 export interface RoomPlayer {
   readonly id: number;
+  /** Lives in the room (Chef Skinner), driven by the server, not a visitor's socket. */
+  readonly resident: boolean;
   readonly name: string;
   readonly color: string;
   readonly state: PlayerState;
@@ -78,6 +80,7 @@ export interface NewPlayer {
   name: string;
   send: (data: string) => void;
   spawn?: { x: number; z: number; yaw: number } | undefined;
+  resident?: boolean;
 }
 
 export class Room {
@@ -88,6 +91,8 @@ export class Room {
   readonly knives = new RoomKnives();
   /** Scratch list of who can be hit this tick. */
   private readonly candidates: KnifeCandidate[] = [];
+  /** Told whenever a knife knocks someone out. */
+  onKnockout: ((from: number, to: number) => void) | null = null;
 
   constructor(code: string) {
     this.code = code;
@@ -97,8 +102,16 @@ export class Room {
     return this.players.size >= MAX_PLAYERS_PER_ROOM;
   }
 
+  /** Visitors in the room, not counting residents. */
+  get visitors(): number {
+    let count = 0;
+    for (const player of this.players.values()) if (!player.resident) count++;
+    return count;
+  }
+
+  /** No visitors left. Residents do not keep a room open. */
   get isEmpty(): boolean {
-    return this.players.size === 0;
+    return this.visitors === 0;
   }
 
   private pickColor(): string {
@@ -129,6 +142,7 @@ export class Room {
     const state = this.standAt(joining.spawn ?? this.nextSpawn());
     const player: RoomPlayer = {
       id: joining.id,
+      resident: joining.resident ?? false,
       name: joining.name,
       color: this.pickColor(),
       state,
@@ -307,6 +321,7 @@ export class Room {
     if (!victim || victim.deadUntil !== null) return;
     victim.deadUntil = this.tick + DEATH_TICKS;
     this.broadcast({ t: 'kill', knife: event.knife, from: event.from, to: event.to, at: event.at });
+    this.onKnockout?.(event.from, event.to);
   }
 
   /** Knocked-out players whose time is up stand up again at a spawn point, briefly protected. */

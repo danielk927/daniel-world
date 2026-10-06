@@ -306,3 +306,37 @@ describe('room server', () => {
     expect(health.status).toBe(200);
   });
 });
+
+describe('Chef Skinner in the lobby', () => {
+  beforeEach(async () => {
+    await server.close();
+    server = await startServer({ port: 0, host: '127.0.0.1', chef: true });
+  });
+
+  it('is there to welcome the first visitor, walking about, but only in the lobby', async () => {
+    const a = client();
+    const welcome = await a.join('Alice');
+    const chef = welcome.players.find((p) => p.name === 'Chef Skinner');
+    expect(chef).toBeDefined();
+    const start = await a.waitFor(() => a.latestSnapshot()?.players.find((p) => p.id === chef!.id));
+    await a.waitFor(() => {
+      const now = a.latestSnapshot()?.players.find((p) => p.id === chef!.id);
+      return now && Math.hypot(now.x - start.x, now.z - start.z) > 1;
+    }, 5000);
+    // Visitors are counted without him, and private rooms do not get one.
+    const response = await fetch(`http://127.0.0.1:${server.port}/rooms/lobby`);
+    expect(((await response.json()) as { players: number }).players).toBe(1);
+    const hideout = await client().join('Bob', 'hideout');
+    expect(hideout.players.map((p) => p.name)).toEqual(['Bob']);
+  });
+
+  it('leaves with the last visitor, and is back for the next one', async () => {
+    const a = client();
+    await a.join('Alice');
+    a.ws.close();
+    await a.waitForClose();
+    await a.waitFor(() => !server.rooms.has('lobby'));
+    const welcome = await client().join('Bob');
+    expect(welcome.players.map((p) => p.name).sort()).toEqual(['Bob', 'Chef Skinner']);
+  });
+});
