@@ -264,3 +264,12 @@ Judgment calls made during the unattended build, with reasons.
 - **Beams under the lamps** are open cones drawn additively, thickest through the middle, all in one mesh; their shader clamps its inputs, since a single NaN, spread by the bloom, turned a whole frame black while tuning.
 - **The low tier keeps the same evening** (blue windows and skylights, haze) with a brighter warm-neutral fill and no shadows, practical lights, environment or post-processing, so software renderers stay fast; a cool fill without warm lamps to balance it turned the room blue.
 - **Performance** with 16 players and bots throwing: a steady 60 fps, about 2.1 ms of main-thread time per frame (the post-processing passes) and 72 draw calls.
+
+### Input latency (2026-10-05)
+
+- **The high tier governs its own cost.** On a retina screen it ran at 49 to 54 fps: 4x MSAA on a half-float buffer at 2880 by 1800, plus ambient occlusion, was more than the GPU's frame budget, and a GPU that falls behind makes the browser queue frames, each one more frame of lag on the mouse and keys.
+  `world/governor.ts` watches frame intervals against the display's refresh (measured during loading, so 120 Hz screens are judged against 8.3 ms) and steps down when a window of frames, less its two slowest, averages 7% behind: resolution to 1.5x, then MSAA off, then 1.25x and 1x, then ambient occlusion off.
+  A trimmed mean, not a median: missing one refresh in ten keeps the median on time while the frame rate drops.
+  The level that holds is remembered per device; after 25 s of easy frames it tries one level up, and never again climbs to a level that has fallen behind this session.
+- **Movement is drawn ahead, not behind.** The camera was blended from the previous tick to the current one, trailing the simulation by up to a tick, and a key press waited for the next 20 Hz tick: up to 48 ms before the view moved.
+  Now it is blended from the current tick toward the next, simulated each frame with the keys held right then; the real tick takes that same deterministic step, so the two agree and reconciliation is unchanged. A key now shows on the next frame (16 ms at most).

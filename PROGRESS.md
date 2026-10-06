@@ -64,6 +64,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - High quality post-processing: warm-tinted ambient occlusion, bloom, AgX tone mapping, a warm-blacks grade, vignette and grain; beams of light under the lamps.
 - The low quality tier keeps the evening look without shadows, practical lights or post-processing.
 - 60 fps with 16 players at about 2.1 ms of frame CPU and 72 draw calls.
+- Input lag cut: the high tier now steps its own resolution, MSAA and ambient occlusion down when the GPU falls behind the display (retina screens ran at about 52 fps, queueing frames), and movement is drawn toward the next tick with the keys held now, so a key shows on the next frame instead of up to 48 ms later.
 
 ### How to run it
 

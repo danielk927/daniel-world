@@ -64,6 +64,8 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 - The look (evening service, after Ratatouille) is split by quality tier: `world/lighting.ts` has the lights for both, and the high tier adds shadows, the practical lights and `world/post.ts` (N8AO, bloom, AgX, the grade).
   Lamps and glowing things are the `light` layer, which shines past white on the high tier so bloom catches it; keep new glowing paint dim, or it blows out.
   Keep `scene.environmentIntensity` tiny and raise `envMapIntensity` on metals instead; a brighter environment lights everything from every side and flattens the room.
+- A GPU-bound frame is input lag, not just a lower frame rate (the browser queues frames). `world/governor.ts` steps the high tier's resolution, MSAA and AO down to keep up with the display; the level it settles on is stored in `localStorage` (`world.renderLevel`), so clear it when judging a visual change.
+  Perf and screenshots run at device pixel ratio 1; check retina (ratio 2) too, where the high tier costs four times the pixels.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 
 <!-- BEGIN AWS Agent Toolkit rules -->
