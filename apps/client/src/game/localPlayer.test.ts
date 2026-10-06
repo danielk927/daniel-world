@@ -82,7 +82,7 @@ describe('LocalPlayer prediction and reconciliation', () => {
     const player = new LocalPlayer();
     player.tick(0, 0, 0, true);
     const out = new Vector3();
-    const before = player.renderPosition(1, 0, out).clone();
+    const before = player.renderPosition(0, 0, 0, 0, 0, out).clone();
     const nudged = {
       id: 1,
       ...player.state,
@@ -93,12 +93,34 @@ describe('LocalPlayer prediction and reconciliation', () => {
     };
     player.reconcile(nudged);
     // Right after the correction the rendered position has not jumped...
-    expect(player.renderPosition(1, 0, out).distanceTo(before)).toBeLessThan(1e-9);
+    expect(player.renderPosition(0, 0, 0, 0, 0, out).distanceTo(before)).toBeLessThan(1e-9);
     // ...and it glides to the corrected spot.
-    for (let i = 0; i < 60; i++) player.renderPosition(1, 1 / 60, out);
+    for (let i = 0; i < 60; i++) player.renderPosition(0, 1 / 60, 0, 0, 0, out);
     expect(out.x).toBeCloseTo(nudged.x, 3);
 
     player.reconcile({ ...nudged, x: nudged.x + 20 });
-    expect(player.renderPosition(1, 0, out).x).toBeCloseTo(nudged.x + 20, 6);
+    expect(player.renderPosition(0, 0, 0, 0, 0, out).x).toBeCloseTo(nudged.x + 20, 6);
+  });
+
+  it('draws a fresh key press at once, not a tick later', () => {
+    const player = new LocalPlayer();
+    player.tick(0, 0, 0, false);
+    const out = new Vector3();
+    // Halfway to the next tick, standing still: drawn exactly where the simulation is.
+    player.renderPosition(0.5, 0, 0, 0, 0, out);
+    expect(out.z).toBeCloseTo(player.state.z, 9);
+    // W goes down between ticks: the drawn position already starts forward (north, -z).
+    player.renderPosition(0.5, 0, Keys.Forward, 0, 0, out);
+    expect(out.z).toBeLessThan(player.state.z - 1e-4);
+  });
+
+  it('stays continuous across a tick while a key is held', () => {
+    const player = new LocalPlayer();
+    for (let i = 0; i < 5; i++) player.tick(Keys.Forward, 0, 0, false);
+    const out = new Vector3();
+    const before = player.renderPosition(0.999, 0, Keys.Forward, 0, 0, out).clone();
+    player.tick(Keys.Forward, 0, 0, false);
+    const after = player.renderPosition(0, 0, Keys.Forward, 0, 0, out);
+    expect(after.distanceTo(before)).toBeLessThan(0.002);
   });
 });

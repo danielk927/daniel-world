@@ -494,7 +494,9 @@ export class Game {
       return;
     }
     const alpha = this.accumulator / TICK_SECONDS;
-    this.player.renderPosition(alpha, dt, this.feet);
+    // Drawn ahead with the keys the next tick will use, so movement shows on the next frame.
+    const keys = this.knockedOut ? 0 : this.input.keys;
+    this.player.renderPosition(alpha, dt, keys, this.input.yaw, this.input.pitch, this.feet);
     const s = this.player.state;
     this.rig.update(
       dt,

@@ -16,6 +16,8 @@ import { Kit } from './kit.ts';
 import { Knives } from './knives.ts';
 import { buildKitchen } from './kitchen.ts';
 import { createLighting, type Lighting } from './lighting.ts';
+import { storage } from '../util/storage.ts';
+import { QualityGovernor, RENDER_LEVELS } from './governor.ts';
 import type { PostProcessing } from './post.ts';
 import { buildStationProps } from './props.ts';
 import { assignShadowDepthMaterials } from './shadowDepth.ts';
@@ -23,6 +25,7 @@ import { Stations } from './stations.ts';
 import { Viewmodel } from './viewmodel.ts';
 
 export const BASE_FOV = 72;
+const RENDER_LEVEL_KEY = 'world.renderLevel';
 
 /** Owns the renderer and every static or ambient part of the world. */
 export class WorldScene {
@@ -39,6 +42,8 @@ export class WorldScene {
   private readonly lighting: Lighting;
   /** Ambient occlusion, bloom, tone mapping and the grade. High quality only. */
   private post: PostProcessing | null = null;
+  /** Steps the high tier's cost down when the GPU falls behind; see governor.ts. */
+  private governor: QualityGovernor | null = null;
   private frameDt = 0;
 
   readonly quality: Quality;
@@ -87,6 +92,29 @@ export class WorldScene {
     this.resize();
   }
 
+  /**
+   * Start governing render cost against the display's refresh interval, from the level that held
+   * on this device last time. High tier only: the low tier is already as cheap as it gets.
+   */
+  startGovernor(refreshMs: number): void {
+    if (!this.post) return;
+    const stored = Number(storage.get(RENDER_LEVEL_KEY));
+    this.governor = new QualityGovernor(refreshMs, Number.isInteger(stored) ? stored : 0);
+    this.applyRenderLevel(this.governor.level);
+  }
+
+  /** The governor's current level, or null without one. */
+  get renderLevel(): number | null {
+    return this.governor?.level ?? null;
+  }
+
+  private applyRenderLevel(index: number): void {
+    const level = RENDER_LEVELS[index]!;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, level.pixelRatio));
+    this.post?.setQuality(level.msaa, level.ambientOcclusion);
+    this.resize();
+  }
+
   resize(): void {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -116,6 +144,11 @@ export class WorldScene {
   update(time: number, dt: number): void {
     worldTime.value = time;
     this.frameDt = dt;
+    const level = this.governor?.frame(dt * 1000) ?? null;
+    if (level !== null) {
+      this.applyRenderLevel(level);
+      storage.set(RENDER_LEVEL_KEY, String(level));
+    }
     this.stations.update(dt);
     this.lighting.update(time);
   }

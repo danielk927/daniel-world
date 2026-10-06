@@ -22,6 +22,7 @@ export function world(page: Page): Promise<WorldDebugState> {
       selfId: w.selfId,
       player: w.player,
       look: w.look,
+      view: w.view,
       armed: w.armed,
       inspecting: w.inspecting,
       punching: w.punching,

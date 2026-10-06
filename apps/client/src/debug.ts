@@ -11,6 +11,8 @@ export interface WorldDebugState {
   readonly player: { x: number; y: number; z: number; grounded: boolean };
   /** Where the player is looking, in radians. */
   readonly look: { yaw: number; pitch: number };
+  /** The camera as last drawn: where the player sees from, which can trail the simulation. */
+  readonly view: { x: number; y: number; z: number };
   /** Holding the knife rather than the bare hand. */
   readonly armed: boolean;
   /** Taking a long look at the knife (I). */
@@ -31,6 +33,8 @@ export interface WorldDebugState {
     fps: number;
     frameCpuMs: number;
     quality: string;
+    /** The quality governor's level (0 is best), or null on the low tier. */
+    level: number | null;
   };
 }
 
@@ -69,6 +73,10 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     get look() {
       return { yaw: game.input.yaw, pitch: game.input.pitch };
     },
+    get view() {
+      const p = world.camera.position;
+      return { x: p.x, y: p.y, z: p.z };
+    },
     get armed() {
       return game.armed;
     },
@@ -100,6 +108,7 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
         fps: fps(),
         frameCpuMs: game.frameCpuMs,
         quality: world.quality,
+        level: world.renderLevel,
       };
     },
   };

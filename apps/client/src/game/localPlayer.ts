@@ -25,8 +25,10 @@ const ERROR_DECAY = 12;
  */
 export class LocalPlayer {
   readonly state: PlayerState = createPlayerState();
-  private readonly previous: PlayerState = createPlayerState();
+  /** The next tick as it will be with the keys held now, for drawing; see renderPosition. */
+  private readonly ahead: PlayerState = createPlayerState();
   private readonly input: InputMessage = { t: 'input', seq: 0, keys: 0, yaw: 0, pitch: 0 };
+  private readonly aheadInput: InputMessage = { t: 'input', seq: 0, keys: 0, yaw: 0, pitch: 0 };
   private sequence = 0;
 
   private readonly pending: InputMessage[] = Array.from({ length: PENDING_CAPACITY }, () => ({
@@ -54,7 +56,6 @@ export class LocalPlayer {
     input.keys = keys;
     input.yaw = yaw;
     input.pitch = pitch;
-    copyPlayerState(this.state, this.previous);
     stepPlayer(this.state, input);
     if (record) this.remember(input);
     return input;
@@ -112,13 +113,8 @@ export class LocalPlayer {
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
     if (distance === 0) return;
     this.lastCorrection = Math.max(this.lastCorrection, distance);
-    // Shift the interpolation segment with the correction so rendering stays continuous.
-    this.previous.x -= dx;
-    this.previous.y -= dy;
-    this.previous.z -= dz;
     if (distance > SNAP_DISTANCE) {
       this.error.set(0, 0, 0);
-      copyPlayerState(s, this.previous);
     } else {
       this.error.x += dx;
       this.error.y += dy;
@@ -126,16 +122,35 @@ export class LocalPlayer {
     }
   }
 
-  /** Feet position for rendering: blended between ticks, plus any fading correction. */
-  renderPosition(alpha: number, dt: number, out: Vector3): Vector3 {
+  /**
+   * Feet position for rendering, `alpha` of the way from this tick to the next, plus any fading
+   * correction. The next tick is simulated ahead with the keys held right now, the same step the
+   * real tick will take, so a key shows on the very next frame instead of a tick later, and nothing
+   * is drawn behind the simulation. Blending from the previous tick instead would trail it by up to
+   * a tick, on top of waiting for the next one.
+   */
+  renderPosition(
+    alpha: number,
+    dt: number,
+    keys: number,
+    yaw: number,
+    pitch: number,
+    out: Vector3,
+  ): Vector3 {
     this.error.multiplyScalar(Math.exp(-ERROR_DECAY * dt));
     if (this.error.lengthSq() < 1e-8) this.error.set(0, 0, 0);
-    const p = this.previous;
     const s = this.state;
+    const a = this.ahead;
+    copyPlayerState(s, a);
+    const input = this.aheadInput;
+    input.keys = keys;
+    input.yaw = yaw;
+    input.pitch = pitch;
+    stepPlayer(a, input);
     return out.set(
-      p.x + (s.x - p.x) * alpha + this.error.x,
-      p.y + (s.y - p.y) * alpha + this.error.y,
-      p.z + (s.z - p.z) * alpha + this.error.z,
+      s.x + (a.x - s.x) * alpha + this.error.x,
+      s.y + (a.y - s.y) * alpha + this.error.y,
+      s.z + (a.z - s.z) * alpha + this.error.z,
     );
   }
 
@@ -158,7 +173,6 @@ export class LocalPlayer {
       fresh.grounded = from.grounded;
     }
     copyPlayerState(fresh, this.state);
-    copyPlayerState(fresh, this.previous);
     this.pendingStart = 0;
     this.pendingCount = 0;
     this.error.set(0, 0, 0);

@@ -111,6 +111,12 @@ export class PostProcessing {
     this.composer.addPass(new EffectPass(camera, bloom, toneMapping, grade, vignette, grain));
   }
 
+  /** Antialiasing samples and ambient occlusion, as the quality governor allows. */
+  setQuality(msaa: number, ambientOcclusion: boolean): void {
+    if (this.composer.multisampling !== msaa) this.composer.multisampling = msaa;
+    this.ao.enabled = ambientOcclusion;
+  }
+
   setSize(width: number, height: number): void {
     this.composer.setSize(width, height, false);
   }

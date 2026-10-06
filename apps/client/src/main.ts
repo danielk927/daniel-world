@@ -7,6 +7,23 @@ import { Landing } from './ui/landing.ts';
 import { loading } from './ui/loading.ts';
 import { SERVER_HTTP_URL } from './env.ts';
 import { isTouchOnly, pickQuality, probeWebGL } from './util/capabilities.ts';
+import { snapRefreshInterval } from './world/governor.ts';
+
+/** The display's refresh interval: the shortest of a few frame intervals, snapped to a standard rate. */
+function measureRefreshInterval(frames = 20): Promise<number> {
+  return new Promise((resolve) => {
+    let last = -1;
+    let shortest = Infinity;
+    let count = 0;
+    const tick = (now: number): void => {
+      if (last >= 0) shortest = Math.min(shortest, now - last);
+      last = now;
+      if (++count <= frames) requestAnimationFrame(tick);
+      else resolve(snapRefreshInterval(shortest));
+    };
+    requestAnimationFrame(tick);
+  });
+}
 
 async function boot(): Promise<void> {
   const app = document.getElementById('app')!;
@@ -38,6 +55,8 @@ async function boot(): Promise<void> {
   loading.setProgress(0.15);
   // Let the loading screen paint before the heavy synchronous scene build.
   await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  // How often the display refreshes, measured while nothing heavy draws yet, for the governor.
+  const refresh = measureRefreshInterval();
   const [{ WorldScene }, { Game }] = await Promise.all([
     import('./world/scene.ts'),
     import('./game/game.ts'),
@@ -48,6 +67,7 @@ async function boot(): Promise<void> {
   loading.setText('Warming up shaders…');
   loading.setProgress(0.6);
   await world.compile();
+  world.startGovernor(await refresh);
   loading.setProgress(1);
 
   game = new Game(world, overlay, landing);
