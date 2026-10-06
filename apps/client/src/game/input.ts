@@ -47,9 +47,6 @@ export class Input {
 
   private held = 0;
   private readonly heldCodes = new Set<string>();
-  /** Every key down right now, menus or not, and who is waiting for one to come up. */
-  private readonly down = new Set<string>();
-  private waiting: { code: string; resolve: () => void }[] = [];
   private dragging = false;
   private dragTravel = 0;
   private primaryHeld = false;
@@ -68,10 +65,6 @@ export class Input {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.releaseAll);
-    // Capture, so keys a dialog stops (Esc in the info panel, say) still count as down.
-    window.addEventListener('keydown', this.onKeyTrack, { capture: true });
-    window.addEventListener('keyup', this.onKeyTrack, { capture: true });
-    window.addEventListener('blur', this.onBlurTrack);
     document.addEventListener('mousemove', this.onMouseMove);
     target.addEventListener('mousedown', this.onMouseDown);
     window.addEventListener('mouseup', this.onMouseUp);
@@ -183,32 +176,6 @@ export class Input {
     this.pitch -= event.movementY * scale;
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
   };
-
-  /** Resolves once `code` is up: at once if it is, or when it is released (or focus is lost). */
-  released(code: string): Promise<void> {
-    if (!this.down.has(code)) return Promise.resolve();
-    return new Promise((resolve) => this.waiting.push({ code, resolve }));
-  }
-
-  private readonly onKeyTrack = (event: KeyboardEvent): void => {
-    if (event.type === 'keydown') {
-      this.down.add(event.code);
-      return;
-    }
-    this.down.delete(event.code);
-    this.settleWaiting();
-  };
-
-  private readonly onBlurTrack = (): void => {
-    this.down.clear();
-    this.settleWaiting();
-  };
-
-  private settleWaiting(): void {
-    const ready = this.waiting.filter((w) => !this.down.has(w.code));
-    this.waiting = this.waiting.filter((w) => this.down.has(w.code));
-    for (const w of ready) w.resolve();
-  }
 
   private readonly onPointerLockChange = (): void => {
     if (this.locked) this.lockWorks = true;

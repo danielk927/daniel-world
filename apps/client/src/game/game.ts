@@ -116,7 +116,7 @@ export class Game {
     this.pause = new PauseMenu(
       overlay,
       {
-        onResume: () => void this.resume(),
+        onResume: (look) => void this.resume(look),
         onLeave: () => this.leave(),
         onSensitivity: (value) => this.input.setSensitivity(value),
         onCopyInvite: () => void this.copyInvite(),
@@ -136,7 +136,7 @@ export class Game {
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKey = (code) => this.onKey(code);
     this.input.onPrimary = () => this.primary();
-    this.panel.onClose = () => void this.resume();
+    this.panel.onClose = (look) => void this.resume(look);
     canvas.addEventListener('click', () => void this.onCanvasClick());
     window.addEventListener('resize', () => {
       this.world.resize();
@@ -241,18 +241,17 @@ export class Game {
     if (!this.input.locked) this.toasts.show('Click the world to look around with the mouse');
   }
 
-  /** Back to playing from a menu. Tries pointer lock, and plays unlocked if the browser refuses. */
-  private async resume(): Promise<void> {
+  /**
+   * Back to playing from a menu. With `look`, tries pointer lock, and plays unlocked if the browser
+   * refuses; without it (closed with Esc) the mouse stays free until the world is clicked.
+   */
+  private async resume(look: boolean): Promise<void> {
     if (this.mode !== 'paused' && this.mode !== 'panel') return;
     this.pause.hide();
     this.setCovered(false);
     this.mode = 'playing';
     this.input.enabled = true;
-    // Chrome on macOS lets go of the pointer lock when Esc comes up, so a lock taken while the Esc
-    // that closed the menu is still down is lost at once, and losing it opens the pause menu.
-    await this.input.released('Escape');
-    if (this.mode !== 'playing') return;
-    const locked = await this.input.lock();
+    const locked = look && (await this.input.lock());
     if (!locked && this.mode === 'playing') {
       this.toasts.show('Click the world to look around with the mouse');
     }

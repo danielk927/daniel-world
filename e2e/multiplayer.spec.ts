@@ -123,7 +123,7 @@ test("closing A drops B's count to 1", async ({ browser }) => {
   await b.context().close();
 });
 
-test('Esc closes an info panel and returns to play', async ({ browser }) => {
+test('Esc or E closes an info panel and returns to play', async ({ browser }) => {
   const page = await enterWorld(browser, { name: 'Reader', room: 'e2e-panel' });
   // From the spawn by the dining room doors, round the west end of the pass into the line, then
   // up to the entremetier's side of the piano. Standing at the counter and looking straight ahead
@@ -136,14 +136,9 @@ test('Esc closes an info panel and returns to play', async ({ browser }) => {
   await page.mouse.move(480, 270);
   await expect(page.locator('.prompt')).toHaveText('Press E to open Entremetier');
 
-  await page.keyboard.press('KeyE');
-  const dialog = page.getByRole('dialog', { name: 'Entremetier' });
-  await expect(dialog).toBeVisible();
-  expect((await world(page)).mode).toBe('panel');
-
-  // Record when the game asks for pointer lock. Chrome on macOS lets go of the lock when Esc comes
-  // back up, so a lock taken while the Esc that closed the panel is still down is lost at once,
-  // and losing it while playing opens the pause menu.
+  // Record when the game asks for pointer lock. Chrome on macOS releases the lock as Esc comes
+  // back up, so a lock taken back during the Esc that closed the panel is lost at once, and losing
+  // it while playing opens the pause menu: after Esc the game must leave the mouse alone.
   await page.evaluate(() => {
     const record = window as unknown as { lockRequests: number };
     record.lockRequests = 0;
@@ -154,21 +149,33 @@ test('Esc closes an info panel and returns to play', async ({ browser }) => {
   });
   const lockRequests = () =>
     page.evaluate(() => (window as unknown as { lockRequests: number }).lockRequests);
+  const dialog = page.getByRole('dialog', { name: 'Entremetier' });
+  const paused = page.getByRole('dialog', { name: 'Paused' });
 
-  await page.keyboard.down('Escape');
+  await page.keyboard.press('KeyE');
+  await expect(dialog).toBeVisible();
+  expect((await world(page)).mode).toBe('panel');
+  await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expectWorld(page, (w) => w.mode === 'playing', 'back to playing');
   await page.waitForTimeout(300);
   expect(await lockRequests()).toBe(0);
-  await page.keyboard.up('Escape');
+  await expect(paused).toBeHidden();
+
+  // E closes it too, the way it opened, and takes the mouse back for looking around.
+  await page.keyboard.press('KeyE');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('KeyE');
+  await expect(dialog).toBeHidden();
+  await expectWorld(page, (w) => w.mode === 'playing', 'back to playing after E');
   await expect.poll(lockRequests).toBeGreaterThan(0);
-  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeHidden();
+  await expect(paused).toBeHidden();
 
   // Esc opens the menu, and Esc again closes it.
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeVisible();
+  await expect(paused).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeHidden();
+  await expect(paused).toBeHidden();
   await expectWorld(page, (w) => w.mode === 'playing', 'resumed from the menu');
   await page.context().close();
 });

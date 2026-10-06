@@ -1,7 +1,8 @@
 import { el, trapFocus } from './dom.ts';
 
 export interface PauseHandlers {
-  onResume(): void;
+  /** `look`: take the mouse back for looking around (not after Esc; see InfoPanel). */
+  onResume(look: boolean): void;
   onLeave(): void;
   onSensitivity(value: number): void;
   onCopyInvite(): void;
@@ -15,7 +16,7 @@ const CONTROLS: readonly (readonly [string, string])[] = [
   ['Click', 'Throw a knife, or punch'],
   ['Q', 'Knife or bare hand'],
   ['I', 'Inspect the knife'],
-  ['E', 'Open a station'],
+  ['E', 'Open or close a station'],
   ['Enter', 'Chat'],
   ['Esc', 'Menu'],
 ];
@@ -103,12 +104,12 @@ export class PauseMenu {
         ]),
       ],
     );
-    this.resumeButton.addEventListener('click', () => handlers.onResume());
+    this.resumeButton.addEventListener('click', () => handlers.onResume(true));
     this.element.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape' || !this.isOpen) return;
       event.preventDefault();
       event.stopPropagation();
-      handlers.onResume();
+      handlers.onResume(false);
     });
     leaveButton.addEventListener('click', () => handlers.onLeave());
     this.inviteButton.addEventListener('click', () => handlers.onCopyInvite());

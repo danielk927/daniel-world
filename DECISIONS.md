@@ -288,3 +288,10 @@ Judgment calls made during the unattended build, with reasons.
 - **The skylights open onto the same sky**, as shallow wells through the vault with night glass and glazing bars, instead of strips of flat blue paint that read as daylight next to the dusk in the windows.
 - **Window glass is a plain dark tint, unlit.** Smooth lit glass caught the kitchen's lamps as soft highlights, smeared as a brown streak across the view; an environment map at infinity cannot give a real reflection of the room anyway.
   Tumblers, the cloche, tubs and the fridge door were on the same night-glass material, so they read as smoky ghosts and drew their far sides over their near ones; they now have their own clear glass, front faces only.
+
+### Closing a station panel (2026-10-06)
+
+- **E closes a station's panel as well as opening it, and goes straight back to looking around.**
+- **Esc also closes it, but leaves the mouse free** until the world is clicked; so does closing the pause menu with Esc.
+  Taking pointer lock back during that Esc press, or even just after it, opened the pause menu on Chrome for macOS: the browser releases the lock on Esc, and losing the lock while playing means "pause".
+  Waiting for Esc to come up before locking was tried first and was not enough, so the game no longer locks on Esc at all.
