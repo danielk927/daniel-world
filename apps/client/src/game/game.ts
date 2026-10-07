@@ -444,6 +444,7 @@ export class Game {
     this.setCovered(false);
     this.mode = 'playing';
     this.input.enabled = true;
+    this.viewmodel.setShown(!this.knockedOut);
     if (look) await this.input.lock();
   }
 
@@ -465,6 +466,7 @@ export class Game {
     this.input.releaseAll();
     this.input.unlock();
     this.setCovered(true);
+    this.viewmodel.setShown(false);
     this.pause.show(note);
   }
 
@@ -474,6 +476,8 @@ export class Game {
     this.input.releaseAll();
     this.hud.setPrompt(null);
     this.setCovered(true);
+    // The arm would show, dimmed, under the card.
+    this.viewmodel.setShown(false);
     this.input.unlock();
     this.panel.open(entry);
   }

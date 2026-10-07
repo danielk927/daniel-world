@@ -1893,24 +1893,32 @@ kbd {
 
 /* ---------- Info panel ---------- */
 
+/*
+ * A station's section of the resume, opened with E: a wide card in the middle of the screen over a
+ * dimmed kitchen, set large enough to read comfortably, since this is what the site is for.
+ */
 .panel {
   --accent-entry: var(--accent);
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(460px, 100%);
-  padding: 18px;
-  display: flex;
-  align-items: flex-start;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(8, 11, 28, 0.6);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.panel.open {
+  opacity: 1;
 }
 
 .panel-card {
   position: relative;
-  flex: 1;
   display: flex;
   flex-direction: column;
-  max-height: 100%;
+  width: min(860px, 100%);
+  max-height: min(88vh, 980px);
   min-height: 0;
   outline: none;
   background: var(--panel-strong);
@@ -1918,11 +1926,8 @@ kbd {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   overflow: hidden;
-  transform: translateX(24px);
-  opacity: 0;
-  transition:
-    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 0.25s ease;
+  transform: translateY(14px) scale(0.985);
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   user-select: text;
 }
 
@@ -1936,20 +1941,19 @@ kbd {
 
 .panel.open .panel-card {
   transform: none;
-  opacity: 1;
 }
 
 .panel-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 28px 24px 12px 28px;
+  gap: 20px;
+  padding: 40px 32px 14px 48px;
 }
 
 .panel-kicker {
-  margin: 0 0 4px;
-  font-size: 12.5px;
+  margin: 0 0 8px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1959,9 +1963,9 @@ kbd {
 .panel-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: 48px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.05;
   /* Even lines, so a long dish name never leaves one word on its own. */
   text-wrap: balance;
 }
@@ -1969,26 +1973,27 @@ kbd {
 .panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 28px 20px;
+  padding: 14px 48px 36px;
 }
 
 .panel-hint {
   margin: 0;
-  padding: 12px 28px 18px;
+  padding: 14px 48px 18px;
   border-top: 1px solid var(--panel-border);
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--ink-faint);
 }
 
 .lore-body {
   display: grid;
-  gap: 16px;
+  gap: 22px;
 }
 
 /* A photo at the top of an entry: a fixed frame, so the text never jumps when it loads. */
 .lore-photo {
   margin: 0;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
+  max-height: 42vh;
   overflow: hidden;
   border-radius: var(--radius);
   border: 1px solid var(--panel-border);
@@ -2004,8 +2009,8 @@ kbd {
 
 .lore-paragraph {
   margin: 0;
-  font-size: 15.5px;
-  line-height: 1.6;
+  font-size: 18px;
+  line-height: 1.65;
   color: var(--ink-muted);
   /* No word left alone on the last line. */
   text-wrap: pretty;
@@ -2013,67 +2018,62 @@ kbd {
 
 .lore-items {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .lore-item {
-  display: flex;
-  flex-direction: column;
-  padding: 14px 16px;
+  display: grid;
+  padding: 22px 26px;
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/*
- * The panel is narrow, so an item is one column: title, subtitle, then the date or place in small,
- * the same for every item however long its title.
- */
-.lore-item > * {
-  order: 3;
-}
-
+/* The role or project, with its dates or place on the right, as on a resume. */
 .lore-item-head {
-  display: contents;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 20px;
+  flex-wrap: wrap;
 }
 
 .lore-item-title {
-  order: 0;
   margin: 0;
-  font-size: 16px;
+  font-size: 21px;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 .lore-item-link {
   color: inherit;
   text-decoration: underline;
   text-decoration-color: var(--ivory);
-  text-underline-offset: 3px;
+  text-underline-offset: 4px;
 }
 
 .lore-item-meta {
-  order: 2;
-  margin-top: 2px;
-  font-size: 12.5px;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--ink-faint);
+  white-space: nowrap;
 }
 
 .lore-item-subtitle {
-  order: 1;
-  margin: 2px 0 0;
-  font-size: 13.5px;
+  margin: 4px 0 0;
+  font-size: 16px;
   font-weight: 500;
   color: var(--ivory);
   text-wrap: pretty;
 }
 
 .lore-item-desc {
-  margin: 6px 0 0;
-  font-size: 14.5px;
-  line-height: 1.55;
+  margin: 12px 0 0;
+  font-size: 16.5px;
+  line-height: 1.6;
   color: var(--ink-muted);
   /* No word left alone on the last line. */
   text-wrap: pretty;
@@ -2082,11 +2082,11 @@ kbd {
 .lore-item-points {
   display: grid;
   list-style: disc;
-  gap: 6px;
-  margin: 8px 0 0;
-  padding-left: 18px;
-  font-size: 14.5px;
-  line-height: 1.55;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-left: 22px;
+  font-size: 16.5px;
+  line-height: 1.6;
   color: var(--ink-muted);
   /* No word left alone on the last line. */
   text-wrap: pretty;
@@ -2099,36 +2099,81 @@ kbd {
 .tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 10px 0 0;
+  gap: 8px;
+  margin: 16px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .tag {
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ivory) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--ivory) 35%, transparent);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .tag-list-large {
   margin: 0;
-  gap: 8px;
+  gap: 10px;
 }
 
 .tag-list-large .tag {
-  padding: 7px 14px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 15px;
 }
 
 .lore-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+}
+
+/* On a narrow screen the card fills it, and an item's dates go under its title. */
+@media (max-width: 720px) {
+  .panel {
+    padding: 12px;
+  }
+
+  .panel-card {
+    max-height: 100%;
+  }
+
+  .panel-header {
+    padding: 30px 18px 10px 24px;
+  }
+
+  .panel-title {
+    font-size: 36px;
+  }
+
+  .panel-body {
+    padding: 10px 24px 24px;
+  }
+
+  .panel-hint {
+    padding: 12px 24px 16px;
+  }
+
+  .lore-item {
+    padding: 16px 18px;
+  }
+
+  .lore-item-head {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .lore-paragraph {
+    font-size: 16.5px;
+  }
+
+  .lore-item-desc,
+  .lore-item-points {
+    font-size: 15.5px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

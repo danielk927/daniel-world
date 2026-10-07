@@ -2,7 +2,7 @@ import type { LoreEntry } from '../content.ts';
 import { el, trapFocus } from './dom.ts';
 import { renderLoreBody } from './loreContent.ts';
 
-/** Slide-in info panel for a lore object. */
+/** A station's section of the resume, in a large card in the middle of the screen. */
 export class InfoPanel {
   readonly element: HTMLElement;
   /** `look`: take the mouse back for looking around. Not after Esc, which the browser owns. */
