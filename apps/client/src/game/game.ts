@@ -1,5 +1,6 @@
 import { Euler, Quaternion, Ray, Vector3 } from 'three';
 import {
+  COMPUTER,
   DEFAULT_ROOM,
   EYE_HEIGHT,
   KNIFE_COOLDOWN_INPUTS,
@@ -28,9 +29,11 @@ import { InfoPanel } from '../ui/panel.ts';
 import { PauseMenu } from '../ui/pause.ts';
 import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
+import { computerViewpoint } from '../world/computer.ts';
 import { PICK_DISTANCE } from '../world/stations.ts';
 import { THROW, type Viewmodel } from '../world/viewmodel.ts';
 import { CameraRig } from './cameraRig.ts';
+import { ComputerDesk } from './computerDesk.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
@@ -38,9 +41,11 @@ import { addressForRoom, inviteLink, joinFailureMessage, roomName } from './part
 import type { Settings } from './settings.ts';
 import type { Quality } from '../util/capabilities.ts';
 
-export type Mode = 'landing' | 'entering' | 'playing' | 'chat' | 'paused' | 'panel';
+export type Mode = 'landing' | 'entering' | 'playing' | 'chat' | 'paused' | 'panel' | 'computer';
 
 const ENTER_DURATION = 1.6;
+/** Seconds to glide between standing and sitting square in front of the computer. */
+const COMPUTER_GLIDE = 0.55;
 const MAX_CATCH_UP_TICKS = 5;
 
 const NO_TARGETS: readonly KnifeTarget[] = [];
@@ -93,6 +98,14 @@ export class Game {
   private readonly enterToQuat = new Quaternion();
   private readonly feet = new Vector3();
   private readonly ray = new Ray();
+  /** The kitchen computer on the chef's desk, which runs DOOM. */
+  readonly desk: ComputerDesk;
+  private computerHovered = false;
+  private computerLabel: Label | null = null;
+  /** 0 standing in the kitchen, 1 square in front of the computer's screen; eases between. */
+  private computerBlend = 0;
+  private readonly computerView = new Vector3();
+  private readonly computerQuat = new Quaternion();
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
   private hoveredIndex = -1;
   private readonly stationLabels: Label[] = [];
@@ -178,6 +191,23 @@ export class Game {
       this.stationLabels.push(this.labels.add(label, anchor, 0.55, PICK_DISTANCE, 'yield'));
     });
 
+    this.desk = new ComputerDesk(world.computer, (message) => this.toasts.show(message));
+    const pcLabel = el('div', { class: 'lore-label' }, [
+      el('span', {}, [el('small', { class: 'lore-label-station', text: 'Kitchen PC' }), 'DOOM']),
+    ]);
+    pcLabel.style.setProperty('--accent-entry', '#e2584a');
+    this.computerLabel = this.labels.add(
+      pcLabel,
+      new Vector3(COMPUTER.x, COMPUTER.y + 0.08, COMPUTER.z),
+      0.3,
+      PICK_DISTANCE,
+      'yield',
+    );
+    // The screen faces east, so the cook at it looks west (yaw +90 degrees), level.
+    this.computerQuat.setFromEuler(this.euler.set(0, Math.PI / 2, 0));
+    window.addEventListener('keydown', this.onComputerKey, true);
+    window.addEventListener('keyup', this.onComputerKey, true);
+
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKey = (code) => this.onKey(code);
     this.input.onPrimary = () => this.primary();
@@ -199,7 +229,8 @@ export class Game {
       this.mode === 'playing' ||
       this.mode === 'chat' ||
       this.mode === 'paused' ||
-      this.mode === 'panel'
+      this.mode === 'panel' ||
+      this.mode === 'computer'
     );
   }
 
@@ -359,6 +390,9 @@ export class Game {
   leave(reason = ''): void {
     // Set the mode first: closing the panel would otherwise try to resume play.
     this.mode = 'landing';
+    this.desk.stepAway();
+    this.computerBlend = 0;
+    this.hud.setComputer(false);
     this.pause.hide();
     this.panel.close();
     this.chat.hide();
@@ -482,6 +516,7 @@ export class Game {
   }
 
   private knockOut(by: KillParty): void {
+    if (this.mode === 'computer') this.leaveComputer();
     this.knockedOut = true;
     this.throwAt = null;
     if (this.mode === 'chat') this.chat.close();
@@ -524,6 +559,9 @@ export class Game {
       this.openPause();
     } else if (this.mode === 'playing') {
       this.openPause();
+    } else if (this.mode === 'computer') {
+      // Esc, under pointer lock: the browser takes the key, so it means stepping away.
+      this.leaveComputer();
     }
   }
 
@@ -539,7 +577,8 @@ export class Game {
       if (!this.knockedOut) this.viewmodel.startInspect();
     } else if (code === 'KeyE') {
       const entry = this.world.stations.hoveredEntry;
-      if (entry) this.openPanel(entry);
+      if (this.computerHovered && !this.knockedOut) this.useComputer();
+      else if (entry) this.openPanel(entry);
     } else {
       return false;
     }
@@ -690,7 +729,64 @@ export class Game {
       this.player.horizontalSpeed,
       s.grounded,
     );
+    this.followComputer(dt);
   }
+
+  /** Glide to the computer's screen while it is in use, and back afterwards. */
+  private followComputer(dt: number): void {
+    const target = this.mode === 'computer' ? 1 : 0;
+    if (this.computerBlend === target) {
+      if (target === 0) return;
+    } else {
+      const step = dt / COMPUTER_GLIDE;
+      this.computerBlend =
+        target > this.computerBlend
+          ? Math.min(1, this.computerBlend + step)
+          : Math.max(0, this.computerBlend - step);
+    }
+    const camera = this.world.camera;
+    computerViewpoint(camera.fov, this.computerView);
+    const t = easeInOutCubic(this.computerBlend);
+    camera.position.lerp(this.computerView, t);
+    camera.quaternion.slerp(this.computerQuat, t);
+  }
+
+  /** Sit down at the kitchen computer: the keys go to DOOM until Esc. */
+  private useComputer(): void {
+    this.mode = 'computer';
+    this.input.enabled = false;
+    this.input.releaseAll();
+    this.hud.setComputer(true);
+    this.labels.element.hidden = true;
+    this.viewmodel.setShown(false);
+    void this.desk.use();
+  }
+
+  private leaveComputer(): void {
+    if (this.mode !== 'computer') return;
+    this.desk.stepAway();
+    this.mode = 'playing';
+    this.input.enabled = true;
+    this.hud.setComputer(false);
+    this.labels.element.hidden = false;
+    this.viewmodel.setShown(!this.knockedOut);
+  }
+
+  /**
+   * At the computer every key goes to DOOM, before the game's own handlers see it, except Esc,
+   * which steps away. DOOM's menu, normally on Esc, moves to the backquote key.
+   */
+  private readonly onComputerKey = (event: KeyboardEvent): void => {
+    if (this.mode !== 'computer') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const down = event.type === 'keydown';
+    if (event.code === 'Escape') {
+      if (down) this.leaveComputer();
+      return;
+    }
+    this.desk.key(event.code === 'Backquote' ? 'Escape' : event.code, down);
+  };
 
   private updateMinimap(dt: number): void {
     if (!this.inWorld) return;
@@ -705,6 +801,7 @@ export class Game {
 
   private updateHover(): void {
     let index = -1;
+    let computer = false;
     if (this.mode === 'playing') {
       const camera = this.world.camera;
       this.ray.origin.copy(camera.position);
@@ -722,9 +819,15 @@ export class Game {
           .sub(camera.position)
           .normalize();
       }
-      index = this.world.stations.pick(this.ray);
+      computer = this.desk.picked(this.ray, PICK_DISTANCE);
+      if (!computer) index = this.world.stations.pick(this.ray);
     }
-    if (index === this.hoveredIndex) return;
+    if (index === this.hoveredIndex && computer === this.computerHovered) return;
+    if (computer !== this.computerHovered && this.computerLabel) {
+      this.computerLabel.element.classList.toggle('is-hovered', computer);
+      this.computerLabel.pinned = computer;
+    }
+    this.computerHovered = computer;
     const previous = this.stationLabels[this.hoveredIndex];
     if (previous) {
       previous.element.classList.remove('is-hovered');
@@ -738,6 +841,8 @@ export class Game {
     this.hoveredIndex = index;
     this.world.stations.setHovered(index);
     const entry = this.world.stations.hoveredEntry;
-    this.hud.setPrompt(entry ? `Press E to open ${entry.title}` : null);
+    this.hud.setPrompt(
+      computer ? 'Press E to play DOOM' : entry ? `Press E to open ${entry.title}` : null,
+    );
   }
 }

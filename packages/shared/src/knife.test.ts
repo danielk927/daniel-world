@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KNIFE_EMBED, KNIFE_MAX_FLIGHT_SECONDS, KNIFE_SPEED, ROOM_HEIGHT } from './constants.ts';
 import { flyKnife, launchKnife, type KnifeImpact, type KnifeTarget } from './knife.ts';
-import { KITCHEN, vaultHeight } from './world.ts';
+import { COMPUTER, KITCHEN, vaultHeight } from './world.ts';
 
 /** Throw from an eye position and fly until something is hit (or the flight runs out). */
 function throwFrom(
@@ -24,6 +24,7 @@ function throwFrom(
 
 const NORTH = 0;
 const EAST = -Math.PI / 2;
+const WEST = Math.PI / 2;
 const DOWN = -Math.PI / 2 + 0.01;
 const UP = Math.PI / 2 - 0.01;
 
@@ -45,6 +46,15 @@ describe('knife flight', () => {
     expect(hit.y).toBeCloseTo(-KNIFE_EMBED * Math.abs(hit.dy), 2);
     expect(hit.dy).toBeLessThan(-0.99);
     expect(hit.z).toBeCloseTo(2.6, 1);
+  });
+
+  it('sticks into the kitchen computer, not the wall behind it', () => {
+    // Thrown west at the screen from the aisle by the desk.
+    const hit = throwFrom(-6.3, COMPUTER.y + 0.05, COMPUTER.z, WEST, 0);
+    expect(hit?.kind).toBe('surface');
+    if (hit?.kind !== 'surface') return;
+    expect(hit.x).toBeGreaterThan(COMPUTER.x - 0.1);
+    expect(hit.x).toBeLessThan(COMPUTER.x);
   });
 
   it('sticks into the face of a fixture it flies into', () => {

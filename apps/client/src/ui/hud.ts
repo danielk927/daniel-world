@@ -46,6 +46,23 @@ export class Hud {
     el('kbd', { text: 'I' }),
     ' inspect',
   ]);
+  /** How to play DOOM, and how to stop, while at the kitchen computer. */
+  private readonly computerHint = el('div', { class: 'hint computer-hint' }, [
+    el('kbd', { text: 'Esc' }),
+    ' step away ',
+    el('kbd', { text: '`' }),
+    ' menu ',
+    el('kbd', { text: 'WASD' }),
+    ' move ',
+    el('kbd', { text: 'Space' }),
+    ' fire ',
+    el('kbd', { text: 'E' }),
+    ' open ',
+    el('kbd', { text: '1-7' }),
+    ' weapons ',
+    el('kbd', { text: 'Tab' }),
+    ' map',
+  ]);
   /** The bottom right corner, where the loadout stacks over the minimap. */
   readonly corner = el('div', { class: 'hud-corner' });
   /** Under the player list, top right: where the kill feed goes. */
@@ -81,6 +98,7 @@ export class Hud {
         this.feedSlot,
       ]),
       this.hint,
+      this.computerHint,
       this.corner,
     ]);
     parent.append(this.element);
@@ -100,6 +118,11 @@ export class Hud {
   /** While a panel or menu covers the world, hide the parts that would peek out or mislead. */
   setCovered(covered: boolean): void {
     this.element.classList.toggle('is-covered', covered);
+  }
+
+  /** At the kitchen computer: only the room, the players and how to play DOOM show. */
+  setComputer(on: boolean): void {
+    this.element.classList.toggle('is-computer', on);
   }
 
   setRoom(code: string): void {

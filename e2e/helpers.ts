@@ -29,6 +29,7 @@ export function world(page: Page): Promise<WorldDebugState> {
       armed: w.armed,
       inspecting: w.inspecting,
       punching: w.punching,
+      computer: w.computer,
       knockedOut: w.knockedOut,
       knives: w.knives,
       remotePlayers: w.remotePlayers,
@@ -119,4 +120,22 @@ export async function walkUntil(
   } finally {
     await page.keyboard.up(key);
   }
+}
+
+/** Turn the view to a yaw by dragging the mouse, the way a visitor without pointer lock looks around. */
+export async function turnTo(page: Page, yaw: number, pitch = 0): Promise<void> {
+  for (let i = 0; i < 40; i++) {
+    const { look } = await world(page);
+    const dYaw = look.yaw - yaw;
+    const dPitch = pitch - look.pitch;
+    if (Math.abs(dYaw) < 0.02 && Math.abs(dPitch) < 0.02) return;
+    // Out and back, so even a tiny correction is a drag and never a click (which would throw).
+    await page.mouse.move(480, 270);
+    await page.mouse.down();
+    await page.mouse.move(480, 210, { steps: 2 });
+    const clamp = (v: number) => Math.max(-150, Math.min(150, v * 250));
+    await page.mouse.move(480 + clamp(dYaw), 270 - clamp(dPitch), { steps: 3 });
+    await page.mouse.up();
+  }
+  throw new Error(`could not turn to ${yaw}`);
 }

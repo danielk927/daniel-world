@@ -243,12 +243,25 @@ export function vaultHeight(z: number): number {
  * height (unlike COLLIDERS, which reach far above counters to stop players jumping onto them), and
  * the hood. Small props on the counters do not stop a knife.
  */
-export const KNIFE_SOLIDS: readonly BoxCollider[] = Object.values(KITCHEN).map((fixture) => ({
-  kind: 'box',
-  minX: fixture.minX,
-  maxX: fixture.maxX,
-  minZ: fixture.minZ,
-  maxZ: fixture.maxZ,
-  bottom: 'bottom' in fixture ? fixture.bottom : 0,
-  top: fixture.top,
-}));
+export const KNIFE_SOLIDS: readonly BoxCollider[] = [
+  ...Object.values(KITCHEN).map((fixture): BoxCollider => ({
+    kind: 'box',
+    minX: fixture.minX,
+    maxX: fixture.maxX,
+    minZ: fixture.minZ,
+    maxZ: fixture.maxZ,
+    bottom: 'bottom' in fixture ? fixture.bottom : 0,
+    top: fixture.top,
+  })),
+  // The computer's monitor, so a knife thrown at it sticks in the CRT instead of passing through to
+  // the wall and poking out of the screen.
+  {
+    kind: 'box',
+    minX: KITCHEN.desk.minX,
+    maxX: COMPUTER.x - 0.03,
+    minZ: COMPUTER.z - 0.23,
+    maxZ: COMPUTER.z + 0.23,
+    bottom: KITCHEN.desk.top,
+    top: COMPUTER.y + 0.2,
+  },
+];

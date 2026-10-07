@@ -589,6 +589,20 @@ kbd {
   opacity: 0;
 }
 
+/* At the kitchen computer the screen is the game; DOOM's own controls replace the kitchen's. */
+.hud.is-computer :is(.crosshair, .prompt, .look-cue, .hint, .hud-corner) {
+  visibility: hidden;
+}
+
+.computer-hint {
+  display: none;
+}
+
+.hud.is-computer .computer-hint {
+  display: flex;
+  visibility: visible;
+}
+
 /* ---------- HUD panels ---------- */
 
 .hud-panel {
