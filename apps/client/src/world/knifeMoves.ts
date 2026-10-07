@@ -344,7 +344,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 1.95, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, rz: 1.2, spin: PI / 2 },
       { t: 2.5, x: -0.074, y: 0.072, rz: 1.25, spin: PI / 2 + 0.1 },
       { t: 2.95, x: -0.07, y: 0.07, rz: 1.2, spin: (PI * 3) / 2 },
-      { t: 3.5, ...REST, spin: TAU },
+      { t: 3.5, ...REST, spin: TAU, flip: TAU * 2 },
     ],
   },
 
