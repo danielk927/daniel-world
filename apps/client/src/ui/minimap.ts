@@ -1,67 +1,136 @@
-import { DOORS, KITCHEN, ROOM_HALF_X, ROOM_HALF_Z, STATIONS } from '@world/shared';
+import {
+  COOLER,
+  COOLER_SHELVES,
+  COOLER_WALL,
+  DOORS,
+  KITCHEN,
+  ROOM_HALF_X,
+  ROOM_HALF_Z,
+  STATIONS,
+  type Footprint,
+} from '@world/shared';
 import { el } from './dom.ts';
 
 /** CSS size of the map, in pixels. The kitchen fills it with a margin. */
 const MARGIN = 8;
 export const MAP_WIDTH = 176;
-/** World units to map pixels. */
-const SCALE = (MAP_WIDTH - MARGIN * 2) / (ROOM_HALF_X * 2);
-export const MAP_HEIGHT = Math.round(ROOM_HALF_Z * 2 * SCALE + MARGIN * 2);
-const CENTER_X = MAP_WIDTH / 2;
-const CENTER_Y = MAP_HEIGHT / 2;
+
+/** Where the map's middle is, in pixels, and how many pixels a meter is. */
+interface MapView {
+  readonly scale: number;
+  readonly x: number;
+  readonly y: number;
+}
+
+/** A view fitting `extent` across the map's width, centered. */
+function viewOf(extent: Footprint, height: number): MapView {
+  const scale = (MAP_WIDTH - MARGIN * 2) / (extent.maxX - extent.minX);
+  return {
+    scale,
+    x: MAP_WIDTH / 2 - ((extent.minX + extent.maxX) / 2) * scale,
+    y: height / 2 - ((extent.minZ + extent.maxZ) / 2) * scale,
+  };
+}
+
+const KITCHEN_EXTENT = {
+  minX: -ROOM_HALF_X,
+  maxX: ROOM_HALF_X,
+  minZ: -ROOM_HALF_Z,
+  maxZ: ROOM_HALF_Z,
+};
+const KITCHEN_SCALE = (MAP_WIDTH - MARGIN * 2) / (ROOM_HALF_X * 2);
+export const MAP_HEIGHT = Math.round(ROOM_HALF_Z * 2 * KITCHEN_SCALE + MARGIN * 2);
+/** The kitchen alone, filling the map; and with the walk-in cooler beside it, once it is open. */
+const KITCHEN_VIEW = viewOf(KITCHEN_EXTENT, MAP_HEIGHT);
+const COOLER_VIEW = viewOf({ ...KITCHEN_EXTENT, maxX: COOLER.maxX + COOLER_WALL }, MAP_HEIGHT);
+
+/** How the map lays out the world: the kitchen alone, or with the open walk-in beside it. */
+export function mapView(coolerOpen: boolean): MapView {
+  return coolerOpen ? COOLER_VIEW : KITCHEN_VIEW;
+}
 
 /** World (x, z) to map pixels. North (-Z) is up. */
-export function worldToMap(x: number, z: number): { x: number; y: number } {
-  return { x: CENTER_X + x * SCALE, y: CENTER_Y + z * SCALE };
+export function worldToMap(
+  x: number,
+  z: number,
+  view: MapView = KITCHEN_VIEW,
+): { x: number; y: number } {
+  return { x: view.x + x * view.scale, y: view.y + z * view.scale };
 }
 
-function rect(
+function rect(ctx: CanvasRenderingContext2D, f: Footprint, view: MapView): void {
+  const a = worldToMap(f.minX, f.minZ, view);
+  ctx.fillRect(a.x, a.y, (f.maxX - f.minX) * view.scale, (f.maxZ - f.minZ) * view.scale);
+}
+
+function outline(ctx: CanvasRenderingContext2D, f: Footprint, view: MapView): void {
+  const a = worldToMap(f.minX, f.minZ, view);
+  ctx.strokeRect(a.x, a.y, (f.maxX - f.minX) * view.scale, (f.maxZ - f.minZ) * view.scale);
+}
+
+const FLOOR = '#9da2a5';
+const WALL = 'rgba(244, 238, 228, 0.9)';
+
+/** The kitchen as seen from above, and the walk-in cooler once it is open. Drawn when it changes. */
+function drawKitchen(
   ctx: CanvasRenderingContext2D,
-  f: { minX: number; maxX: number; minZ: number; maxZ: number },
+  stationColors: readonly string[],
+  view: MapView,
+  coolerOpen: boolean,
 ): void {
-  const a = worldToMap(f.minX, f.minZ);
-  ctx.fillRect(a.x, a.y, (f.maxX - f.minX) * SCALE, (f.maxZ - f.minZ) * SCALE);
-}
-
-/** The kitchen as seen from above. Drawn once; it never changes. */
-function drawKitchen(ctx: CanvasRenderingContext2D, stationColors: readonly string[]): void {
+  const scale = view.scale;
   // Floor and walls.
-  ctx.fillStyle = '#9da2a5';
-  rect(ctx, { minX: -ROOM_HALF_X, maxX: ROOM_HALF_X, minZ: -ROOM_HALF_Z, maxZ: ROOM_HALF_Z });
-  ctx.strokeStyle = 'rgba(244, 238, 228, 0.9)';
+  ctx.fillStyle = FLOOR;
+  rect(ctx, KITCHEN_EXTENT, view);
+  ctx.strokeStyle = WALL;
   ctx.lineWidth = 2;
-  const corner = worldToMap(-ROOM_HALF_X, -ROOM_HALF_Z);
-  ctx.strokeRect(corner.x, corner.y, ROOM_HALF_X * 2 * SCALE, ROOM_HALF_Z * 2 * SCALE);
+  outline(ctx, KITCHEN_EXTENT, view);
 
-  // Doors as warm gaps in the walls.
+  // Doors as warm gaps in the walls; the walk-in, once open, as a way through.
   ctx.fillStyle = '#ffc98c';
   for (const door of Object.values(DOORS)) {
-    const span = (door.to - door.from) * SCALE;
+    const span = (door.to - door.from) * scale;
     if (door.wall === 'north' || door.wall === 'south') {
-      const a = worldToMap(door.from, door.wall === 'north' ? -ROOM_HALF_Z : ROOM_HALF_Z);
+      const a = worldToMap(door.from, door.wall === 'north' ? -ROOM_HALF_Z : ROOM_HALF_Z, view);
       ctx.fillRect(a.x, a.y - 1.5, span, 3);
-    } else {
-      const a = worldToMap(door.wall === 'west' ? -ROOM_HALF_X : ROOM_HALF_X, door.from);
+    } else if (door !== DOORS.walkIn || !coolerOpen) {
+      const a = worldToMap(door.wall === 'west' ? -ROOM_HALF_X : ROOM_HALF_X, door.from, view);
       ctx.fillRect(a.x - 1.5, a.y, 3, span);
     }
+  }
+  if (coolerOpen) {
+    // The cold room: icy floor, its shelves, its walls, and the doorway open into it.
+    const room = { minX: ROOM_HALF_X, maxX: COOLER.maxX, minZ: COOLER.minZ, maxZ: COOLER.maxZ };
+    ctx.fillStyle = '#b3c3cc';
+    rect(ctx, { ...room, minX: COOLER.minX }, view);
+    ctx.fillStyle = '#d7e0e5';
+    for (const shelf of COOLER_SHELVES) rect(ctx, shelf, view);
+    ctx.strokeStyle = WALL;
+    outline(ctx, { ...room, minX: COOLER.minX }, view);
+    ctx.fillStyle = '#b3c3cc';
+    const doorway = DOORS.walkIn;
+    rect(
+      ctx,
+      { minX: ROOM_HALF_X - 0.12, maxX: COOLER.minX + 0.12, minZ: doorway.from, maxZ: doorway.to },
+      view,
+    );
   }
 
   // Counters and islands in steel, the cooking suite darker under its hood.
   const { piano, hood, ...counters } = KITCHEN;
   ctx.fillStyle = '#a9adb2';
-  for (const f of Object.values(counters)) rect(ctx, f);
+  for (const f of Object.values(counters)) rect(ctx, f, view);
   ctx.fillStyle = 'rgba(201, 206, 211, 0.35)';
-  rect(ctx, hood);
+  rect(ctx, hood, view);
   ctx.fillStyle = '#5b636b';
-  rect(ctx, piano);
+  rect(ctx, piano, view);
   ctx.strokeStyle = '#d3dbe1';
   ctx.lineWidth = 1;
-  const p = worldToMap(piano.minX, piano.minZ);
-  ctx.strokeRect(p.x, p.y, (piano.maxX - piano.minX) * SCALE, (piano.maxZ - piano.minZ) * SCALE);
+  outline(ctx, piano, view);
 
   // Stations as diamonds in their colors, so circles always mean players.
   STATIONS.forEach((station, i) => {
-    const s = worldToMap(station.x, station.z);
+    const s = worldToMap(station.x, station.z, view);
     ctx.beginPath();
     ctx.moveTo(s.x, s.y - 4);
     ctx.lineTo(s.x + 4, s.y);
@@ -88,6 +157,10 @@ export class Minimap {
   private readonly dpr: number;
   /** View cone fill, created once; it is drawn in the arrow's local space. */
   private readonly cone: CanvasGradient;
+  private readonly stationColors: readonly string[];
+  /** The kitchen alone, or with the walk-in cooler beside it once that is open. */
+  private view: MapView = KITCHEN_VIEW;
+  private coolerOpen = false;
 
   constructor(parent: HTMLElement, stationColors: readonly string[]) {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -108,15 +181,30 @@ export class Minimap {
     this.background = document.createElement('canvas');
     this.background.width = canvas.width;
     this.background.height = canvas.height;
-    const bg = this.background.getContext('2d')!;
-    bg.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    drawKitchen(bg, stationColors);
+    this.stationColors = stationColors;
+    this.drawBackground();
 
     this.element = el('div', { class: 'minimap' }, [
       canvas,
       el('span', { class: 'minimap-north', text: 'N', attrs: { 'aria-hidden': 'true' } }),
     ]);
     parent.append(this.element);
+  }
+
+  /** Show the walk-in cooler on the map once its door is open, or not once it is shut again. */
+  setCoolerOpen(open: boolean): void {
+    if (open === this.coolerOpen) return;
+    this.coolerOpen = open;
+    this.view = mapView(open);
+    this.drawBackground();
+  }
+
+  private drawBackground(): void {
+    const bg = this.background.getContext('2d')!;
+    bg.setTransform(1, 0, 0, 1, 0, 0);
+    bg.clearRect(0, 0, this.background.width, this.background.height);
+    bg.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    drawKitchen(bg, this.stationColors, this.view, this.coolerOpen);
   }
 
   /** Start a frame: the kitchen and nothing else. */
@@ -131,8 +219,9 @@ export class Minimap {
   /** Another player. Bound so it can be handed to an iterator without allocating per frame. */
   readonly drawPlayer = (x: number, z: number, color: string): void => {
     const ctx = this.ctx;
-    const px = CENTER_X + x * SCALE;
-    const py = CENTER_Y + z * SCALE;
+    const view = this.view;
+    const px = view.x + x * view.scale;
+    const py = view.y + z * view.scale;
     ctx.beginPath();
     ctx.arc(px, py, 3.6, 0, Math.PI * 2);
     ctx.fillStyle = color;
@@ -146,7 +235,8 @@ export class Minimap {
   drawSelf(x: number, z: number, yaw: number): void {
     const ctx = this.ctx;
     ctx.save();
-    ctx.translate(CENTER_X + x * SCALE, CENTER_Y + z * SCALE);
+    const view = this.view;
+    ctx.translate(view.x + x * view.scale, view.y + z * view.scale);
     // Yaw 0 looks toward -Z, which is up on the map; positive yaw turns left (counterclockwise).
     ctx.rotate(-yaw);
 

@@ -856,6 +856,7 @@ export class Game {
     if (this.minimapTimer > 0) return;
     this.minimapTimer = 1 / 30;
     const mp = this.multiplayer;
+    this.minimap.setCoolerOpen(this.world.cooler.open);
     this.minimap.begin();
     mp?.forEachRemote(this.minimap.drawPlayer);
     this.minimap.drawSelf(this.feet.x, this.feet.z, this.input.yaw);
