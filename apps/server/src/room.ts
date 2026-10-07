@@ -13,6 +13,8 @@ import {
   NAME_MAX_LENGTH,
   DEFAULT_PREFS,
   samePrefs,
+  knifeLook,
+  lookFields,
   createPlayerState,
   isInsideCollider,
   spawnPoint,
@@ -381,6 +383,7 @@ export class Room {
       vx: knife.vx,
       vy: knife.vy,
       vz: knife.vz,
+      ...lookFields(knifeLook(player.prefs.skin, player.prefs.finish)),
     });
   }
 

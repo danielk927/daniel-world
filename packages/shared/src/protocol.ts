@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ALL_KEYS, KNIFE_MAX_STUCK, MAX_PITCH } from './constants.ts';
 import { COOLER_HITS_TO_OPEN } from './cooler.ts';
+import { KNIFE_FINISHES, KNIFE_SKINS } from './skins.ts';
 import { COOLER_DOOR } from './world.ts';
 
 /**
@@ -12,12 +13,24 @@ import { COOLER_DOOR } from './world.ts';
 const finite = z.number().refine(Number.isFinite, 'must be finite');
 const playerId = z.number().int().nonnegative();
 
+/**
+ * A knife's look, as optional fields: absent is the chef's knife as it comes, and a knife or finish
+ * this version does not know (a newer client's) is dropped rather than refusing the message. Read
+ * them with `knifeLook`, which also settles a finish the knife does not come in.
+ */
+const lookShape = {
+  skin: z.enum(KNIFE_SKINS).optional().catch(undefined),
+  finish: z.enum(KNIFE_FINISHES).optional().catch(undefined),
+};
+
 // ---------- Client to server ----------
 
 /** What a visitor has chosen about the room for themselves, in the hello and on every change. */
 export const prefsSchema = z.object({
   /** Chef Skinner, the lobby's resident cook, may throw knives at this player. */
   chef: z.boolean(),
+  /** The knife this player carries, which everyone sees in their hand and wherever it lands. */
+  ...lookShape,
 });
 
 export type Prefs = z.infer<typeof prefsSchema>;
@@ -151,6 +164,8 @@ export const stuckKnifeSchema = z.object({
   dx: unit,
   dy: unit,
   dz: unit,
+  /** The knife as its thrower carried it, so it stays itself after they change or leave. */
+  ...lookShape,
 });
 
 /** Where a hit landed on the walk-in's door, and what by: every screen dents it there. */
@@ -222,6 +237,8 @@ export const knifeThrownSchema = z.object({
   vx: finite,
   vy: finite,
   vz: finite,
+  /** The knife the thrower carried when it left their hand. */
+  ...lookShape,
 });
 
 /** A knife stuck where it landed, `at` seconds into its flight. */
