@@ -402,3 +402,23 @@ Judgment calls made during the unattended build, with reasons.
   The mouse turns and fires but never walks (DOOM walked on vertical motion; the register has none, as DOS players got with `novert`), and no longer nudges the menu's sliders.
   A pixel of mouse motion turns the marine as far as it turns a cook in the kitchen, half a turn in about 1430 pixels, times the visitor's sensitivity; sitting down takes pointer lock, since E is a key press.
 - **Space opens doors, as in DOOM**, and E and F too; Ctrl and the left button fire.
+
+### The walk-in cooler, a secret room (2026-10-07)
+
+- **The walk-in's door breaks after ten hits**, at Daniel's request: bare-hand punches within reach (1.3 m from the eye) and knives that stick in it.
+  Behind it is a real cold room, empty for now for Daniel to fill: white insulated panels over aluminium plate, two vapour-proof lamps, the refrigeration unit high on the back wall and three empty wire shelving units.
+- **The server decides every hit.** A punch is the existing key bit, checked from the eye after that input's step; a knife counts when the server's flight sticks it in the door.
+  Each hit goes to everyone with where it landed, to the millimetre, and every screen derives the dent's shape from that place and its order, so all see the same door.
+  Late arrivals get every dent in the welcome, and the door is whole again once the room empties, like the stuck knives.
+- **The kitchen's walls became colliders, with a gap for the doorway.** The shut door is a collider in the gap; the open cooler adds its walls, a low ceiling, the lintel, its shelves and the open door.
+  The simulation keeps a clamp only as a safety net around the kitchen and the cooler.
+- **The opening never corrects anyone's prediction.** The burst tells each cook the first of their own inputs whose step sees the doorway open: 24 inputs (0.4 s) past the newest the server has from them.
+  That is about when the swinging door clears the doorway, and later than any sane round trip, so the client always hears in time. Newcomers have it open from their first input.
+  It is keyed to inputs, not server ticks, because a client cannot know at which tick its input will be applied.
+- **Every hit shows**: smooth-shaded dents (flat facets read as noise) with knuckle pits for fists and small craters for knives, scuffs, the face bowing in, the handle drooping until it hangs, and the readout warming, flickering and dying at the seventh. The door shifts in its frame at the eighth and ninth, showing a sliver of cold light.
+  Each hit rattles the door, the puncher's view jars as the fist lands, and the tenth bursts it open: it swings in, slams the wall and bounces, as cold mist rolls out. Knives stuck in the door go with it.
+- **A dent shows when what made it arrives on screen**: a knife's with its drawn flight, another cook's punch with their fist, one's own no sooner than one's own fist.
+- **The cold room's light is baked into its vertex colours and drawn unlit**, since the kitchen's lamps reach through walls; a point light, dark while the door is shut, lights what moves inside.
+  The room and the mist are only drawn when some of the room can be seen: a shut door adds two draw calls, an open one up to four more.
+- **Labels and station picking respect the wall** between the kitchen and the cooler, and the minimap rescales to show the cooler once it is open. The outside view can never show it (a test checks).
+- This changed the protocol (a `cooler` message and the welcome's door) and the shared simulation, within version 7.
