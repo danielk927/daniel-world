@@ -25,7 +25,16 @@ import {
   type Prefs,
   type ServerMessage,
   type StuckKnife,
+  COOLER_OPEN_DELAY_INPUTS,
+  coolerColliders,
+  inPlayArea,
+  knifeInCoolerDoor,
+  punchOnCoolerDoor,
+  type CoolerDent,
+  type CoolerHitMessage,
+  type CoolerState,
 } from '@world/shared';
+import { RoomCooler } from './cooler.ts';
 import { PositionHistory, RoomKnives, type KnifeCandidate, type KnifeEvent } from './knives.ts';
 
 /** Inputs waiting to be simulated (0.4 s) are capped so a flood cannot build up unbounded latency. */
@@ -74,6 +83,11 @@ export interface RoomPlayer {
   lastPunchSeq: number;
   /** Holding the knife, as of the latest input. */
   armed: boolean;
+  /**
+   * The first of this player's inputs whose step sees the walk-in's doorway open: Infinity while
+   * the door holds, a little ahead of their newest input once it bursts, 0 for later arrivals.
+   */
+  coolerFrom: number;
   /** Where the player was over the last few ticks, so knives can be checked against the past. */
   readonly history: PositionHistory;
   /** What the visitor has chosen for themselves; replaced whole when they change it. */
@@ -96,6 +110,8 @@ export class Room {
   tick = 0;
   private arrivals = 0;
   readonly knives = new RoomKnives();
+  /** The walk-in's door, whole until enough hits burst it open. */
+  readonly cooler = new RoomCooler();
   /** Scratch list of who can be hit this tick. */
   private readonly candidates: KnifeCandidate[] = [];
   /** Told whenever a knife knocks someone out. */
@@ -134,10 +150,13 @@ export class Room {
   /** A player standing at `spawn`, or at a fresh spawn point if that one does not settle. */
   private standAt(spawn: { x: number; z: number; yaw: number }): PlayerState {
     let state = createPlayerState(spawn.x, spawn.z, spawn.yaw);
+    const open = this.cooler.burst;
+    const colliders = coolerColliders(open);
     // One idle step settles a reconnecting player's hint: out of counters, inside the walls, on the floor.
-    stepPlayer(state, { keys: 0, yaw: state.yaw, pitch: 0 });
-    // A hint wedged between fixtures (or from an older world) can fail to settle; use a fresh spot.
-    if (isInsideCollider(state)) {
+    stepPlayer(state, { keys: 0, yaw: state.yaw, pitch: 0 }, colliders);
+    // A hint wedged between fixtures (or from an older world), or in a cooler shut since, can fail
+    // to settle; use a fresh spot.
+    if (isInsideCollider(state, colliders) || !inPlayArea(state.x, state.z, open)) {
       const fresh = this.nextSpawn();
       state = createPlayerState(fresh.x, fresh.z, fresh.yaw);
     }
@@ -162,6 +181,7 @@ export class Room {
       lastThrowSeq: -Infinity,
       lastPunchSeq: -Infinity,
       armed: true,
+      coolerFrom: this.cooler.burst ? 0 : Infinity,
       history: new PositionHistory(),
       prefs: { ...(joining.prefs ?? DEFAULT_PREFS) },
       send: joining.send,
@@ -261,7 +281,8 @@ export class Room {
         player.idleTicks++;
         if (player.idleTicks > IDLE_STEP_AFTER_TICKS) {
           const s = player.state;
-          stepPlayer(s, { keys: 0, yaw: s.yaw, pitch: s.pitch });
+          const open = this.cooler.isOpenAt(this.tick);
+          stepPlayer(s, { keys: 0, yaw: s.yaw, pitch: s.pitch }, coolerColliders(open));
           player.credit = 0;
         }
         continue;
@@ -276,7 +297,10 @@ export class Room {
       const s = player.state;
       player.history.record(this.tick, s.x, s.y, s.z);
     }
-    for (const event of this.knives.step(this.tick, this.hittable())) this.onKnife(event);
+    const coolerOpen = this.cooler.isOpenAt(this.tick);
+    for (const event of this.knives.step(this.tick, this.hittable(), coolerOpen)) {
+      this.onKnife(event);
+    }
     this.respawnDue();
     if (this.players.size === 0 || this.tick % SNAPSHOT_EVERY_TICKS !== 0) return;
     this.broadcast({
@@ -289,7 +313,11 @@ export class Room {
   /** Simulate one input. A knocked-out player only falls; a standing one may throw or punch. */
   private apply(player: RoomPlayer, input: QueuedInput): void {
     const dead = player.deadUntil !== null;
-    stepPlayer(player.state, dead ? { keys: 0, yaw: input.yaw, pitch: input.pitch } : input);
+    stepPlayer(
+      player.state,
+      dead ? { keys: 0, yaw: input.yaw, pitch: input.pitch } : input,
+      coolerColliders(input.seq >= player.coolerFrom),
+    );
     player.lastSeq = input.seq;
     player.armed = (input.keys & Keys.Armed) !== 0;
     const cooledDown = input.seq - player.lastThrowSeq >= KNIFE_COOLDOWN_INPUTS;
@@ -302,7 +330,37 @@ export class Room {
     if (!dead && !player.armed && input.keys & Keys.Punch && rested) {
       player.lastPunchSeq = input.seq;
       this.broadcast({ t: 'punch', id: player.id }, player.id);
+      // From the eye after this step, as the puncher's screen predicts it.
+      const s = player.state;
+      const on = punchOnCoolerDoor(s.x, s.y + EYE_HEIGHT, s.z, s.yaw, s.pitch);
+      if (on) this.hitCooler(player.id, { ...on, by: 'fist' });
     }
+  }
+
+  /**
+   * Someone hit the walk-in's door: everyone hears where, to dent it there. The hit that bursts it
+   * tells each player which of their inputs first sees the doorway open, a little ahead of the
+   * newest the server has, so their prediction agrees with the server and nobody is corrected.
+   */
+  private hitCooler(from: number, dent: CoolerDent, knife?: { id: number; at: number }): void {
+    if (!this.cooler.hit(dent, this.tick)) return;
+    const message: CoolerHitMessage = { t: 'cooler', from, dent };
+    if (knife) message.knife = knife;
+    if (!this.cooler.burst) {
+      this.broadcast(message);
+      return;
+    }
+    for (const player of this.players.values()) {
+      const newest =
+        player.queue.length > 0 ? player.queue[player.queue.length - 1]!.seq : player.lastSeq;
+      player.coolerFrom = Math.max(0, newest + COOLER_OPEN_DELAY_INPUTS);
+      player.send(encode({ ...message, openFrom: player.coolerFrom }));
+    }
+  }
+
+  /** The walk-in's door, for a newcomer's welcome. */
+  coolerState(): CoolerState {
+    return this.cooler.state();
   }
 
   /** The knife leaves the eye, after this input's step, exactly as the thrower's client predicts. */
@@ -340,6 +398,9 @@ export class Room {
   private onKnife(event: KnifeEvent): void {
     if (event.kind === 'stuck') {
       this.broadcast({ t: 'stuck', knife: event.knife, at: event.at });
+      const { x, y, z, id } = event.knife;
+      const on = knifeInCoolerDoor(x, y, z);
+      if (on) this.hitCooler(event.from, { ...on, by: 'knife' }, { id, at: event.at });
       return;
     }
     const victim = this.players.get(event.to);

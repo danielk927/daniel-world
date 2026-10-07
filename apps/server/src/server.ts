@@ -4,8 +4,7 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import {
   DEFAULT_ROOM,
   MAX_PLAYERS_PER_ROOM,
-  PLAY_HALF_X,
-  PLAY_HALF_Z,
+  PLAY_BOUNDS,
   PROTOCOL_VERSION,
   TICK_MS,
   TICK_RATE,
@@ -97,8 +96,9 @@ function clampSpawn(spawn: { x: number; z: number; yaw: number }): {
   z: number;
   yaw: number;
 } {
-  const x = Math.min(PLAY_HALF_X, Math.max(-PLAY_HALF_X, spawn.x));
-  const z = Math.min(PLAY_HALF_Z, Math.max(-PLAY_HALF_Z, spawn.z));
+  // The room checks the spot is somewhere a player may stand (the cooler only once it is open).
+  const x = Math.min(PLAY_BOUNDS.maxX, Math.max(PLAY_BOUNDS.minX, spawn.x));
+  const z = Math.min(PLAY_BOUNDS.maxZ, Math.max(PLAY_BOUNDS.minZ, spawn.z));
   return { x, z, yaw: spawn.yaw };
 }
 
@@ -247,6 +247,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       players: room.playerList(),
       self: room.snapshotOf(player),
       knives: room.stuckKnives(),
+      cooler: room.coolerState(),
     });
     log(`${name} (#${player.id}) joined ${code} (${room.visitors} visitors)`);
   };

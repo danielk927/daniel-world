@@ -62,7 +62,13 @@ interface Flying {
 }
 
 export type KnifeEvent =
-  | { readonly kind: 'stuck'; readonly knife: StuckKnife; readonly at: number }
+  | {
+      readonly kind: 'stuck';
+      readonly knife: StuckKnife;
+      readonly at: number;
+      /** Who threw it. */
+      readonly from: number;
+    }
   | {
       readonly kind: 'kill';
       readonly knife: number;
@@ -103,8 +109,9 @@ export class RoomKnives {
   /**
    * Fly every knife one tick. `candidates` are the players who can be hit right now; each knife is
    * checked against where its thrower saw them. Knives that land or hit someone are reported.
+   * `coolerOpen`: the walk-in's doorway lets knives through.
    */
-  step(tick: number, candidates: readonly KnifeCandidate[]): KnifeEvent[] {
+  step(tick: number, candidates: readonly KnifeCandidate[], coolerOpen = false): KnifeEvent[] {
     const events: KnifeEvent[] = [];
     for (let i = 0; i < this.flying.length; i++) {
       const knife = this.flying[i]!;
@@ -113,6 +120,7 @@ export class RoomKnives {
         TICK_SECONDS,
         this.targetsFor(knife, tick, candidates),
         knife.from,
+        coolerOpen,
       );
       if (impact) {
         events.push(this.land(knife, impact));
@@ -159,6 +167,6 @@ export class RoomKnives {
     };
     this.stuck.push(stuck);
     if (this.stuck.length > KNIFE_MAX_STUCK) this.stuck.shift();
-    return { kind: 'stuck', knife: stuck, at: impact.t };
+    return { kind: 'stuck', knife: stuck, at: impact.t, from: knife.from };
   }
 }
