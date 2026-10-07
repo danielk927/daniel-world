@@ -187,7 +187,6 @@ function lobby(cooks: { x: number; chef: boolean; walk: (tick: number) => number
   const chef = new Chef(room, 1, createRandom(seed));
   room.onKnockout = (from, to) => {
     if (from === chef.player.id) chef.onKnockout(to);
-    if (to === chef.player.id) chef.onKnockedOut(from);
   };
   const joined: Cook[] = cooks.map((c, i) => ({
     player: room.add({
@@ -235,7 +234,7 @@ describe('Chef Skinner, for a cook who has turned him off', () => {
     expect(l.fromChef('chat')).toEqual([]);
   });
 
-  it('still throws at everyone else, and his knives pass through them', () => {
+  it('still throws at everyone else, and his knives pass through them on the way', () => {
     const l = lobby([
       { x: 0, chef: false, walk: pacing },
       { x: 3.5, chef: true, walk: pacing },
@@ -263,14 +262,5 @@ describe('Chef Skinner, for a cook who has turned him off', () => {
     l.steps(WIND_UP_TICKS + seconds(30));
     expect(l.fromChef('knife').length).toBe(thrown);
     expect(l.targets).toEqual(new Set([cook.id]));
-  });
-
-  it('keeps quiet when one of them knocks him out', () => {
-    const quiet = lobby([{ x: 0, chef: false, walk: () => 0 }]);
-    for (let i = 0; i < 10; i++) quiet.chef.onKnockedOut(quiet.cooks[0]!.id);
-    expect(quiet.fromChef('chat')).toEqual([]);
-    const loud = lobby([{ x: 0, chef: true, walk: () => 0 }]);
-    for (let i = 0; i < 10; i++) loud.chef.onKnockedOut(loud.cooks[0]!.id);
-    expect(loud.fromChef('chat')).toHaveLength(1);
   });
 });

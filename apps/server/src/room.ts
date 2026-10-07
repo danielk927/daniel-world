@@ -12,6 +12,7 @@ import {
   MAX_PLAYERS_PER_ROOM,
   NAME_MAX_LENGTH,
   DEFAULT_PREFS,
+  samePrefs,
   createPlayerState,
   isInsideCollider,
   spawnPoint,
@@ -192,9 +193,24 @@ export class Room {
   }
 
   info(player: RoomPlayer): PlayerInfo {
-    const info: PlayerInfo = { id: player.id, name: player.name, color: player.color };
+    const info: PlayerInfo = {
+      id: player.id,
+      name: player.name,
+      color: player.color,
+      prefs: { ...player.prefs },
+    };
     if (player.resident) info.resident = true;
     return info;
+  }
+
+  /**
+   * A player changed their prefs. Everything reads them fresh each tick (Chef Skinner's targeting,
+   * knife hits), so they apply at once; everyone is told, to replay knives the same way.
+   */
+  setPrefs(player: RoomPlayer, prefs: Readonly<Prefs>): void {
+    if (samePrefs(player.prefs, prefs)) return;
+    player.prefs = { ...prefs };
+    this.broadcast({ t: 'prefs', id: player.id, prefs: { ...prefs } });
   }
 
   playerList(): PlayerInfo[] {
@@ -295,7 +311,7 @@ export class Room {
     const s = player.state;
     const knife = launchKnife(s.x, s.y + EYE_HEIGHT, s.z, input.yaw, input.pitch);
     const rewind = input.view === undefined ? 0 : this.tick - input.view;
-    const id = this.knives.launch(player.id, knife, rewind, player.resident);
+    const id = this.knives.launch(player, knife, rewind);
     this.broadcast({
       t: 'knife',
       id,

@@ -4,11 +4,12 @@ import {
   MAX_REWIND_MS,
   TICK_MS,
   TICK_SECONDS,
+  chefSpares,
   flyKnife,
+  type Cook,
   type KnifeImpact,
   type KnifeState,
   type KnifeTarget,
-  type Prefs,
   type StuckKnife,
 } from '@world/shared';
 
@@ -45,21 +46,19 @@ export class PositionHistory {
 }
 
 /** A player a knife could hit this tick, with where the thrower saw them. */
-export interface KnifeCandidate {
+export interface KnifeCandidate extends Cook {
   readonly id: number;
   readonly history: PositionHistory;
-  /** With `chef` off, the resident's knives pass through them. */
-  readonly prefs: Readonly<Prefs>;
 }
 
 interface Flying {
   readonly id: number;
   readonly from: number;
+  /** Who threw it, as they are now: their prefs can change mid-flight. */
+  readonly thrower: Cook;
   readonly state: KnifeState;
   /** How far back the thrower was seeing everyone else, in ticks. */
   readonly rewind: number;
-  /** Thrown by the room's resident (Chef Skinner). */
-  readonly resident: boolean;
 }
 
 export type KnifeEvent =
@@ -84,14 +83,11 @@ export class RoomKnives {
   private readonly pool: { id: number; x: number; y: number; z: number }[] = [];
   private readonly targets: KnifeTarget[] = [];
 
-  /**
-   * Start a knife's flight. Returns its id. `rewind` is clamped to what the server allows. A
-   * `resident`'s knife passes through anyone who has turned him off.
-   */
-  launch(from: number, state: KnifeState, rewind: number, resident = false): number {
+  /** Start a knife's flight. Returns its id. `rewind` is clamped to what the server allows. */
+  launch(thrower: Cook & { readonly id: number }, state: KnifeState, rewind: number): number {
     const id = this.nextId++;
     const ticks = Math.max(0, Math.min(MAX_REWIND_TICKS, Math.round(rewind)));
-    this.flying.push({ id, from, state, rewind: ticks, resident });
+    this.flying.push({ id, from: thrower.id, thrower, state, rewind: ticks });
     return id;
   }
 
@@ -129,7 +125,7 @@ export class RoomKnives {
     return events;
   }
 
-  /** Who `knife` can hit, where its thrower saw them. */
+  /** Who `knife` can hit, where its thrower saw them; never someone it spares (`chefSpares`). */
   private targetsFor(
     knife: Flying,
     tick: number,
@@ -138,7 +134,7 @@ export class RoomKnives {
     const { pool, targets } = this;
     targets.length = 0;
     for (const candidate of candidates) {
-      if (knife.resident && !candidate.prefs.chef) continue;
+      if (chefSpares(knife.thrower, candidate)) continue;
       if (pool.length === targets.length) pool.push({ id: 0, x: 0, y: 0, z: 0 });
       const target = pool[targets.length]!;
       target.id = candidate.id;

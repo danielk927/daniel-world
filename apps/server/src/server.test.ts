@@ -345,8 +345,15 @@ describe('Chef Skinner in the lobby', () => {
     const welcome = await a.join('Alice', 'lobby', { prefs: { chef: false } });
     const prefs = () => server.rooms.get('lobby')!.players.get(welcome.id)!.prefs;
     expect(prefs()).toEqual({ chef: false });
+    // Everyone knows, so every screen replays his knives as the server flies them.
+    const b = client();
+    const bWelcome = await b.join('Bob');
+    const alice = bWelcome.players.find((p) => p.id === welcome.id)!;
+    expect(alice.prefs).toEqual({ chef: false });
     a.send({ t: 'prefs', prefs: { chef: true } });
     await a.waitFor(() => prefs().chef);
+    const told = await b.waitForMessage('prefs');
+    expect(told).toEqual({ t: 'prefs', id: welcome.id, prefs: { chef: true } });
     // Nonsense is dropped, and the choice stands.
     a.send({ t: 'prefs', prefs: { chef: 'off' } });
     a.send({ t: 'prefs' });
@@ -354,9 +361,13 @@ describe('Chef Skinner in the lobby', () => {
     await a.waitForMessage('pong');
     expect(prefs()).toEqual({ chef: true });
     expect(a.closeCode).toBeNull();
-    // A hello without prefs (an older client) gets him as he comes.
-    const b = await client().join('Bob');
-    expect(server.rooms.get('lobby')!.players.get(b.id)!.prefs).toEqual({ chef: true });
+    // Saying the same again is not news.
+    a.send({ t: 'prefs', prefs: { chef: true } });
+    a.send({ t: 'ping', id: 2 });
+    await a.waitForMessage('pong', (m) => m.id === 2);
+    expect(b.messages.filter((m) => m.t === 'prefs')).toHaveLength(1);
+    // A hello without prefs gets him as he comes.
+    expect(server.rooms.get('lobby')!.players.get(bWelcome.id)!.prefs).toEqual({ chef: true });
   });
 
   it('takes the choice in a private room too, where he is not', async () => {

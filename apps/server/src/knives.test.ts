@@ -144,6 +144,18 @@ describe('knives', () => {
     expect(received(cook.id, 'kill').map((k) => k.from)).toEqual([visitor.id, chef.id]);
   });
 
+  it('passes the knives of a cook who has turned him off through the resident too', () => {
+    const { join, input, steps, received } = setup();
+    const cook = join(0, 5.6);
+    const chef = join(0, 3.2, { resident: true });
+    cook.prefs = { chef: false };
+    input(cook, { throwKnife: true, pitch: -0.1 });
+    steps(FLIGHT);
+    expect(received(cook.id, 'kill')).toHaveLength(0);
+    expect(received(cook.id, 'stuck')).toHaveLength(1);
+    expect(chef.deadUntil).toBeNull();
+  });
+
   it('sticks knives where they land and keeps only the newest for newcomers', () => {
     const { room, join, input, steps, received } = setup();
     const a = join(0, 2.6);

@@ -23,7 +23,7 @@ import type { Room, RoomPlayer } from './room.ts';
  * turns to face them (long enough to see it coming), and throws, leading his target and not quite
  * perfectly. He leaves alone anyone who just arrived, and anyone standing still: a visitor reading
  * about a station is safe. A visitor can turn him off for themselves (`prefs.chef`): he never picks
- * them, gives up on them mid wind-up, keeps quiet about them, and his knives pass through them.
+ * them and gives up on them mid wind-up, and his knives and theirs pass through each other.
  */
 
 export const CHEF_NAME = 'Chef Skinner';
@@ -123,15 +123,13 @@ export interface Aim {
 
 /**
  * The throw from `eye` that hits `target` (by its feet) if it keeps moving at its velocity, or
- * null if it is out of reach or something is in the way. Checked by flying the knife; `bystanders`
- * are cooks it must not pass through on the way, where they stand now.
+ * null if it is out of reach or something is in the way. Checked by flying the knife.
  */
 export function aimAt(
   eye: { x: number; y: number; z: number },
   target: { x: number; y: number; z: number; vx: number; vz: number },
   thrower: number,
   id: number,
-  bystanders: readonly KnifeTarget[] = [],
 ): Aim | null {
   // Lead the target by the flight time, refined twice: the time depends on where it ends up.
   let x = target.x;
@@ -158,8 +156,8 @@ export function aimAt(
   // Fly it: anything between them (a counter, the hood) stops the knife first.
   const knife = launchKnife(eye.x, eye.y, eye.z, aim.yaw, aim.pitch);
   const at: KnifeTarget = { id, x, y: target.y, z };
-  const impact = flyKnife(knife, KNIFE_MAX_FLIGHT_SECONDS, [at, ...bystanders], thrower);
-  return impact?.kind === 'player' && impact.id === id ? aim : null;
+  const impact = flyKnife(knife, KNIFE_MAX_FLIGHT_SECONDS, [at], thrower);
+  return impact?.kind === 'player' ? aim : null;
 }
 
 type Plan =
@@ -210,9 +208,8 @@ export class Chef {
     if (victim !== this.player.id && this.random() < 0.6) this.say(LINES_ON_HIT);
   }
 
-  /** Someone has knocked him out. He has nothing to say to a cook who has turned him off. */
-  onKnockedOut(by: number): void {
-    if (this.room.players.get(by)?.prefs.chef === false) return;
+  /** Someone has knocked him out. */
+  onKnockedOut(): void {
     if (this.random() < 0.7) this.say(LINES_ON_KNOCKED_OUT);
   }
 
@@ -353,20 +350,7 @@ export class Chef {
   private aim(victim: RoomPlayer): Aim | null {
     const s = this.player.state;
     const eye = { x: s.x, y: s.y + EYE_HEIGHT, z: s.z };
-    return aimAt(eye, victim.state, this.player.id, victim.id, this.bystanders());
-  }
-
-  /**
-   * Standing cooks who have turned him off. His knives would pass through them, so he does not
-   * throw through one: on everyone else's screen it would vanish into them.
-   */
-  private bystanders(): KnifeTarget[] {
-    const out: KnifeTarget[] = [];
-    for (const p of this.room.players.values()) {
-      if (p.prefs.chef || p.resident || p.deadUntil !== null) continue;
-      out.push({ id: p.id, x: p.state.x, y: p.state.y, z: p.state.z });
-    }
-    return out;
+    return aimAt(eye, victim.state, this.player.id, victim.id);
   }
 
   private turnTo(yaw: number, pitch: number): void {

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_KEYS, Keys, MAX_PLAYERS_PER_ROOM, PLAYER_COLORS } from './constants.ts';
-import { encode, parseClientMessage, parseServerMessage } from './protocol.ts';
+import {
+  chefSpares,
+  encode,
+  parseClientMessage,
+  parseServerMessage,
+  samePrefs,
+} from './protocol.ts';
 
 describe('parseClientMessage', () => {
   it('accepts valid messages', () => {
@@ -117,8 +123,9 @@ describe('parseServerMessage', () => {
     ).toBeNull();
   });
 
-  it("marks the room's resident, and nobody else", () => {
-    const chef = { id: 1, name: 'Chef Skinner', color: '#ffffff', resident: true as const };
+  it("marks the room's resident, and tells everyone each cook's prefs", () => {
+    const prefs = { chef: true };
+    const chef = { id: 1, name: 'Chef Skinner', color: '#ffffff', resident: true as const, prefs };
     expect(parseServerMessage(encode({ t: 'join', player: chef }))).toEqual({
       t: 'join',
       player: chef,
@@ -126,6 +133,11 @@ describe('parseServerMessage', () => {
     expect(
       parseServerMessage(JSON.stringify({ t: 'join', player: { ...chef, resident: false } })),
     ).toBeNull();
+    const withoutPrefs = { id: 1, name: 'Chef Skinner', color: '#ffffff', resident: true };
+    expect(parseServerMessage(JSON.stringify({ t: 'join', player: withoutPrefs }))).toBeNull();
+    const changed = { t: 'prefs', id: 4, prefs: { chef: false } } as const;
+    expect(parseServerMessage(encode(changed))).toEqual(changed);
+    expect(parseServerMessage('{"t":"prefs","id":4,"prefs":{"chef":"no"}}')).toBeNull();
   });
 
   it('rejects malformed colors', () => {
@@ -134,6 +146,29 @@ describe('parseServerMessage', () => {
         '{"t":"join","player":{"id":1,"name":"a","color":"red; background:url(x)"}}',
       ),
     ).toBeNull();
+  });
+});
+
+describe('Chef Skinner and a cook who has turned him off', () => {
+  const chef = { resident: true, prefs: { chef: true } };
+  const off = { prefs: { chef: false } };
+  const on = { prefs: { chef: true } };
+
+  it("are out of each other's game, both ways", () => {
+    expect(chefSpares(chef, off)).toBe(true);
+    expect(chefSpares(off, chef)).toBe(true);
+  });
+
+  it('leave everyone else as they were', () => {
+    expect(chefSpares(chef, on)).toBe(false);
+    expect(chefSpares(on, chef)).toBe(false);
+    expect(chefSpares(off, on)).toBe(false);
+    expect(chefSpares(off, off)).toBe(false);
+  });
+
+  it('are told apart by every pref', () => {
+    expect(samePrefs({ chef: true }, { chef: true })).toBe(true);
+    expect(samePrefs({ chef: true }, { chef: false })).toBe(false);
   });
 });
 
