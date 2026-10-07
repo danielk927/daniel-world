@@ -87,6 +87,7 @@ function still(out: ArmPose): void {
   out.flip = 0;
   out.a = 0;
   out.b = 0;
+  out.hang = 0;
 }
 
 /** Move `to` back toward `from`, by less as `t` runs from 0 to 1. */
@@ -103,6 +104,7 @@ function blend(from: ArmPose, to: ArmPose, t: number): void {
   to.flip += turn(from.flip, to.flip) * k;
   to.a += turn(from.a, to.a) * k;
   to.b += turn(from.b, to.b) * k;
+  to.hang += (from.hang - to.hang) * k;
 }
 
 const KITCHEN = knifeMoves('kitchen');
@@ -246,6 +248,8 @@ export class Viewmodel {
   /** The knife's moving parts, each turned by a pose channel. */
   private joints: { readonly group: Group; readonly joint: Joint }[] = [];
   private current: KnifeModel = knifeModel(DEFAULT_LOOK.skin);
+  /** From the grip to the pivot, in the knife's space: how far it slides to hang from its ring. */
+  private readonly toPivot = new Vector3();
   private currentLook: KnifeLook = DEFAULT_LOOK;
   private moves: KnifeMoves = KITCHEN;
   private readonly skin = new MeshStandardMaterial({
@@ -293,6 +297,7 @@ export class Viewmodel {
     flip: 0,
     a: 0,
     b: 0,
+    hang: 0,
   };
   /** Where an interrupted inspect was, blended away from over INTERRUPT_BLEND. */
   private readonly interrupted: ArmPose = { ...this.pose };
@@ -420,7 +425,8 @@ export class Viewmodel {
     // The grip at the holder's origin; turned end over end about the pivot.
     const [gz, gy] = model.grip;
     const [pz, py] = model.pivot;
-    this.flipper.position.set(0, py - gy, pz - gz);
+    this.toPivot.set(0, py - gy, pz - gz);
+    this.flipper.position.copy(this.toPivot);
     this.model.position.set(0, -py, -pz);
   }
 
@@ -650,6 +656,7 @@ export class Viewmodel {
     // The knife turns about its length (toward its tip), end over end about its pivot, and opens.
     this.spinner.rotation.set(0, 0, -pose.spin);
     this.flipper.rotation.set(pose.flip, 0, 0);
+    this.flipper.position.copy(this.toPivot).multiplyScalar(1 - pose.hang);
     for (const { group, joint } of this.joints) {
       group.rotation.x = joint.sign * (joint.channel === 'a' ? pose.a : pose.b);
     }

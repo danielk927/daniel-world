@@ -35,10 +35,27 @@ export interface ArmPose {
   /** The knife's own moving parts: a folding blade, a butterfly's blade and its free handle. */
   a: number;
   b: number;
+  /**
+   * How far the knife has slid from being gripped by its handle (0) to hanging from its pivot (1),
+   * as a knife spun on a finger through its ring hangs from the ring.
+   */
+  hang: number;
 }
 
 /** Every channel a clip can key, in the order they are stored. */
-export const CHANNELS = ['x', 'y', 'z', 'rx', 'ry', 'rz', 'spin', 'flip', 'a', 'b'] as const;
+export const CHANNELS = [
+  'x',
+  'y',
+  'z',
+  'rx',
+  'ry',
+  'rz',
+  'spin',
+  'flip',
+  'a',
+  'b',
+  'hang',
+] as const;
 export type Channel = (typeof CHANNELS)[number];
 /** Channels that turn something, which wrap: a whole turn is the same as none. */
 const TURNS: readonly Channel[] = ['spin', 'flip', 'a', 'b'];
@@ -199,7 +216,19 @@ interface MoveKeys {
 /** The draw's first key: below the screen. */
 const DOWN = { t: 0, x: 0, y: LOWERED.y, z: 0, rx: LOWERED.rx, ry: 0, rz: 0 } as const;
 /** At rest, with the knife as it rests in the hand. */
-const REST = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, spin: 0, flip: 0, a: 0, b: 0 } as const;
+const REST = {
+  x: 0,
+  y: 0,
+  z: 0,
+  rx: 0,
+  ry: 0,
+  rz: 0,
+  spin: 0,
+  flip: 0,
+  a: 0,
+  b: 0,
+  hang: 0,
+} as const;
 
 const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   // The chef's knife: up from below with a snap, and a long look turning it over (DECISIONS.md).
@@ -236,25 +265,23 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      // Turn the wrist over to show the claw.
-      { t: 0.45, x: -0.06, y: 0.06, z: 0.03, rx: -0.15, ry: 0.35, rz: 0.9, spin: 0.3 },
-      { t: 1.0, x: -0.065, y: 0.065, z: 0.035, rx: -0.2, ry: 0.4, rz: 1.0, spin: 0.45 },
-      // Two spins round the ring.
+      // Swing the claw up over the ring and hold it up to the light...
+      { t: 0.5, x: -0.04, y: 0.05, z: 0.01, rx: -0.1, ry: 0.1, rz: 0.15, flip: -PI },
+      { t: 1.15, x: -0.045, y: 0.056, rx: -0.15, ry: 0.24, rz: 0.32, flip: -PI - 0.14 },
+      // ...then let it spin twice round the finger, and catch it.
       {
-        t: 1.25,
-        x: -0.03,
-        y: 0.04,
-        z: 0,
-        rx: 0,
+        t: 1.35,
+        x: -0.035,
+        y: 0.045,
+        rx: -0.05,
         ry: 0.1,
-        rz: 0.3,
-        spin: 0,
-        flip: -0.6,
+        rz: 0.15,
+        flip: -PI - 0.7,
         knifeEase: 'in',
       },
-      { t: 1.95, flip: -TAU * 2 + 0.2, ease: 'smooth', knifeEase: 'linear' },
-      { t: 2.2, x: -0.02, y: 0.03, rz: 0.2, flip: -TAU * 2, knifeEase: 'out' },
-      { t: 2.9, ...REST, flip: -TAU * 2 },
+      { t: 2.0, flip: -PI - TAU * 2 + 0.3, knifeEase: 'linear' },
+      { t: 2.25, x: -0.03, y: 0.04, flip: -PI - TAU * 2, knifeEase: 'out' },
+      { t: 2.95, ...REST, flip: -TAU * 3 },
     ],
   },
 
@@ -277,20 +304,20 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.35, x: -0.04, y: 0.05, z: 0.02, rx: -0.1, rz: 0.5, ease: 'smooth' },
-      // Close it: the free handle comes round over the blade, then the blade folds in.
-      { t: 0.6, b: PI, knifeEase: 'in' },
-      { t: 0.85, a: PI, b: PI, rz: 0.3, knifeEase: 'out' },
-      // Open again with a spin of the wrist.
-      { t: 1.15, a: 0, spin: PI, rz: 0.7, knifeEase: 'in' },
-      { t: 1.4, b: 0, spin: TAU, knifeEase: 'out' },
-      // An aerial: the whole knife twirls about the grip.
-      { t: 1.65, x: -0.05, y: 0.09, flip: 0 },
-      { t: 2.15, x: -0.05, y: 0.11, flip: -TAU, knifeEase: 'smooth' },
-      // A look along the open blade.
-      { t: 2.6, x: -0.07, y: 0.07, z: 0.04, rx: -0.15, ry: 0.2, rz: 1.15, spin: TAU + PI / 2 },
-      { t: 3.2, x: -0.072, y: 0.072, rz: 1.2, spin: TAU + PI / 2 + 0.1 },
-      { t: 3.8, ...REST, flip: -TAU, spin: TAU * 2 },
+      { t: 0.35, x: -0.07, y: 0.08, z: 0.02, rx: -0.12, rz: 0.35 },
+      // Closed: the free handle swings round over the edge, then the blade folds into the grip.
+      { t: 0.58, b: PI, knifeEase: 'in' },
+      { t: 0.78, a: PI, b: PI, rz: 0.2, knifeEase: 'out' },
+      // Open again as the wrist turns over: the blade swings out, then the handle comes home.
+      { t: 1.02, x: -0.075, y: 0.085, a: 0, spin: PI, rz: 0.5, knifeEase: 'in' },
+      { t: 1.24, b: 0, spin: TAU, knifeEase: 'out' },
+      // An aerial: the whole knife tossed round the grip once.
+      { t: 1.45, x: -0.07, y: 0.09, rz: 0.3, flip: 0 },
+      { t: 1.95, x: -0.07, y: 0.12, rz: 0.2, flip: -TAU, knifeEase: 'smooth' },
+      // And a look along the open blade.
+      { t: 2.45, x: -0.07, y: 0.07, z: 0.04, rx: -0.15, ry: 0.2, rz: 1.05, spin: TAU + PI / 2 },
+      { t: 3.05, x: -0.072, y: 0.072, rz: 1.12, spin: TAU + PI / 2 + 0.1 },
+      { t: 3.65, ...REST, flip: -TAU, spin: TAU * 2 },
     ],
   },
 
@@ -481,9 +508,10 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   // The talon spins on its ring the other way from the karambit, and is turned to show the claw.
   talon: {
     draw: [
-      { ...DOWN, flip: TAU * 1.5 },
-      { t: 0.28, y: -0.04, rx: 0.1, flip: TAU * 0.4, ease: 'out', knifeEase: 'linear' },
-      { t: 0.66, ...REST, flip: 0, knifeEase: 'out' },
+      // Spun up hanging from its ring, then caught by the handle.
+      { ...DOWN, flip: TAU * 1.5, hang: 1 },
+      { t: 0.3, y: -0.02, rx: 0.06, flip: TAU * 0.35, ease: 'out', knifeEase: 'linear' },
+      { t: 0.66, ...REST, flip: 0, hang: 0, knifeEase: 'out' },
     ],
     idle: [
       { t: 0, ...REST },
@@ -494,21 +522,35 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
+      // Turned over to show the claw...
       { t: 0.45, x: -0.06, y: 0.06, z: 0.03, rx: -0.15, ry: 0.3, rz: 0.85, spin: 0.25 },
       { t: 1.05, x: -0.064, y: 0.064, ry: 0.36, rz: 0.95, spin: 0.4 },
-      { t: 1.3, x: -0.03, y: 0.045, rx: 0, ry: 0.1, rz: 0.3, spin: 0, flip: 0.5, knifeEase: 'in' },
-      { t: 1.85, flip: TAU * 1.5, knifeEase: 'linear' },
-      { t: 2.15, x: -0.02, y: 0.03, rz: 0.15, flip: TAU * 2, knifeEase: 'out' },
-      { t: 2.8, ...REST, flip: TAU * 2 },
+      // ...then let slide to hang from the ring, spun twice round the finger, and caught.
+      {
+        t: 1.35,
+        x: -0.04,
+        y: 0.07,
+        rx: -0.05,
+        ry: 0.1,
+        rz: 0.3,
+        spin: 0,
+        flip: 0.5,
+        hang: 1,
+        knifeEase: 'in',
+      },
+      { t: 1.95, flip: TAU * 1.5, knifeEase: 'linear' },
+      { t: 2.25, x: -0.03, y: 0.05, rz: 0.15, flip: TAU * 2, knifeEase: 'out' },
+      { t: 2.85, ...REST, flip: TAU * 2 },
     ],
   },
 
   // The skeleton knife spins on the loop at its butt.
   skeleton: {
     draw: [
-      { ...DOWN, flip: -TAU },
-      { t: 0.3, y: -0.03, rx: 0.08, flip: -1.2, knifeEase: 'linear' },
-      { t: 0.6, ...REST, ease: 'back', knifeEase: 'out' },
+      // Spun up on the finger through its loop, then caught by the handle.
+      { ...DOWN, flip: -TAU, hang: 1 },
+      { t: 0.3, y: -0.02, rx: 0.06, flip: -1.2, knifeEase: 'linear' },
+      { t: 0.62, ...REST, hang: 0, ease: 'back', knifeEase: 'out' },
     ],
     idle: [
       { t: 0, ...REST },
@@ -521,11 +563,21 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 0, ...REST },
       { t: 0.45, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, rz: 1.2, spin: PI / 2 },
       { t: 1.05, x: -0.074, y: 0.072, rz: 1.26, spin: PI / 2 + 0.1 },
-      // Round the finger through its loop, twice.
-      { t: 1.3, x: -0.03, y: 0.04, rx: 0, rz: 0.3, spin: 0, flip: -0.5, knifeEase: 'in' },
-      { t: 1.9, flip: -TAU * 1.6, knifeEase: 'linear' },
-      { t: 2.2, flip: -TAU * 2, knifeEase: 'out' },
-      { t: 2.8, ...REST, flip: -TAU * 2 },
+      // Round the finger through its loop, twice, and caught.
+      {
+        t: 1.35,
+        x: -0.04,
+        y: 0.07,
+        rx: -0.05,
+        rz: 0.3,
+        spin: 0,
+        flip: -0.5,
+        hang: 1,
+        knifeEase: 'in',
+      },
+      { t: 1.95, flip: -TAU * 1.6, knifeEase: 'linear' },
+      { t: 2.25, x: -0.03, y: 0.05, flip: -TAU * 2, knifeEase: 'out' },
+      { t: 2.85, ...REST, flip: -TAU * 2 },
     ],
   },
 

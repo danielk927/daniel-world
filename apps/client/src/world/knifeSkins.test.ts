@@ -27,6 +27,7 @@ const blank = (): ArmPose => ({
   flip: 0,
   a: 0,
   b: 0,
+  hang: 0,
 });
 const ARM: readonly Channel[] = ['x', 'y', 'z', 'rx', 'ry', 'rz'];
 const TURNS: readonly Channel[] = ['spin', 'flip', 'a', 'b'];

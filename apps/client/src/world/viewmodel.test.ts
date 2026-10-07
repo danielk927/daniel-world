@@ -25,6 +25,7 @@ const blank = (): ArmPose => ({
   flip: 0,
   a: 0,
   b: 0,
+  hang: 0,
 });
 const keys = ['x', 'y', 'z', 'rx', 'ry', 'rz'] as const;
 
