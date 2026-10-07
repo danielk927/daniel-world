@@ -127,12 +127,12 @@ const FADE: readonly (readonly [number, Rgb])[] = [
   [1, hex('#f3d65a')],
 ];
 const DOPPLER: readonly (readonly [number, Rgb])[] = [
-  [0, hex('#08060c')],
-  [0.34, hex('#231033')],
-  [0.52, hex('#6a1b5a')],
-  [0.7, hex('#d0306f')],
-  [0.86, hex('#f27aa6')],
-  [1, hex('#ffd0e0')],
+  [0, hex('#0c0712')],
+  [0.24, hex('#36113d')],
+  [0.44, hex('#981d5a')],
+  [0.64, hex('#de3d7b')],
+  [0.84, hex('#f48db5')],
+  [1, hex('#ffdcea')],
 ];
 const MARBLE: readonly Rgb[] = [hex('#d8242b'), hex('#f6c22f'), hex('#2d6fe0'), hex('#f6c22f')];
 const TIGER = hex('#f0a21c');
@@ -154,7 +154,7 @@ function webDistance(x: number, y: number, cx: number, cy: number, seed: number)
   const dx = x - cx;
   const dy = y - cy;
   const r = Math.hypot(dx, dy);
-  const spokes = 11;
+  const spokes = 9;
   const angle = Math.atan2(dy, dx) + Math.PI;
   const sector = (angle / (Math.PI * 2)) * spokes;
   const k = Math.floor(sector);
@@ -170,7 +170,7 @@ function webDistance(x: number, y: number, cx: number, cy: number, seed: number)
   // Rings sag between spokes, a little further apart outward.
   const f = fract(sector);
   const sag = 1 + 0.12 * Math.sin(f * Math.PI);
-  const spacing = 0.2;
+  const spacing = 0.28;
   const ring = (r * sag) / spacing;
   const toRing = Math.abs(fract(ring + 0.5) - 0.5) * spacing;
   return r < 0.04 ? 0 : Math.min(toSpoke, toRing);
@@ -188,9 +188,10 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
     paint(u, v, out) {
       const x = u * ASPECT;
       // Folded steel: flowing bands of light and dark, pulled about by the forging.
-      const f = x * 2.6 + 0.55 * Math.sin(v * 5.5 + x * 1.3) + 1.1 * fbm(x * 0.9, v * 1.6, 3);
-      const band = 0.5 + 0.5 * Math.sin(f * Math.PI * 2);
-      mix(out, DARK_STEEL, LIGHT_STEEL, smoothstep(0.25, 0.75, band));
+      const f = x * 4.2 + 0.8 * Math.sin(v * 6 + x * 1.3) + 1.8 * fbm(x * 1.1, v * 2.2, 4);
+      // Thin darker folds over light steel, not stripes.
+      const fold = 0.5 + 0.5 * Math.sin(f * Math.PI * 2);
+      mix(out, LIGHT_STEEL, DARK_STEEL, smoothstep(0.62, 0.95, fold) * 0.8);
     },
   },
   doppler: {
@@ -201,7 +202,7 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       // Candy paint over a mirror: dark swirls through pink and violet.
       const w = fbm(x * 0.55 + 3, v * 1.2, 3);
       const n = fbm(x * 0.7 + w * 2.2, v * 1.6 + w * 1.4, 5);
-      ramp(DOPPLER, clamp01((n - 0.28) * 1.9), out);
+      ramp(DOPPLER, clamp01((n - 0.22) * 2.1), out);
     },
   },
   fade: {
@@ -218,14 +219,14 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
     paint(u, v, out) {
       const x = u * ASPECT;
       // Fire and ice: red, yellow and blue, flowing in marbled bands.
-      const f = x * 0.62 + 0.4 * Math.sin(v * 4 + x * 1.1) + 1.2 * fbm(x * 0.8, v * 1.3, 4);
+      const f = x * 0.3 + 0.45 * Math.sin(v * 3 + x * 0.7) + 1.5 * fbm(x * 0.45, v * 0.9, 4);
       const t = fract(f) * MARBLE.length;
       const i = Math.floor(t);
       mix(
         out,
         MARBLE[i % MARBLE.length]!,
         MARBLE[(i + 1) % MARBLE.length]!,
-        smoothstep(0.55, 1, t - i),
+        smoothstep(0.3, 1, t - i),
       );
     },
   },
