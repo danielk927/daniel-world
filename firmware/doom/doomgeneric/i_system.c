@@ -261,6 +261,9 @@ void I_Quit (void)
     SDL_Quit();
 
     exit(0);
+#else
+    // kitchen: power off (the host reboots the machine) instead of playing on.
+    exit(0);
 #endif
 }
 

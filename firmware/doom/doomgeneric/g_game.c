@@ -2251,19 +2251,20 @@ boolean G_CheckDemoStatus (void)
 	 
     if (timingdemo) 
     { 
-        float fps;
+        // kitchen: the CPU has no FPU, so hundredths of a frame in integers.
+        int fps100;
         int realtics;
 
 	endtime = I_GetTime (); 
         realtics = endtime - starttime;
-        fps = ((float) gametic * TICRATE) / realtics;
+        fps100 = realtics ? (int) ((long long) gametic * TICRATE * 100 / realtics) : 0;
 
         // Prevent recursive calls
         timingdemo = false;
         demoplayback = false;
 
-	I_Error ("timed %i gametics in %i realtics (%f fps)",
-                 gametic, realtics, fps);
+	I_Error ("timed %i gametics in %i realtics (%i.%02i fps)",
+                 gametic, realtics, fps100 / 100, fps100 % 100);
     } 
 	 
     if (demoplayback) 

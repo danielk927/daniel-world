@@ -47,6 +47,11 @@ int vanilla_keyboard_mapping = 1;
 
 static int shiftdown = 0;
 
+// kitchen: the character the key types, from the platform layer. Movement
+// keys such as W or D send arrow and strafe codes, so the code alone would
+// type the wrong letters into cheats and savegame names.
+extern unsigned char DG_TypedChar;
+
 // Lookup table for mapping AT keycodes to their doom keycode
 static const char at_to_doom[] =
 {
@@ -295,7 +300,7 @@ void I_GetEvent(void)
             // (shift-translated, etc)
             event.type = ev_keydown;
             event.data1 = TranslateKey(key);
-            event.data2 = GetTypedChar(key);
+            event.data2 = GetTypedChar(DG_TypedChar ? DG_TypedChar : key);
 
             if (event.data1 != 0)
             {
