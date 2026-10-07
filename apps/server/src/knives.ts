@@ -6,8 +6,11 @@ import {
   TICK_SECONDS,
   chefSpares,
   flyKnife,
+  knifeLook,
+  lookFields,
   type Cook,
   type KnifeImpact,
+  type KnifeLook,
   type KnifeState,
   type KnifeTarget,
   type StuckKnife,
@@ -59,6 +62,8 @@ interface Flying {
   readonly state: KnifeState;
   /** How far back the thrower was seeing everyone else, in ticks. */
   readonly rewind: number;
+  /** The knife as the thrower carried it when it left their hand; it stays so where it sticks. */
+  readonly look: KnifeLook;
 }
 
 export type KnifeEvent =
@@ -93,7 +98,8 @@ export class RoomKnives {
   launch(thrower: Cook & { readonly id: number }, state: KnifeState, rewind: number): number {
     const id = this.nextId++;
     const ticks = Math.max(0, Math.min(MAX_REWIND_TICKS, Math.round(rewind)));
-    this.flying.push({ id, from: thrower.id, thrower, state, rewind: ticks });
+    const look = knifeLook(thrower.prefs.skin, thrower.prefs.finish);
+    this.flying.push({ id, from: thrower.id, thrower, state, rewind: ticks, look });
     return id;
   }
 
@@ -164,6 +170,7 @@ export class RoomKnives {
       dx: impact.dx,
       dy: impact.dy,
       dz: impact.dz,
+      ...lookFields(knife.look),
     };
     this.stuck.push(stuck);
     if (this.stuck.length > KNIFE_MAX_STUCK) this.stuck.shift();

@@ -1,5 +1,7 @@
+import type { KnifeSkin } from '@world/shared';
 import { el } from './dom.ts';
 import { fistIcon, knifeIcon } from './icons.ts';
+import { skinIcon } from './knifeIcon.ts';
 
 /** Smallest change in readiness worth restyling for; the refill takes well under a second. */
 const READINESS_STEP = 0.02;
@@ -18,14 +20,17 @@ export class Loadout {
     class: 'visually-hidden',
     attrs: { role: 'status' },
   });
+  private readonly icon: HTMLElement;
   private armed: boolean | null = null;
   private readiness = 1;
+  private skin: KnifeSkin = 'kitchen';
 
   constructor(parent: HTMLElement) {
     this.fill = el('span', { class: 'loadout-fill' }, [knifeIcon()]);
+    this.icon = el('span', { class: 'loadout-icon' }, [knifeIcon(), this.fill]);
     this.knife = el('div', { class: 'loadout-slot loadout-knife' }, [
       el('kbd', { text: 'Q' }),
-      el('span', { class: 'loadout-icon' }, [knifeIcon(), this.fill]),
+      this.icon,
     ]);
     this.hand = el('div', { class: 'loadout-slot loadout-hand' }, [
       el('kbd', { text: 'Q' }),
@@ -34,6 +39,14 @@ export class Loadout {
     this.element = el('div', { class: 'loadout' }, [this.knife, this.hand, this.announcement]);
     parent.append(this.element);
     this.update(true, 1);
+  }
+
+  /** The knife carried: its outline replaces the chef's knife in the slot. */
+  setKnife(skin: KnifeSkin): void {
+    if (skin === this.skin) return;
+    this.skin = skin;
+    this.icon.firstElementChild?.replaceWith(skinIcon(skin, 'end'));
+    this.fill.replaceChildren(skinIcon(skin, 'end'));
   }
 
   /** Call every frame; it only touches the page when something visible changes. */

@@ -1,3 +1,4 @@
+import { DEFAULT_LOOK, knifeLook, lookFields, type KnifeLook, type Prefs } from '@world/shared';
 import type { Quality } from '../util/capabilities.ts';
 import { storage } from '../util/storage.ts';
 
@@ -18,6 +19,8 @@ export interface SettingsValues {
   reduceMotion: boolean;
   /** Chef Skinner, the lobby's resident cook, may throw knives at this player. */
   chefThrows: boolean;
+  /** The knife this player carries, chosen on the Knives page. */
+  knife: KnifeLook;
 }
 
 export const SENSITIVITY_RANGE = [0.2, 3] as const;
@@ -36,6 +39,7 @@ export function defaultSettings(prefersReducedMotion: boolean): SettingsValues {
     showFps: false,
     reduceMotion: prefersReducedMotion,
     chefThrows: true,
+    knife: DEFAULT_LOOK,
   };
 }
 
@@ -71,7 +75,16 @@ export function parseSettings(
   if (typeof r.showFps === 'boolean') values.showFps = r.showFps;
   if (typeof r.reduceMotion === 'boolean') values.reduceMotion = r.reduceMotion;
   if (typeof r.chefThrows === 'boolean') values.chefThrows = r.chefThrows;
+  if (typeof r.knife === 'object' && r.knife !== null) {
+    const knife = r.knife as Record<string, unknown>;
+    values.knife = knifeLook(knife.skin, knife.finish);
+  }
   return values;
+}
+
+/** What the room hears of the player's settings: their choice about Chef Skinner, and their knife. */
+export function prefsOf(values: Readonly<SettingsValues>): Prefs {
+  return { chef: values.chefThrows, ...lookFields(values.knife) };
 }
 
 /** The player's settings: loaded once, saved on every change, and announced to whoever listens. */

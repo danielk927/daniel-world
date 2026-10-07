@@ -1,15 +1,20 @@
-import { InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
+import { Matrix4, Quaternion, Vector3, type Group } from 'three';
 import {
+  DEFAULT_LOOK,
   KNIFE_MAX_FLIGHT_SECONDS,
   KNIFE_MAX_STUCK,
   KNIFE_SPIN,
   flyKnife,
+  knifeLook,
+  lookFields,
   type KnifeImpact,
+  type KnifeLook,
   type KnifeState,
   type KnifeTarget,
   type StuckKnife,
 } from '@world/shared';
-import { KNIFE_CENTER, knifeGeometry, knifeMaterial } from './knifeModel.ts';
+import { KnifeBatches } from './knifeBatches.ts';
+import { knifeCenter } from './knifeModel.ts';
 
 /** More knives than this in the air at once are not drawn (16 players at full rate is ~23). */
 const MAX_FLYING = 32;
@@ -45,6 +50,8 @@ interface Flight {
   readonly ox: number;
   readonly oy: number;
   readonly oz: number;
+  /** The knife as its thrower carried it. */
+  readonly look: KnifeLook;
 }
 
 const FORWARD = new Vector3(0, 0, -1);
@@ -63,12 +70,16 @@ export interface KnifeCarrier {
 /**
  * Every knife in the world: stuck in the kitchen or flying. Flights are replayed with the shared
  * simulation and end where the server says, when the drawn flight reaches that moment, so a hit
- * looks like a hit on every screen. Drawn as one instanced mesh.
+ * looks like a hit on every screen. Each knife is the one its thrower carried, and they are drawn
+ * as one instanced mesh per look (knifeBatches.ts).
  */
 export class Knives {
-  readonly mesh: InstancedMesh;
+  private readonly batches = new KnifeBatches(KNIFE_MAX_STUCK + MAX_FLYING);
+  readonly group: Group = this.batches.group;
   private readonly flights: Flight[] = [];
   private readonly stuck: StuckKnife[] = [];
+  /** Each stuck knife's look, in step with `stuck`. */
+  private readonly stuckLooks: KnifeLook[] = [];
   private readonly stuckMatrices: Matrix4[] = Array.from(
     { length: KNIFE_MAX_STUCK },
     () => new Matrix4(),
@@ -85,7 +96,7 @@ export class Knives {
 
   // Scratch, so updates never allocate.
   private readonly m = new Matrix4();
-  private readonly offset = new Matrix4().makeTranslation(0, 0, -KNIFE_CENTER);
+  private readonly offset = new Matrix4();
   private readonly q = new Quaternion();
   private readonly spin = new Quaternion();
   private readonly v = new Vector3();
@@ -93,14 +104,6 @@ export class Knives {
   private readonly scale = new Vector3(SCALE, SCALE, SCALE);
   private readonly xAxis = new Vector3(1, 0, 0);
   private readonly someTargets: KnifeTarget[] = [];
-
-  constructor() {
-    this.mesh = new InstancedMesh(knifeGeometry(), knifeMaterial(), KNIFE_MAX_STUCK + MAX_FLYING);
-    this.mesh.name = 'knives';
-    // Knives are spread across the whole room; one bounding volume would only be wrong.
-    this.mesh.frustumCulled = false;
-    this.mesh.count = 0;
-  }
 
   get stuckCount(): number {
     return this.stuck.length;
@@ -122,13 +125,24 @@ export class Knives {
     return this.flights.length;
   }
 
-  /** This player threw a knife: draw it at once, before the server hears of it. */
+  /** Knives drawn this frame, stuck and flying. */
+  get drawnCount(): number {
+    return this.batches.count;
+  }
+
+  /** Knives drawn of each look, keyed `skin/finish`. */
+  drawnLooks(): Record<string, number> {
+    return this.batches.counts();
+  }
+
+  /** This player threw a knife, the one in `look`: draw it at once, before the server hears of it. */
   throwOwn(
     seq: number,
     from: number,
     state: KnifeState,
     online: boolean,
     hand?: { x: number; y: number; z: number },
+    look: KnifeLook = DEFAULT_LOOK,
   ): void {
     // It flies from the eye, where it can hit, but starts where the hand let go and blends in.
     const ox = hand ? hand.x - state.x : 0;
@@ -147,6 +161,7 @@ export class Knives {
       ox,
       oy,
       oz,
+      look,
     });
   }
 
@@ -162,6 +177,7 @@ export class Knives {
     state: KnifeState,
     self: boolean,
     delay: number,
+    look: KnifeLook = DEFAULT_LOOK,
   ): void {
     if (self) {
       const own = this.flights.find((f) => f.id === null && f.seq === seq);
@@ -183,6 +199,7 @@ export class Knives {
       ox: 0,
       oy: 0,
       oz: 0,
+      look,
     });
   }
 
@@ -208,6 +225,7 @@ export class Knives {
     this.flights.length = 0;
     this.stuck.length = 0;
     this.carried.length = 0;
+    this.stuckLooks.length = 0;
     for (const knife of stuck) this.addStuck(knife);
     this.dirty = true;
   }
@@ -270,7 +288,7 @@ export class Knives {
     if (f.online && f.waited < VERDICT_TIMEOUT) return false;
     // Offline, or the verdict never came: it stays where it landed here.
     if (f.landed.kind === 'surface') {
-      const knife = { id: f.id ?? this.nextLocalId--, ...pose(f.landed) };
+      const knife = { id: f.id ?? this.nextLocalId--, ...pose(f.landed), ...lookFields(f.look) };
       this.addStuck(knife);
       if (!f.online) this.onOfflineStuck?.(knife);
     }
@@ -288,10 +306,13 @@ export class Knives {
     if (this.stuck.length >= KNIFE_MAX_STUCK) {
       this.stuck.shift();
       this.carried.shift();
+      this.stuckLooks.shift();
       this.stuckMatrices.push(this.stuckMatrices.shift()!);
     }
     this.stuck.push(knife);
     this.carried.push(this.carrier?.carries(knife.x, knife.y, knife.z) ?? false);
+    // As the server says it was thrown; anything this version does not know is the chef's knife.
+    this.stuckLooks.push(knifeLook(knife.skin, knife.finish));
     this.stuckPose(knife, this.stuckMatrices[this.stuck.length - 1]!);
     this.dirty = true;
   }
@@ -306,14 +327,16 @@ export class Knives {
   }
 
   private draw(): void {
-    let n = 0;
+    const batches = this.batches;
+    batches.begin();
     for (let i = 0; i < this.stuck.length; i++) {
       const matrix = this.stuckMatrices[i]!;
-      if (this.carried[i] && this.carrier) {
-        this.mesh.setMatrixAt(n++, this.m.multiplyMatrices(this.carrier.motion, matrix));
-      } else {
-        this.mesh.setMatrixAt(n++, matrix);
-      }
+      // Knives in the walk-in's door swing with it, each still the knife its thrower carried.
+      const placed =
+        this.carried[i] && this.carrier
+          ? this.m.multiplyMatrices(this.carrier.motion, matrix)
+          : matrix;
+      batches.add(this.stuckLooks[i]!, placed);
     }
     for (const f of this.flights) {
       if (f.clock < 0) continue;
@@ -321,7 +344,7 @@ export class Knives {
         // Landed here, waiting for the verdict: in a wall it shows; in a player it is gone.
         if (f.landed.kind === 'player') continue;
         this.stuckPose(f.landed, this.m);
-        this.mesh.setMatrixAt(n++, this.m);
+        batches.add(f.look, this.m);
         continue;
       }
       // Tumbling end over end around its middle, along its flight.
@@ -331,11 +354,13 @@ export class Knives {
       this.q.multiply(this.spin);
       const fromHand = f.clock < HAND_BLEND ? 1 - easeOut(f.clock / HAND_BLEND) : 0;
       this.p.set(s.x + f.ox * fromHand, s.y + f.oy * fromHand, s.z + f.oz * fromHand);
+      // Each knife tumbles about its own middle.
+      const [cz, cy] = knifeCenter(f.look.skin);
+      this.offset.makeTranslation(0, -cy, -cz);
       this.m.compose(this.p, this.q, this.scale).multiply(this.offset);
-      this.mesh.setMatrixAt(n++, this.m);
+      batches.add(f.look, this.m);
     }
-    this.mesh.count = n;
-    this.mesh.instanceMatrix.needsUpdate = true;
+    batches.end();
     this.dirty = false;
   }
 }

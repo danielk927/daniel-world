@@ -5,70 +5,64 @@ import {
   Euler,
   Group,
   HemisphereLight,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
+  Quaternion,
   Scene,
   Vector3,
+  type Object3D,
   type PerspectiveCamera,
   type Texture,
   type WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { GRIP, KNIFE_CENTER, knifeGeometry, knifeMaterial } from './knifeModel.ts';
+import { DEFAULT_LOOK, sameLook, type KnifeLook } from '@world/shared';
+import {
+  LOWERED,
+  SPENT,
+  SWITCH,
+  THROW,
+  clip,
+  easeInCubic,
+  easeInOutCubic,
+  easeOutBack,
+  easeOutCubic,
+  knifeMoves,
+  sample,
+  type ArmPose,
+  type KnifeMoves,
+  type Offset,
+} from './knifeMoves.ts';
+import { knifeMaterial, knifeModel, knifePartGeometry, type KnifeModel } from './knifeModel.ts';
+import type { Joint } from './knifeShapes.ts';
 
 /**
  * The player's own arm, in the style of a CS2 view model: a white chef's sleeve and a hand coming
  * up from the bottom right, holding a knife or empty. It sways behind the mouse, bobs with each
  * step, breathes, and plays the throw (wind up, snap, follow through, draw a fresh knife), the
- * switch between knife and bare hand, the bare hand's punch, and the inspect: a long look at the
- * knife.
+ * switch between knife and bare hand, the bare hand's punch, and the knife's own draw, idle and
+ * inspect, which each knife has its own of (knifeMoves.ts).
  *
  * It is drawn as a second pass, in its own scene, after clearing depth: it never clips into a wall,
  * and its parts still sort correctly against each other.
  */
 
-/** Throw timeline, in seconds from the key press. The knife leaves the hand at RELEASE. */
-export const THROW = {
-  windUp: 0.09,
-  release: 0.12,
-  snap: 0.16,
-  followThrough: 0.34,
-  drawFrom: 0.5,
-  drawTo: 0.8,
-} as const;
-/** Switching between knife and hand: the one lowers, then the other rises. */
-export const SWITCH = { lower: 0.12, raise: 0.34 } as const;
-/** How long the knife inspect lasts, in seconds. */
-export const INSPECT = 2.6;
+export { SWITCH, THROW, type ArmPose };
+/** How long the chef's knife's inspect lasts, in seconds. */
+export const INSPECT = knifeMoves('kitchen').inspect.duration;
 /** Punch timeline, in seconds from the press: a short draw back, the jab, and back to rest. */
 export const PUNCH = { windUp: 0.05, hit: 0.13, recover: 0.42 } as const;
-/** An inspect or punch cut short blends into what follows over this long, instead of jumping. */
+/** An inspect, punch or flourish cut short blends into what follows over this long. */
 const INTERRUPT_BLEND = 0.1;
 
-/** Offsets from the resting pose, in camera space (meters and radians). */
-export interface ArmPose {
-  x: number;
-  y: number;
-  z: number;
-  rx: number;
-  ry: number;
-  rz: number;
-  /** The knife is in the hand (not thrown yet, or drawn again). */
-  knife: boolean;
-  /** The flourish of a fresh knife being drawn: a spin about its own length. */
-  spin: number;
-}
-
-const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
-const easeInCubic = (t: number): number => t * t * t;
-const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-/** Overshoots a little and settles, like a hand snapping into place. */
-const easeOutBack = (t: number): number => {
-  const c = 1.7;
-  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
-};
 const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
 const lerp = (a: number, b: number, k: number): number => a + (b - a) * k;
+/** The shorter way from `a` to `b`, for angles where a whole turn is the same as none. */
+const turn = (a: number, b: number): number => {
+  const d = a - b;
+  return d - Math.PI * 2 * Math.round(d / (Math.PI * 2));
+};
 
 function set(
   out: ArmPose,
@@ -87,6 +81,15 @@ function set(
   out.rz = rz;
 }
 
+/** The knife held still in the hand: not turned, its parts open. */
+function still(out: ArmPose): void {
+  out.spin = 0;
+  out.flip = 0;
+  out.a = 0;
+  out.b = 0;
+  out.hang = 0;
+}
+
 /** Move `to` back toward `from`, by less as `t` runs from 0 to 1. */
 function blend(from: ArmPose, to: ArmPose, t: number): void {
   const k = 1 - easeOutCubic(clamp01(t));
@@ -97,19 +100,21 @@ function blend(from: ArmPose, to: ArmPose, t: number): void {
   to.ry += (from.ry - to.ry) * k;
   to.rz += (from.rz - to.rz) * k;
   // A whole turn looks the same as none, so unwind the shorter way round.
-  let spin = from.spin - to.spin;
-  spin -= Math.PI * 2 * Math.round(spin / (Math.PI * 2));
-  to.spin += spin * k;
+  to.spin += turn(from.spin, to.spin) * k;
+  to.flip += turn(from.flip, to.flip) * k;
+  to.a += turn(from.a, to.a) * k;
+  to.b += turn(from.b, to.b) * k;
+  to.hang += (from.hang - to.hang) * k;
 }
 
-/** Below the screen, where the arm goes while nothing is in hand. */
-const LOWERED = { y: -0.34, rx: 0.5 };
-/** Where the follow-through ends, out of view; the next knife is drawn up from here. */
-const SPENT = { x: -0.04, y: LOWERED.y, z: 0, rx: 1.1, ry: -0.2, rz: 0.15 };
+const KITCHEN = knifeMoves('kitchen');
 
-/** The arm `t` seconds into a throw. */
-export function throwPose(t: number, out: ArmPose): ArmPose {
-  out.spin = 0;
+/**
+ * The arm `t` seconds into a throw: wind up, snap, follow through, then a fresh knife drawn up as
+ * the knife in hand draws (`moves.redraw`).
+ */
+export function throwPose(t: number, out: ArmPose, moves: KnifeMoves = KITCHEN): ArmPose {
+  still(out);
   out.knife = t < THROW.release || t >= THROW.drawFrom;
   if (t < THROW.windUp) {
     // Draw back past the ear, blade tipping back.
@@ -142,29 +147,16 @@ export function throwPose(t: number, out: ArmPose): ArmPose {
     );
   } else if (t < THROW.drawFrom) {
     set(out, SPENT.x, SPENT.y, SPENT.z, SPENT.rx, SPENT.ry, SPENT.rz);
-  } else if (t < THROW.drawTo) {
-    // A fresh knife comes up from below, flipping once about its length as it settles.
-    const k = (t - THROW.drawFrom) / (THROW.drawTo - THROW.drawFrom);
-    const down = 1 - easeOutBack(k);
-    set(
-      out,
-      SPENT.x * down,
-      SPENT.y * down,
-      SPENT.z * down,
-      SPENT.rx * down,
-      SPENT.ry * down,
-      SPENT.rz * down,
-    );
-    out.spin = (1 - easeOutCubic(k)) * Math.PI * 2;
   } else {
-    set(out, 0, 0, 0, 0, 0, 0);
+    // A fresh knife comes up from below, as this knife draws.
+    sample(moves.redraw, t - THROW.drawFrom, out);
   }
   return out;
 }
 
 /** The arm `t` seconds into a switch: lowering what was held, then raising the other. */
 export function switchPose(t: number, out: ArmPose): ArmPose {
-  out.spin = 0;
+  still(out);
   out.knife = true;
   if (t < SWITCH.lower) {
     const k = easeInCubic(t / SWITCH.lower);
@@ -176,61 +168,22 @@ export function switchPose(t: number, out: ArmPose): ArmPose {
   return out;
 }
 
-/** A pose at a time: seconds, then x, y, z, rx, ry, rz and spin, as in ArmPose. */
-type Keyframe = readonly [number, number, number, number, number, number, number, number];
-
-/** Eases between keyframes, settling into each one: the hand moves, holds, and moves on. */
-function keyframes(frames: readonly Keyframe[], t: number, out: ArmPose): ArmPose {
-  out.knife = true;
-  let i = 0;
-  while (i < frames.length - 2 && t >= frames[i + 1]![0]) i++;
-  const a = frames[i]!;
-  const b = frames[i + 1]!;
-  const k = easeInOutCubic(clamp01((t - a[0]) / (b[0] - a[0])));
-  set(
-    out,
-    lerp(a[1], b[1], k),
-    lerp(a[2], b[2], k),
-    lerp(a[3], b[3], k),
-    lerp(a[4], b[4], k),
-    lerp(a[5], b[5], k),
-    lerp(a[6], b[6], k),
-  );
-  // A whole turn is the same as none; ending exactly at rest keeps the next spin from starting off.
-  out.spin = t >= b[0] && i === frames.length - 2 ? 0 : lerp(a[7], b[7], k);
-  return out;
-}
-
-/**
- * The knife inspect, after CS2's: the wrist rolls the knife over to lie across the view, the flat of
- * the blade to the eye, turns it to show the other side, tips it up for a last look, then spins it
- * home.
- */
-const KNIFE_INSPECT: readonly Keyframe[] = [
-  [0, 0, 0, 0, 0, 0, 0, 0],
-  [0.5, -0.07, 0.07, 0.05, -0.1, 0, 1.2, Math.PI / 2],
-  [1.15, -0.075, 0.072, 0.055, -0.14, 0.05, 1.28, Math.PI / 2 + 0.1],
-  [1.6, -0.07, 0.07, 0.05, -0.1, 0, 1.2, (Math.PI * 3) / 2],
-  [2.05, -0.06, 0.075, 0.05, -0.3, 0, 0.7, (Math.PI * 3) / 2 + 0.1],
-  [INSPECT, 0, 0, 0, 0, 0, 0, Math.PI * 2],
-];
-
 /** The bare hand's jab: drawn back a touch, then straight out toward the crosshair and home. */
-const PUNCH_FRAMES: readonly Keyframe[] = [
-  [0, 0, 0, 0, 0, 0, 0, 0],
-  [PUNCH.windUp, 0.01, -0.01, 0.03, 0.1, 0, 0, 0],
-  [PUNCH.hit, -0.075, 0.05, -0.1, -0.2, -0.12, -0.15, 0],
-  [PUNCH.recover, 0, 0, 0, 0, 0, 0, 0],
-];
+const PUNCH_CLIP = clip([
+  { t: 0 },
+  { t: PUNCH.windUp, x: 0.01, y: -0.01, z: 0.03, rx: 0.1 },
+  { t: PUNCH.hit, x: -0.075, y: 0.05, z: -0.1, rx: -0.2, ry: -0.12, rz: -0.15 },
+  { t: PUNCH.recover, x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 },
+]);
 
-/** The arm `t` seconds into inspecting the knife. */
+/** The arm `t` seconds into inspecting the chef's knife. */
 export function knifeInspectPose(t: number, out: ArmPose): ArmPose {
-  return keyframes(KNIFE_INSPECT, t, out);
+  return sample(KITCHEN.inspect, t, out);
 }
 
 /** The arm `t` seconds into a punch. */
 export function punchPose(t: number, out: ArmPose): ArmPose {
-  return keyframes(PUNCH_FRAMES, t, out);
+  return sample(PUNCH_CLIP, t, out);
 }
 
 /** Where the hand rests in view: low and to the right. */
@@ -242,6 +195,36 @@ const BLADE_UP = new Vector3(0, 0.82, -0.57).normalize();
 const KNIFE_SIZE = 0.78;
 /** The whole arm, hand and knife, scaled to sit in view the way a CS2 view model does. */
 const ARM_SCALE = 0.72;
+
+/** How the fist turns the chef's knife: its tip along BLADE_UP, its spine toward the eye. */
+const CHEF_HOLD = new Quaternion().setFromUnitVectors(new Vector3(0, 0, -1), BLADE_UP);
+/**
+ * A basis for the fist from where, seen at rest, the tip points and the spine faces, in camera space
+ * (x right, y up, -z ahead): easier to judge by eye than in the arm's own turned frame.
+ */
+function holdFromView(tip: Vector3, spine: Vector3): Quaternion {
+  const toArm = new Quaternion().setFromEuler(REST_ROTATION).invert();
+  const back = tip.normalize().applyQuaternion(toArm).negate();
+  const up = spine.applyQuaternion(toArm);
+  up.sub(back.clone().multiplyScalar(up.dot(back))).normalize();
+  const side = new Vector3().crossVectors(up, back);
+  return new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(side, up, back));
+}
+
+/**
+ * A karambit's grip: the ring on the finger over the fist and the claw curling out of its heel
+ * toward the middle of the view, the flat of the blade to the eye.
+ */
+const REVERSE_HOLD = holdFromView(new Vector3(-0.5, -0.85, -0.2), new Vector3(1, 0, 0));
+
+const HOLDS: Readonly<Record<KnifeModel['hold'], Quaternion>> = {
+  chef: CHEF_HOLD,
+  // Up and toward the middle of the view, the flat of the blade to the eye and the edge inward.
+  forward: holdFromView(new Vector3(-0.3, 0.9, -0.3), new Vector3(1, 0, 0.4)),
+  reverse: REVERSE_HOLD,
+};
+
+const NO_OFFSET: Readonly<Offset> = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 };
 
 const SLEEVE = '#f2f0e9';
 const CUFF = '#dedad0';
@@ -257,8 +240,18 @@ export class Viewmodel {
   private readonly openThumb: Mesh;
   /** How far the bare hand is curled into a fist: 0 open, 1 clenched. */
   private curl = 0;
-  private readonly knife: Mesh;
+  /** The knife: held at the grip, turned about its length, turned end over end about its pivot. */
   private readonly knifeHolder = new Group();
+  private readonly spinner = new Group();
+  private readonly flipper = new Group();
+  private readonly model = new Group();
+  /** The knife's moving parts, each turned by a pose channel. */
+  private joints: { readonly group: Group; readonly joint: Joint }[] = [];
+  private current: KnifeModel = knifeModel(DEFAULT_LOOK.skin);
+  /** From the grip to the pivot, in the knife's space: how far it slides to hang from its ring. */
+  private readonly toPivot = new Vector3();
+  private currentLook: KnifeLook = DEFAULT_LOOK;
+  private moves: KnifeMoves = KITCHEN;
   private readonly skin = new MeshStandardMaterial({
     color: '#ff7a59',
     roughness: 0.7,
@@ -277,6 +270,8 @@ export class Viewmodel {
   private sinceInspect = Infinity;
   private sincePunch = Infinity;
   private sinceInterrupt = Infinity;
+  /** How long the knife has rested in hand with nothing going on: the idle plays on this. */
+  private idleTime = 0;
   private time = 0;
 
   // Sway, bob and breathing state.
@@ -290,7 +285,20 @@ export class Viewmodel {
   private bobAmount = 0;
   private air = 0;
 
-  private readonly pose: ArmPose = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, knife: true, spin: 0 };
+  private readonly pose: ArmPose = {
+    x: 0,
+    y: 0,
+    z: 0,
+    rx: 0,
+    ry: 0,
+    rz: 0,
+    knife: true,
+    spin: 0,
+    flip: 0,
+    a: 0,
+    b: 0,
+    hang: 0,
+  };
   /** Where an interrupted inspect was, blended away from over INTERRUPT_BLEND. */
   private readonly interrupted: ArmPose = { ...this.pose };
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
@@ -332,13 +340,12 @@ export class Viewmodel {
     this.openThumb = new Mesh(new RoundedBoxGeometry(0.022, 0.02, 0.048, 1, 0.009), this.skin);
     this.open.add(palm, this.knuckles, this.openThumb);
 
-    // The knife, gripped by its handle in the fist, the blade up. The holder spins it on draws.
-    this.knife = new Mesh(knifeGeometry(), knifeMaterial());
-    this.knife.scale.setScalar(KNIFE_SIZE);
-    this.knife.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), BLADE_UP);
-    // The tip is the model's origin; put the grip at the holder's origin.
-    this.knife.position.copy(BLADE_UP).multiplyScalar(GRIP * KNIFE_SIZE);
-    this.knifeHolder.add(this.knife);
+    // The knife, gripped in the fist. The holder turns it to the grip; the rest animate it.
+    this.knifeHolder.scale.setScalar(KNIFE_SIZE);
+    this.knifeHolder.add(this.spinner);
+    this.spinner.add(this.flipper);
+    this.flipper.add(this.model);
+    this.build(DEFAULT_LOOK);
 
     this.arm.add(sleeve, cuff, this.fist, this.open, this.knifeHolder);
     this.arm.scale.setScalar(ARM_SCALE);
@@ -370,6 +377,59 @@ export class Viewmodel {
     this.skin.color.set(new Color(color));
   }
 
+  /** The knife the player carries. A new one is drawn the next time the arm comes into view. */
+  setLook(look: KnifeLook): void {
+    if (sameLook(look, this.currentLook)) return;
+    this.interrupt();
+    this.sinceInspect = Infinity;
+    this.build(look);
+    // Whatever was going on belonged to the last knife; draw this one fresh.
+    if (this.armed) this.sinceSwitch = SWITCH.lower;
+  }
+
+  get look(): KnifeLook {
+    return this.currentLook;
+  }
+
+  /** Put a knife's parts in the hand, each moving part in its own hinge. */
+  private build(look: KnifeLook): void {
+    for (const child of [...this.model.children]) this.model.remove(child);
+    this.joints = [];
+    const model = knifeModel(look.skin);
+    this.current = model;
+    this.currentLook = look;
+    this.moves = knifeMoves(look.skin);
+    const hinges = new Map<string, Group>();
+    const hingeFor = (joint: Joint): Group => {
+      const existing = hinges.get(`${joint.channel}:${joint.parent ?? ''}`);
+      if (existing) return existing;
+      const parentPart = joint.parent ? model.parts.find((p) => p.name === joint.parent) : null;
+      const parent = parentPart?.joint ? hingeFor(parentPart.joint) : this.model;
+      // Turn about the pivot, then put the part back in model space inside it.
+      const hinge = new Group();
+      hinge.position.set(0, joint.pivot[1], joint.pivot[0]);
+      const inner = new Group();
+      inner.position.set(0, -joint.pivot[1], -joint.pivot[0]);
+      hinge.add(inner);
+      parent.add(hinge);
+      hinges.set(`${joint.channel}:${joint.parent ?? ''}`, inner);
+      this.joints.push({ group: hinge, joint });
+      return inner;
+    };
+    for (const part of model.parts) {
+      const mesh = new Mesh(knifePartGeometry(look, part), knifeMaterial());
+      const parent: Object3D = part.joint ? hingeFor(part.joint) : this.model;
+      parent.add(mesh);
+    }
+    this.knifeHolder.quaternion.copy(HOLDS[model.hold]);
+    // The grip at the holder's origin; turned end over end about the pivot.
+    const [gz, gy] = model.grip;
+    const [pz, py] = model.pivot;
+    this.toPivot.set(0, py - gy, pz - gz);
+    this.flipper.position.copy(this.toPivot);
+    this.model.position.set(0, -py, -pz);
+  }
+
   /** Whether the arm is in view at all (in the world and standing). */
   setShown(shown: boolean): void {
     if (shown && !this.shown) {
@@ -379,6 +439,7 @@ export class Viewmodel {
       this.sinceInspect = Infinity;
       this.sincePunch = Infinity;
       this.sinceInterrupt = Infinity;
+      this.idleTime = 0;
       this.curl = 0;
       this.holding = this.armed ? 'knife' : 'hand';
     }
@@ -404,7 +465,7 @@ export class Viewmodel {
   }
 
   /**
-   * Start the throw animation, cutting an inspect short. The caller launches the knife
+   * Start the throw animation, cutting an inspect or a flourish short. The caller launches the knife
    * THROW.release seconds later.
    */
   startThrow(): boolean {
@@ -423,7 +484,7 @@ export class Viewmodel {
 
   /** Mid-inspect. */
   get inspecting(): boolean {
-    return this.sinceInspect < INSPECT;
+    return this.sinceInspect < this.moves.inspect.duration;
   }
 
   /** Take a long look at the knife, if it is up and nothing else is going on. */
@@ -431,8 +492,8 @@ export class Viewmodel {
     if (!this.shown || !this.armed || this.holding !== 'knife' || this.inspecting || !this.idle) {
       return false;
     }
+    this.interrupt();
     this.sinceInspect = 0;
-    this.sinceInterrupt = Infinity;
     return true;
   }
 
@@ -463,19 +524,40 @@ export class Viewmodel {
     return raised && (this.holding === 'hand' || this.sinceThrow >= THROW.drawTo);
   }
 
-  /** Cut an inspect or a punch short, blending out of wherever the arm was. */
+  /** The knife's draw still playing out after it is up: its flourish, which anything may cut. */
+  private get flourishing(): boolean {
+    return this.holding === 'knife' && this.sinceSwitch < SWITCH.lower + this.moves.draw.duration;
+  }
+
+  /** At rest with the knife up, playing its idle. */
+  private get idling(): boolean {
+    return (
+      this.holding === 'knife' &&
+      this.idle &&
+      !this.flourishing &&
+      !this.inspecting &&
+      this.moves.idle.duration > 0
+    );
+  }
+
+  /** Cut an inspect, a punch, a flourish or the idle short, blending out of wherever the arm was. */
   private interrupt(): void {
-    if (!this.inspecting && !this.punching) return;
+    const flourish = this.flourishing && this.sinceSwitch >= SWITCH.lower;
+    if (!this.inspecting && !this.punching && !flourish && !(this.idling && this.idleTime > 0))
+      return;
     Object.assign(this.interrupted, this.pose);
     this.sinceInspect = Infinity;
     this.sincePunch = Infinity;
+    if (flourish) this.sinceSwitch = Infinity;
+    this.idleTime = 0;
     this.sinceInterrupt = 0;
   }
 
   /** The knife's middle in the world right now, where a knife leaving the hand starts from. */
   knifeCenter(out: Vector3): Vector3 {
     this.root.updateMatrixWorld(true);
-    return this.knife.localToWorld(out.set(0, 0, KNIFE_CENTER));
+    const [cz, cy] = this.current.center;
+    return this.model.localToWorld(out.set(0, cy, cz));
   }
 
   /** Follow the camera and animate. `speed` and `grounded` drive the walk bob. */
@@ -493,6 +575,7 @@ export class Viewmodel {
     this.sinceInspect += dt;
     this.sincePunch += dt;
     this.sinceInterrupt += dt;
+    this.idleTime = this.idling ? this.idleTime + dt : 0;
     // The hand clenches quickly for the jab and opens again more slowly once it is on the way back;
     // easing toward the target means it can never snap, even mid-punch or when punches overlap.
     const clench = this.sincePunch < PUNCH.hit + 0.1 ? 1 : 0;
@@ -536,13 +619,23 @@ export class Viewmodel {
     renderer.autoClear = true;
   }
 
+  /** The arm's pose this frame: whatever is going on, as the held knife does it. */
+  private poseNow(pose: ArmPose): void {
+    const moves = this.moves;
+    if (this.inspecting) sample(moves.inspect, this.sinceInspect, pose);
+    else if (this.punching) punchPose(this.sincePunch, pose);
+    else if (this.sinceSwitch < SWITCH.lower) switchPose(this.sinceSwitch, pose);
+    else if (this.holding === 'knife' && this.flourishing)
+      sample(moves.draw, this.sinceSwitch - SWITCH.lower, pose);
+    else if (this.holding === 'hand') switchPose(Math.min(this.sinceSwitch, SWITCH.raise), pose);
+    else if (this.sinceThrow < THROW.drawTo) throwPose(this.sinceThrow, pose, moves);
+    else if (this.idling) sample(moves.idle, this.idleTime % moves.idle.duration, pose);
+    else throwPose(THROW.drawTo, pose, moves);
+  }
+
   private apply(): void {
     const pose = this.pose;
-    if (this.inspecting) knifeInspectPose(this.sinceInspect, pose);
-    else if (this.punching) punchPose(this.sincePunch, pose);
-    else if (this.sinceSwitch < SWITCH.raise) switchPose(this.sinceSwitch, pose);
-    else if (this.holding === 'knife') throwPose(this.sinceThrow, pose);
-    else switchPose(SWITCH.raise, pose);
+    this.poseNow(pose);
     if (this.sinceInterrupt < INTERRUPT_BLEND)
       blend(this.interrupted, pose, this.sinceInterrupt / INTERRUPT_BLEND);
     const knife = this.holding === 'knife' && pose.knife;
@@ -560,21 +653,29 @@ export class Viewmodel {
     );
     this.openThumb.rotation.set(0, lerp(0.55, -0.45, c), 0);
     this.open.rotation.set(lerp(0.15, 0, c), lerp(0.1, 0, c), lerp(-0.3, 0, c));
-    this.knifeHolder.rotation.set(0, 0, 0);
-    if (pose.spin) this.knifeHolder.rotateOnAxis(BLADE_UP, pose.spin);
+    // The knife turns about its length (toward its tip), end over end about its pivot, and opens.
+    this.spinner.rotation.set(0, 0, -pose.spin);
+    this.flipper.rotation.set(pose.flip, 0, 0);
+    this.flipper.position.copy(this.toPivot).multiplyScalar(1 - pose.hang);
+    for (const { group, joint } of this.joints) {
+      group.rotation.x = joint.sign * (joint.channel === 'a' ? pose.a : pose.b);
+    }
+
+    // The held knife's own resting place; the pose itself stays relative to it.
+    const rest = this.holding === 'knife' ? this.moves.rest : NO_OFFSET;
 
     const bobX = Math.sin(this.bobPhase) * 0.011 * this.bobAmount;
     const bobY = Math.sin(this.bobPhase * 2) * 0.006 * this.bobAmount - 0.004 * this.bobAmount;
     const breath = Math.sin(this.time * 1.7) * 0.0022;
     this.arm.position.set(
-      REST.x + pose.x - this.swayX + bobX,
-      REST.y + pose.y + this.swayY + bobY + breath - this.air * 0.012,
-      REST.z + pose.z,
+      REST.x + rest.x + pose.x - this.swayX + bobX,
+      REST.y + rest.y + pose.y + this.swayY + bobY + breath - this.air * 0.012,
+      REST.z + rest.z + pose.z,
     );
     this.euler.set(
-      REST_ROTATION.x + pose.rx + this.swayY * 2,
-      REST_ROTATION.y + pose.ry + this.swayX * 3,
-      REST_ROTATION.z + pose.rz + this.swayX * 4 + bobX * 2,
+      REST_ROTATION.x + rest.rx + pose.rx + this.swayY * 2,
+      REST_ROTATION.y + rest.ry + pose.ry + this.swayX * 3,
+      REST_ROTATION.z + rest.rz + pose.rz + this.swayX * 4 + bobX * 2,
       'YXZ',
     );
     this.arm.quaternion.setFromEuler(this.euler);

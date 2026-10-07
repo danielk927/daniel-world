@@ -13,9 +13,16 @@ import {
   Vector3,
   Euler,
 } from 'three';
-import { KNIFE_COOLDOWN_MS, MAX_PLAYERS_PER_ROOM } from '@world/shared';
+import {
+  DEFAULT_LOOK,
+  KNIFE_COOLDOWN_MS,
+  MAX_PLAYERS_PER_ROOM,
+  sameLook,
+  type KnifeLook,
+} from '@world/shared';
 import type { Pose } from '../net/interpolation.ts';
-import { GRIP, knifeGeometry, knifeMaterial } from './knifeModel.ts';
+import { lookIndex } from './knifeBatches.ts';
+import { knifeGeometry, knifeGrip, knifeMaterial } from './knifeModel.ts';
 
 /** Local-space layout of an avatar. Feet at y = 0, facing -Z. */
 const BODY_RADIUS = 0.34;
@@ -67,6 +74,8 @@ interface Avatar {
   punchStart: number;
   /** 0 standing, 1 knocked out flat on their back. */
   fallAmount: number;
+  /** The knife this cook carries. */
+  look: KnifeLook;
   /** Where the name tag should sit, updated every frame. */
   readonly tagAnchor: Vector3;
 }
@@ -76,7 +85,8 @@ const white = new Color('#ffffff');
 
 /**
  * Every remote player, drawn with five instanced meshes in total (body, head, hands, eyes, and a
- * chef's toque; the ground shadow comes from the shadow map). Per-frame updates only write instance matrices.
+ * chef's toque; the ground shadow comes from the shadow map), and the knife in each cook's hand, one
+ * instanced mesh per look carried. Per-frame updates only write instance matrices.
  */
 export class Avatars {
   readonly group = new Group();
@@ -85,8 +95,11 @@ export class Avatars {
   private readonly hands: InstancedMesh;
   private readonly eyes: InstancedMesh;
   private readonly hats: InstancedMesh;
-  /** The knife in each cook's right hand. */
-  private readonly knives: InstancedMesh;
+  /** The knife in each cook's right hand, in a mesh per look, at the cook's slot. */
+  private readonly knives: (InstancedMesh | undefined)[] = [];
+  /** How many cooks carry each look, so a look nobody carries is not drawn. */
+  private readonly knifeUsers: number[] = [];
+  private readonly capacity: number;
   private readonly avatars = new Map<number, Avatar>();
   private readonly freeSlots: number[] = [];
 
@@ -101,6 +114,7 @@ export class Avatars {
   private readonly hidden = new Matrix4().makeScale(0, 0, 0);
 
   constructor(capacity: number = MAX_PLAYERS_PER_ROOM) {
+    this.capacity = capacity;
     // Faceted like the kitchen around them: flat shading on low-poly shapes.
     const skin = new MeshStandardMaterial({ roughness: 0.7, flatShading: true });
     this.bodies = new InstancedMesh(
@@ -120,10 +134,9 @@ export class Avatars {
       new MeshStandardMaterial({ color: '#fbfaf7', roughness: 0.85, flatShading: true }),
       capacity,
     );
-    this.knives = new InstancedMesh(knifeGeometry(), knifeMaterial(), capacity);
-    for (const mesh of [this.bodies, this.heads, this.hands, this.eyes, this.hats, this.knives]) {
+    for (const mesh of [this.bodies, this.heads, this.hands, this.eyes, this.hats]) {
       mesh.frustumCulled = false;
-      mesh.castShadow = mesh !== this.eyes && mesh !== this.knives;
+      mesh.castShadow = mesh !== this.eyes;
       for (let i = 0; i < mesh.count; i++) mesh.setMatrixAt(i, this.hidden);
       this.group.add(mesh);
     }
@@ -159,10 +172,53 @@ export class Avatars {
       throwStart: -Infinity,
       punchStart: -Infinity,
       fallAmount: 0,
+      look: DEFAULT_LOOK,
       tagAnchor: new Vector3(0, -1000, 0),
     };
+    this.useLook(DEFAULT_LOOK, 1);
     this.avatars.set(id, avatar);
     return avatar.tagAnchor;
+  }
+
+  /** The knife a cook carries, as they told the room. */
+  setLook(id: number, look: KnifeLook): void {
+    const avatar = this.avatars.get(id);
+    if (!avatar || sameLook(avatar.look, look)) return;
+    this.knifeMesh(avatar.look).setMatrixAt(avatar.slot, this.hidden);
+    this.knifeMesh(avatar.look).instanceMatrix.needsUpdate = true;
+    this.useLook(avatar.look, -1);
+    avatar.look = look;
+    this.useLook(look, 1);
+  }
+
+  /** The look each cook's knife is drawn in, for tests. */
+  lookOf(id: number): KnifeLook | null {
+    return this.avatars.get(id)?.look ?? null;
+  }
+
+  /** A look's hand-knife mesh, made the first time anyone carries it. */
+  private knifeMesh(look: KnifeLook): InstancedMesh {
+    const index = lookIndex(look);
+    let mesh = this.knives[index];
+    if (!mesh) {
+      mesh = new InstancedMesh(knifeGeometry(look), knifeMaterial(), this.capacity);
+      mesh.name = `hand knives:${look.skin}/${look.finish}`;
+      mesh.frustumCulled = false;
+      for (let i = 0; i < this.capacity; i++) mesh.setMatrixAt(i, this.hidden);
+      this.knives[index] = mesh;
+      this.knifeUsers[index] = 0;
+      this.group.add(mesh);
+    }
+    return mesh;
+  }
+
+  private useLook(look: KnifeLook, change: number): void {
+    const mesh = this.knifeMesh(look);
+    const index = lookIndex(look);
+    const users = (this.knifeUsers[index] ?? 0) + change;
+    this.knifeUsers[index] = users;
+    // A look nobody carries costs nothing, not even an empty draw call.
+    mesh.visible = users > 0;
   }
 
   remove(id: number): void {
@@ -170,7 +226,8 @@ export class Avatars {
     if (!avatar) return;
     this.avatars.delete(id);
     this.freeSlots.push(avatar.slot);
-    this.hideSlot(avatar.slot);
+    this.hideSlot(avatar.slot, avatar.look);
+    this.useLook(avatar.look, -1);
   }
 
   /** Swing the knife hand: this cook just threw. */
@@ -185,8 +242,10 @@ export class Avatars {
     if (avatar) avatar.punchStart = time;
   }
 
-  private hideSlot(slot: number): void {
-    this.knives.setMatrixAt(slot, this.hidden);
+  private hideSlot(slot: number, look: KnifeLook): void {
+    const knives = this.knifeMesh(look);
+    knives.setMatrixAt(slot, this.hidden);
+    knives.instanceMatrix.needsUpdate = true;
     this.bodies.setMatrixAt(slot, this.hidden);
     this.heads.setMatrixAt(slot, this.hidden);
     this.hats.setMatrixAt(slot, this.hidden);
@@ -203,7 +262,6 @@ export class Avatars {
     this.hands.instanceMatrix.needsUpdate = true;
     this.eyes.instanceMatrix.needsUpdate = true;
     this.hats.instanceMatrix.needsUpdate = true;
-    this.knives.instanceMatrix.needsUpdate = true;
   }
 
   /** Write the current part matrix (relative to the avatar root) into `mesh` at `index`. */
@@ -343,13 +401,19 @@ export class Avatars {
         // The knife in the right hand, gripped by its handle, unless it is in flight or they are down.
         const reloaded = time - avatar.throwStart > KNIFE_COOLDOWN_MS / 1000;
         const inHand = pose.armed && fall < 0.05 && (throwT < 0 ? reloaded : throwT < RELEASE);
+        const knives = this.knifeMesh(avatar.look);
         if (inHand) {
           const tilt = throwT >= 0 ? KNIFE_TILT + Math.min(1, throwT / RELEASE) * 1.4 : KNIFE_TILT;
-          this.setPart(hx, hy + Math.sin(tilt) * GRIP, hz - Math.cos(tilt) * GRIP, tilt, 0, 0);
-          this.place(this.knives, slot);
+          // The grip in the hand: the knife turned by the tilt about it.
+          const [gz, gy] = knifeGrip(avatar.look.skin);
+          const c = Math.cos(tilt);
+          const sn = Math.sin(tilt);
+          this.setPart(hx, hy - (gy * c - gz * sn), hz - (gy * sn + gz * c), tilt, 0, 0);
+          this.place(knives, slot);
         } else {
-          this.knives.setMatrixAt(slot, this.hidden);
+          knives.setMatrixAt(slot, this.hidden);
         }
+        knives.instanceMatrix.needsUpdate = true;
       }
     }
 
