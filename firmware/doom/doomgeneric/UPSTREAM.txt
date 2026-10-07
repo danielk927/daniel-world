@@ -20,6 +20,7 @@ Local changes are marked with "kitchen:" comments:
               returning to redraw the previous one (which drew every tic
               twice, 70 frames a second for 35 tics).
   g_game.c    The -timedemo result is computed in integers (no FPU).
-  i_input.c   Key events carry the character the key types, so movement
-              keys mapped to arrows still type letters (cheats, savegames).
+  i_input.c   Key events carry the character the key types, and savegame
+              names use it (vanilla_keyboard_mapping off), so movement keys
+              mapped to arrows still type letters (cheats, savegames).
   i_system.c  I_Quit powers the machine off; the host reboots it.

@@ -5,7 +5,6 @@
 
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
-#define RAND_MAX 0x7fffffff
 
 void *malloc(size_t size);
 void *calloc(size_t count, size_t size);
@@ -20,11 +19,6 @@ unsigned long strtoul(const char *restrict s, char **restrict end, int base);
 
 int abs(int x);
 long labs(long x);
-
-int rand(void);
-void srand(unsigned seed);
-
-void qsort(void *base, size_t count, size_t size, int (*compare)(const void *, const void *));
 
 char *getenv(const char *name);
 int system(const char *command);
