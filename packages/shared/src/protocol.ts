@@ -19,6 +19,13 @@ export const helloSchema = z.object({
   room: z.string().max(64),
   /** Where the player was before a reconnect. The server clamps it to the play area. */
   spawn: z.object({ x: finite, z: finite, yaw: finite }).optional(),
+  /**
+   * Why a private room is being entered: `start` a new party (refused if the code is in use) or
+   * `join` one (refused if nobody is there). Without it the room is joined, or made if new, as
+   * links and reconnects need. The lobby is always joined. Optional, so a server that predates it
+   * just joins, and older clients never see the refusals.
+   */
+  intent: z.enum(['start', 'join']).optional(),
 });
 
 export const inputSchema = z.object({
@@ -56,6 +63,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
 ]);
 
 export type InputMessage = z.infer<typeof inputSchema>;
+export type RoomIntent = NonNullable<z.infer<typeof helloSchema>['intent']>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 // ---------- Server to client ----------
@@ -169,7 +177,15 @@ export const killSchema = z.object({
 /** A knocked out player is back on their feet somewhere new. */
 export const respawnSchema = z.object({ t: z.literal('respawn'), player: playerSnapshotSchema });
 
-export const ERROR_CODES = ['room_full', 'bad_hello', 'version', 'rate_limited'] as const;
+export const ERROR_CODES = [
+  'room_full',
+  'room_taken',
+  'no_room',
+  'bad_hello',
+  'version',
+  'rate_limited',
+] as const;
+export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export const errorSchema = z.object({
   t: z.literal('error'),

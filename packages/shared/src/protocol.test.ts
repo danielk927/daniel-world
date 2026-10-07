@@ -28,10 +28,19 @@ describe('parseClientMessage', () => {
     ['pitch out of range', '{"t":"input","seq":1,"keys":0,"yaw":0,"pitch":3}'],
     ['huge chat', JSON.stringify({ t: 'chat', text: 'x'.repeat(501) })],
     ['an emote, which no longer exists', '{"t":"emote","emote":"wave"}'],
+    ['an unknown room intent', '{"t":"hello","v":1,"name":"Otter","room":"x","intent":"take"}'],
     ['array', '[1,2,3]'],
     ['null', 'null'],
   ])('rejects %s', (_label, raw) => {
     expect(parseClientMessage(raw)).toBeNull();
+  });
+
+  it('accepts a hello that starts or joins a party', () => {
+    for (const intent of ['start', 'join']) {
+      expect(
+        parseClientMessage(JSON.stringify({ t: 'hello', v: 1, name: 'O', room: 'x', intent })),
+      ).toMatchObject({ intent });
+    }
   });
 
   it('accepts a throw, with the tick its sender was seeing', () => {

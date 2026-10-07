@@ -55,6 +55,8 @@ export const CLOSE_FLOOD = 1008;
 export const CLOSE_ROOM_FULL = 4001;
 export const CLOSE_BAD_HELLO = 4002;
 export const CLOSE_HELLO_TIMEOUT = 4003;
+export const CLOSE_ROOM_TAKEN = 4004;
+export const CLOSE_NO_ROOM = 4005;
 export const CLOSE_TRY_AGAIN_LATER = 1013;
 
 /** A client that is this far behind on reading snapshots is dropped instead of buffered forever. */
@@ -204,6 +206,18 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     }
     const code = normalizeRoomCode(message.room);
     let room = rooms.get(code);
+    // Starting a party needs a code nobody is using, joining one needs somebody there. Without an
+    // intent (links, reconnects) the room is joined or made, and the lobby is open to everyone.
+    if (code !== DEFAULT_ROOM && message.intent === 'start' && room) {
+      send(conn, { t: 'error', code: 'room_taken', message: `Room "${code}" is already in use.` });
+      drop(conn, CLOSE_ROOM_TAKEN, 'room taken');
+      return;
+    }
+    if (code !== DEFAULT_ROOM && message.intent === 'join' && !room) {
+      send(conn, { t: 'error', code: 'no_room', message: `Nobody is in room "${code}".` });
+      drop(conn, CLOSE_NO_ROOM, 'no such room');
+      return;
+    }
     if (room?.isFull) {
       send(conn, { t: 'error', code: 'room_full', message: `Room "${code}" is full.` });
       drop(conn, CLOSE_ROOM_FULL, 'room full');

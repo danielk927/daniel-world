@@ -13,7 +13,9 @@ import {
   CLOSE_BAD_HELLO,
   CLOSE_FLOOD,
   CLOSE_HELLO_TIMEOUT,
+  CLOSE_NO_ROOM,
   CLOSE_ROOM_FULL,
+  CLOSE_ROOM_TAKEN,
   CLOSE_TRY_AGAIN_LATER,
   startServer,
   type WorldServer,
@@ -85,10 +87,21 @@ class TestClient {
     return this.waitFor(() => this.closeCode ?? undefined);
   }
 
-  async join(name: string, room = 'lobby'): Promise<Message<'welcome'>> {
+  async join(name: string, room = 'lobby', intent?: 'start' | 'join'): Promise<Message<'welcome'>> {
     await this.opened();
-    this.send({ t: 'hello', v: PROTOCOL_VERSION, name, room });
+    this.send({ t: 'hello', v: PROTOCOL_VERSION, name, room, ...(intent ? { intent } : {}) });
     return this.waitForMessage('welcome');
+  }
+
+  /** Say hello and expect to be turned away with `code`; returns the close code. */
+  async refused(
+    hello: { name: string; room: string; intent?: 'start' | 'join' },
+    code: string,
+  ): Promise<number> {
+    await this.opened();
+    this.send({ t: 'hello', v: PROTOCOL_VERSION, ...hello });
+    expect((await this.waitForMessage('error')).code).toBe(code);
+    return this.waitForClose();
   }
 
   latestSnapshot(): Message<'snap'> | undefined {
@@ -205,6 +218,35 @@ describe('room server', () => {
     expect(error.code).toBe('room_full');
     expect(await extra.waitForClose()).toBe(CLOSE_ROOM_FULL);
     expect(server.rooms.get('packed')?.players.size).toBe(MAX_PLAYERS_PER_ROOM);
+  });
+
+  it('starts a party only on a code nobody is using', async () => {
+    const host = client();
+    const welcome = await host.join('Host', 'Friday Service', 'start');
+    expect(welcome.room).toBe('friday-service');
+    const late = client();
+    expect(
+      await late.refused({ name: 'Late', room: 'friday-service', intent: 'start' }, 'room_taken'),
+    ).toBe(CLOSE_ROOM_TAKEN);
+    expect(server.rooms.get('friday-service')?.players.size).toBe(1);
+    // Joining it, or following a link (no intent), still works.
+    await client().join('Guest', 'friday-service', 'join');
+    await client().join('Linked', 'friday-service');
+    expect(server.rooms.get('friday-service')?.players.size).toBe(3);
+  });
+
+  it('joins a party only if somebody is there', async () => {
+    const lost = client();
+    expect(
+      await lost.refused({ name: 'Lost', room: 'nobody-here', intent: 'join' }, 'no_room'),
+    ).toBe(CLOSE_NO_ROOM);
+    expect(server.rooms.has('nobody-here')).toBe(false);
+  });
+
+  it('always lets anyone into the lobby, whatever the intent', async () => {
+    await client().join('First', 'lobby', 'join');
+    await client().join('Second', 'lobby', 'start');
+    expect(server.rooms.get('lobby')?.players.size).toBe(2);
   });
 
   it('rejects clients on a different protocol version', async () => {
