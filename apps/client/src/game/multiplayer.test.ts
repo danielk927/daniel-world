@@ -9,6 +9,8 @@ function setup(room: string) {
   const stub = <T>(methods: Record<string, unknown>): T => methods as T;
   const onKill = vi.fn<MultiplayerDeps['onKill']>();
   const onSpawn = vi.fn<MultiplayerDeps['onSpawn']>();
+  const onCoolerState = vi.fn<MultiplayerDeps['onCoolerState']>();
+  const onCoolerHit = vi.fn<MultiplayerDeps['onCoolerHit']>();
   const addSystem = vi.fn<(text: string) => void>();
   const addMessage = vi.fn<(name: string, color: string, text: string) => void>();
   const deps: MultiplayerDeps = {
@@ -35,8 +37,10 @@ function setup(room: string) {
     onSpawn,
     onKill,
     onBackOnFeet: vi.fn(),
+    onCoolerState,
+    onCoolerHit,
   };
-  return { deps, onKill, onSpawn, addSystem, addMessage };
+  return { deps, onKill, onSpawn, addSystem, addMessage, onCoolerState, onCoolerHit };
 }
 
 const killOfSelf = { t: 'kill', knife: 1, from: 3, to: 7, at: 0.2 } as const;
@@ -76,6 +80,38 @@ describe('Multiplayer', () => {
     vi.advanceTimersByTime(1000);
     expect(onKill).not.toHaveBeenCalled();
     expect(mp.selfId).toBeNull();
+  });
+
+  it("takes the walk-in's door from the welcome: untouched when it says nothing", () => {
+    const { deps, onCoolerState } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    expect(onCoolerState).toHaveBeenLastCalledWith([]);
+    const dents = [{ z: -3, y: 1.6, by: 'fist' as const }];
+    latestSocket().receive({ ...welcome('lobby'), cooler: { dents } });
+    expect(onCoolerState).toHaveBeenLastCalledWith(dents);
+    mp.close();
+  });
+
+  it("shows hits on the walk-in's door as what made them arrives on this screen", () => {
+    const { deps, onCoolerHit } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    const dent = { z: -3, y: 1.6, by: 'fist' as const };
+    // Our own punch at once (the game waits for the fist itself); someone else's as their fist,
+    // drawn in the past, reaches out; a knife's when its flight gets there.
+    latestSocket().receive({ t: 'cooler', from: 7, dent });
+    expect(onCoolerHit).toHaveBeenLastCalledWith({ t: 'cooler', from: 7, dent }, 0, true);
+    latestSocket().receive({ t: 'cooler', from: 3, dent });
+    const remote = onCoolerHit.mock.lastCall!;
+    expect(remote[1]).toBeGreaterThan(0.1);
+    expect(remote[2]).toBe(false);
+    const knifeHit = { t: 'cooler', from: 3, dent, knife: { id: 4, at: 0.3 } } as const;
+    latestSocket().receive(knifeHit);
+    expect(onCoolerHit).toHaveBeenLastCalledWith(knifeHit, 0.5, false);
+    mp.close();
   });
 
   it('takes over a room joined in the background, replaying what arrived meanwhile', async () => {

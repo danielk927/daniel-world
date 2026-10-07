@@ -25,6 +25,11 @@ export interface WorldDebugState {
   readonly knockedOut: boolean;
   /** Knives stuck around the room, and in the air, as this screen shows them. */
   readonly knives: { stuck: number; flying: number };
+  /**
+   * The walk-in cooler's door: hits the room has decided, whether that has burst it open, and how
+   * far it has swung open on this screen, in radians (a right angle is fully open).
+   */
+  readonly cooler: { hits: number; open: boolean; angle: number };
   readonly remotePlayers: readonly RemoteDebugInfo[];
   /** Everyone in the room, including this player (1 when alone or offline). */
   readonly playerCount: number;
@@ -96,6 +101,9 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     },
     get knives() {
       return { stuck: world.knives.stuckCount, flying: world.knives.flyingCount };
+    },
+    get cooler() {
+      return { hits: game.cooler.hits, open: game.cooler.open, angle: world.cooler.angle };
     },
     get remotePlayers() {
       return game.multiplayer?.remotePlayers() ?? [];

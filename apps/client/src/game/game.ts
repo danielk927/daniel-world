@@ -32,9 +32,10 @@ import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
 import { computerViewpoint } from '../world/computer.ts';
 import { PICK_DISTANCE } from '../world/stations.ts';
-import { THROW, type Viewmodel } from '../world/viewmodel.ts';
+import { PUNCH, THROW, type Viewmodel } from '../world/viewmodel.ts';
 import { CameraRig } from './cameraRig.ts';
 import { ComputerDesk } from './computerDesk.ts';
+import { CoolerControl } from './cooler.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
@@ -85,8 +86,11 @@ export class Game {
   armed = true;
   /** World time the throw animation lets go of the knife; the tick after that throws it. */
   private throwAt: number | null = null;
-  /** A punch the next input carries to the server. */
+  /** A punch the next input carries to the server, and the world time it was thrown. */
   private punchPending = false;
+  private punchAt = 0;
+  /** The walk-in cooler's door: the hits on it, and when its doorway opens for this player. */
+  readonly cooler: CoolerControl;
   private readonly hand = new Vector3();
   private lastThrowSeq = -Infinity;
 
@@ -193,6 +197,10 @@ export class Game {
       this.stationLabels.push(this.labels.add(label, anchor, 0.55, PICK_DISTANCE, 'yield'));
     });
 
+    // A fist that meets the walk-in's steel door jars the view a little.
+    this.cooler = new CoolerControl(world.cooler, this.player, () => this.rig.bump());
+    world.knives.onOfflineStuck = (knife) => this.cooler.knifeStuck(knife, this.elapsed);
+
     this.desk = new ComputerDesk(world.computer, (message) => this.toasts.show(message));
     this.computerGuide = new ComputerGuide(overlay);
     const pcLabel = el('div', { class: 'lore-label' }, [
@@ -248,6 +256,7 @@ export class Game {
     this.labels.element.hidden = false;
     this.player.reset();
     this.world.knives.reset([]);
+    this.cooler.reset([]);
     this.lastThrowSeq = -Infinity;
     this.setArmed(true);
     this.input.yaw = SPAWN.yaw;
@@ -285,6 +294,9 @@ export class Game {
         onFatal: (code) => this.leave(joinFailureMessage(code, room)),
         onStatus: () => this.onConnectionStatus(),
         onSpawn: (yaw) => this.faceSpawn(yaw),
+        onCoolerState: (dents) => this.cooler.reset(dents),
+        onCoolerHit: (message, wait, own) =>
+          this.cooler.serverHit(message, this.elapsed, wait, own),
       },
       joined,
     );
@@ -349,6 +361,7 @@ export class Game {
     this.killFeed.clear();
     this.impact.clear();
     this.world.knives.reset([]);
+    this.cooler.reset([]);
     this.throwAt = null;
     this.punchPending = false;
     this.lastThrowSeq = -Infinity;
@@ -419,6 +432,7 @@ export class Game {
     this.backOnFeet();
     this.viewmodel.setShown(false);
     this.world.knives.reset([]);
+    this.cooler.reset([]);
     this.landing.setNotice(reason);
     // Entering again goes back to the same room, as the address bar says.
     this.landing.setRoom(this.room);
@@ -621,7 +635,10 @@ export class Game {
 
   /** Jab if the hand is up; the next input tells the room, so others see it. */
   private punchWhenReady(): void {
-    if (this.viewmodel.startPunch()) this.punchPending = true;
+    if (this.viewmodel.startPunch()) {
+      this.punchPending = true;
+      this.punchAt = this.elapsed;
+    }
   }
 
   private tick(): void {
@@ -645,6 +662,9 @@ export class Game {
     }
     const input = this.player.tick(keys, this.input.yaw, this.input.pitch, online);
     if (input.keys & Keys.Throw) this.throwKnife(input, online);
+    if (input.keys & Keys.Punch) {
+      this.cooler.punched(this.player.state, this.punchAt + PUNCH.hit, !online);
+    }
     if (online) this.multiplayer?.sendInput(input);
     if (!wasGrounded && this.player.state.grounded) this.rig.land(fallSpeed);
   }
@@ -675,6 +695,7 @@ export class Game {
     }
 
     this.multiplayer?.update(now, dt);
+    this.cooler.update(this.elapsed);
     const mp = this.multiplayer;
     this.world.knives.update(dt, mp?.knifeTargets() ?? NO_TARGETS, mp?.spares);
     this.updateCamera(dt);

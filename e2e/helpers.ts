@@ -32,6 +32,7 @@ export function world(page: Page): Promise<WorldDebugState> {
       computer: w.computer,
       knockedOut: w.knockedOut,
       knives: w.knives,
+      cooler: w.cooler,
       remotePlayers: w.remotePlayers,
       playerCount: w.playerCount,
       prediction: w.prediction,

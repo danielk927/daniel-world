@@ -3,6 +3,8 @@ import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
   chefSpares,
+  type CoolerDent,
+  type CoolerHitMessage,
   type Cook,
   type ErrorCode,
   type KnifeTarget,
@@ -32,6 +34,8 @@ import { roomName } from './party.ts';
 const BUBBLE_MS = 6000;
 /** A remote thrower's swing starts this long before their knife leaves the hand. */
 const THROW_LEAD = 0.18;
+/** A remote cook's punch reaches out this long after it starts (see Avatars). */
+const PUNCH_REACH_SECONDS = 0.108;
 
 interface Remote extends Cook {
   readonly info: PlayerInfo;
@@ -81,6 +85,13 @@ export interface MultiplayerDeps {
   onKill: (thrower: KillParty, victim: KillParty, role: 'thrower' | 'victim' | 'witness') => void;
   /** This player is standing again: respawned, rejoined, or playing solo. */
   onBackOnFeet: () => void;
+  /** The walk-in's door as the room has it, on joining. */
+  onCoolerState: (dents: readonly CoolerDent[]) => void;
+  /**
+   * Someone hit the walk-in's door; what hit it arrives on this screen in `wait` seconds. `own`:
+   * this player did.
+   */
+  onCoolerHit: (message: CoolerHitMessage, wait: number, own: boolean) => void;
 }
 
 export interface RemoteDebugInfo {
@@ -353,6 +364,7 @@ export class Multiplayer {
     this.deps.player.reset(welcome.self);
     this.deps.onBackOnFeet();
     this.deps.knives.reset(welcome.knives);
+    this.deps.onCoolerState(welcome.cooler?.dents ?? []);
     if (!this.hasBeenOnline) this.deps.onSpawn(welcome.self.yaw);
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     for (const info of welcome.players) {
@@ -469,6 +481,18 @@ export class Multiplayer {
           this.announceKill(message.from, message.to);
         }, wait * 1000);
         this.killTimers.add(timer);
+        return;
+      }
+      case 'cooler': {
+        const own = message.from === this.selfId;
+        // Shown as it lands on this screen: a knife when its drawn flight gets there, someone
+        // else's punch when their fist, drawn as far in the past as the rest of them, reaches out.
+        const wait = message.knife
+          ? this.deps.knives.timeUntil(message.knife.id, message.knife.at)
+          : own
+            ? 0
+            : INTERPOLATION_DELAY_MS / 1000 + PUNCH_REACH_SECONDS;
+        this.deps.onCoolerHit(message, wait, own);
         return;
       }
       case 'respawn': {
