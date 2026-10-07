@@ -436,3 +436,15 @@ Judgment calls made during the unattended build, with reasons.
 - **A grid over the floor plan** keeps the flight as cheap as it was with a dozen boxes, about 0.3 µs per knife per tick.
 - Known gap: the walk-in door's dents (up to 7.5 cm) are not in the knife collision, so a knife in a dent sits at the flat door's plane.
 - This changed the shared simulation within protocol version 7.
+
+### Knife skins (2026-10-07)
+
+- **A cook can carry one of twelve knives**, at Daniel's request, after the most popular CS2 knives: the kitchen's own chef's knife (the default), Karambit, Butterfly, M9 Bayonet, Bayonet, Flip, Huntsman, Falchion, Gut, Talon, Skeleton and Stiletto.
+  Each is an original low-poly model built from primitives in the kitchen's flat-shaded style, recognizable by its silhouette (the karambit's claw and finger ring, the butterfly's split handles, the M9's saw-back and guard, the gut knife's hook).
+- **Each knife comes in two or three finishes** after popular CS finishes (Doppler, Fade, Marble Fade, Tiger Tooth, Crimson Web, Case Hardened, Slaughter, Damascus for the chef's knife, and plain Vanilla), painted into vertex colors rather than per-skin materials, so knives still batch.
+- **Every knife moves as its own**: a keyframed draw, idle and inspect per knife over the view model's pose, after CS2 (the butterfly flips open and through its routine, the karambit, talon and skeleton spin on their rings, the flip knife flips open, the bayonets roll and spin).
+  One table holds every knife's moves (`world/knifeMoves.ts`), so the view model has no knife-specific code; throws and the bare-hand punch work with every knife.
+- **The Knives tab in the pause menu** shows every knife, a live 3D look at the chosen one (its renderer exists only while the tab is open), its finishes and Equip; the equipped knife is kept with the settings and shows in the loadout.
+- **Everyone sees each cook's knife**: in their hand, in flight, and stuck in the walls, for latecomers too. The look travels with the visitor's prefs (as the Chef Skinner switch does) and on each thrown and stuck knife.
+  Unknown knives or finishes fall back to the chef's knife and the knife's default finish everywhere (`knifeLook`), so a newer client can never break an older screen. Knives are drawn in one instanced batch per look.
+- This changed the protocol (optional look fields on prefs and knives), within version 7.
