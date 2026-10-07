@@ -2,6 +2,7 @@ import './styles/app.css';
 import { DEFAULT_ROOM } from '@world/shared';
 import { dishes, stations } from './content.ts';
 import type { Game } from './game/game.ts';
+import { Settings } from './game/settings.ts';
 import { el } from './ui/dom.ts';
 import { Landing } from './ui/landing.ts';
 import { loading } from './ui/loading.ts';
@@ -63,14 +64,16 @@ async function boot(): Promise<void> {
   ]);
   const canvas = el('canvas', { class: 'world-canvas' });
   app.prepend(canvas);
-  const world = new WorldScene(canvas, stations, dishes, pickQuality(webgl));
+  const settings = Settings.load();
+  const quality = pickQuality(webgl, settings.values.quality);
+  const world = new WorldScene(canvas, stations, dishes, quality);
   loading.setText('Lighting the lamps…');
   loading.setProgress(0.6);
   await world.compile();
   world.startGovernor(await refresh);
   loading.setProgress(1);
 
-  game = new Game(world, overlay, landing);
+  game = new Game(world, overlay, landing, settings, pickQuality(webgl));
   game.start();
 
   // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.

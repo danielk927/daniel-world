@@ -1,5 +1,4 @@
 import { Keys, MAX_PITCH } from '@world/shared';
-import { storage } from '../util/storage.ts';
 
 const MOVEMENT_KEYS: Record<string, number> = {
   KeyW: Keys.Forward,
@@ -15,8 +14,6 @@ const MOVEMENT_KEYS: Record<string, number> = {
   ShiftRight: Keys.Sprint,
 };
 
-const SENSITIVITY_KEY = 'world.sensitivity';
-const DEFAULT_SENSITIVITY = 1;
 /** Radians per pixel at sensitivity 1. */
 const BASE_RADIANS_PER_PIXEL = 0.0022;
 
@@ -37,7 +34,10 @@ export class Input {
   pitch = 0;
   /** When false, movement keys and mouse look are ignored (menus, chat, landing). */
   enabled = false;
-  sensitivity: number;
+  /** Mouse look speed, as a multiple of the default (see Settings). */
+  sensitivity = 1;
+  /** Mouse up looks down. */
+  invertY = false;
   /** Called for non-movement key presses while enabled, e.g. Enter, Q or I. */
   /** Return true if the key was handled, which also cancels its default browser action. */
   onKey: ((code: string) => boolean) | null = null;
@@ -60,8 +60,6 @@ export class Input {
 
   constructor(target: HTMLElement) {
     this.target = target;
-    const stored = Number(storage.get(SENSITIVITY_KEY));
-    this.sensitivity = stored > 0 ? stored : DEFAULT_SENSITIVITY;
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.releaseAll);
@@ -82,11 +80,6 @@ export class Input {
 
   get locked(): boolean {
     return document.pointerLockElement === this.target;
-  }
-
-  setSensitivity(value: number): void {
-    this.sensitivity = value;
-    storage.set(SENSITIVITY_KEY, String(value));
   }
 
   /** Must be called from a user gesture. Resolves to whether the pointer is now locked. */
@@ -173,7 +166,7 @@ export class Input {
     if (!this.enabled || (!this.locked && !this.dragging)) return;
     const scale = BASE_RADIANS_PER_PIXEL * this.sensitivity;
     this.yaw -= event.movementX * scale;
-    this.pitch -= event.movementY * scale;
+    this.pitch -= event.movementY * scale * (this.invertY ? -1 : 1);
     this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
   };
 

@@ -872,16 +872,6 @@ kbd {
   animation: fade-in 0.2s ease both;
 }
 
-.pause-room-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.pause-wide {
-  width: 100%;
-}
-
 /* ---------- Bottom right corner: loadout over the minimap ---------- */
 
 .hud-corner {
@@ -1423,30 +1413,279 @@ kbd {
 /* ---------- Pause menu ---------- */
 
 .pause {
-  background: rgba(24, 14, 32, 0.45);
+  background: rgba(16, 22, 52, 0.55);
   animation: fade-in 0.2s ease both;
 }
 
 .pause-card {
-  width: min(400px, 100%);
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
   display: grid;
-  gap: 18px;
+  grid-template-rows: auto auto auto 1fr auto;
+  padding: 26px 28px 22px;
+  overflow: auto;
+  animation: card-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+.pause-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
 }
 
 .pause-card .card-title {
   margin: 0;
+  font-size: 32px;
+}
+
+.pause-status {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-align: right;
 }
 
 .pause-note {
-  margin: -8px 0 0;
+  margin: 0 0 14px;
   font-size: 14px;
   color: var(--warn);
 }
 
-.pause-actions {
+/* Tabs: small capitals on a hairline, the selected one underlined in ivory. */
+.tabs {
+  display: flex;
+  gap: 26px;
+  border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 18px;
+}
+
+.tab {
+  position: relative;
+  padding: 0 0 11px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.tab:hover {
+  color: var(--ink-muted);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--ink);
+}
+
+.tab[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--ivory);
+}
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.pause-panel {
+  min-height: 372px;
+}
+
+.settings-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  align-content: start;
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 240px);
+  align-items: center;
+  column-gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(246, 243, 234, 0.08);
+}
+
+.setting:last-child {
+  border-bottom: 0;
+}
+
+.setting-label {
+  font-size: 14.5px;
+  color: var(--ink);
+}
+
+.setting-control {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.setting-control .slider-row {
+  width: 100%;
+}
+
+.setting-help,
+.setting-help-row {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.setting-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setting-help-row .setting-help {
+  margin: 0;
+}
+
+/* A switch: a hairline track with a square thumb, ivory when on. */
+.switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--ivory);
+  border-color: var(--ivory);
+}
+
+.switch[aria-checked='true'] .switch-thumb {
+  transform: translateX(18px);
+  background: var(--navy-deep);
+}
+
+.switch:focus-visible,
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+}
+
+.segment {
+  min-width: 64px;
+  padding: 6px 12px;
+  border: 0;
+  border-left: 1px solid var(--panel-border);
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.segment:first-child {
+  border-left: 0;
+}
+
+.segment:hover {
+  color: var(--ink);
+}
+
+.segment[aria-checked='true'] {
+  background: var(--ivory);
+  color: var(--navy-deep);
+}
+
+.button-small {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 11.5px;
+}
+
+.pause-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
+  padding-top: 18px;
+  margin-top: 6px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.pause-footer .button {
+  min-width: 132px;
+}
+
+.pause-portfolio {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.hud-fps {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+/* Reduce motion, from the menu: no flashes, and every animation and transition is instant. */
+.reduce-motion .impact-flash {
+  display: none;
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
 }
 
 .slider-row {

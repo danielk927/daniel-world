@@ -32,6 +32,8 @@ import { CameraRig } from './cameraRig.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
+import type { Settings } from './settings.ts';
+import type { Quality } from '../util/capabilities.ts';
 
 export type Mode = 'landing' | 'entering' | 'playing' | 'chat' | 'paused' | 'panel';
 
@@ -93,8 +95,18 @@ export class Game {
   frameCpuMs = 0;
   /** The minimap redraws at 30 Hz; dots on a small map look the same and it halves the cost. */
   private minimapTimer = 0;
+  /** The frame rate readout, when shown: frames and time since it last updated. */
+  private showFps = false;
+  private fpsFrames = 0;
+  private fpsTime = 0;
 
-  constructor(world: WorldScene, overlay: HTMLElement, landing: Landing) {
+  constructor(
+    world: WorldScene,
+    overlay: HTMLElement,
+    landing: Landing,
+    settings: Settings,
+    autoQuality: Quality,
+  ) {
     this.world = world;
     this.landing = landing;
     const canvas = world.renderer.domElement;
@@ -124,11 +136,20 @@ export class Game {
       {
         onResume: (look) => void this.resume(look),
         onLeave: () => this.leave(),
-        onSensitivity: (value) => this.input.setSensitivity(value),
         onCopyInvite: () => void this.copyInvite(),
       },
-      this.input.sensitivity,
+      settings,
+      { active: world.quality, auto: autoQuality },
     );
+    settings.subscribe((values) => {
+      this.input.sensitivity = values.sensitivity;
+      this.input.invertY = values.invertY;
+      this.rig.baseFov = values.fov;
+      this.rig.motion = values.reduceMotion ? 0 : 1;
+      this.showFps = values.showFps;
+      this.hud.setFps(values.showFps ? 0 : null);
+      document.documentElement.classList.toggle('reduce-motion', values.reduceMotion);
+    });
 
     this.world.stations.entries.forEach((entry, i) => {
       const anchor = this.world.stations.anchor(i);
@@ -261,8 +282,19 @@ export class Game {
     if (look) await this.input.lock();
   }
 
+  /** The room and the connection, as the pause menu says it. */
+  private statusLine(): string {
+    const room = this.room === DEFAULT_ROOM ? 'The lobby' : `Room #${this.room}`;
+    const mp = this.multiplayer;
+    if (!mp || mp.status === 'offline') return `${room} · Playing solo`;
+    if (mp.status === 'connecting') return `${room} · Connecting`;
+    const rtt = mp.rtt;
+    return `${room} · Online${rtt === null ? '' : ` · ${Math.round(rtt)} ms`}`;
+  }
+
   private openPause(note = ''): void {
     if (this.mode !== 'playing') return;
+    this.pause.setStatus(this.statusLine());
     this.mode = 'paused';
     this.input.enabled = false;
     this.input.releaseAll();
@@ -485,6 +517,15 @@ export class Game {
       this.player.state.grounded,
     );
     this.updateMinimap(dt);
+    if (this.showFps) {
+      this.fpsFrames++;
+      this.fpsTime += dt;
+      if (this.fpsTime >= 0.5) {
+        this.hud.setFps(Math.round(this.fpsFrames / this.fpsTime));
+        this.fpsFrames = 0;
+        this.fpsTime = 0;
+      }
+    }
     this.hud.setLookCue(this.mode === 'playing' && !this.input.locked && !this.knockedOut);
     this.loadout.update(this.armed, this.viewmodel.knifeReadiness);
     // Labels and picking project through the camera, so its matrices must be current.

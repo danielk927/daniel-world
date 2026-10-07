@@ -27,11 +27,13 @@ export function probeWebGL(): WebGLProbe {
 
 /**
  * High quality unless the GPU is a software renderer, where shadows and full resolution would make
- * the world unplayable. `?quality=high` or `?quality=low` overrides the choice.
+ * the world unplayable. The player's graphics setting overrides that, and `?quality=high` or
+ * `?quality=low` overrides both.
  */
-export function pickQuality(probe: WebGLProbe): Quality {
+export function pickQuality(probe: WebGLProbe, choice: 'auto' | Quality = 'auto'): Quality {
   const forced = new URLSearchParams(location.search).get('quality');
   if (forced === 'high' || forced === 'low') return forced;
+  if (choice !== 'auto') return choice;
   return probe.software ? 'low' : 'high';
 }
 

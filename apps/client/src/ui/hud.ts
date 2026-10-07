@@ -31,6 +31,7 @@ export class Hud {
     attrs: { role: 'status' },
   });
   private readonly playerCount = el('span', { class: 'hud-players-count' });
+  private readonly fps = el('span', { class: 'hud-fps', attrs: { hidden: '' } });
   private readonly playerList = el('ul', { class: 'hud-players-list' });
   private readonly hint = el('div', { class: 'hint' }, [
     el('kbd', { text: 'WASD' }),
@@ -61,6 +62,7 @@ export class Hud {
         el('span', { class: 'hud-label', text: 'Room' }),
         this.roomName,
         this.status,
+        this.fps,
         this.statusAnnouncement,
       ]),
       el('div', { class: 'hud-right' }, [
@@ -133,6 +135,12 @@ export class Hud {
           : options.updating
             ? 'Solo · updating'
             : 'Solo';
+  }
+
+  /** The frame rate readout: a number to show, or null to hide it. */
+  setFps(fps: number | null): void {
+    this.fps.hidden = fps === null;
+    if (fps !== null) this.fps.textContent = fps > 0 ? `${fps} fps` : '';
   }
 
   setLookCue(shown: boolean): void {
