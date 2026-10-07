@@ -9,11 +9,11 @@ import {
 } from '@world/shared';
 import type { Settings } from '../game/settings.ts';
 import { FINISHES, finishSwatch } from '../world/knifeFinishes.ts';
-import { knifeModel, knifeSilhouette } from '../world/knifeModel.ts';
+import { knifeModel } from '../world/knifeModel.ts';
 import { el } from './dom.ts';
+import { skinIcon } from './knifeIcon.ts';
 import { KnifePreview } from './knifePreview.ts';
 
-const SVG = 'http://www.w3.org/2000/svg';
 /** Knives across the grid; arrow keys move this far up and down. */
 const COLUMNS = 4;
 
@@ -32,22 +32,6 @@ const TILE_NAMES: Readonly<Record<KnifeSkin, string>> = {
   skeleton: 'Skeleton',
   stiletto: 'Stiletto',
 };
-
-/** A knife's silhouette, side on and tip to the left, in the text color. */
-function silhouette(skin: KnifeSkin): SVGSVGElement {
-  const { viewBox, paths } = knifeSilhouette(skin);
-  const root = document.createElementNS(SVG, 'svg');
-  root.setAttribute('viewBox', viewBox);
-  root.setAttribute('aria-hidden', 'true');
-  root.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  for (const d of paths) {
-    const path = document.createElementNS(SVG, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill-rule', 'evenodd');
-    root.append(path);
-  }
-  return root;
-}
 
 /** A strip of a finish, as it is painted along a blade, tip on the left. */
 function swatch(finish: KnifeFinish): HTMLCanvasElement {
@@ -99,7 +83,7 @@ export class KnivesPanel {
         'button',
         { class: 'knife-tile', attrs: { type: 'button', role: 'radio', 'data-skin': skin } },
         [
-          silhouette(skin),
+          skinIcon(skin),
           el('span', { class: 'knife-tile-name', text: TILE_NAMES[skin] }),
           el('span', { class: 'visually-hidden knife-tile-equipped', text: ', equipped' }),
         ],

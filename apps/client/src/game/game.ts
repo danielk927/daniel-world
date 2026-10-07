@@ -187,6 +187,7 @@ export class Game {
       this.multiplayer?.setPrefs(prefsOf(values));
       // Drawn fresh the next time the arm comes into view, as the menu closes.
       this.viewmodel.setLook(values.knife);
+      this.loadout.setKnife(values.knife.skin);
     });
 
     this.world.stations.entries.forEach((entry, i) => {
