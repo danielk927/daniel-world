@@ -422,3 +422,17 @@ Judgment calls made during the unattended build, with reasons.
   The room and the mist are only drawn when some of the room can be seen: a shut door adds two draw calls, an open one up to four more.
 - **Labels and station picking respect the wall** between the kitchen and the cooler, and the minimap rescales to show the cooler once it is open. The outside view can never show it (a test checks).
 - This changed the protocol (a `cooler` message and the welcome's door) and the shared simulation, within version 7.
+
+### Knives in the kitchen's structures (2026-10-07)
+
+- **Knives stick where the kitchen is drawn, not into its fixtures' footprints**, at Daniel's request: they flew through the hood's body, the hanging lamps and the heat-lamp gantry, and hung in the air at the faces of open fixtures.
+  Solids follow the drawn geometry: a counter's plinth, body and overhanging top; the hood's 4 cm skirt round its open, lit underside and its body up into the vault; the islands' open shelves and plate stacks; the shelving and pan rack; the doors, signs, clock and computer; the lamps and gantry; and the bigger station props.
+- **Round things are a solid of their own**: stacked cone frustums on a vertical axis, squashed for oval pans, with an open hollow for lamp shades so a knife can fly up into a shade and stick inside it.
+- **A knife sinks no deeper than what it hit allows**, so it never pokes out of a thin shelf or a shade's wall.
+- **Windows and skylights take knives in their glass**: a knife flies into the window's reveal or up a skylight's well, and the glazing bars are solid. The vault is its flat facets, as drawn.
+- **Small things let a knife through**: rods and rings, paper, things under 30 cm across, the food on the pass, and wire shelving; pendant cords are too thin to hold a knife. Pots, boards and the big centerpieces stop it.
+- **A test throws knives at the drawn kitchen** (`knifeSolids.test.ts`, about 16,000 throws), so solids keep up with what is drawn: a knife may go at most 2 cm into anything sizable, never out of its far side, and must stick within 2 cm of something drawn.
+  The shapes both sides need beyond plain boxes (lamp shades, skylights, stacked plates) live in the shared layout, and the client draws from them.
+- **A grid over the floor plan** keeps the flight as cheap as it was with a dozen boxes, about 0.3 µs per knife per tick.
+- Known gap: the walk-in door's dents (up to 7.5 cm) are not in the knife collision, so a knife in a dent sits at the flat door's plane.
+- This changed the shared simulation within protocol version 7.
