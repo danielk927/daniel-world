@@ -85,7 +85,9 @@ const digest = (machine: Machine) => ({
   ram: createHash('sha256').update(machine.cpu.u8).digest('hex'),
 });
 
-describe.skipIf(!haveWad)('DOOM on the kitchen computer', () => {
+// Each test runs the real DOOM for some frames: seconds of work, more on a busy machine, so none
+// rides on the 5 s default.
+describe.skipIf(!haveWad)('DOOM on the kitchen computer', { timeout: 30_000 }, () => {
   const wad = haveWad ? readFileSync(wadPath) : new Uint8Array();
 
   it('boots to the title screen, pixel for pixel', () => {

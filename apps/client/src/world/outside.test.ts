@@ -24,7 +24,8 @@ function sees(from: Vector3, direction: Vector3): boolean {
   return raycaster.intersectObject(mesh, false).length > 0;
 }
 
-describe('the view outside', () => {
+// Raycasting every pane and skylight from all over the floor takes seconds, more on a busy machine.
+describe('the view outside', { timeout: 30_000 }, () => {
   it('fills every pane, from anywhere along the windows, even at a glance along the wall', () => {
     // The window counter keeps a cook this far from the wall.
     const z = -5.45;
