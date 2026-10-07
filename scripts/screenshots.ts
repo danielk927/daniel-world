@@ -46,7 +46,7 @@ async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.goto(`${clientUrl}/?quality=high&time=20:00`);
   await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 30_000 });
   await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Room code').fill(room);
+  await page.getByLabel('Private party').fill(room);
   await page.getByRole('button', { name: 'Enter world' }).click();
   await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 30_000 });
 }

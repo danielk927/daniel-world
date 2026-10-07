@@ -43,8 +43,10 @@ Open a second browser window to see yourself from the outside.
 | Enter   | Chat (120 characters, plain text)                           |
 | Esc     | Menu                                                        |
 
-Leave the room code empty to join the public `lobby`, or type any code to get a private kitchen.
-Private rooms have a "Copy invite link" button in the menu, which links to `/?room=<code>`.
+Leave the private party field empty to join the public `lobby`, or type a code to join or start a private party, a kitchen of your own.
+The menu's Party tab does the same without leaving the world: start a party with your own code or a random one, join one by its code, or head back to the lobby.
+In a party it shows the invite link (`/?room=<code>`) with a Copy link button, and the address bar keeps the party, so a reload or the shared address comes back to it.
+Chef Skinner stays in the lobby.
 
 Every cook carries knives, in every room.
 Left click to throw one; it flies in a slight arc and sticks into whatever it hits.

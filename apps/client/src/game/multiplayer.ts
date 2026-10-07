@@ -4,6 +4,7 @@ import {
   TICK_MS,
   chefSpares,
   type Cook,
+  type ErrorCode,
   type KnifeTarget,
   type InputMessage,
   type PlayerInfo,
@@ -11,7 +12,12 @@ import {
   type ServerMessage,
   type WelcomeMessage,
 } from '@world/shared';
-import { Connection, type ConnectionStatus } from '../net/connection.ts';
+import {
+  Connection,
+  type ConnectionHandlers,
+  type ConnectionStatus,
+  type JoinedRoom,
+} from '../net/connection.ts';
 import { ServerClock, SnapshotBuffer } from '../net/interpolation.ts';
 import type { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
@@ -21,6 +27,7 @@ import type { Label, LabelLayer } from '../ui/labels.ts';
 import type { Avatars, AvatarPose } from '../world/avatars.ts';
 import type { Knives } from '../world/knives.ts';
 import type { LocalPlayer } from './localPlayer.ts';
+import { roomName } from './party.ts';
 
 const BUBBLE_MS = 6000;
 /** A remote thrower's swing starts this long before their knife leaves the hand. */
@@ -61,7 +68,10 @@ export interface MultiplayerDeps {
   /** Seconds, the same clock the world animates with. */
   worldTime: () => number;
   notify: (message: string) => void;
-  onFatal: (message: string) => void;
+  /** The server refused this room for good, saying why. */
+  onFatal: (code: ErrorCode) => void;
+  /** The connection changed state (online, connecting, offline). */
+  onStatus: (status: ConnectionStatus) => void;
   /** The server placed us somewhere new (first join, respawn); turn the view to match. */
   onSpawn: (yaw: number) => void;
   /**
@@ -104,31 +114,48 @@ export class Multiplayer {
   private statusTimer = 0;
   /** This player, as far as Chef Skinner is concerned. */
   private readonly self: { prefs: Readonly<Prefs> };
+  /** Kills waiting for their knife to arrive on this screen before they are announced. */
+  private readonly killTimers = new Set<number>();
 
-  constructor(deps: MultiplayerDeps) {
+  /**
+   * Connects to `deps.room`, or, given a room already joined in the background, takes over its
+   * connection and starts from its welcome.
+   */
+  constructor(deps: MultiplayerDeps, joined?: JoinedRoom) {
     this.deps = deps;
     this.room = deps.room;
     this.self = { prefs: deps.prefs };
     deps.hud.setRoom(deps.room);
     this.refreshPlayers();
-    this.connection = new Connection(
-      deps.url,
-      deps.name,
-      deps.room,
-      () => {
+    const handlers: ConnectionHandlers = {
+      onStatus: (status) => this.onStatus(status),
+      onWelcome: (welcome) => this.onWelcome(welcome),
+      onMessage: (message) => this.onMessage(message),
+      onFatal: (code) => deps.onFatal(code),
+      spawnHint: () => {
         // Rejoin where we are standing after a reconnect instead of back at a spawn point.
         if (!this.hasBeenOnline) return undefined;
         const s = deps.player.state;
         return { x: s.x, z: s.z, yaw: s.yaw };
       },
-      deps.prefs,
-      {
-        onStatus: (status) => this.onStatus(status),
-        onWelcome: (welcome) => this.onWelcome(welcome),
-        onMessage: (message) => this.onMessage(message),
-        onFatal: (message) => deps.onFatal(message),
-      },
-    );
+    };
+    if (joined) {
+      this.connection = joined.connection;
+      this.connection.setHandlers(handlers);
+      // The background join said the prefs of the moment it started; they may have changed since.
+      this.connection.setPrefs(deps.prefs);
+      this.onStatus('online');
+      this.onWelcome(joined.welcome);
+      for (const message of joined.backlog) this.onMessage(message);
+    } else {
+      this.connection = new Connection({
+        url: deps.url,
+        name: deps.name,
+        room: deps.room,
+        prefs: deps.prefs,
+        handlers,
+      });
+    }
   }
 
   get status(): ConnectionStatus {
@@ -141,6 +168,16 @@ export class Multiplayer {
 
   get rtt(): number | null {
     return this.connection.rtt;
+  }
+
+  /** Trying to connect again after failing to, or after losing the connection. */
+  get retrying(): boolean {
+    return this.connection.retrying;
+  }
+
+  /** Offline because the server runs another version of the protocol. */
+  get versionMismatch(): boolean {
+    return this.connection.versionMismatch;
   }
 
   /** Called once per simulation tick with the input that was just predicted. */
@@ -188,8 +225,19 @@ export class Multiplayer {
 
   close(): void {
     window.clearInterval(this.statusTimer);
+    this.clearKillTimers();
     this.connection.close();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
+    this.selfId = null;
+  }
+
+  /**
+   * Forget kills still in flight. Announced after this room is gone (left, or moved to another),
+   * a knife from it would knock this player out where no respawn will ever come.
+   */
+  private clearKillTimers(): void {
+    for (const timer of this.killTimers) window.clearTimeout(timer);
+    this.killTimers.clear();
   }
 
   remotePlayers(): RemoteDebugInfo[] {
@@ -266,6 +314,7 @@ export class Multiplayer {
   private onStatus(status: ConnectionStatus): void {
     const { hud, chat } = this.deps;
     window.clearInterval(this.statusTimer);
+    this.deps.onStatus(status);
     if (status === 'online') {
       const showPing = (): void => hud.setStatus('online', { rtt: this.connection.rtt });
       showPing();
@@ -278,6 +327,7 @@ export class Multiplayer {
     }
     // Offline: everyone else vanishes, the world keeps working in single player.
     this.hasClock = false;
+    this.clearKillTimers();
     this.deps.knives.goOffline();
     this.deps.onBackOnFeet();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
@@ -311,10 +361,11 @@ export class Multiplayer {
     }
     this.refreshPlayers();
     const others = welcome.players.length - 1;
+    const room = roomName(welcome.room);
     this.deps.chat.addSystem(
       others === 0
-        ? `You joined ${welcome.room}. Nobody else is here yet.`
-        : `You joined ${welcome.room} with ${others} ${others === 1 ? 'other cook' : 'other cooks'}.`,
+        ? `You joined ${room}. Nobody else is here yet.`
+        : `You joined ${room} with ${others} ${others === 1 ? 'other cook' : 'other cooks'}.`,
     );
     if (this.hasBeenOnline) this.deps.notify('Reconnected');
     this.hasBeenOnline = true;
@@ -413,7 +464,11 @@ export class Multiplayer {
         // Tell everyone when the knife gets there on this screen, not when the server decided.
         const wait = knives.timeUntil(message.knife, message.at);
         knives.resolve(message.knife, { kind: 'kill', at: message.at });
-        window.setTimeout(() => this.announceKill(message.from, message.to), wait * 1000);
+        const timer = window.setTimeout(() => {
+          this.killTimers.delete(timer);
+          this.announceKill(message.from, message.to);
+        }, wait * 1000);
+        this.killTimers.add(timer);
         return;
       }
       case 'respawn': {

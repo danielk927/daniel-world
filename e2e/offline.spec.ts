@@ -15,10 +15,21 @@ test('with the server stopped the world still loads in single-player mode', asyn
   const before = state.player.x;
   await walkUntil(page, 'KeyA', (p) => p.x < before - 1.5);
 
+  // Parties need the server, and the menu says so rather than failing quietly.
+  await page.keyboard.press('Escape');
+  const menu = page.getByRole('dialog', { name: 'Paused' });
+  const start = menu.getByRole('button', { name: 'Start party' });
+  await expect(menu.locator('#party-code-status')).toContainText('The server is unreachable');
+  await expect(start).toHaveAttribute('aria-disabled', 'true');
+
   // When the server comes back, the client reconnects on its own.
   const server = await startRoomServer();
   try {
     await expectWorld(page, (w) => w.connection === 'online', 'should reconnect', 30_000);
+    // The menu, still open, opens parties up again.
+    await expect(start).toHaveAttribute('aria-disabled', 'false');
+    await expect(menu.locator('#party-code-status')).not.toContainText('unreachable');
+    await page.keyboard.press('Escape');
     await expect(page.locator('.hud-status')).toContainText('Online');
     // Back in a real room, with an id from the server.
     await expectWorld(page, (w) => w.selfId !== null, 'has a server id');

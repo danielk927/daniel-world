@@ -4,7 +4,9 @@ import {
   parseServerMessage,
   samePrefs,
   type ClientMessage,
+  type ErrorCode,
   type Prefs,
+  type RoomIntent,
   type ServerMessage,
   type WelcomeMessage,
 } from '@world/shared';
@@ -15,9 +17,25 @@ export interface ConnectionHandlers {
   onStatus(status: ConnectionStatus, retryInMs: number | null): void;
   onWelcome(welcome: WelcomeMessage): void;
   onMessage(message: ServerMessage): void;
-  /** The server refused us for good (the room is full). No more retries. */
-  onFatal(message: string): void;
+  /** The server refused us for good (the room is full, taken, or empty). No more retries. */
+  onFatal(code: ErrorCode, message: string): void;
+  /** Where to ask to stand on (re)joining, or undefined for a spawn point. */
+  spawnHint(): { x: number; z: number; yaw: number } | undefined;
 }
+
+export interface ConnectionOptions {
+  url: string;
+  name: string;
+  room: string;
+  /** Start or join a party; only the first hello says so, so reconnects just rejoin. */
+  intent?: RoomIntent;
+  /** Sent with every hello; change them later with setPrefs. */
+  prefs: Readonly<Prefs>;
+  handlers: ConnectionHandlers;
+}
+
+/** Refusals that retrying cannot fix. */
+const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set(['room_full', 'room_taken', 'no_room']);
 
 const BACKOFF_START_MS = 1000;
 const BACKOFF_MAX_MS = 15_000;
@@ -57,28 +75,31 @@ export class Connection {
   private readonly url: string;
   private readonly name: string;
   private readonly room: string;
-  private readonly spawnHint: () => { x: number; z: number; yaw: number } | undefined;
-  private readonly handlers: ConnectionHandlers;
+  private intent: RoomIntent | undefined;
+  private handlers: ConnectionHandlers;
 
-  constructor(
-    url: string,
-    name: string,
-    room: string,
-    spawnHint: () => { x: number; z: number; yaw: number } | undefined,
-    prefs: Readonly<Prefs>,
-    handlers: ConnectionHandlers,
-  ) {
-    this.url = url;
-    this.name = name;
-    this.room = room;
-    this.spawnHint = spawnHint;
-    this.prefs = prefs;
-    this.handlers = handlers;
+  constructor(options: ConnectionOptions) {
+    this.url = options.url;
+    this.name = options.name;
+    this.room = options.room;
+    this.intent = options.intent;
+    this.prefs = options.prefs;
+    this.handlers = options.handlers;
     this.open();
+  }
+
+  /** Hand the connection to a new owner, as when a room joined in the background takes over. */
+  setHandlers(handlers: ConnectionHandlers): void {
+    this.handlers = handlers;
   }
 
   get isOnline(): boolean {
     return this.status === 'online';
+  }
+
+  /** Trying again after failing to connect or losing the connection, not yet back. */
+  get retrying(): boolean {
+    return this.attempt > 0;
   }
 
   send(message: ClientMessage): void {
@@ -130,7 +151,7 @@ export class Connection {
     }
     this.ws = ws;
     ws.addEventListener('open', () => {
-      const spawn = this.spawnHint();
+      const spawn = this.handlers.spawnHint();
       this.sentPrefs = this.prefs;
       ws.send(
         encode({
@@ -140,6 +161,7 @@ export class Connection {
           room: this.room,
           ...(spawn ? { spawn } : {}),
           prefs: this.prefs,
+          ...(this.intent ? { intent: this.intent } : {}),
         }),
       );
     });
@@ -163,6 +185,7 @@ export class Connection {
       case 'welcome':
         window.clearTimeout(this.welcomeTimer);
         this.attempt = 0;
+        this.intent = undefined;
         this.versionMismatch = false;
         this.setStatus('online');
         // Changed while we waited for the welcome: the hello had the old ones.
@@ -182,10 +205,10 @@ export class Connection {
       case 'error':
         // The server closes the socket after this, which schedules the next attempt.
         if (message.code === 'version') this.versionMismatch = true;
-        if (message.code === 'room_full') {
+        if (FATAL_ERRORS.has(message.code)) {
           this.closed = true;
           this.clearTimers();
-          this.handlers.onFatal(message.message);
+          this.handlers.onFatal(message.code, message.message);
         }
         return;
       default:
@@ -217,7 +240,68 @@ export class Connection {
     // Jitter so a server restart is not hit by every client at the same instant.
     const delay = Math.round(base * (0.8 + Math.random() * 0.4));
     this.attempt++;
-    this.setStatus('offline', delay);
+    // Armed before saying so: whoever hears "offline" may close the connection, clearing it.
     this.retryTimer = window.setTimeout(() => this.open(), delay);
+    this.setStatus('offline', delay);
   }
+}
+
+export interface JoinedRoom {
+  readonly connection: Connection;
+  readonly welcome: WelcomeMessage;
+  /** Messages that arrived after the welcome, before the new owner took the connection. */
+  readonly backlog: readonly ServerMessage[];
+}
+
+/** Why `joinRoom` did not get in. */
+export class JoinError extends Error {
+  readonly failure: ErrorCode | 'unreachable' | 'cancelled';
+
+  constructor(failure: ErrorCode | 'unreachable' | 'cancelled') {
+    super(`could not join: ${failure}`);
+    this.failure = failure;
+  }
+}
+
+/**
+ * Join a room in the background, once, without retrying: resolves when welcomed, or rejects with a
+ * `JoinError` saying why not (full, taken, nobody there, unreachable). Moving between rooms joins
+ * the next one before leaving the last, so a move that fails leaves the player where they were.
+ */
+export function joinRoom(
+  options: Omit<ConnectionOptions, 'handlers'>,
+  signal: AbortSignal,
+): Promise<JoinedRoom> {
+  return new Promise((resolve, reject) => {
+    let connection: Connection | null = null;
+    let settled = false;
+    const backlog: ServerMessage[] = [];
+    const fail = (failure: JoinError['failure']): void => {
+      if (settled) return;
+      settled = true;
+      connection?.close();
+      reject(new JoinError(failure));
+    };
+    connection = new Connection({
+      ...options,
+      handlers: {
+        onStatus: (status) => {
+          if (status === 'offline') fail(connection?.versionMismatch ? 'version' : 'unreachable');
+        },
+        onWelcome: (welcome) => {
+          if (settled) return;
+          settled = true;
+          resolve({ connection: connection!, welcome, backlog });
+        },
+        onMessage: (message) => backlog.push(message),
+        onFatal: (code) => fail(code),
+        // A new room starts at one of its own spawn points.
+        spawnHint: () => undefined,
+      },
+    });
+    // A failure inside the constructor came before `connection` was set, so close it now.
+    if (settled) connection.close();
+    signal.addEventListener('abort', () => fail('cancelled'), { once: true });
+    if (signal.aborted) fail('cancelled');
+  });
 }
