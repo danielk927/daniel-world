@@ -54,7 +54,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 
 ## Networking
 
-- Clients send inputs (movement keys, look direction, jump) at ~20 Hz; the server runs the shared simulation at 20 ticks per second and broadcasts snapshots.
+- Clients send inputs (movement keys, look direction, jump) at 60 Hz; the server runs the shared simulation at 60 ticks per second and broadcasts snapshots at 20 Hz.
 - The local player uses client-side prediction with server reconciliation, so movement feels instant.
 - Remote players render ~100 ms in the past with interpolation.
 - Validate every inbound message with the shared zod schemas and drop invalid ones. Clamp speed and position on the server.

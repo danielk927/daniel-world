@@ -273,6 +273,7 @@ Judgment calls made during the unattended build, with reasons.
   The level that holds is remembered per device; after 25 s of easy frames it tries one level up, and never again climbs to a level that has fallen behind this session.
 - **Movement is drawn ahead, not behind.** The camera was blended from the previous tick to the current one, trailing the simulation by up to a tick, and a key press waited for the next 20 Hz tick: up to 48 ms before the view moved.
   Now it is blended from the current tick toward the next, simulated each frame with the keys held right then; the real tick takes that same deterministic step, so the two agree and reconciliation is unchanged. A key now shows on the next frame (16 ms at most).
+  Superseded on 2026-10-07: see "Smooth movement" below.
 
 ### The view outside (2026-10-05)
 
@@ -326,3 +327,15 @@ Judgment calls made during the unattended build, with reasons.
 - **By day the room is brighter but keeps its contrast.** The first try simply turned the window light and the sky fill up four times, and the white walls blew out; daylight comes in soft, mostly through the fill, while the kitchen's own lamps stay on as they would during service.
 - **A red LED clock** shows the visitor's time with the seconds running (every second counts), hung under the front of the hood between the heat lamps, where the aisle by the dining room doors looks straight at it, and on the hood's north face under the stars.
   It is drawn as seven-segment digits with the unlit segments faintly there, follows the visitor's 12 or 24 hour habit, and redraws only when the second changes.
+
+### Smooth movement (2026-10-07)
+
+- **The simulation runs at 60 ticks a second, and the camera is drawn between the last two ticks.**
+  Drawing ahead toward a next tick predicted from the keys held right now made the view jump whenever a key changed mid-tick: the prediction changed course at once, by up to a few tenths of a meter at 20 Hz.
+  Measured in a real browser while strafing back and forth, the camera moved at up to 14 m/s on about 30 frames of a 7 s run, at a 5 m/s walk, with a dozen frames snapping backwards.
+  Easing the jump away instead (folding it into the fading correction offset) only turned a snap into a rubber band: after a key is released the view had already been drawn past where the cook stops, so it had to come back.
+  At 60 Hz the blend from the previous tick to the current one shows only positions the simulation really reached, so nothing can pop or spring back, and it trails the simulation by at most 17 ms, about what drawing ahead at 20 Hz cost in waiting for a key.
+  The same run now never exceeds walking speed and changes speed by at most one tick's acceleration per frame, apart from walking into a counter.
+- **Snapshots stay at 20 a second; inputs go every tick.** The room simulates every tick but broadcasts every third, so the downstream bandwidth is unchanged; remote players were already drawn 100 ms behind from interpolated snapshots.
+  Each client now sends 60 small input messages a second, so the per-connection message bucket allows 90 a second (120 in a burst); the input queue, credit and idle limits are set in seconds, not ticks.
+- **One collision substep is enough at 60 Hz**: a sprint covers 0.14 m a tick, far less than a body's radius.

@@ -84,8 +84,8 @@ The repository is an npm workspaces monorepo.
 
 Networking follows the usual pattern for fast-paced games:
 
-- Clients send one input per tick (20 Hz) and predict their own movement with the shared simulation, so movement feels instant.
-- The server runs the same simulation at 20 ticks per second and broadcasts snapshots.
+- Clients send one input per tick (60 Hz) and predict their own movement with the shared simulation, so movement feels instant; the camera is drawn between the last two ticks, so it is smooth.
+- The server runs the same simulation at 60 ticks per second and broadcasts snapshots 20 times a second.
   When a snapshot arrives, the client rewinds to the server's state and replays inputs the server has not seen yet.
   Because the simulation is deterministic and quantized, this lands exactly where prediction was.
 - Other players are drawn about 100 ms in the past, interpolated between snapshots.
