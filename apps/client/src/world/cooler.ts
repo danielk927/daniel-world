@@ -4,23 +4,31 @@ import {
   CanvasTexture,
   Color,
   Group,
+  InstancedBufferAttribute,
+  InstancedMesh,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
+  PointLight,
   SRGBColorSpace,
+  ShaderMaterial,
   Vector3,
 } from 'three';
 import {
+  COOLER,
   COOLER_DOOR,
   COOLER_HITS_TO_OPEN,
+  DOORS,
   ROOM_HALF_X,
   createRandom,
   type CoolerDent,
 } from '@world/shared';
 import { at } from './builder.ts';
-import { READOUT } from './coolerRoom.ts';
+import { worldTime } from './clock.ts';
+import { COLD_LIGHT, COOLER_LAMPS, READOUT } from './coolerRoom.ts';
+import { softTexture } from './textures.ts';
 
 /**
  * The walk-in cooler's door, a secret on the east wall (its frame and the room behind it are in
@@ -31,6 +39,7 @@ import { READOUT } from './coolerRoom.ts';
 
 /** The kitchen face of the east wall, where the door's face is when it is shut. */
 const FACE = ROOM_HALF_X;
+const DOORWAY = DOORS.walkIn;
 
 // ---------- The door: dynamic ----------
 
@@ -246,12 +255,20 @@ const PARTS: readonly Part[] = [
 
 /**
  * The walk-in's door, as everyone in the room sees it: dented where the server says it was hit,
- * worse with every hit, until it gives. Also the temperature readout beside it.
+ * worse with every hit, then swinging open. Also the temperature readout beside it and the cold
+ * mist that rolls out once it is open.
  */
 export class CoolerDoor {
   /** The door, turning on its hinge. */
   readonly leaf: Mesh<BufferGeometry, MeshStandardMaterial>;
   readonly readout: Mesh<PlaneGeometry, MeshBasicMaterial>;
+  readonly mist: InstancedMesh;
+  /**
+   * The cold room's light on what moves in it (the open door, cooks, knives); its walls have theirs
+   * baked in. Dark while the door is shut, so it never shines through the walls into the kitchen.
+   */
+  readonly light: PointLight;
+  private readonly lightPower: number;
   /** Everything to add to the scene. */
   readonly group = new Group();
   /**
@@ -269,8 +286,10 @@ export class CoolerDoor {
   private readonly partsOffset: number;
   private readonly restInverse = new Matrix4();
 
-  /** How far it has swung open, in radians from shut. */
+  /** The swing, in radians from shut, and how fast it is turning. */
   angle = 0;
+  private velocity = 0;
+  private swinging = false;
   /** World time and strength of the last hit's jolt. */
   private joltAt = -Infinity;
   private joltStrength = 0;
@@ -284,6 +303,7 @@ export class CoolerDoor {
   private readonly random = createRandom(4242);
   private flickerUntil = 0;
   private garbled = false;
+  private readonly mistOpen: { value: number };
 
   private readonly sample = { depth: 0, scuff: 0 };
   private readonly color = new Color();
@@ -369,7 +389,12 @@ export class CoolerDoor {
     this.readout.matrixAutoUpdate = false;
     this.drawReadout(3.0);
 
-    this.group.add(this.leaf, this.readout);
+    this.mistOpen = { value: 1e9 };
+    this.mist = createMist(this.mistOpen);
+    this.lightPower = hdr ? 11 : 7;
+    this.light = new PointLight(COLD_LIGHT, 0, 4.6, 2);
+    this.light.position.set((COOLER.minX + COOLER.maxX) / 2, COOLER.height - 0.3, COOLER_LAMPS.z);
+    this.group.add(this.leaf, this.readout, this.mist, this.light);
   }
 
   /** Hits taken so far, as shown. */
@@ -377,7 +402,7 @@ export class CoolerDoor {
     return this.shapes.length;
   }
 
-  /** Burst open. */
+  /** Burst open (it may still be swinging). */
   get open(): boolean {
     return this.shapes.length >= COOLER_HITS_TO_OPEN;
   }
@@ -404,8 +429,12 @@ export class CoolerDoor {
     this.shapes.length = 0;
     dents.slice(0, COOLER_HITS_TO_OPEN).forEach((dent, i) => this.shapes.push(dentShape(dent, i)));
     this.damage = damageAt(this.shapes.length);
+    this.swinging = false;
+    this.velocity = 0;
     this.joltAt = -Infinity;
     this.angle = this.open ? OPEN_ANGLE : 0;
+    // Long open already: the mist only drifts, with no burst.
+    this.mistOpen.value = this.open ? -1e4 : 1e9;
     this.flickerUntil = 0;
     this.garbled = false;
     this.rebuild();
@@ -420,18 +449,42 @@ export class CoolerDoor {
     this.joltAt = time;
     this.joltStrength = dent.by === 'fist' ? 1 : 0.6;
     this.flickerUntil = time + 0.25;
-    // The latch gives, and the door is open.
-    if (this.open) this.angle = OPEN_ANGLE;
+    if (this.open) {
+      // The latch gives: the door flies in, slams against the wall and bounces a little.
+      this.swinging = true;
+      this.velocity = 3.4;
+      this.mistOpen.value = time;
+    }
     this.rebuild();
     this.moved = true;
   }
 
-  /** Per frame: the jolt, the readout's flicker. */
-  update(time: number): void {
+  /** Per frame: the swing, the jolt, the readout's flicker. */
+  update(time: number, dt: number): void {
+    if (this.swinging) this.swing(dt);
     const sinceJolt = time - this.joltAt;
     const jolting = sinceJolt < 0.5;
-    if (jolting || this.moved) this.place(time);
+    if (jolting || this.swinging || this.moved) this.place(time);
     this.flickerReadout(time);
+  }
+
+  /** The door swings on, pushed open by its own weight, and bounces off the wall. */
+  private swing(dt: number): void {
+    const steps = Math.max(1, Math.ceil(dt / (1 / 240)));
+    const h = dt / steps;
+    for (let i = 0; i < steps; i++) {
+      this.velocity += (7 - this.velocity * 0.8) * h;
+      this.angle += this.velocity * h;
+      if (this.angle >= OPEN_ANGLE) {
+        this.angle = OPEN_ANGLE;
+        if (this.velocity < 0.6) {
+          this.velocity = 0;
+          this.swinging = false;
+          break;
+        }
+        this.velocity = -this.velocity * 0.3;
+      }
+    }
   }
 
   /** Put the door where its swing, its shift in the frame and the last jolt have it. */
@@ -458,6 +511,7 @@ export class CoolerDoor {
       this.leaf.matrix.multiply(this.offset);
     }
     this.leaf.matrixWorldNeedsUpdate = true;
+    this.light.intensity = this.lightPower * Math.min(1, this.angle / 0.6 + this.damage.shift * 3);
     this.motion.multiplyMatrices(this.leaf.matrix, this.restInverse);
     this.onMove?.();
   }
@@ -715,4 +769,83 @@ function sevenSegment(
     ctx.closePath();
     ctx.fill();
   });
+}
+
+/** Puffs of cold air at once, rolling out of the doorway. */
+const MIST_PUFFS = 120;
+
+/**
+ * Cold air pouring out of the open walk-in: puffs that leave the doorway low, roll out across the
+ * kitchen floor, sink and spread and fade. A burst when the door gives, then a steady drift. Every
+ * puff loops on its own clock in the vertex shader, like the steam, so the CPU never touches it.
+ */
+function createMist(open: { value: number }): InstancedMesh {
+  const random = createRandom(909);
+  const seeds = new Float32Array(MIST_PUFFS * 3);
+  for (let i = 0; i < seeds.length; i++) seeds[i] = random();
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      uTime: worldTime,
+      uOpen: open,
+      uMap: { value: softTexture() },
+      uDoor: { value: new Vector3(FACE + 0.08, DOORWAY.from + 0.12, DOORWAY.to - 0.25) },
+    },
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uOpen;
+      uniform vec3 uDoor;
+      attribute vec3 aSeed;
+      varying vec2 vUv;
+      varying float vAlpha;
+      void main() {
+        vUv = uv;
+        float since = uTime - uOpen;
+        float period = 3.4 + aSeed.x * 2.4;
+        // The first wave leaves together as the door gives; each puff then loops on its own clock,
+        // and since their periods differ, they soon spread out into a steady drift.
+        float age = since - aSeed.y * 0.5;
+        if (age < 0.0) {
+          gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+          vAlpha = 0.0;
+          return;
+        }
+        float t = fract(age / period);
+        // How hard the air was rushing out when this puff left.
+        float burst = exp(-max(0.0, since - t * period) / 1.4);
+        float reach = (1.1 + aSeed.z * 1.5) * (1.0 + burst * 1.3);
+        vec3 c;
+        c.x = uDoor.x - reach * (1.0 - pow(1.0 - t, 1.8));
+        float lane = fract(aSeed.x * 7.31 + aSeed.z * 3.7);
+        c.z = mix(uDoor.y, uDoor.z, lane) + (lane - 0.5) * 1.4 * t;
+        float start = 0.08 + pow(aSeed.y, 1.5) * (0.9 + burst * 0.8);
+        c.y = mix(start, 0.1 + aSeed.z * 0.12, smoothstep(0.0, 0.8, t));
+        float size = mix(0.7, 2.3, t) * (1.0 + burst * 0.4);
+        vAlpha = smoothstep(0.0, 0.06, t) * pow(1.0 - t, 1.3) * (0.09 + 0.3 * burst);
+        vec4 view = modelViewMatrix * vec4(c, 1.0);
+        // Wider than tall: the cold air lies low and spreads.
+        view.xy += position.xy * size * vec2(1.0, 0.6);
+        gl_Position = projectionMatrix * view;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      varying vec2 vUv;
+      varying float vAlpha;
+      void main() {
+        float a = texture2D(uMap, vUv).r * vAlpha;
+        gl_FragColor = vec4(vec3(0.86, 0.92, 1.0), a);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  });
+  const geometry = new PlaneGeometry(1, 1);
+  geometry.setAttribute('aSeed', new InstancedBufferAttribute(seeds, 3));
+  const mesh = new InstancedMesh(geometry, material, MIST_PUFFS);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 2;
+  mesh.name = 'cooler-mist';
+  return mesh;
 }

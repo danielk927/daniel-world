@@ -185,7 +185,8 @@ export class WorldScene {
       this.post = new PostProcessing(this.renderer, this.scene, this.camera, this.viewmodel.scene);
       this.post.setSize(window.innerWidth, window.innerHeight);
     }
-    // The cold room is hidden until the walk-in opens, so show it to compile it.
+    // The cold room and its mist are hidden until the walk-in opens, so show them to compile them.
+    this.cooler.mist.visible = true;
     if (this.coolerRoom) this.coolerRoom.visible = true;
     await this.renderer.compileAsync(this.scene, this.camera);
     await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
@@ -193,11 +194,12 @@ export class WorldScene {
   }
 
   /**
-   * Draw the cold room only when the walk-in's door shows any of it; let knives through the
-   * doorway once the door is clear of it.
+   * Draw the cold room only when the walk-in's door shows any of it, and its mist once open; let
+   * knives through the doorway once the door has swung clear of it.
    */
   private showCooler(): void {
     if (this.coolerRoom) this.coolerRoom.visible = this.cooler.showsInside;
+    this.cooler.mist.visible = this.cooler.open;
     this.knives.coolerOpen = this.cooler.angle > 1;
   }
 
@@ -214,7 +216,7 @@ export class WorldScene {
     this.followClock(dt);
     this.clock.update();
     this.computer.update(dt);
-    this.cooler.update(time);
+    this.cooler.update(time, dt);
     this.showCooler();
   }
 
