@@ -61,7 +61,9 @@ describe('his aim', () => {
   });
 
   it('leads a cook running across, who a straight throw would miss', () => {
-    const eye = { x: -6.6, y: EYE_HEIGHT, z: -2.6 };
+    // From the dining room side, over the pass. (Across the piano, a throw that leads a runner
+    // arcs up into the high shelf down its spine.)
+    const eye = { x: 0, y: EYE_HEIGHT, z: 5.6 };
     const fly = (lead: boolean): string | undefined => {
       const target = { x: 0, y: 0, z: 2.6, vx: 5, vz: 0 };
       const aim = aimAt(eye, lead ? target : { ...target, vx: 0 }, 1, 2)!;
