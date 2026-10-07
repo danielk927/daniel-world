@@ -110,14 +110,16 @@ describe('stepPlayer', () => {
   });
 
   it('never leaves the kitchen', () => {
-    // Sprint into the south-west corner, then along the walls.
-    const s = createPlayerState(-6, 5, 0);
-    run(s, { keys: Keys.Back | Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 }, TICK_RATE * 4);
+    // Sprint into the west wall by the back door, then along it.
+    const s = createPlayerState(-6, 4.4, 0);
+    run(s, { keys: Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 }, TICK_RATE * 2);
     expect(s.x).toBeCloseTo(-PLAY_HALF_X, 3);
-    expect(s.z).toBeCloseTo(PLAY_HALF_Z, 3);
-    run(s, { keys: Keys.Forward | Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 }, TICK_RATE * 2);
-    expect(s.x).toBeCloseTo(-PLAY_HALF_X, 3);
-    expect(Math.abs(s.z)).toBeLessThanOrEqual(PLAY_HALF_Z);
+    run(s, { keys: Keys.Back | Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 }, TICK_RATE * 2);
+    expect(s.x).toBeGreaterThanOrEqual(-PLAY_HALF_X);
+    // And into the south wall, in the aisle by the dining room doors.
+    const t = createPlayerState(-5, 5.2, 0);
+    run(t, { keys: Keys.Back | Keys.Sprint, yaw: 0, pitch: 0 }, TICK_RATE * 2);
+    expect(t.z).toBeCloseTo(PLAY_HALF_Z, 3);
   });
 
   it('bumps its head on the hood when jumping beside the piano', () => {

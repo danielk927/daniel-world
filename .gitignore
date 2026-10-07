@@ -13,3 +13,5 @@ playwright/.cache/
 !.env.example
 dist-test/
 .vercel/
+.claude/worktrees/
+.claude/settings.local.json

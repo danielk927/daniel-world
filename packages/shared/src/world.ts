@@ -78,6 +78,8 @@ export const KITCHEN = {
   shelving: { minX: 7.55, maxX: ROOM_HALF_X, minZ: 1.0, maxZ: 3.4, top: 2.0 },
   /** Sheet-pan rack against the west wall. */
   panRack: { minX: -ROOM_HALF_X, maxX: -7.4, minZ: -2.2, maxZ: -1.0, top: 1.9 },
+  /** The chef's desk in the south-west corner, with the kitchen computer on it. */
+  desk: { minX: -ROOM_HALF_X, maxX: -7.2, minZ: 4.9, maxZ: 6.3, top: COUNTER_HEIGHT },
 } as const satisfies Record<string, Fixture | (Fixture & { bottom: number })>;
 
 export type Wall = 'north' | 'south' | 'east' | 'west';
@@ -146,6 +148,17 @@ export const STATIONS: readonly Station[] = [
   { id: 'patisserie', x: -3.2, y: COUNTER_HEIGHT + 0.4, z: -4.2, radius: 0.85 },
   { id: 'plonge', x: 7.2, y: ON_COUNTER, z: 6.15, radius: 0.8 },
 ];
+
+/**
+ * The kitchen computer on the chef's desk: an old beige PC that runs DOOM. Like a station it is
+ * picked by the crosshair; `x, y, z` is the middle of its screen, which faces east, into the room.
+ */
+export const COMPUTER = {
+  x: KITCHEN.desk.minX + 0.38,
+  y: KITCHEN.desk.top + 0.27,
+  z: (KITCHEN.desk.minZ + KITCHEN.desk.maxZ) / 2,
+  radius: 0.3,
+} as const;
 
 export type DishId = 'char-siu' | 'beetroot' | 'roti' | 'ricotta-toast' | 'truffle-croissant';
 

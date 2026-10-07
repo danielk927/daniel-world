@@ -10,6 +10,7 @@ import {
 import type { DishContent, StationContent } from '../content.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { Avatars } from './avatars.ts';
+import { ComputerScreen, buildComputerDesk } from './computer.ts';
 import { worldTime } from './clock.ts';
 import { createFlames, createSteam } from './effects.ts';
 import { Kit } from './kit.ts';
@@ -42,6 +43,8 @@ export class WorldScene {
   readonly knives = new Knives();
   /** The player's own arm, drawn over the world. */
   readonly viewmodel = new Viewmodel();
+  /** The kitchen computer's screen, on the chef's desk. */
+  readonly computer: ComputerScreen;
   private readonly lighting: Lighting;
   /** Ambient occlusion, bloom, tone mapping and the grade. High quality only. */
   private post: PostProcessing | null = null;
@@ -105,6 +108,8 @@ export class WorldScene {
     const kit = new Kit(high);
     buildKitchen(kit);
     buildStationProps(kit);
+    buildComputerDesk(kit);
+    this.computer = new ComputerScreen(high);
 
     this.stations = new Stations(content, dishes, high);
     this.scene.add(
@@ -114,6 +119,7 @@ export class WorldScene {
       this.stations.group,
       this.avatars.group,
       this.knives.mesh,
+      this.computer.mesh,
     );
     assignShadowDepthMaterials(this.scene);
 
@@ -181,6 +187,7 @@ export class WorldScene {
     this.lighting.update(time);
     this.followClock(dt);
     this.clock.update();
+    this.computer.update(dt);
   }
 
   /**
