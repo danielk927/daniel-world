@@ -8,6 +8,7 @@ import {
   type KnifeImpact,
   type KnifeState,
   type KnifeTarget,
+  type Prefs,
   type StuckKnife,
 } from '@world/shared';
 
@@ -47,6 +48,8 @@ export class PositionHistory {
 export interface KnifeCandidate {
   readonly id: number;
   readonly history: PositionHistory;
+  /** With `chef` off, the resident's knives pass through them. */
+  readonly prefs: Readonly<Prefs>;
 }
 
 interface Flying {
@@ -55,6 +58,8 @@ interface Flying {
   readonly state: KnifeState;
   /** How far back the thrower was seeing everyone else, in ticks. */
   readonly rewind: number;
+  /** Thrown by the room's resident (Chef Skinner). */
+  readonly resident: boolean;
 }
 
 export type KnifeEvent =
@@ -75,14 +80,18 @@ export class RoomKnives {
   private nextId = 0;
   private readonly flying: Flying[] = [];
   private readonly stuck: StuckKnife[] = [];
-  /** Scratch targets, reused across ticks. */
-  private readonly targets: { id: number; x: number; y: number; z: number }[] = [];
+  /** Scratch targets, reused across ticks, and the ones one knife can hit. */
+  private readonly pool: { id: number; x: number; y: number; z: number }[] = [];
+  private readonly targets: KnifeTarget[] = [];
 
-  /** Start a knife's flight. Returns its id. `rewind` is clamped to what the server allows. */
-  launch(from: number, state: KnifeState, rewind: number): number {
+  /**
+   * Start a knife's flight. Returns its id. `rewind` is clamped to what the server allows. A
+   * `resident`'s knife passes through anyone who has turned him off.
+   */
+  launch(from: number, state: KnifeState, rewind: number, resident = false): number {
     const id = this.nextId++;
     const ticks = Math.max(0, Math.min(MAX_REWIND_TICKS, Math.round(rewind)));
-    this.flying.push({ id, from, state, rewind: ticks });
+    this.flying.push({ id, from, state, rewind: ticks, resident });
     return id;
   }
 
@@ -106,7 +115,7 @@ export class RoomKnives {
       const impact = flyKnife(
         knife.state,
         TICK_SECONDS,
-        this.targetsFor(tick - knife.rewind, candidates),
+        this.targetsFor(knife, tick, candidates),
         knife.from,
       );
       if (impact) {
@@ -120,14 +129,21 @@ export class RoomKnives {
     return events;
   }
 
-  private targetsFor(tick: number, candidates: readonly KnifeCandidate[]): readonly KnifeTarget[] {
-    const targets = this.targets;
-    while (targets.length < candidates.length) targets.push({ id: 0, x: 0, y: 0, z: 0 });
-    targets.length = candidates.length;
-    for (let i = 0; i < candidates.length; i++) {
-      const target = targets[i]!;
-      target.id = candidates[i]!.id;
-      candidates[i]!.history.at(tick, target);
+  /** Who `knife` can hit, where its thrower saw them. */
+  private targetsFor(
+    knife: Flying,
+    tick: number,
+    candidates: readonly KnifeCandidate[],
+  ): readonly KnifeTarget[] {
+    const { pool, targets } = this;
+    targets.length = 0;
+    for (const candidate of candidates) {
+      if (knife.resident && !candidate.prefs.chef) continue;
+      if (pool.length === targets.length) pool.push({ id: 0, x: 0, y: 0, z: 0 });
+      const target = pool[targets.length]!;
+      target.id = candidate.id;
+      candidate.history.at(tick - knife.rewind, target);
+      targets.push(target);
     }
     return targets;
   }

@@ -17,7 +17,7 @@ function setup() {
   const room = new Room('knives');
   const inboxes = new Map<number, ServerMessage[]>();
   let nextId = 1;
-  const join = (x: number, z: number): RoomPlayer => {
+  const join = (x: number, z: number, options: { resident?: boolean } = {}): RoomPlayer => {
     const id = nextId++;
     const inbox: ServerMessage[] = [];
     inboxes.set(id, inbox);
@@ -25,6 +25,7 @@ function setup() {
       id,
       name: `P${id}`,
       spawn: { x, z, yaw: NORTH },
+      resident: options.resident ?? false,
       send: (data) => {
         const message = parseServerMessage(data);
         if (message && message.t !== 'snap') inbox.push(message);
@@ -114,6 +115,33 @@ describe('knives', () => {
     expect(received(thrower.id, 'knife')).toHaveLength(2);
     expect(received(thrower.id, 'kill')).toHaveLength(1);
     expect(PROTECTION_TICKS).toBeGreaterThan(KNIFE_COOLDOWN_INPUTS);
+  });
+
+  it("passes a resident's knives through a cook who has turned him off, and nobody else's", () => {
+    const { join, input, steps, received } = setup();
+    const chef = join(0, 5.6, { resident: true });
+    const visitor = join(2, 5.6);
+    const cook = join(0, 3.2);
+    cook.prefs = { chef: false };
+    const throwFrom = (thrower: RoomPlayer): void => {
+      const yaw = Math.atan2(thrower.state.x - cook.state.x, thrower.state.z - cook.state.z);
+      for (let i = 0; i < KNIFE_COOLDOWN_INPUTS; i++) input(thrower, { yaw });
+      input(thrower, { throwKnife: true, yaw, pitch: -0.1 });
+      steps(KNIFE_COOLDOWN_INPUTS + 1 + FLIGHT);
+    };
+    throwFrom(chef);
+    expect(received(cook.id, 'kill')).toHaveLength(0);
+    // It flew on, through them, and landed somewhere in the kitchen.
+    expect(received(cook.id, 'stuck')).toHaveLength(1);
+    // Turning him off is about him: another visitor's knife still lands.
+    throwFrom(visitor);
+    expect(received(cook.id, 'kill')).toMatchObject([{ from: visitor.id, to: cook.id }]);
+    steps(DEATH_TICKS + PROTECTION_TICKS);
+    // And it applies at once: back on, his next knife lands too.
+    Object.assign(cook.state, { x: 0, z: 3.2, vx: 0, vz: 0 });
+    cook.prefs = { chef: true };
+    throwFrom(chef);
+    expect(received(cook.id, 'kill').map((k) => k.from)).toEqual([visitor.id, chef.id]);
   });
 
   it('sticks knives where they land and keeps only the newest for newcomers', () => {

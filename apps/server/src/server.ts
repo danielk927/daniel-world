@@ -219,6 +219,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       id: nextPlayerId++,
       name,
       spawn: message.spawn ? clampSpawn(message.spawn) : undefined,
+      prefs: message.prefs,
       send: (data) => sendRaw(conn, data),
     });
     conn.room = room;
@@ -241,7 +242,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     chefs.set(room, chef);
     room.onKnockout = (from, to) => {
       if (from === chef.player.id) chef.onKnockout(to);
-      if (to === chef.player.id) chef.onKnockedOut();
+      if (to === chef.player.id) chef.onKnockedOut(from);
     };
   };
 
@@ -259,6 +260,10 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     switch (message.t) {
       case 'input':
         room.enqueueInput(player, message);
+        break;
+      case 'prefs':
+        // Read fresh every tick (Chef's targeting, knife hits), so this applies at once.
+        player.prefs = { ...message.prefs };
         break;
       case 'chat': {
         if (!conn.chat.take()) return;

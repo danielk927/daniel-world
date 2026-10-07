@@ -4,6 +4,7 @@ import {
   KNIFE_MAX_FLIGHT_SECONDS,
   Keys,
   SPAWN,
+  TICK_RATE,
   createPlayerState,
   createRandom,
   flyKnife,
@@ -170,5 +171,106 @@ describe('Chef Skinner', () => {
     const r = run(20 * 120, pacing);
     const lines = r.messages.filter((m) => m.t === 'chat' && m.id === r.chef.player.id);
     expect(lines.length).toBeGreaterThan(0);
+  });
+});
+
+interface Cook {
+  readonly player: RoomPlayer;
+  readonly walk: (tick: number) => number;
+  seq: number;
+}
+
+/** A lobby with Chef Skinner and the given cooks, stepped tick by tick. */
+function lobby(cooks: { x: number; chef: boolean; walk: (tick: number) => number }[], seed = 7) {
+  const room = new Room('lobby');
+  const messages: ServerMessage[] = [];
+  const chef = new Chef(room, 1, createRandom(seed));
+  room.onKnockout = (from, to) => {
+    if (from === chef.player.id) chef.onKnockout(to);
+    if (to === chef.player.id) chef.onKnockedOut(from);
+  };
+  const joined: Cook[] = cooks.map((c, i) => ({
+    player: room.add({
+      id: i + 2,
+      name: `Cook ${i + 1}`,
+      spawn: { ...SPAWN, x: c.x },
+      prefs: { chef: c.chef },
+      // Everyone hears the same; the first cook's ears will do.
+      send: i === 0 ? (data) => messages.push(parseServerMessage(data)!) : () => {},
+    }),
+    walk: c.walk,
+    seq: 0,
+  }));
+  /** Whom he wound up on, over every tick so far. */
+  const targets = new Set<number>();
+  const step = (): void => {
+    for (const cook of joined) {
+      const keys = cook.walk(room.tick) | Keys.Armed;
+      room.enqueueInput(cook.player, { seq: cook.seq++, keys, yaw: 0, pitch: 0 });
+    }
+    chef.think();
+    if (chef.target !== null) targets.add(chef.target);
+    room.step();
+  };
+  const steps = (n: number): void => {
+    for (let i = 0; i < n; i++) step();
+  };
+  const fromChef = <T extends 'knife' | 'kill' | 'chat'>(t: T) =>
+    messages.filter(
+      (m): m is Extract<ServerMessage, { t: T }> =>
+        m.t === t && (m.t === 'chat' ? m.id : m.from) === chef.player.id,
+    );
+  const players = joined.map((c) => c.player);
+  return { room, chef, cooks: players, messages, targets, step, steps, fromChef };
+}
+
+describe('Chef Skinner, for a cook who has turned him off', () => {
+  const seconds = (s: number) => Math.round(s * TICK_RATE);
+
+  it('never picks them, however much they move, and has nothing to say to them', () => {
+    const l = lobby([{ x: 0, chef: false, walk: pacing }]);
+    l.steps(seconds(120));
+    expect(l.targets.size).toBe(0);
+    expect(l.fromChef('knife')).toEqual([]);
+    expect(l.fromChef('chat')).toEqual([]);
+  });
+
+  it('still throws at everyone else, and his knives pass through them', () => {
+    const l = lobby([
+      { x: 0, chef: false, walk: pacing },
+      { x: 3.5, chef: true, walk: pacing },
+    ]);
+    const [off, on] = l.cooks as [RoomPlayer, RoomPlayer];
+    l.steps(seconds(120));
+    expect([...l.targets]).toEqual([on.id]);
+    expect(l.fromChef('knife').length).toBeGreaterThan(3);
+    const kills = l.fromChef('kill');
+    expect(kills.length).toBeGreaterThan(0);
+    expect(kills.every((k) => k.to === on.id)).toBe(true);
+    expect(off.deadUntil).toBeNull();
+  });
+
+  it('gives up on them mid wind-up, the moment they turn him off', () => {
+    const l = lobby([{ x: 0, chef: true, walk: pacing }]);
+    const [cook] = l.cooks as [RoomPlayer];
+    for (let i = 0; i < seconds(120) && l.chef.target === null; i++) l.step();
+    expect(l.chef.target).toBe(cook.id);
+    const thrown = l.fromChef('knife').length;
+    cook.prefs = { chef: false };
+    l.step();
+    expect(l.chef.target).toBeNull();
+    // Long past when the knife would have left his hand, and he has not picked them again.
+    l.steps(WIND_UP_TICKS + seconds(30));
+    expect(l.fromChef('knife').length).toBe(thrown);
+    expect(l.targets).toEqual(new Set([cook.id]));
+  });
+
+  it('keeps quiet when one of them knocks him out', () => {
+    const quiet = lobby([{ x: 0, chef: false, walk: () => 0 }]);
+    for (let i = 0; i < 10; i++) quiet.chef.onKnockedOut(quiet.cooks[0]!.id);
+    expect(quiet.fromChef('chat')).toEqual([]);
+    const loud = lobby([{ x: 0, chef: true, walk: () => 0 }]);
+    for (let i = 0; i < 10; i++) loud.chef.onKnockedOut(loud.cooks[0]!.id);
+    expect(loud.fromChef('chat')).toHaveLength(1);
   });
 });

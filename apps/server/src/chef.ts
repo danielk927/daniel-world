@@ -22,7 +22,8 @@ import type { Room, RoomPlayer } from './room.ts';
  * He walks the aisles and pauses at stations. Every few seconds he picks a cook in view, stops,
  * turns to face them (long enough to see it coming), and throws, leading his target and not quite
  * perfectly. He leaves alone anyone who just arrived, and anyone standing still: a visitor reading
- * about a station is safe.
+ * about a station is safe. A visitor can turn him off for themselves (`prefs.chef`): he never picks
+ * them, gives up on them mid wind-up, keeps quiet about them, and his knives pass through them.
  */
 
 export const CHEF_NAME = 'Chef Skinner';
@@ -122,13 +123,15 @@ export interface Aim {
 
 /**
  * The throw from `eye` that hits `target` (by its feet) if it keeps moving at its velocity, or
- * null if it is out of reach or something is in the way. Checked by flying the knife.
+ * null if it is out of reach or something is in the way. Checked by flying the knife; `bystanders`
+ * are cooks it must not pass through on the way, where they stand now.
  */
 export function aimAt(
   eye: { x: number; y: number; z: number },
   target: { x: number; y: number; z: number; vx: number; vz: number },
   thrower: number,
   id: number,
+  bystanders: readonly KnifeTarget[] = [],
 ): Aim | null {
   // Lead the target by the flight time, refined twice: the time depends on where it ends up.
   let x = target.x;
@@ -155,8 +158,8 @@ export function aimAt(
   // Fly it: anything between them (a counter, the hood) stops the knife first.
   const knife = launchKnife(eye.x, eye.y, eye.z, aim.yaw, aim.pitch);
   const at: KnifeTarget = { id, x, y: target.y, z };
-  const impact = flyKnife(knife, KNIFE_MAX_FLIGHT_SECONDS, [at], thrower);
-  return impact?.kind === 'player' ? aim : null;
+  const impact = flyKnife(knife, KNIFE_MAX_FLIGHT_SECONDS, [at, ...bystanders], thrower);
+  return impact?.kind === 'player' && impact.id === id ? aim : null;
 }
 
 type Plan =
@@ -197,13 +200,19 @@ export class Chef {
     this.nextThrow = room.tick + this.rest();
   }
 
+  /** Whom he is winding up to throw at, if anyone. */
+  get target(): number | null {
+    return this.plan.kind === 'wind-up' ? this.plan.target : null;
+  }
+
   /** He has knocked someone out. */
   onKnockout(victim: number): void {
     if (victim !== this.player.id && this.random() < 0.6) this.say(LINES_ON_HIT);
   }
 
-  /** Someone has knocked him out. */
-  onKnockedOut(): void {
+  /** Someone has knocked him out. He has nothing to say to a cook who has turned him off. */
+  onKnockedOut(by: number): void {
+    if (this.room.players.get(by)?.prefs.chef === false) return;
     if (this.random() < 0.7) this.say(LINES_ON_KNOCKED_OUT);
   }
 
@@ -316,7 +325,8 @@ export class Chef {
   }
 
   private canTarget(player: RoomPlayer, tick: number): boolean {
-    if (player.resident || player.deadUntil !== null || player.protectedUntil > tick) return false;
+    if (player.resident || !player.prefs.chef) return false;
+    if (player.deadUntil !== null || player.protectedUntil > tick) return false;
     if (tick - (this.arrived.get(player.id) ?? tick) < GRACE_TICKS) return false;
     if (tick - (this.moved.get(player.id) ?? -Infinity) > STILL_TICKS) return false;
     const me = this.player.state;
@@ -343,7 +353,20 @@ export class Chef {
   private aim(victim: RoomPlayer): Aim | null {
     const s = this.player.state;
     const eye = { x: s.x, y: s.y + EYE_HEIGHT, z: s.z };
-    return aimAt(eye, victim.state, this.player.id, victim.id);
+    return aimAt(eye, victim.state, this.player.id, victim.id, this.bystanders());
+  }
+
+  /**
+   * Standing cooks who have turned him off. His knives would pass through them, so he does not
+   * throw through one: on everyone else's screen it would vanish into them.
+   */
+  private bystanders(): KnifeTarget[] {
+    const out: KnifeTarget[] = [];
+    for (const p of this.room.players.values()) {
+      if (p.prefs.chef || p.resident || p.deadUntil !== null) continue;
+      out.push({ id: p.id, x: p.state.x, y: p.state.y, z: p.state.z });
+    }
+    return out;
   }
 
   private turnTo(yaw: number, pitch: number): void {
