@@ -89,7 +89,7 @@ const FACTORY_PARAMS = [
 ];
 
 /** Regions stop growing here, so V8 still optimizes the functions they become. */
-const MAX_REGION_INSTRUCTIONS = 1500;
+const MAX_REGION_INSTRUCTIONS = 200;
 
 export interface JitStats {
   regions: number;
@@ -295,14 +295,7 @@ function planRegion(cpu: Cpu, entry: number): Plan {
             labels.add(target);
             work.push(target);
           }
-        } else if (inCode(pc + 4)) {
-          // A call: the callee comes back to the next instruction, through the dispatcher.
-          labels.add(pc + 4);
-          work.push(pc + 4);
         }
-      } else if (op === OP_JALR && rd(inst) !== 0 && !isIllegal(inst) && inCode(pc + 4)) {
-        labels.add(pc + 4);
-        work.push(pc + 4);
       }
       break;
     }
@@ -346,19 +339,29 @@ function generate(cpu: Cpu, plan: Plan): string {
 
   let blockLength = 0;
   let positionInBlock = 0;
+  let blockStart = 0;
+  let selfLoop = false;
   for (let k = 0; k < pcs.length; k++) {
     const pc = pcs[k]!;
     if (labels.has(pc)) {
       // Count the block once at its start; early exits give back what they skip.
       blockLength = 0;
+      let last = pc;
       for (let j = k; j < pcs.length; j++) {
         const p = pcs[j]!;
         if (j > k && (labels.has(p) || p !== pcs[j - 1]! + 4)) break;
         blockLength++;
+        last = p;
         if (isTerminator(i32[p >> 2]!)) break;
       }
       positionInBlock = 0;
-      out.push(`case ${pc}: n += ${blockLength};`);
+      blockStart = pc;
+      // A block that branches back to its own start (the pixel loops of the renderer,
+      // memcpy) becomes a JavaScript loop, which skips the switch on every iteration.
+      const end = i32[last >> 2]!;
+      selfLoop =
+        (end & 0x7f) === OP_BRANCH && !isIllegal(end) && ((last + immB(end)) | 0) === pc;
+      out.push(selfLoop ? `case ${pc}: for (;;) { n += ${blockLength};` : `case ${pc}: n += ${blockLength};`);
     }
     const remaining = blockLength - positionInBlock - 1;
     positionInBlock++;
@@ -400,7 +403,11 @@ function generate(cpu: Cpu, plan: Plan): string {
             `(${a} >>> 0) < (${b} >>> 0)`,
             `(${a} >>> 0) >= (${b} >>> 0)`,
           ][f3]!;
-          code = `if (${cond}) { ${goto(pc, (pc + immB(inst)) | 0)} }`;
+          const target = (pc + immB(inst)) | 0;
+          code =
+            selfLoop && target === blockStart
+              ? `if (!(${cond})) break; if (n >= lim) { pc = ${target}; break run; } }`
+              : `if (${cond}) { ${goto(pc, target)} }`;
           break;
         }
         case OP_LOAD: {
