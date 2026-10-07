@@ -5,6 +5,7 @@
  *
  * Starts whatever is missing (Vite dev client on :5173, room server on :3001) plus a few bots so
  * the world has people in it, then drives a real (GPU-backed, headless) Chromium like a visitor.
+ * The hour is pinned to evening service (8 p.m.), so the pictures do not depend on when they are taken.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
@@ -42,7 +43,7 @@ function run(command: string, args: string[]): ChildProcess {
 }
 
 async function enter(page: Page, name: string, room = ''): Promise<void> {
-  await page.goto(`${clientUrl}/?quality=high`);
+  await page.goto(`${clientUrl}/?quality=high&time=20:00`);
   await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 30_000 });
   await page.getByLabel('Your name').fill(name);
   await page.getByLabel('Room code').fill(room);
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
 
-    await page.goto(`${clientUrl}/?quality=high`);
+    await page.goto(`${clientUrl}/?quality=high&time=20:00`);
     await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 30_000 });
     await page.getByLabel('Your name').fill('Curious Otter');
     await page.waitForTimeout(2500);

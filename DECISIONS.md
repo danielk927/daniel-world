@@ -305,3 +305,24 @@ Judgment calls made during the unattended build, with reasons.
 - **He is fair, and leaves readers alone.** He walks a hand-made graph of the aisles rather than finding paths, which is enough in one room and never wedges him against a counter.
   Before throwing he stops and turns to face his target for 0.6 s, so the throw can be seen coming and dodged; he leads a moving target along the knife's real arc, with enough error that most throws at a cook on the move miss (about 10 throws and 4 or 5 knockouts in two minutes of pacing, in the tests).
   He ignores anyone in their first 8 seconds and anyone who has stood still for 3, which is what reading a station looks like, and he speaks at most every 25 seconds.
+
+### Polish: the HUD, hits and the menu (2026-10-07)
+
+- **The HUD talks like a game, not a dev build.** The connection reads Online with signal bars (the round trip in the tooltip), Connecting, or Solo; the old "Offline · solo mode · retrying in 9s" ticked down forever.
+  Retries still happen, quietly. A "Click to look around" cue under the crosshair replaces a toast that repeated every time play resumed, and the same toast never shows twice at once.
+  The loading screen names the place in the house type and says "Lighting the lamps", not "Warming up shaders".
+- **Hits land.** A knife in you flares the screen edges red and snaps the view back with a short shake; a beat later (0.45 s, so the flash and the fall read first) the knockout card names the thrower in their color, over a drained, dimmed world, with a bar running down to the respawn, and waking up blinks.
+  The thrower gets a hit marker and the victim's name under the crosshair. Everyone sees a kill feed under the player list; kill lines left the chat, which is for people.
+  The red edge is a gradient, the one exception to the house style's solid colors: it is a screen effect, not interface.
+- **The pause menu is a settings menu**, with Settings and Controls tabs: mouse sensitivity, field of view, invert vertical look, graphics (auto, high, low; the scene is built for one tier, so a change offers a reload), a frame rate readout, and reduce motion (no bob, shake or flash; on by default when the system asks).
+  Settings persist; sensitivity keeps its old storage key so nobody loses theirs.
+- **Not done**: reflections in the night windows (an environment map at infinity only smeared the lamps across them) and doors that open; both would need more than polish.
+
+### The visitor's hours (2026-10-07)
+
+- **The kitchen keeps the visitor's local time.** Nine hand-tuned looks sit at hours of the day (night, dawn, morning, midday, afternoon, the golden hour, the blue hour, late evening), each a sky gradient, a sun direction, stars, moon, the light on the land, whether the lamps outside are lit, and the light through the windows; any time between blends the two either side.
+  The evening service look the room was lit for is the blue hour, unchanged.
+- **The view is repainted every quarter hour, when the browser is idle**: painting takes a few tens of milliseconds, a hitch nobody should feel mid-throw.
+- **By day the room is brighter but keeps its contrast.** The first try simply turned the window light and the sky fill up four times, and the white walls blew out; daylight comes in soft, mostly through the fill, while the kitchen's own lamps stay on as they would during service.
+- **A red LED clock** shows the visitor's time with the seconds running (every second counts), hung under the front of the hood between the heat lamps, where the aisle by the dining room doors looks straight at it, and on the hood's north face under the stars.
+  It is drawn as seven-segment digits with the unlit segments faintly there, follows the visitor's 12 or 24 hour habit, and redraws only when the second changes.
