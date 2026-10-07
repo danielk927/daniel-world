@@ -168,10 +168,27 @@ export class Machine implements Bus {
 
   /** Queues a key event; `typed` is the unshifted character the key types, or 0. */
   key(doomKey: number, pressed: boolean, typed = 0): void {
-    if (this.keyCount === KEY_QUEUE) return;
     const event = (typed << 16) | (pressed ? MMIO_KEY_PRESSED : 0) | (doomKey & 0xff);
+    if (this.keyCount === KEY_QUEUE) {
+      // A full queue drops presses, never releases: a lost release leaves a key held
+      // down. To make room for one, give up the oldest press.
+      if (pressed || !this.dropOldestPress()) return;
+    }
     this.keys[(this.keyHead + this.keyCount) % KEY_QUEUE] = event;
     this.keyCount++;
+  }
+
+  private dropOldestPress(): boolean {
+    const keys = this.keys;
+    for (let k = 0; k < this.keyCount; k++) {
+      if (!(keys[(this.keyHead + k) % KEY_QUEUE]! & MMIO_KEY_PRESSED)) continue;
+      for (let j = k; j < this.keyCount - 1; j++) {
+        keys[(this.keyHead + j) % KEY_QUEUE] = keys[(this.keyHead + j + 1) % KEY_QUEUE]!;
+      }
+      this.keyCount--;
+      return true;
+    }
+    return false;
   }
 
   read(offset: number): number {

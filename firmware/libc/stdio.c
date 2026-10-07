@@ -16,7 +16,9 @@ typedef struct node {
     char name[NAME_MAX];
     unsigned char *data;
     size_t size, capacity;
-    int used, mounted;
+    int linked; /* has a name in the directory */
+    int opens;  /* FILEs open on it: it outlives its name until the last closes */
+    int mounted;
 } node_t;
 
 struct FILE {
@@ -39,7 +41,7 @@ FILE *const stderr = &files[2];
 static node_t *find(const char *name)
 {
     for (int i = 0; i < MAX_NODES; i++)
-        if (nodes[i].used && !strcmp(nodes[i].name, name)) return &nodes[i];
+        if (nodes[i].linked && !strcmp(nodes[i].name, name)) return &nodes[i];
     return NULL;
 }
 
@@ -50,21 +52,28 @@ static node_t *create(const char *name)
         return NULL;
     }
     for (int i = 0; i < MAX_NODES; i++)
-        if (!nodes[i].used) {
+        if (!nodes[i].linked && !nodes[i].opens) {
             node_t *n = &nodes[i];
             memset(n, 0, sizeof(*n));
             strcpy(n->name, name);
-            n->used = 1;
+            n->linked = 1;
             return n;
         }
     errno = ENOSPC;
     return NULL;
 }
 
-static void release(node_t *n)
+static void destroy(node_t *n)
 {
     if (!n->mounted) free(n->data);
-    n->used = 0;
+    n->data = NULL;
+}
+
+/* Takes the name away; the contents go once no FILE has them open. */
+static void release(node_t *n)
+{
+    n->linked = 0;
+    if (!n->opens) destroy(n);
 }
 
 int kitchen_mount(const char *name, const void *data, size_t size)
@@ -119,6 +128,7 @@ FILE *fopen(const char *restrict path, const char *restrict mode)
     memset(f, 0, sizeof(*f));
     f->node = n;
     f->open = 1;
+    n->opens++;
     f->readable = mode[0] == 'r' || plus;
     f->writable = mode[0] != 'r' || plus;
     f->append = mode[0] == 'a';
@@ -127,7 +137,11 @@ FILE *fopen(const char *restrict path, const char *restrict mode)
 
 int fclose(FILE *f)
 {
-    if (f->node) f->open = 0;
+    node_t *n = f->node;
+
+    if (!n || !f->open) return 0;
+    f->open = 0;
+    if (!--n->opens && !n->linked) destroy(n);
     return 0;
 }
 
@@ -235,13 +249,14 @@ char *fgets(char *restrict buf, int size, FILE *restrict f)
 {
     int i = 0;
 
+    if (size < 1) return NULL;
     while (i < size - 1) {
         int c = fgetc(f);
         if (c == EOF) break;
         buf[i++] = (char)c;
         if (c == '\n') break;
     }
-    if (!i) return NULL;
+    if (!i && size > 1) return NULL; /* end of file before anything was read */
     buf[i] = 0;
     return buf;
 }

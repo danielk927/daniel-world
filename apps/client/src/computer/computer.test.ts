@@ -124,6 +124,26 @@ describe('KitchenComputer', () => {
     expect(workers[0]!.messages.at(-1)).toEqual({ type: 'pause' });
   });
 
+  it('forgets a pause from a boot that failed', async () => {
+    const on = computer.powerOn();
+    computer.pause();
+    workers[0]!.reply({ type: 'failed', message: 'no network' });
+    await expect(on).rejects.toThrow('no network');
+    await boot();
+    expect(computer.state).toBe('running');
+  });
+
+  it('ignores what a replaced worker still had to say', async () => {
+    const first = await boot();
+    computer.dispose();
+    const on = computer.powerOn();
+    first.reply({ type: 'failed', message: 'stale' });
+    workers[1]!.reply({ type: 'running', engine: 'jit' });
+    await on;
+    expect(computer.state).toBe('running');
+    expect(computer.error).toBe(null);
+  });
+
   it('reports a failure and boots afresh on the next power on', async () => {
     const on = computer.powerOn();
     workers[0]!.reply({ type: 'failed', message: 'illegal instruction' });

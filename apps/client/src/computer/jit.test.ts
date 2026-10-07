@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as A from './asm.ts';
 import type { Cpu } from './cpu.ts';
+import { GuestFault } from './cpu.ts';
 import { Jit } from './jit.ts';
 import type { TestBus } from './testRig.ts';
 import { CODE, DATA, execute, makeCpu, random } from './testRig.ts';
@@ -104,6 +105,23 @@ describe('the JIT against the interpreter', () => {
       execute(cpus[0], 'interpreter');
       execute(cpus[1], 'jit');
       expect(cpus[0].trap).toBe('ebreak');
+      expect(snapshot(cpus[1]), `seed ${seed}`).toEqual(snapshot(cpus[0]));
+    }
+  });
+
+  it('leaves the same state behind when the program faults', () => {
+    const faults = [
+      [A.lw(1, 0, 0)],
+      [...A.li(7, 0x20000000), A.sb(1, 0, 7)],
+      [...A.li(7, 0x40000000), A.lh(1, 0, 7)],
+      [0x0000007b],
+    ];
+    for (let seed = 1; seed <= 40; seed++) {
+      const program = randomProgram(seed);
+      program.splice(32, 0, ...faults[seed % faults.length]!);
+      const cpus = [makeCpu(program), makeCpu(program)] as const;
+      expect(() => execute(cpus[0], 'interpreter')).toThrow(GuestFault);
+      expect(() => execute(cpus[1], 'jit')).toThrow(GuestFault);
       expect(snapshot(cpus[1]), `seed ${seed}`).toEqual(snapshot(cpus[0]));
     }
   });

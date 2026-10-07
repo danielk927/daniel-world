@@ -134,6 +134,7 @@ export class KitchenComputer {
     this.settleBoot?.reject(new Error('the computer was disposed'));
     this.settleBoot = null;
     this.booting = null;
+    this.pauseAfterBoot = false;
     this.currentState = 'off';
   }
 
@@ -144,8 +145,13 @@ export class KitchenComputer {
     const worker = (this.options.createWorker?.() ??
       new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })) as Port;
     this.worker = worker;
-    worker.onmessage = (event) => this.receive(event.data);
-    worker.onerror = (event) => this.fail(event.message || 'the worker failed to start');
+    // Messages a terminated worker had already queued must not steer its successor.
+    worker.onmessage = (event) => {
+      if (this.worker === worker) this.receive(event.data);
+    };
+    worker.onerror = (event) => {
+      if (this.worker === worker) this.fail(event.message || 'the worker failed to start');
+    };
     this.booting = new Promise<void>((resolve, reject) => {
       this.settleBoot = { resolve, reject };
     });
@@ -195,6 +201,7 @@ export class KitchenComputer {
     this.settleBoot?.reject(new Error(message));
     this.settleBoot = null;
     this.booting = null;
+    this.pauseAfterBoot = false;
   }
 
   private post(message: ToWorker): void {

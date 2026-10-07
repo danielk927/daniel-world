@@ -104,9 +104,10 @@ uint64_t __umoddi3(uint64_t n, uint64_t d)
 
 int64_t __divdi3(int64_t a, int64_t b)
 {
-    uint64_t r, q = udivmod(a < 0 ? 0 - (uint64_t)a : (uint64_t)a,
-                            b < 0 ? 0 - (uint64_t)b : (uint64_t)b, &r);
+    uint64_t r, q;
 
+    if (!b) return -1; /* as DIV does, whatever the sign of a */
+    q = udivmod(a < 0 ? 0 - (uint64_t)a : (uint64_t)a, b < 0 ? 0 - (uint64_t)b : (uint64_t)b, &r);
     return (a < 0) != (b < 0) ? (int64_t)(0 - q) : (int64_t)q;
 }
 

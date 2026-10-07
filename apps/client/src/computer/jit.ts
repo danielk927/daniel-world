@@ -106,6 +106,8 @@ export class Jit {
   private readonly cpu: Cpu;
   /** Region entry points by (pc - codeStart) / 4: every block start of a compiled region. */
   private entries: (Region | undefined)[] = [];
+  /** What each region covers, to account for a fault inside it. */
+  private readonly plans = new WeakMap<Region, Plan>();
   /** ctl[0]: instructions the current call may run before it must exit at a back edge;
    * ctl[1]: instructions it did run. */
   private readonly ctl = new Int32Array(2);
@@ -150,7 +152,17 @@ export class Jit {
         }
         ctl[0] = Math.min(budget - total, 0x7fffffff);
         ctl[1] = 0;
-        pc = region(pc);
+        try {
+          pc = region(pc);
+        } catch (error) {
+          // Leave the state the interpreter would: the faulting instruction counted and
+          // the pc on it (the region has written its registers back already).
+          if (error instanceof GuestFault) {
+            pc = error.pc;
+            total += ctl[1] - retiredAfter(this.plans.get(region), error.pc);
+          }
+          throw error;
+        }
         total += ctl[1];
         if (cpu.stop) break;
       }
@@ -193,6 +205,7 @@ export class Jit {
       this.entries[index] ??= region;
     }
     this.entries[(entry - base) >> 2] = region;
+    this.plans.set(region, plan);
     if (this.keepSource) this.sources.set(entry, source);
     this.stats.regions++;
     this.stats.instructions += plan.pcs.length;
@@ -207,6 +220,8 @@ interface Plan {
   pcs: number[];
   /** Block starts: where control can arrive other than by falling through. */
   labels: Set<number>;
+  /** Instructions that end a block (branches, jumps, traps). */
+  terminators: Set<number>;
 }
 
 function isTerminator(inst: number): boolean {
@@ -264,6 +279,24 @@ function isIllegal(inst: number): boolean {
   }
 }
 
+/**
+ * How many instructions of the block holding `pc` come after it: a region counts a block
+ * when it enters it, so a fault at `pc` has counted these too many.
+ */
+function retiredAfter(plan: Plan | undefined, pc: number): number {
+  if (!plan) return 0;
+  let k = plan.pcs.indexOf(pc);
+  if (k < 0) return 0;
+  let after = 0;
+  for (k++; k < plan.pcs.length; k++) {
+    const p = plan.pcs[k]!;
+    if (plan.labels.has(p) || p !== plan.pcs[k - 1]! + 4 || plan.terminators.has(plan.pcs[k - 1]!))
+      break;
+    after++;
+  }
+  return after;
+}
+
 /** Finds the instructions and block starts of the region that begins at `entry`. */
 function planRegion(cpu: Cpu, entry: number): Plan {
   const { i32, codeStart, codeEnd } = cpu;
@@ -307,7 +340,8 @@ function planRegion(cpu: Cpu, entry: number): Plan {
 
   const pcs = [...seen].sort((a, b) => a - b);
   for (const label of labels) if (!seen.has(label)) labels.delete(label);
-  return { entry, pcs, labels };
+  const terminators = new Set(pcs.filter((p) => isTerminator(i32[p >> 2]!)));
+  return { entry, pcs, labels, terminators };
 }
 
 /** JavaScript source of the factory that returns the region's function. */
@@ -418,18 +452,24 @@ function generate(cpu: Cpu, plan: Plan): string {
           break;
         }
         case OP_LOAD: {
-          const addr = `a = (${a} + ${immI(inst)}) | 0;`;
           const inRam = `(a - ${NULL_GUARD}) >>> 0 < ${loadSpan}`;
-          const value = [
-            `${inRam} ? i8[a] : cpu.load8(a, ${pc})`,
-            `${inRam} && (a & 1) === 0 ? i16[a >> 1] : cpu.load16(a, ${pc})`,
-            `${inRam} && (a & 3) === 0 ? i32[a >> 2] : cpu.load32(a, ${pc})`,
-            '',
-            `${inRam} ? u8[a] : cpu.load8u(a, ${pc})`,
-            `${inRam} && (a & 1) === 0 ? u16[a >> 1] : cpu.load16u(a, ${pc})`,
-          ][f3]!;
+          const [fastCheck, fastValue, slow] = (
+            [
+              [inRam, 'i8[a]', 'load8'],
+              [`${inRam} && (a & 1) === 0`, 'i16[a >> 1]', 'load16'],
+              [`${inRam} && (a & 3) === 0`, 'i32[a >> 2]', 'load32'],
+              ['', '', ''],
+              [inRam, 'u8[a]', 'load8u'],
+              [`${inRam} && (a & 1) === 0`, 'u16[a >> 1]', 'load16u'],
+            ] as const
+          )[f3]!;
           // A load into x0 still happens: reading a register can have side effects.
-          code = d === 0 ? `${addr} ${value};` : `${addr} ${set(d, value)}`;
+          const slowLoad = `cpu.${slow}(a, ${pc})`;
+          code =
+            `a = (${a} + ${immI(inst)}) | 0; ` +
+            (d === 0
+              ? `if (!(${fastCheck})) { ${slowLoad}; ${stopCheck} }`
+              : `if (${fastCheck}) ${set(d, fastValue)} else { ${set(d, slowLoad)} ${stopCheck} }`);
           break;
         }
         case OP_STORE: {
@@ -526,14 +566,17 @@ function generate(cpu: Cpu, plan: Plan): string {
 ${prologue}
 let n = 0, a = 0;
 const lim = ctl[0];
+try {
 run: for (;;) {
 switch (pc) {
 ${out.join('\n')}
 default: throw new Error('jit: no block at ' + pc);
 }
 }
+} finally {
 ${epilogue}
 ctl[1] = n;
+}
 return pc;
 };`;
 }

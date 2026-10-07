@@ -103,6 +103,18 @@ describe.each(ENGINES)('the machine on the %s', (engine) => {
     expect(machine.cpu.regs[8]).toBe(64);
   });
 
+  it('keeps releases when the queue is full, at the cost of the oldest press', () => {
+    const machine = small();
+    const reads = Array.from({ length: 64 }, (_, k) => [...load(7, MMIO_KEY), A.sw(7, k * 4, 9)]);
+    machine.boot(program(A.li(9, DATA), ...reads));
+    for (let k = 0; k < 64; k++) machine.key(1 + k, true);
+    machine.key(99, false);
+    machine.run(10_000);
+    const events = [...machine.cpu.i32.subarray(DATA >> 2, (DATA >> 2) + 64)];
+    expect(events[0]).toBe(0x100 | 2);
+    expect(events[63]).toBe(99);
+  });
+
   it('scans the frame out through the palette when the guest presents it', () => {
     const machine = new Machine({ engine, ramSize: 0x20000 });
     machine.boot(

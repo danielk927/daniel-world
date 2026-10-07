@@ -50,8 +50,9 @@ const spares = [new Uint8ClampedArray(FRAME_BYTES), new Uint8ClampedArray(FRAME_
 let framePending = false;
 
 function sendFrame(): void {
+  if (!machine) return;
   const buffer = spares.pop();
-  if (!buffer || !machine) {
+  if (!buffer) {
     framePending = true;
     return;
   }

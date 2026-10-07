@@ -37,10 +37,14 @@ void *memmove(void *dst, const void *src, size_t n)
     unsigned char *d = dst;
     const unsigned char *s = src;
 
-    if (d <= s || d >= s + n) return memcpy(dst, src, n);
-    d += n;
-    s += n;
-    while (n--) *--d = *--s;
+    /* Its own loops: memcpy promises no overlap (restrict), and LTO holds us to that. */
+    if (d <= s) {
+        while (n--) *d++ = *s++;
+    } else {
+        d += n;
+        s += n;
+        while (n--) *--d = *--s;
+    }
     return dst;
 }
 
