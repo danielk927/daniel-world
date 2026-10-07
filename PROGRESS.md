@@ -91,6 +91,16 @@ npm run bots -- --count 5   # optional: some company
   Firefox and Safari may drift by tiny amounts, which reconciliation smooths out invisibly.
 - The E2E suite takes about 3 minutes because several software-rendered browsers share one CPU.
 
+### October 7 additions
+
+- Movement: 60 Hz shared simulation, camera drawn between the last two ticks (no more pops when changing direction).
+- The clock hangs over the dining room doors.
+- Daniel's resume on every station and the portfolio page.
+- Chef Skinner can be switched off per visitor in Settings.
+- Private parties from the pause menu, moved into in place.
+- The kitchen computer: DOOM on a RISC-V machine in a Web Worker.
+- Protocol version 7; the AWS room server needs `npm run deploy:aws` for multiplayer to match the client.
+
 ### What needs Daniel's input
 
 - **Real content**: done (Daniel's resume on every station and the portfolio). Remaining `TODO(daniel)`: a personal line on the NBA or fashion, and optional lines on the dishes.

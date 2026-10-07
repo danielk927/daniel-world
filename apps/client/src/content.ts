@@ -161,9 +161,14 @@ const thisKitchen: LoreItem = {
   title: "Daniel's World",
   subtitle: 'This multiplayer 3D kitchen',
   meta: '2026',
+  href: 'https://github.com/danielk927/daniel-world',
   description:
     'A first-person personal site where every visitor is a cook in a classical French brigade kitchen, built from primitives in Three.js, with a WebSocket room server so everyone in it sees each other in real time.',
-  tags: ['TypeScript', 'Three.js', 'Node.js', 'WebSockets'],
+  points: [
+    'Client and server run the same deterministic 60 Hz movement simulation, with client-side prediction and reconciliation, so moving feels instant and every screen agrees.',
+    "The computer on the chef's desk runs the original DOOM on a RISC-V (RV32IM) machine written in TypeScript: DOOM's C source cross-compiled bare metal against a hand-written libc, and a JIT that translates RISC-V into JavaScript at about 3 billion guest instructions a second, in a Web Worker.",
+  ],
+  tags: ['TypeScript', 'Three.js', 'Node.js', 'WebSockets', 'RISC-V', 'C'],
 };
 
 const skills: readonly LoreItem[] = [

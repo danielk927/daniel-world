@@ -380,3 +380,18 @@ Judgment calls made during the unattended build, with reasons.
 - **Random codes look like `h7kq-m3xp`:** eight characters from 31 that cannot be mistaken for each other (no 0, 1, i, l or o), about 40 bits, drawn with `crypto.getRandomValues`.
 - **The address bar follows the room** (`history.replaceState`, `?room=` set for a party and removed for the lobby, other parameters kept as written), so a reload or a copied address comes back to the same party.
 - **A kill waiting for its knife to arrive on screen is forgotten when its room is closed or lost;** announced later, it knocked the player out where no respawn would come.
+
+### The kitchen computer (2026-10-07)
+
+- **A beige PC on a chef's desk in the south-west corner runs DOOM**, at Daniel's request, as a piece of systems work rather than an off-the-shelf port: a RISC-V (RV32IM) machine written in TypeScript, and DOOM's C source (`doomgeneric`) cross-compiled bare metal for it against a freestanding libc written for it.
+  The corner was the only free one: by the dining room doors, across from the dish pit, at the end of the aisle the spawn looks along when turned round.
+  The desk is a counter-height fixture, so it collides like the counters, and Chef Skinner's aisle graph clears it.
+- **The machine is MMIO, not syscalls**: framebuffer and palette, keyboard queue, timer, console and a disk window the host fills with the WAD before boot, all in one ABI header mirrored in TypeScript and checked by a test.
+- **A JIT, with the interpreter as the reference.** DOOM needs about a million guest instructions a frame; the interpreter manages 180 MIPS, the JIT (RISC-V regions compiled to JavaScript functions with `new Function`) about 3,200 in Chromium, so live play costs about 2% of a core. If a content security policy ever forbids `new Function`, the worker falls back to the interpreter.
+  The JIT is checked against the interpreter on random programs, and both against the official riscv-tests.
+- **It runs in a Web Worker and loads on first use**: the 485 kB ELF and the 4 MB shareware WAD are fetched only when a cook first sits down, and the machine pauses whenever nobody is at it or the tab is hidden.
+- **Sitting down glides the view square onto the CRT**, filling most of the view, and every key goes to DOOM until Esc. Under pointer lock the browser takes Esc to release the mouse, so Esc has to mean stepping away; DOOM's menu, normally on Esc, moves to the backquote key, and the hint bar says so.
+  Stepping away pauses the game with its last frame still on the screen, for the room to see.
+- **The screen is 4:3**, as DOOM's 320x200 was meant to be shown, with nearest-neighbour sampling and faint scanlines, and the lit picture kept dim so the bloom barely catches it.
+- **The monitor is solid to knives.** A knife thrown at the screen used to fly through the CRT into the wall behind it and poke its handle out through the glass, in the middle of the game.
+- **The firmware is committed prebuilt**, since Vercel's build has no RISC-V toolchain; the build is reproducible with `brew install llvm lld` and `firmware/doom/build.sh`. The ELF is GPL like `doomgeneric`, and its source is in the public repository.

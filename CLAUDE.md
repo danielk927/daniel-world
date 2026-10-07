@@ -20,6 +20,8 @@ npm run bots -- --count 15   # simulated players for load testing
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
 node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU)
 node scripts/perf.ts         # 16-player perf report (needs the dev client on :5173)
+node scripts/computer-bench.ts  # kitchen computer: DOOM timedemo, guest MIPS (--engine jit|interpreter)
+firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install llvm lld`)
 ```
 
 ## Map
@@ -31,6 +33,8 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 - `apps/client` - Vite + Three.js client.
   `src/content.ts` holds all personal content (Daniel's resume; the few lines still wanting his words are marked `TODO(daniel)`).
   `index.html` is the 3D world, `portfolio.html` is the static fallback.
+  `src/computer/` is the kitchen computer: a RISC-V machine (interpreter and JIT) in a Web Worker that runs DOOM; `src/game/computerDesk.ts` hooks it into the game.
+- `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
 - `scripts` - dev tooling (bots, screenshots).
@@ -104,3 +108,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
   `asm-exec` so the secret resolves at runtime without entering context.
 
 <!-- END AWS Agent Toolkit rules -->
+
+- The kitchen computer's firmware (`apps/client/src/computer/assets/doom.elf`) is committed prebuilt, because the site's builds have no RISC-V toolchain; after changing anything in `firmware/`, rebuild it with `firmware/doom/build.sh` and commit the ELF.
+  `firmware/include/machine.h` and `src/computer/abi.ts` must agree (`abi.test.ts` checks).
+  At the computer every key goes to DOOM except Esc, which steps away (under pointer lock the browser takes Esc anyway); DOOM's menu is on the backquote key.

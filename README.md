@@ -62,18 +62,19 @@ The few lines that still want Daniel's own words are marked `TODO(daniel)`.
 
 ## Scripts
 
-| Command                       | What it does                                                             |
-| ----------------------------- | ------------------------------------------------------------------------ |
-| `npm run dev`                 | Client (Vite, :5173) and server (:3001) with reload                      |
-| `npm run build`               | Server bundle in `apps/server/dist`, static site in `apps/client/dist`   |
-| `npm start`                   | Run the built server                                                     |
-| `npm run lint`                | ESLint (type-aware) and Prettier check                                   |
-| `npm run typecheck`           | TypeScript in every workspace                                            |
-| `npm test`                    | Vitest unit and integration tests                                        |
-| `npm run e2e`                 | Playwright end-to-end tests (run `npx playwright install chromium` once) |
-| `npm run bots -- --count 15`  | Simulated players wandering the lobby                                    |
-| `node scripts/screenshots.ts` | Regenerate `docs/screenshots/`                                           |
-| `node scripts/perf.ts`        | 16-player performance check (needs the dev client running)               |
+| Command                          | What it does                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| `npm run dev`                    | Client (Vite, :5173) and server (:3001) with reload                           |
+| `npm run build`                  | Server bundle in `apps/server/dist`, static site in `apps/client/dist`        |
+| `npm start`                      | Run the built server                                                          |
+| `npm run lint`                   | ESLint (type-aware) and Prettier check                                        |
+| `npm run typecheck`              | TypeScript in every workspace                                                 |
+| `npm test`                       | Vitest unit and integration tests                                             |
+| `npm run e2e`                    | Playwright end-to-end tests (run `npx playwright install chromium` once)      |
+| `npm run bots -- --count 15`     | Simulated players wandering the lobby                                         |
+| `node scripts/screenshots.ts`    | Regenerate `docs/screenshots/`                                                |
+| `node scripts/perf.ts`           | 16-player performance check (needs the dev client running)                    |
+| `node scripts/computer-bench.ts` | Kitchen computer benchmark: DOOM's timedemo, guest MIPS and frames per second |
 
 ## How it works
 
@@ -106,8 +107,19 @@ Rendering is built for a smooth 60 fps with a full room:
 
 ![Two visitors on the live AWS deployment](docs/screenshots/live-aws.png)
 
-Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in one room: a steady 60 fps, about 1.1 ms of main-thread time per frame, 34 draw calls and 66k triangles.
-The earlier island measured 1.4 ms and 62 draw calls in a back-to-back run on the same machine.
+Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in one room throwing knives, on the high tier: a steady 60 fps, about 2.2 ms of main-thread time per frame, 74 draw calls (about 30 of them post-processing passes), 123k triangles, and no prediction corrections.
+
+## The kitchen computer
+
+The beige PC on the chef's desk, in the south-west corner, runs the original DOOM (press E at it; Esc steps away, the backquote key opens DOOM's menu).
+It is not a port to the browser but a small computer of its own:
+
+- **A RISC-V (RV32IM) CPU emulator in TypeScript** (`apps/client/src/computer/`), with 32 MiB of RAM and memory-mapped devices: a 320x200 8-bit framebuffer and palette, a keyboard queue, a millisecond timer, a console and a disk window holding the WAD. The ABI is one header, `firmware/include/machine.h`, mirrored in `abi.ts` and checked by a test.
+- **DOOM cross-compiled bare metal for it** (`firmware/`): the vendored `doomgeneric` (GPLv2) with a platform layer for those devices, a freestanding libc written for it (strings, a malloc over the linker script's heap, printf and scanf as far as DOOM needs, 64-bit division, an in-memory file system with the WAD mounted read-only), `crt0.S` and a linker script that leaves page 0 unmapped so null pointers fault.
+- **Two engines**: a reference interpreter, and a JIT that compiles regions of RISC-V into JavaScript functions, guest registers in locals and self-loops as native loops. Measured in Chromium on an Apple M5, the JIT runs DOOM's timedemo at about 3.2 billion guest instructions a second (the interpreter about 180 million); live play needs under 40 million, about 2% of a core. It runs in a Web Worker, so the kitchen's frame budget is untouched.
+- **Tested against the official riscv-tests** (rv32ui and rv32um) on both engines, by differential testing of the JIT against the interpreter on random programs, and by booting the real DOOM: its title screen matches TITLEPIC decoded straight from the WAD, pixel for pixel.
+
+The firmware is committed prebuilt (`apps/client/src/computer/assets/doom.elf`), since the site's builds have no RISC-V toolchain. To rebuild it: `brew install llvm lld`, then `firmware/doom/build.sh` (the build is reproducible). The ELF is GPL, as `doomgeneric` is; its source is everything under `firmware/`. `doom1.wad` is the unmodified, freely redistributable shareware release.
 
 Judgment calls made while building are recorded in [DECISIONS.md](DECISIONS.md).
 
