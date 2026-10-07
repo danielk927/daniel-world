@@ -36,6 +36,8 @@ function run(state: PlayerState, input: PlayerInput, ticks: number): PlayerState
   return state;
 }
 
+/** This many seconds of simulation, in ticks. */
+const seconds = (s: number): number => Math.round(s * TICK_RATE);
 const idle: PlayerInput = { keys: 0, yaw: 0, pitch: 0 };
 
 describe('stepPlayer', () => {
@@ -60,7 +62,7 @@ describe('stepPlayer', () => {
 
   it('turns movement with yaw (yaw +90deg looks down -X)', () => {
     const s = createPlayerState();
-    run(s, { keys: Keys.Forward, yaw: Math.PI / 2, pitch: 0 }, 10);
+    run(s, { keys: Keys.Forward, yaw: Math.PI / 2, pitch: 0 }, seconds(0.5));
     expect(s.x).toBeLessThan(-1);
     expect(Math.abs(s.z - SPAWN.z)).toBeLessThan(1e-3);
   });
@@ -69,14 +71,14 @@ describe('stepPlayer', () => {
     const sprint = run(
       createPlayerState(),
       { keys: Keys.Left | Keys.Sprint, yaw: 0, pitch: 0 },
-      10,
+      seconds(0.5),
     );
     expect(Math.hypot(sprint.vx, sprint.vz)).toBeCloseTo(SPRINT_SPEED, 3);
     // In the line, between the pass and the piano: a quarter second is enough to reach full speed.
     const diagonal = run(
       createPlayerState(0, LINE_Z),
       { keys: Keys.Forward | Keys.Left, yaw: 0, pitch: 0 },
-      5,
+      seconds(0.25),
     );
     expect(Math.hypot(diagonal.vx, diagonal.vz)).toBeCloseTo(WALK_SPEED, 3);
   });
@@ -99,7 +101,11 @@ describe('stepPlayer', () => {
   });
 
   it('cannot walk through the piano', () => {
-    const s = run(createPlayerState(0, LINE_Z), { keys: Keys.Forward, yaw: 0, pitch: 0 }, 60);
+    const s = run(
+      createPlayerState(0, LINE_Z),
+      { keys: Keys.Forward, yaw: 0, pitch: 0 },
+      seconds(3),
+    );
     expect(s.z).toBeCloseTo(KITCHEN.piano.maxZ + PLAYER_RADIUS, 3);
   });
 
@@ -115,10 +121,14 @@ describe('stepPlayer', () => {
   });
 
   it('bumps its head on the hood when jumping beside the piano', () => {
-    const s = run(createPlayerState(0, LINE_Z), { keys: Keys.Forward, yaw: 0, pitch: 0 }, 40);
+    const s = run(
+      createPlayerState(0, LINE_Z),
+      { keys: Keys.Forward, yaw: 0, pitch: 0 },
+      seconds(2),
+    );
     let highest = 0;
     stepPlayer(s, { keys: Keys.Jump, yaw: 0, pitch: 0 });
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < seconds(1); i++) {
       stepPlayer(s, idle);
       highest = Math.max(highest, s.y);
     }
@@ -175,7 +185,7 @@ describe('collision edge cases', () => {
     s.y = 0;
     let highest = 0;
     stepPlayer(s, { keys: Keys.Jump, yaw: 0, pitch: 0 }, [box]);
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < seconds(1); i++) {
       stepPlayer(s, idle, [box]);
       highest = Math.max(highest, s.y);
     }
@@ -214,7 +224,7 @@ describe('collision edge cases', () => {
     s.x = 0;
     s.z = 0;
     s.y = 12;
-    for (let i = 0; i < 40; i++) stepPlayer(s, idle, [platform]);
+    for (let i = 0; i < seconds(2); i++) stepPlayer(s, idle, [platform]);
     expect(s.y).toBeCloseTo(1, 3);
     expect(s.grounded).toBe(true);
   });
@@ -222,7 +232,7 @@ describe('collision edge cases', () => {
   it('cannot climb onto a counter', () => {
     // Jump at the pass, in front of the spawn point, over and over.
     const s = createPlayerState();
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < seconds(3); i++) {
       stepPlayer(s, { keys: Keys.Forward | Keys.Jump, yaw: 0, pitch: 0 });
       if (s.grounded) expect(s.y).toBe(0);
     }

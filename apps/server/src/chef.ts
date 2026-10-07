@@ -48,8 +48,8 @@ const AIM_ERROR_PITCH = 0.045;
 const QUIET_TICKS = seconds(25);
 /** Where on the body he aims, above the feet. */
 const AIM_HEIGHT = 1.1;
-/** How fast he turns, radians per tick, so he swings round like a person, not a turret. */
-const TURN_RATE = 0.22;
+/** How fast he turns, radians per tick (4.4 a second), so he swings round like a person, not a turret. */
+const TURN_RATE = 4.4 / TICK_RATE;
 /** A waypoint counts as reached within this distance. */
 const ARRIVED = 0.45;
 /** Making less progress than this over STUCK_TICKS means something is in the way. */

@@ -25,10 +25,10 @@ const ERROR_DECAY = 12;
  */
 export class LocalPlayer {
   readonly state: PlayerState = createPlayerState();
-  /** The next tick as it will be with the keys held now, for drawing; see renderPosition. */
-  private readonly ahead: PlayerState = createPlayerState();
+  /** Where the feet were one tick ago, for drawing between it and the current tick. */
+  private readonly previous = new Vector3();
+  private readonly tmp = new Vector3();
   private readonly input: InputMessage = { t: 'input', seq: 0, keys: 0, yaw: 0, pitch: 0 };
-  private readonly aheadInput: InputMessage = { t: 'input', seq: 0, keys: 0, yaw: 0, pitch: 0 };
   private sequence = 0;
 
   private readonly pending: InputMessage[] = Array.from({ length: PENDING_CAPACITY }, () => ({
@@ -56,6 +56,7 @@ export class LocalPlayer {
     input.keys = keys;
     input.yaw = yaw;
     input.pitch = pitch;
+    this.previous.set(this.state.x, this.state.y, this.state.z);
     stepPlayer(this.state, input);
     if (record) this.remember(input);
     return input;
@@ -113,7 +114,12 @@ export class LocalPlayer {
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
     if (distance === 0) return;
     this.lastCorrection = Math.max(this.lastCorrection, distance);
+    // The tick drawn from moves with the correction, so the blend between the two stays a tick long.
+    this.previous.x -= dx;
+    this.previous.y -= dy;
+    this.previous.z -= dz;
     if (distance > SNAP_DISTANCE) {
+      this.previous.set(s.x, s.y, s.z);
       this.error.set(0, 0, 0);
     } else {
       this.error.x += dx;
@@ -123,35 +129,18 @@ export class LocalPlayer {
   }
 
   /**
-   * Feet position for rendering, `alpha` of the way from this tick to the next, plus any fading
-   * correction. The next tick is simulated ahead with the keys held right now, the same step the
-   * real tick will take, so a key shows on the very next frame instead of a tick later, and nothing
-   * is drawn behind the simulation. Blending from the previous tick instead would trail it by up to
-   * a tick, on top of waiting for the next one.
+   * Feet position for rendering, `alpha` of the way from the previous tick to the current one, plus
+   * any fading correction. Only positions the simulation really reached are drawn, so the view never
+   * pops or springs back when a key changes; at 60 ticks a second that costs at most one tick (17
+   * ms) of trailing.
    */
-  renderPosition(
-    alpha: number,
-    dt: number,
-    keys: number,
-    yaw: number,
-    pitch: number,
-    out: Vector3,
-  ): Vector3 {
+  renderPosition(alpha: number, dt: number, out: Vector3): Vector3 {
     this.error.multiplyScalar(Math.exp(-ERROR_DECAY * dt));
     if (this.error.lengthSq() < 1e-8) this.error.set(0, 0, 0);
-    const s = this.state;
-    const a = this.ahead;
-    copyPlayerState(s, a);
-    const input = this.aheadInput;
-    input.keys = keys;
-    input.yaw = yaw;
-    input.pitch = pitch;
-    stepPlayer(a, input);
-    return out.set(
-      s.x + (a.x - s.x) * alpha + this.error.x,
-      s.y + (a.y - s.y) * alpha + this.error.y,
-      s.z + (a.z - s.z) * alpha + this.error.z,
-    );
+    return out
+      .copy(this.previous)
+      .lerp(this.tmp.set(this.state.x, this.state.y, this.state.z), alpha)
+      .add(this.error);
   }
 
   get horizontalSpeed(): number {
@@ -173,6 +162,7 @@ export class LocalPlayer {
       fresh.grounded = from.grounded;
     }
     copyPlayerState(fresh, this.state);
+    this.previous.set(fresh.x, fresh.y, fresh.z);
     this.pendingStart = 0;
     this.pendingCount = 0;
     this.error.set(0, 0, 0);

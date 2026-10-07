@@ -8,6 +8,7 @@ import {
   PLAY_HALF_Z,
   PROTOCOL_VERSION,
   TICK_MS,
+  TICK_RATE,
   encode,
   normalizeRoomCode,
   parseClientMessage,
@@ -297,7 +298,8 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       room: null,
       player: null,
       // ~21 messages per second is normal (20 inputs + pings); allow bursts well above that.
-      messages: new TokenBucket(60, 40),
+      // One input every tick, plus pings, chat and emotes on top.
+      messages: new TokenBucket(2 * TICK_RATE, TICK_RATE * 1.5),
       chat: new TokenBucket(4, 0.5),
       strikes: new StrikeCounter(40, 10),
     };

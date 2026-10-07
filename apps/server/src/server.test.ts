@@ -5,6 +5,7 @@ import {
   Keys,
   MAX_PLAYERS_PER_ROOM,
   PROTOCOL_VERSION,
+  TICK_RATE,
   parseServerMessage,
   type ServerMessage,
 } from '@world/shared';
@@ -141,11 +142,13 @@ describe('room server', () => {
     const welcome = await a.join('Walker');
     // Strafe along the open aisle by the dining room doors.
     const startX = welcome.self.x;
-    for (let seq = 0; seq < 10; seq++)
+    // Half a second of inputs.
+    const count = TICK_RATE / 2;
+    for (let seq = 0; seq < count; seq++)
       a.send({ t: 'input', seq, keys: Keys.Left, yaw: 0, pitch: 0 });
     const snap = await a.waitFor(() => {
       const me = a.latestSnapshot()?.players.find((p) => p.id === welcome.id);
-      return me && me.ack === 9 ? me : undefined;
+      return me && me.ack === count - 1 ? me : undefined;
     });
     expect(snap.x).toBeLessThan(startX - 1);
   });

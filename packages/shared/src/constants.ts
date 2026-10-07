@@ -1,13 +1,19 @@
-/** Server simulation rate. Clients send exactly one input per tick. */
-export const TICK_RATE = 20;
+/**
+ * Simulation rate, on the server and in client prediction. Clients send exactly one input per tick.
+ * Fast enough that the camera can be drawn between the last two ticks, smooth and never ahead of
+ * the simulation, without trailing it noticeably.
+ */
+export const TICK_RATE = 60;
 export const TICK_SECONDS = 1 / TICK_RATE;
 export const TICK_MS = 1000 / TICK_RATE;
+/** The room sends a snapshot every this many ticks (20 a second); inputs still go every tick. */
+export const SNAPSHOT_EVERY_TICKS = 3;
 
 /** Remote players are rendered this far in the past so there are always two snapshots to blend. */
 export const INTERPOLATION_DELAY_MS = 100;
 
 /** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 export const DEFAULT_SERVER_PORT = 3001;
 
 // Rooms and players.
@@ -32,8 +38,11 @@ export const GRAVITY = 22;
 export const MAX_FALL_SPEED = 40;
 export const GROUND_ACCEL = 60;
 export const AIR_ACCEL = 12;
-/** Collision is resolved this many times per tick so fast movement cannot tunnel. */
-export const SIM_SUBSTEPS = 2;
+/**
+ * Collision is resolved this many times per tick so fast movement cannot tunnel. At 60 ticks a
+ * second one is enough: a sprint covers 0.14 m a tick, far less than a body's radius.
+ */
+export const SIM_SUBSTEPS = 1;
 
 // World bounds: the kitchen is a box, centered on the origin, with its floor at y = 0.
 export const ROOM_HALF_X = 8;

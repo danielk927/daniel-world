@@ -6,6 +6,7 @@ import {
   Keys,
   PLAYER_COLORS,
   RESPAWN_PROTECTION_SECONDS,
+  SNAPSHOT_EVERY_TICKS,
   TICK_RATE,
   launchKnife,
   MAX_PLAYERS_PER_ROOM,
@@ -24,18 +25,18 @@ import {
 } from '@world/shared';
 import { PositionHistory, RoomKnives, type KnifeCandidate, type KnifeEvent } from './knives.ts';
 
-/** Inputs waiting to be simulated are capped so a flood cannot build up unbounded latency. */
-export const MAX_QUEUED_INPUTS = 8;
+/** Inputs waiting to be simulated (0.4 s) are capped so a flood cannot build up unbounded latency. */
+export const MAX_QUEUED_INPUTS = Math.round(0.4 * TICK_RATE);
 /**
  * A player may simulate at most one input per tick on average. Unused ticks bank a little credit
- * so a burst after a network hiccup catches up quickly, but never enough to speed hack.
+ * (0.3 s) so a burst after a network hiccup catches up quickly, but never enough to speed hack.
  */
-export const MAX_INPUT_CREDIT = 6;
+export const MAX_INPUT_CREDIT = Math.round(0.3 * TICK_RATE);
 /**
- * A player who sends nothing for this many ticks is simulated with an idle input, so going silent
- * mid-jump (or with a lag switch) cannot freeze them in the air.
+ * A player who sends nothing for this many ticks (0.5 s) is simulated with an idle input, so going
+ * silent mid-jump (or with a lag switch) cannot freeze them in the air.
  */
-export const IDLE_STEP_AFTER_TICKS = 10;
+export const IDLE_STEP_AFTER_TICKS = Math.round(0.5 * TICK_RATE);
 /** A knocked-out player lies on the floor this many ticks. */
 export const DEATH_TICKS = Math.round(DEATH_SECONDS * TICK_RATE);
 /** Knives pass through a respawned player for this many ticks. */
@@ -227,7 +228,7 @@ export class Room {
     while (player.queue.length > MAX_QUEUED_INPUTS) player.queue.shift();
   }
 
-  /** Simulate one tick and broadcast the resulting snapshot. */
+  /** Simulate one tick, and broadcast the resulting snapshot on every SNAPSHOT_EVERY_TICKS. */
   step(): void {
     this.tick++;
     for (const player of this.players.values()) {
@@ -253,7 +254,7 @@ export class Room {
     }
     for (const event of this.knives.step(this.tick, this.hittable())) this.onKnife(event);
     this.respawnDue();
-    if (this.players.size === 0) return;
+    if (this.players.size === 0 || this.tick % SNAPSHOT_EVERY_TICKS !== 0) return;
     this.broadcast({
       t: 'snap',
       tick: this.tick,

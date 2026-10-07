@@ -5,6 +5,7 @@ import {
   Keys,
   parseServerMessage,
   type ServerMessage,
+  TICK_RATE,
 } from '@world/shared';
 import { MAX_REWIND_TICKS } from './knives.ts';
 import { DEATH_TICKS, PROTECTION_TICKS, Room, type RoomPlayer } from './room.ts';
@@ -65,6 +66,9 @@ function setup() {
   return { room, join, input, steps, received };
 }
 
+/** Long enough for any knife in these tests to land. */
+const FLIGHT = Math.round(0.25 * TICK_RATE);
+
 describe('knives', () => {
   it('tells everyone about a throw, with the input that threw it', () => {
     const { join, input, steps, received } = setup();
@@ -85,7 +89,7 @@ describe('knives', () => {
     const victim = join(0, 3.2);
     // Aim a little down so the knife meets the victim's chest, not their toque.
     input(thrower, { throwKnife: true, pitch: -0.1 });
-    steps(3);
+    steps(FLIGHT);
     const [kill] = received(victim.id, 'kill');
     expect(kill).toMatchObject({ from: thrower.id, to: victim.id });
     expect(received(thrower.id, 'kill')).toHaveLength(1);
@@ -106,7 +110,7 @@ describe('knives', () => {
     Object.assign(s, { x: 0, z: 3.2, vx: 0, vz: 0 });
     for (let i = 0; i < KNIFE_COOLDOWN_INPUTS; i++) input(thrower, {});
     input(thrower, { throwKnife: true, pitch: -0.1 });
-    steps(KNIFE_COOLDOWN_INPUTS + 3);
+    steps(KNIFE_COOLDOWN_INPUTS + FLIGHT);
     expect(received(thrower.id, 'knife')).toHaveLength(2);
     expect(received(thrower.id, 'kill')).toHaveLength(1);
     expect(PROTECTION_TICKS).toBeGreaterThan(KNIFE_COOLDOWN_INPUTS);
@@ -117,7 +121,7 @@ describe('knives', () => {
     const a = join(0, 2.6);
     // Straight down into the aisle floor.
     input(a, { throwKnife: true, pitch: -Math.PI / 2 + 0.01 });
-    steps(4);
+    steps(FLIGHT);
     const [stuck] = received(a.id, 'stuck');
     expect(stuck!.knife.y).toBeLessThan(0);
     expect(stuck!.knife.dy).toBeLessThan(-0.99);
@@ -132,7 +136,7 @@ describe('knives', () => {
       input(a, { throwKnife: true, pitch: -Math.PI / 2 + 0.01 });
       steps(1);
     }
-    steps(4);
+    steps(FLIGHT);
     const knives = room.stuckKnives();
     expect(knives).toHaveLength(KNIFE_MAX_STUCK);
     // Oldest first, and the oldest few were dropped.
@@ -174,10 +178,11 @@ describe('knives', () => {
       steps(2);
       // What the thrower's screen showed: the target, still standing in the knife's path.
       const seenAt = room.tick;
-      steps(2);
+      // Long enough ago that the whole flight is checked against the past.
+      steps(FLIGHT);
       target.state.x += 2;
       input(thrower, { throwKnife: true, pitch: -0.1, view: compensate ? seenAt : undefined });
-      steps(4);
+      steps(FLIGHT);
       return received(thrower.id, 'kill').length;
     };
     expect(throwAtSteppedAside(true)).toBe(1);
@@ -194,7 +199,7 @@ describe('knives', () => {
     target.state.x += 2;
     steps(MAX_REWIND_TICKS + 5);
     input(thrower, { throwKnife: true, pitch: -0.1, view: seenAt });
-    steps(3);
+    steps(FLIGHT);
     expect(received(thrower.id, 'kill')).toHaveLength(0);
   });
 
@@ -203,7 +208,7 @@ describe('knives', () => {
     const thrower = join(0, 5.6);
     const victim = join(0, 3.2);
     input(thrower, { throwKnife: true, pitch: -0.1 });
-    steps(3);
+    steps(FLIGHT);
     const before = { x: victim.state.x, z: victim.state.z };
     for (let i = 0; i < 10; i++) input(victim, { keys: Keys.Left | Keys.Sprint });
     steps(10);

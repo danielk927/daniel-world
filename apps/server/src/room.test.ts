@@ -6,7 +6,9 @@ import {
   PLAYER_RADIUS,
   ROOM_HALF_X,
   ROOM_HALF_Z,
+  SNAPSHOT_EVERY_TICKS,
   SPAWN,
+  TICK_RATE,
   createPlayerState,
   isInsideCollider,
   parseServerMessage,
@@ -92,7 +94,7 @@ describe('Room', () => {
   it('banks a little credit so a late burst catches up', () => {
     const { room, join } = makeRoom();
     const p = join();
-    for (let i = 0; i < 10; i++) room.step(); // no inputs arrive
+    for (let i = 0; i < MAX_INPUT_CREDIT + 4; i++) room.step(); // no inputs arrive
     for (const input of scriptedInputs(MAX_INPUT_CREDIT)) room.enqueueInput(p, input);
     room.step();
     expect(p.lastSeq).toBe(MAX_INPUT_CREDIT - 1);
@@ -105,7 +107,7 @@ describe('Room', () => {
     room.enqueueInput(p, { seq: 0, keys: Keys.Jump, yaw: 0, pitch: 0 });
     room.step();
     expect(p.state.grounded).toBe(false);
-    for (let i = 0; i < IDLE_STEP_AFTER_TICKS + 30; i++) room.step();
+    for (let i = 0; i < IDLE_STEP_AFTER_TICKS + TICK_RATE; i++) room.step();
     expect(p.state.grounded).toBe(true);
   });
 
@@ -130,6 +132,7 @@ describe('Room', () => {
       room.enqueueInput(p, input);
       room.step();
       stepPlayer(client, input);
+      if (room.tick % SNAPSHOT_EVERY_TICKS !== 0) continue;
       // Compare what actually crossed the wire, after JSON encoding.
       const snap = lastSnapshot(p.id).players.find((s) => s.id === p.id)!;
       expect(snap.ack).toBe(input.seq);

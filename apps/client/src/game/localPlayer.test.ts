@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GROUND_ACCEL,
   Keys,
+  TICK_SECONDS,
+  WALK_SPEED,
   createPlayerState,
   stepPlayer,
   type InputMessage,
@@ -82,7 +85,7 @@ describe('LocalPlayer prediction and reconciliation', () => {
     const player = new LocalPlayer();
     player.tick(0, 0, 0, true);
     const out = new Vector3();
-    const before = player.renderPosition(0, 0, 0, 0, 0, out).clone();
+    const before = player.renderPosition(1, 0, out).clone();
     const nudged = {
       id: 1,
       ...player.state,
@@ -93,34 +96,55 @@ describe('LocalPlayer prediction and reconciliation', () => {
     };
     player.reconcile(nudged);
     // Right after the correction the rendered position has not jumped...
-    expect(player.renderPosition(0, 0, 0, 0, 0, out).distanceTo(before)).toBeLessThan(1e-9);
+    expect(player.renderPosition(1, 0, out).distanceTo(before)).toBeLessThan(1e-9);
     // ...and it glides to the corrected spot.
-    for (let i = 0; i < 60; i++) player.renderPosition(0, 1 / 60, 0, 0, 0, out);
+    for (let i = 0; i < 60; i++) player.renderPosition(1, 1 / 60, out);
     expect(out.x).toBeCloseTo(nudged.x, 3);
 
     player.reconcile({ ...nudged, x: nudged.x + 20 });
-    expect(player.renderPosition(0, 0, 0, 0, 0, out).x).toBeCloseTo(nudged.x + 20, 6);
+    expect(player.renderPosition(1, 0, out).x).toBeCloseTo(nudged.x + 20, 6);
   });
 
-  it('draws a fresh key press at once, not a tick later', () => {
-    const player = new LocalPlayer();
-    player.tick(0, 0, 0, false);
-    const out = new Vector3();
-    // Halfway to the next tick, standing still: drawn exactly where the simulation is.
-    player.renderPosition(0.5, 0, 0, 0, 0, out);
-    expect(out.z).toBeCloseTo(player.state.z, 9);
-    // W goes down between ticks: the drawn position already starts forward (north, -z).
-    player.renderPosition(0.5, 0, Keys.Forward, 0, 0, out);
-    expect(out.z).toBeLessThan(player.state.z - 1e-4);
-  });
-
-  it('stays continuous across a tick while a key is held', () => {
+  it('draws between the last two ticks, so it never runs ahead of the simulation', () => {
     const player = new LocalPlayer();
     for (let i = 0; i < 5; i++) player.tick(Keys.Forward, 0, 0, false);
-    const out = new Vector3();
-    const before = player.renderPosition(0.999, 0, Keys.Forward, 0, 0, out).clone();
+    const before = { ...player.state };
     player.tick(Keys.Forward, 0, 0, false);
-    const after = player.renderPosition(0, 0, Keys.Forward, 0, 0, out);
-    expect(after.distanceTo(before)).toBeLessThan(0.002);
+    const out = new Vector3();
+    expect(player.renderPosition(0, 0, out).z).toBeCloseTo(before.z, 9);
+    expect(player.renderPosition(1, 0, out).z).toBeCloseTo(player.state.z, 9);
+    // Still continuous across the next tick.
+    const end = out.clone();
+    player.tick(Keys.Forward, 0, 0, false);
+    expect(player.renderPosition(0, 0, out).distanceTo(end)).toBeLessThan(1e-9);
+  });
+
+  it('turns round smoothly, without popping or springing back', () => {
+    const player = new LocalPlayer();
+    const out = new Vector3();
+    const dt = 1 / 144;
+    let accumulator = 0;
+    let last = player.renderPosition(0, dt, out).x;
+    let maxSpeed = 0;
+    let maxChange = 0;
+    let lastSpeed = 0;
+    // Strafe left and right, switching keys at uneven moments within a tick, on a 144 Hz display.
+    for (let frame = 0; frame < 144 * 3; frame++) {
+      const keys = Math.floor(frame / 37) % 2 === 0 ? Keys.Left : Keys.Right;
+      accumulator += dt;
+      while (accumulator >= TICK_SECONDS) {
+        player.tick(keys, 0, 0, false);
+        accumulator -= TICK_SECONDS;
+      }
+      const x = player.renderPosition(accumulator / TICK_SECONDS, dt, out).x;
+      const speed = (x - last) / dt;
+      maxSpeed = Math.max(maxSpeed, Math.abs(speed));
+      if (frame > 0) maxChange = Math.max(maxChange, Math.abs(speed - lastSpeed));
+      lastSpeed = speed;
+      last = x;
+    }
+    // Never faster than walking, and the speed changes no more than one tick's acceleration.
+    expect(maxSpeed).toBeLessThanOrEqual(WALK_SPEED + 1e-6);
+    expect(maxChange).toBeLessThanOrEqual(GROUND_ACCEL * TICK_SECONDS + 0.01);
   });
 });
