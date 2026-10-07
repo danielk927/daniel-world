@@ -1,4 +1,4 @@
-import { FB_HEIGHT, FB_WIDTH } from './abi.ts';
+import { FB_HEIGHT, FB_WIDTH, MMIO_MOUSE_LEFT } from './abi.ts';
 import programUrl from './assets/doom.elf?url';
 import diskUrl from './assets/doom1.wad?url';
 import { DOOM_KEYS } from './keys.ts';
@@ -20,6 +20,15 @@ export interface KitchenComputerOptions {
   /** For tests: makes the worker. */
   createWorker?: () => Worker;
 }
+
+/**
+ * Mouse counts (machine.h) per CSS pixel of MouseEvent.movementX. In DOOM at its default
+ * sensitivity a count turns 8 of the 65536 parts of a circle, so half a turn is 4096
+ * counts. This makes a pixel turn the marine as far as it turns a cook in the kitchen
+ * (0.0022 radians at sensitivity 1, game/input.ts), half a turn in 1428 pixels: one
+ * unhurried swipe across a mouse pad, as in most games.
+ */
+export const MOUSE_COUNTS_PER_PIXEL = (0.0022 * 65536) / (2 * Math.PI * 8);
 
 /** The worker's side of the conversation, as far as this class needs it. */
 type Port = Pick<Worker, 'postMessage' | 'terminate'> & {
@@ -52,6 +61,12 @@ export class KitchenComputer {
   /** Codes held down, to drop auto-repeat; and how many hold each DOOM key (W and Up are one). */
   private readonly held = new Set<string>();
   private readonly holding = new Uint8Array(256);
+  /** Mouse counts not yet sent (fractions carry over), and the buttons held. */
+  private mouseCounts = 0;
+  private mouseButtons = 0;
+  private mouseFlushQueued = false;
+  /** Reused for every mouse message (postMessage copies it); holds the buttons last sent. */
+  private readonly mouseMessage = { type: 'mouse' as const, dx: 0, buttons: 0 };
   private readonly options: KitchenComputerOptions;
 
   constructor(options: KitchenComputerOptions = {}) {
@@ -97,6 +112,7 @@ export class KitchenComputer {
     }
     if (this.currentState !== 'running') return;
     this.releaseKeys();
+    this.releaseMouse();
     this.post({ type: 'pause' });
     this.currentState = 'paused';
   }
@@ -116,6 +132,34 @@ export class KitchenComputer {
     }
   }
 
+  /**
+   * Horizontal mouse motion while someone is using the computer, in CSS pixels as
+   * MouseEvent.movementX (positive turns right); scale it by the visitor's mouse
+   * sensitivity to have DOOM follow it. Call it from the mousemove handler: motion is
+   * added up and sent to the machine once an animation frame, so even a 1000 Hz mouse
+   * costs one message a frame.
+   */
+  mouseMove(dx: number): void {
+    if (this.currentState !== 'running' || !Number.isFinite(dx) || dx === 0) return;
+    this.mouseCounts += dx * MOUSE_COUNTS_PER_PIXEL;
+    if (this.mouseFlushQueued) return;
+    this.mouseFlushQueued = true;
+    requestAnimationFrame(this.flushMouse);
+  }
+
+  /**
+   * Mouse button presses and releases while someone is using the computer, as
+   * MouseEvent.button. The left button (0) fires; the others do nothing. Sent at once,
+   * with any motion still waiting, so a click is never late.
+   */
+  mouseButton(button: number, down: boolean): void {
+    if (button !== 0 || this.currentState !== 'running') return;
+    const buttons = down ? MMIO_MOUSE_LEFT : 0;
+    if (buttons === this.mouseButtons) return;
+    this.mouseButtons = buttons;
+    this.sendMouse();
+  }
+
   /** Called on the main thread with each new frame. */
   onFrame(callback: (screen: DoomScreen) => void): void {
     this.frameCallback = callback;
@@ -131,6 +175,9 @@ export class KitchenComputer {
     this.worker = null;
     this.held.clear();
     this.holding.fill(0);
+    this.mouseCounts = 0;
+    this.mouseButtons = 0;
+    this.mouseMessage.buttons = 0; // what the next machine was last told: nothing held
     this.settleBoot?.reject(new Error('the computer was disposed'));
     this.settleBoot = null;
     this.booting = null;
@@ -210,5 +257,28 @@ export class KitchenComputer {
 
   private releaseKeys(): void {
     for (const code of [...this.held]) this.key(code, false);
+  }
+
+  private readonly flushMouse = (): void => {
+    this.mouseFlushQueued = false;
+    if (this.currentState === 'running') this.sendMouse();
+  };
+
+  /** Sends the whole counts moved so far, if any, and the buttons. */
+  private sendMouse(): void {
+    const dx = Math.trunc(this.mouseCounts) | 0; // and never -0
+    this.mouseCounts -= dx;
+    const message = this.mouseMessage;
+    if (dx === 0 && this.mouseButtons === message.buttons) return;
+    message.dx = dx;
+    message.buttons = this.mouseButtons;
+    this.post(message);
+  }
+
+  /** Sends the last of the motion with the buttons released, and starts afresh. */
+  private releaseMouse(): void {
+    this.mouseButtons = 0;
+    this.sendMouse();
+    this.mouseCounts = 0;
   }
 }

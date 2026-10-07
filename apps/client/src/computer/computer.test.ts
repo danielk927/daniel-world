@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KitchenComputer } from './computer.ts';
+import { KitchenComputer, MOUSE_COUNTS_PER_PIXEL } from './computer.ts';
 import type { FromWorker, ToWorker } from './protocol.ts';
 
 /** Stands in for the machine's worker: records what it is sent, replies on demand. */
@@ -10,7 +10,9 @@ class FakeWorker {
   onerror: ((event: ErrorEvent) => void) | null = null;
 
   postMessage(message: ToWorker, transfer: Transferable[] = []): void {
-    this.sent.push({ message, transfer });
+    // A real postMessage copies everything it does not transfer.
+    const copy = message instanceof Uint8ClampedArray ? message : structuredClone(message);
+    this.sent.push({ message: copy, transfer });
   }
 
   terminate(): void {
@@ -104,8 +106,8 @@ describe('KitchenComputer', () => {
     computer.pause();
     expect(computer.state).toBe('paused');
     expect(worker.messages.slice(1)).toEqual([
-      { type: 'key', key: 0xa3, typed: 32, down: true },
-      { type: 'key', key: 0xa3, typed: 32, down: false },
+      { type: 'key', key: 0xa2, typed: 32, down: true },
+      { type: 'key', key: 0xa2, typed: 32, down: false },
       { type: 'pause' },
     ]);
     computer.key('Space', true);
@@ -113,6 +115,83 @@ describe('KitchenComputer', () => {
     expect(computer.state).toBe('running');
     expect(worker.messages.at(-1)).toEqual({ type: 'run' });
     expect(workers).toHaveLength(1);
+  });
+
+  describe('the mouse', () => {
+    let frames: (() => void)[];
+    const nextFrame = () => {
+      const callbacks = frames;
+      frames = [];
+      for (const callback of callbacks) callback();
+    };
+    beforeEach(() => {
+      frames = [];
+      vi.stubGlobal('requestAnimationFrame', (callback: () => void) => frames.push(callback));
+    });
+    const mouseMessages = (worker: FakeWorker) =>
+      worker.messages.filter((m) => !(m instanceof Uint8ClampedArray) && m.type === 'mouse');
+
+    it('adds up motion and sends it once a frame, in counts, fractions carried over', async () => {
+      const worker = await boot();
+      for (let k = 0; k < 10; k++) computer.mouseMove(1);
+      computer.mouseMove(-0.5);
+      expect(frames).toHaveLength(1);
+      expect(mouseMessages(worker)).toEqual([]);
+      nextFrame();
+      // 9.5 pixels is 27.25 counts: 27 now, the quarter kept for later.
+      expect(MOUSE_COUNTS_PER_PIXEL * 9.5).toBeCloseTo(27.25, 1);
+      expect(mouseMessages(worker)).toEqual([{ type: 'mouse', dx: 27, buttons: 0 }]);
+      computer.mouseMove(0.3);
+      nextFrame();
+      expect(mouseMessages(worker).at(-1)).toEqual({ type: 'mouse', dx: 1, buttons: 0 });
+      // Nothing moved, nothing sent.
+      computer.mouseMove(0);
+      nextFrame();
+      expect(mouseMessages(worker)).toHaveLength(2);
+    });
+
+    it('turns half a turn for 1428 pixels, as the kitchen does at sensitivity 1', () => {
+      expect(Math.round(4096 / MOUSE_COUNTS_PER_PIXEL)).toBe(1428);
+    });
+
+    it('sends the left button at once, with the motion so far, and ignores the others', async () => {
+      const worker = await boot();
+      computer.mouseMove(-10);
+      computer.mouseButton(0, true);
+      computer.mouseButton(0, true);
+      computer.mouseButton(2, true);
+      computer.mouseButton(0, false);
+      nextFrame();
+      expect(mouseMessages(worker)).toEqual([
+        { type: 'mouse', dx: -28, buttons: 1 },
+        { type: 'mouse', dx: 0, buttons: 0 },
+      ]);
+    });
+
+    it('does nothing unless the machine runs, and pauses with the button released', async () => {
+      computer.mouseMove(50);
+      computer.mouseButton(0, true);
+      expect(frames).toHaveLength(0);
+      const worker = await boot();
+      computer.mouseButton(0, true);
+      computer.mouseMove(2);
+      computer.pause();
+      expect(worker.messages.slice(1)).toEqual([
+        { type: 'mouse', dx: 0, buttons: 1 },
+        { type: 'mouse', dx: 5, buttons: 0 },
+        { type: 'pause' },
+      ]);
+      computer.mouseMove(100);
+      computer.mouseButton(0, false);
+      nextFrame();
+      expect(worker.messages).toHaveLength(4);
+      // A machine booted afresh starts with nothing held.
+      computer.mouseButton(0, true);
+      computer.dispose();
+      const next = await boot();
+      computer.mouseButton(0, true);
+      expect(mouseMessages(next)).toEqual([{ type: 'mouse', dx: 0, buttons: 1 }]);
+    });
   });
 
   it('honours a pause that comes while it boots', async () => {
