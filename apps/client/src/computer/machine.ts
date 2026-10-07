@@ -110,7 +110,9 @@ export class Machine implements Bus {
     const diskSize = disk?.length ?? 0;
     const argsAddr = argsBytes.length ? DISK_BASE + ((diskSize + 3) & ~3) : 0;
     if (diskSize + argsBytes.length + 4 > DISK_MAX) throw new Error('disk image too large');
-    if (DISK_BASE + DISK_MAX > this.cpu.ramSize) throw new Error('RAM too small for the disk');
+    if ((disk || argsAddr) && DISK_BASE + DISK_MAX > this.cpu.ramSize) {
+      throw new Error('RAM too small for a disk');
+    }
 
     this.program = program;
     this.disk = disk;
@@ -194,7 +196,7 @@ export class Machine implements Bus {
     }
   }
 
-  write(offset: number, value: number): void {
+  write(offset: number, value: number, pc: number): void {
     const cpu = this.cpu;
     switch (offset) {
       case MMIO_CONSOLE:
@@ -220,7 +222,7 @@ export class Machine implements Bus {
         this.fbAddr = value >>> 0;
         return;
       case MMIO_FB_PRESENT:
-        this.present();
+        this.present(pc);
         return;
       default:
         if (offset >= MMIO_PALETTE && offset < MMIO_PALETTE + 1024) {
@@ -233,11 +235,11 @@ export class Machine implements Bus {
   }
 
   /** Scans the frame out of RAM through the palette, like a display controller would. */
-  private present(): void {
+  private present(pc: number): void {
     const cpu = this.cpu;
     const base = this.fbAddr;
     if (base < NULL_GUARD || base + FRAME_PIXELS > cpu.ramSize) {
-      throw new GuestFault(`frame outside RAM at 0x${base.toString(16)}`, cpu.pc);
+      throw new GuestFault(`frame outside RAM at 0x${base.toString(16)}`, pc);
     }
     const ram = cpu.u8;
     const palette = this.palette;

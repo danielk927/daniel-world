@@ -1,9 +1,9 @@
 import { MMIO_BASE, MMIO_SIZE, NULL_GUARD } from './abi.ts';
 
-/** The memory-mapped registers: 32-bit, word-aligned accesses only. */
+/** The memory-mapped registers: 32-bit, word-aligned accesses only. `pc` is for errors. */
 export interface Bus {
-  read(offset: number): number;
-  write(offset: number, value: number): void;
+  read(offset: number, pc: number): number;
+  write(offset: number, value: number, pc: number): void;
 }
 
 /** A guest error the machine cannot continue from: bad address, illegal instruction. */
@@ -96,21 +96,22 @@ export class Cpu {
     return (addr - NULL_GUARD) >>> 0 <= this.ramSize - NULL_GUARD - size;
   }
 
-  private mmioOffset(addr: number, pc: number, what: string): number {
+  /** Offset of a register access; registers take aligned 32-bit words only. */
+  private mmioOffset(addr: number, size: number, pc: number, what: string): number {
     const offset = (addr - MMIO_BASE) >>> 0;
     if (offset >= MMIO_SIZE) throw new GuestFault(`${what} unmapped address ${hex(addr)}`, pc);
-    if (offset & 3) throw new GuestFault(`${what} misaligned register ${hex(addr)}`, pc);
+    if (size !== 4 || offset & 3) {
+      throw new GuestFault(`${size}-byte ${what} register ${hex(addr)}`, pc);
+    }
     return offset;
   }
 
   private mmioRead(addr: number, size: number, pc: number): number {
-    if (size !== 4) throw new GuestFault(`${size}-byte read of register ${hex(addr)}`, pc);
-    return this.bus.read(this.mmioOffset(addr, pc, 'read from')) | 0;
+    return this.bus.read(this.mmioOffset(addr, size, pc, 'read from'), pc) | 0;
   }
 
   private mmioWrite(addr: number, value: number, size: number, pc: number): void {
-    if (size !== 4) throw new GuestFault(`${size}-byte write to register ${hex(addr)}`, pc);
-    this.bus.write(this.mmioOffset(addr, pc, 'write to'), value | 0);
+    this.bus.write(this.mmioOffset(addr, size, pc, 'write to'), value | 0, pc);
   }
 
   private wroteCode(addr: number, size: number): void {

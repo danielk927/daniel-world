@@ -53,7 +53,7 @@ for src in "$here"/doomgeneric/*.c; do
   compile "$src" "${doom[@]}"
 done
 
-"$LD" -m elf32lriscv -T "$firmware/rt/link.ld" --gc-sections \
+"$LD" -m elf32lriscv --nmagic -T "$firmware/rt/link.ld" --gc-sections \
   --Map="$build/doom.map" -o "$build/doom.elf" "${objects[@]}"
 "$STRIP" --strip-all -o "$out" "$build/doom.elf"
 "$SIZE" "$build/doom.elf"
