@@ -89,10 +89,11 @@ export function inviteLink(room: string, siteRoot: string): string {
 export function addressForRoom(href: string, room: string): string {
   const url = new URL(href);
   // Other parameters stay exactly as written: URLSearchParams would turn `time=20:00` into `20%3A00`.
+  // Each part is still decoded to find the room, however its name is spelled (`r%6Fom=`).
   const kept = url.search
     .slice(1)
     .split('&')
-    .filter((part) => part !== '' && part.split('=')[0] !== 'room');
+    .filter((part) => part !== '' && !new URLSearchParams(part).has('room'));
   if (room !== DEFAULT_ROOM) kept.push(`room=${encodeURIComponent(room)}`);
   return `${url.pathname}${kept.length > 0 ? `?${kept.join('&')}` : ''}${url.hash}`;
 }

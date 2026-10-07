@@ -89,6 +89,7 @@ describe('party addresses', () => {
     );
     expect(addressForRoom('https://d.example/', 'lobby')).toBe('/');
     expect(addressForRoom('https://d.example/?room=a&room=b#top', 'c')).toBe('/?room=c#top');
+    expect(addressForRoom('https://d.example/?r%6Fom=x&q=1', 'lobby')).toBe('/?q=1');
   });
 
   it('reads the party from an address', () => {

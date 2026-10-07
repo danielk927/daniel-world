@@ -6,7 +6,10 @@ import { el } from './dom.ts';
 export type PartyAvailability = 'online' | 'connecting' | 'offline' | 'updating';
 
 export interface PartyHandlers {
-  /** Move into `room`. Resolves to null once there, or to why not, in the visitor's words. */
+  /**
+   * Move into `room`. Resolves to null once there, or to why not in the visitor's words (empty
+   * when there is nothing to say, as when the move was called off).
+   */
   onMove(room: string, intent?: RoomIntent): Promise<string | null>;
 }
 
@@ -201,9 +204,6 @@ export class PartyPanel {
   }
 
   setAvailability(availability: PartyAvailability): void {
-    // A retry does not make the server any more reachable: keep saying why until it answers.
-    const unreachable = this.availability === 'offline' || this.availability === 'updating';
-    if (availability === 'connecting' && unreachable) return;
     if (availability === this.availability) return;
     this.availability = availability;
     this.refresh();
@@ -238,15 +238,13 @@ export class PartyPanel {
     this.refresh();
     const failure = await this.handlers.onMove(room, intent);
     this.busy = false;
-    if (failure === null) {
-      // `setRoom` has shown the new room; carry on from what comes next there.
+    this.outcome = failure ? { text: failure, tone: 'error' } : null;
+    this.refresh();
+    // `setRoom` has shown the new room; carry on from what comes next there, if the menu is open.
+    if (failure === null && this.element.offsetParent !== null) {
       if (this.room === DEFAULT_ROOM) this.codeInput.focus();
       else this.copyButton.focus();
-      this.refresh();
-      return;
     }
-    this.outcome = { text: failure, tone: 'error' };
-    this.refresh();
   }
 
   /** Bring the buttons and the line under the code up to date with everything above. */

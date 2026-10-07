@@ -34,7 +34,7 @@ import { CameraRig } from './cameraRig.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
-import { addressForRoom, inviteLink, joinFailureMessage } from './party.ts';
+import { addressForRoom, inviteLink, joinFailureMessage, roomName } from './party.ts';
 import type { Settings } from './settings.ts';
 import type { Quality } from '../util/capabilities.ts';
 
@@ -257,12 +257,13 @@ export class Game {
    * Move to another room in place, from the pause menu: join it in the background, and only once
    * it has let us in, leave this one, so a full, taken or unreachable room leaves the player where
    * they were. Offline there is nobody to lose, so going back to the lobby just goes.
-   * Resolves to null once there, or to why not.
+   * Resolves to null once there, or to why not (empty when there is nothing to say).
+   * A move still under way when the menu is closed carries on: it is where the player asked to go.
    */
   private async moveTo(room: string, intent?: RoomIntent): Promise<string | null> {
     const current = this.multiplayer;
-    if (!current || this.mode !== 'paused' || this.joining) return null;
-    if (room === this.room) return null;
+    if (!current || !this.inWorld || this.joining) return '';
+    if (room === this.room) return `You are already in ${roomName(room)}.`;
     if (!current.isOnline) {
       if (room !== DEFAULT_ROOM) return joinFailureMessage('unreachable', room);
       this.moveInto(room);
@@ -283,7 +284,8 @@ export class Game {
       this.moveInto(room, joined);
       return null;
     } catch (error) {
-      return joinFailureMessage(error instanceof JoinError ? error.failure : 'unreachable', room);
+      const failure = error instanceof JoinError ? error.failure : 'unreachable';
+      return failure === 'cancelled' ? '' : joinFailureMessage(failure, room);
     } finally {
       if (this.joining === joining) this.joining = null;
     }
@@ -293,6 +295,7 @@ export class Game {
   private moveInto(room: string, joined?: JoinedRoom): void {
     this.multiplayer?.close();
     this.room = room;
+    this.toasts.clear();
     this.chat.clear();
     this.killFeed.clear();
     this.impact.clear();
@@ -320,18 +323,23 @@ export class Game {
     this.onConnectionStatus();
   }
 
-  /** Keep the menu's status line and party controls in step with the connection. */
+  /**
+   * Keep the menu's status line and party controls in step with the connection. A retry does not
+   * make the server any more reachable, so parties stay unavailable, saying why, until it answers.
+   */
   private onConnectionStatus(): void {
     const mp = this.multiplayer;
     this.pause.setStatus(this.statusLine());
     this.pause.setPartyAvailability(
-      !mp || mp.status === 'connecting'
+      !mp
         ? 'connecting'
         : mp.status === 'online'
           ? 'online'
-          : mp.versionMismatch
-            ? 'updating'
-            : 'offline',
+          : mp.status === 'connecting' && !mp.retrying
+            ? 'connecting'
+            : mp.versionMismatch
+              ? 'updating'
+              : 'offline',
     );
   }
 
