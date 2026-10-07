@@ -104,6 +104,8 @@ export class Multiplayer {
   /** Whether the chat has explained the version mismatch, so it says so only once. */
   private toldAboutMismatch = false;
   private statusTimer = 0;
+  /** Kills waiting for their knife to arrive on this screen before they are announced. */
+  private readonly killTimers = new Set<number>();
 
   /**
    * Connects to `deps.room`, or, given a room already joined in the background, takes over its
@@ -154,6 +156,11 @@ export class Multiplayer {
     return this.connection.rtt;
   }
 
+  /** Trying to connect again after failing to, or after losing the connection. */
+  get retrying(): boolean {
+    return this.connection.retrying;
+  }
+
   /** Offline because the server runs another version of the protocol. */
   get versionMismatch(): boolean {
     return this.connection.versionMismatch;
@@ -187,8 +194,19 @@ export class Multiplayer {
 
   close(): void {
     window.clearInterval(this.statusTimer);
+    this.clearKillTimers();
     this.connection.close();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
+    this.selfId = null;
+  }
+
+  /**
+   * Forget kills still in flight. Announced after this room is gone (left, or moved to another),
+   * a knife from it would knock this player out where no respawn will ever come.
+   */
+  private clearKillTimers(): void {
+    for (const timer of this.killTimers) window.clearTimeout(timer);
+    this.killTimers.clear();
   }
 
   remotePlayers(): RemoteDebugInfo[] {
@@ -278,6 +296,7 @@ export class Multiplayer {
     }
     // Offline: everyone else vanishes, the world keeps working in single player.
     this.hasClock = false;
+    this.clearKillTimers();
     this.deps.knives.goOffline();
     this.deps.onBackOnFeet();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
@@ -408,7 +427,11 @@ export class Multiplayer {
         // Tell everyone when the knife gets there on this screen, not when the server decided.
         const wait = knives.timeUntil(message.knife, message.at);
         knives.resolve(message.knife, { kind: 'kill', at: message.at });
-        window.setTimeout(() => this.announceKill(message.from, message.to), wait * 1000);
+        const timer = window.setTimeout(() => {
+          this.killTimers.delete(timer);
+          this.announceKill(message.from, message.to);
+        }, wait * 1000);
+        this.killTimers.add(timer);
         return;
       }
       case 'respawn': {

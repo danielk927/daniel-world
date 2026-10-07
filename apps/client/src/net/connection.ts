@@ -88,6 +88,11 @@ export class Connection {
     return this.status === 'online';
   }
 
+  /** Trying again after failing to connect or losing the connection, not yet back. */
+  get retrying(): boolean {
+    return this.attempt > 0;
+  }
+
   send(message: ClientMessage): void {
     if (this.status === 'online' && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(encode(message));
@@ -210,8 +215,9 @@ export class Connection {
     // Jitter so a server restart is not hit by every client at the same instant.
     const delay = Math.round(base * (0.8 + Math.random() * 0.4));
     this.attempt++;
-    this.setStatus('offline', delay);
+    // Armed before saying so: whoever hears "offline" may close the connection, clearing it.
     this.retryTimer = window.setTimeout(() => this.open(), delay);
+    this.setStatus('offline', delay);
   }
 }
 
