@@ -8,7 +8,13 @@ import {
   ROOM_HALF_Z,
   ROOM_HEIGHT,
 } from './constants.ts';
-import { KNIFE_SOLIDS, vaultHeight, type BoxCollider } from './world.ts';
+import {
+  COOLER_KNIFE_SOLIDS,
+  KNIFE_SOLIDS,
+  inCoolerDoorway,
+  vaultHeight,
+  type BoxCollider,
+} from './world.ts';
 
 /**
  * Thrown knives: a deterministic flight that the server runs to decide hits, and that clients
@@ -87,13 +93,15 @@ export function launchKnife(
 
 /**
  * Fly a knife for `dt` seconds. Returns what it hit first, if anything, and leaves the knife where
- * it stopped. `thrower` is never hit by their own knife.
+ * it stopped. `thrower` is never hit by their own knife. With `coolerOpen`, the walk-in's doorway
+ * lets knives through into the cold room.
  */
 export function flyKnife(
   knife: KnifeState,
   dt: number,
   targets: readonly KnifeTarget[],
   thrower: number,
+  coolerOpen = false,
 ): KnifeImpact | null {
   let remaining = dt;
   while (remaining > 1e-9) {
@@ -103,7 +111,7 @@ export function flyKnife(
     const dx = knife.vx * h;
     const dy = ((knife.vy + vy) / 2) * h;
     const dz = knife.vz * h;
-    const hit = firstHit(knife.x, knife.y, knife.z, dx, dy, dz, targets, thrower);
+    const hit = firstHit(knife.x, knife.y, knife.z, dx, dy, dz, targets, thrower, coolerOpen);
     if (hit) {
       const f = hit.f;
       const x = knife.x + dx * f;
@@ -162,6 +170,7 @@ function firstHit(
   dz: number,
   targets: readonly KnifeTarget[],
   thrower: number,
+  coolerOpen: boolean,
 ): { f: number; player: number | null } | null {
   best = Infinity;
   bestPlayer = null;
@@ -170,12 +179,19 @@ function firstHit(
   const ez = z + dz;
   // The room's shell: floor, walls, and the vault overhead.
   if (ey < 0 && y >= 0) consider(y / (y - ey), null);
-  if (ex > ROOM_HALF_X) consider((ROOM_HALF_X - x) / dx, null);
+  if (ex > ROOM_HALF_X) {
+    const f = (ROOM_HALF_X - x) / dx;
+    // Into the walk-in's open doorway, the knife flies on into the cold room.
+    if (!coolerOpen || !inCoolerDoorway(y + dy * f, z + dz * f)) consider(f, null);
+  }
   if (ex < -ROOM_HALF_X) consider((-ROOM_HALF_X - x) / dx, null);
   if (ez > ROOM_HALF_Z) consider((ROOM_HALF_Z - z) / dz, null);
   if (ez < -ROOM_HALF_Z) consider((-ROOM_HALF_Z - z) / dz, null);
   if (ey > ROOM_HEIGHT && aboveVault(ey, ez)) consider(vaultCrossing(y, z, dy, dz), null);
   for (const solid of KNIFE_SOLIDS) consider(segmentBox(x, y, z, dx, dy, dz, solid), null);
+  if (coolerOpen) {
+    for (const solid of COOLER_KNIFE_SOLIDS) consider(segmentBox(x, y, z, dx, dy, dz, solid), null);
+  }
   for (const target of targets) {
     if (target.id !== thrower) consider(segmentBody(x, y, z, dx, dy, dz, target), target.id);
   }

@@ -52,6 +52,14 @@ const FORWARD = new Vector3(0, 0, -1);
 /** Whether a knife thrown by `from` passes through `to`. */
 export type Spares = (from: number, to: number) => boolean;
 
+/** Something that moves with the knives stuck in it: the walk-in's door, as it swings open. */
+export interface KnifeCarrier {
+  /** Whether a knife stuck with its tip here is in it. */
+  carries(x: number, y: number, z: number): boolean;
+  /** Where it has carried its knives from where they stuck. */
+  readonly motion: Matrix4;
+}
+
 /**
  * Every knife in the world: stuck in the kitchen or flying. Flights are replayed with the shared
  * simulation and end where the server says, when the drawn flight reaches that moment, so a hit
@@ -67,6 +75,13 @@ export class Knives {
   );
   private nextLocalId = -1;
   private dirty = true;
+  /** What carries knives stuck in it, and which stuck knives it carries (one flag per knife). */
+  private carrier: KnifeCarrier | null = null;
+  private readonly carried: boolean[] = [];
+  /** The walk-in's doorway lets knives through, as far as this screen knows. */
+  coolerOpen = false;
+  /** A knife this screen flew, with nobody else to decide, stuck where it landed. */
+  onOfflineStuck: ((knife: StuckKnife) => void) | null = null;
 
   // Scratch, so updates never allocate.
   private readonly m = new Matrix4();
@@ -89,6 +104,18 @@ export class Knives {
 
   get stuckCount(): number {
     return this.stuck.length;
+  }
+
+  /** Knives stuck in `carrier` move with it from now on. */
+  setCarrier(carrier: KnifeCarrier | null): void {
+    this.carrier = carrier;
+    this.stuck.forEach((k, i) => (this.carried[i] = carrier?.carries(k.x, k.y, k.z) ?? false));
+    this.dirty = true;
+  }
+
+  /** The carrier moved: redraw the knives in it. */
+  carrierMoved(): void {
+    if (this.carried.includes(true)) this.dirty = true;
   }
 
   get flyingCount(): number {
@@ -180,6 +207,7 @@ export class Knives {
   reset(stuck: readonly StuckKnife[]): void {
     this.flights.length = 0;
     this.stuck.length = 0;
+    this.carried.length = 0;
     for (const knife of stuck) this.addStuck(knife);
     this.dirty = true;
   }
@@ -204,6 +232,7 @@ export class Knives {
           Math.min(f.clock, KNIFE_MAX_FLIGHT_SECONDS) - f.state.t,
           spares ? this.hittable(targets, f.from, spares) : targets,
           f.from,
+          this.coolerOpen,
         );
       } else {
         f.waited += dt;
@@ -240,8 +269,11 @@ export class Knives {
     if (!f.landed) return outOfTime;
     if (f.online && f.waited < VERDICT_TIMEOUT) return false;
     // Offline, or the verdict never came: it stays where it landed here.
-    if (f.landed.kind === 'surface')
-      this.addStuck({ id: f.id ?? this.nextLocalId--, ...pose(f.landed) });
+    if (f.landed.kind === 'surface') {
+      const knife = { id: f.id ?? this.nextLocalId--, ...pose(f.landed) };
+      this.addStuck(knife);
+      if (!f.online) this.onOfflineStuck?.(knife);
+    }
     return true;
   }
 
@@ -255,9 +287,11 @@ export class Knives {
     if (this.stuck.some((k) => k.id === knife.id)) return;
     if (this.stuck.length >= KNIFE_MAX_STUCK) {
       this.stuck.shift();
+      this.carried.shift();
       this.stuckMatrices.push(this.stuckMatrices.shift()!);
     }
     this.stuck.push(knife);
+    this.carried.push(this.carrier?.carries(knife.x, knife.y, knife.z) ?? false);
     this.stuckPose(knife, this.stuckMatrices[this.stuck.length - 1]!);
     this.dirty = true;
   }
@@ -273,7 +307,14 @@ export class Knives {
 
   private draw(): void {
     let n = 0;
-    for (let i = 0; i < this.stuck.length; i++) this.mesh.setMatrixAt(n++, this.stuckMatrices[i]!);
+    for (let i = 0; i < this.stuck.length; i++) {
+      const matrix = this.stuckMatrices[i]!;
+      if (this.carried[i] && this.carrier) {
+        this.mesh.setMatrixAt(n++, this.m.multiplyMatrices(this.carrier.motion, matrix));
+      } else {
+        this.mesh.setMatrixAt(n++, matrix);
+      }
+    }
     for (const f of this.flights) {
       if (f.clock < 0) continue;
       if (f.landed) {

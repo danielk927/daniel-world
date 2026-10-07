@@ -18,7 +18,7 @@ import {
   TICK_SECONDS,
   WALK_SPEED,
 } from './constants.ts';
-import { COLLIDERS, SPAWN, type Collider } from './world.ts';
+import { COLLIDERS, PLAY_BOUNDS, SPAWN, type Collider } from './world.ts';
 
 /**
  * Deterministic player movement shared by client prediction and the server.
@@ -277,13 +277,13 @@ export function stepPlayer(
       if (c.top > s.y + STEP_HEIGHT && c.bottom < s.y + PLAYER_HEIGHT) pushOut(s, c);
     }
 
-    // Keep inside the kitchen walls.
-    if (s.x > PLAY_HALF_X || s.x < -PLAY_HALF_X) {
-      s.x = s.x > 0 ? PLAY_HALF_X : -PLAY_HALF_X;
+    // The walls are colliders like the fixtures; this only guarantees nobody leaves the building.
+    if (s.x > PLAY_BOUNDS.maxX || s.x < PLAY_BOUNDS.minX) {
+      s.x = s.x > 0 ? PLAY_BOUNDS.maxX : PLAY_BOUNDS.minX;
       if (s.vx * s.x > 0) s.vx = 0;
     }
-    if (s.z > PLAY_HALF_Z || s.z < -PLAY_HALF_Z) {
-      s.z = s.z > 0 ? PLAY_HALF_Z : -PLAY_HALF_Z;
+    if (s.z > PLAY_BOUNDS.maxZ || s.z < PLAY_BOUNDS.minZ) {
+      s.z = s.z > 0 ? PLAY_BOUNDS.maxZ : PLAY_BOUNDS.minZ;
       if (s.vz * s.z > 0) s.vz = 0;
     }
 

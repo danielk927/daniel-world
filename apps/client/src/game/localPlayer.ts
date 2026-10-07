@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import {
+  coolerColliders,
   copyPlayerState,
   createPlayerState,
   stepPlayer,
@@ -45,6 +46,11 @@ export class LocalPlayer {
   readonly error = new Vector3();
   /** Largest correction seen, for debugging and tests. */
   lastCorrection = 0;
+  /**
+   * The first input whose step sees the walk-in's doorway open, as the server names it (or this
+   * screen, playing solo); Infinity while its door holds. Replays use it too, so they agree.
+   */
+  coolerOpenFrom = Infinity;
 
   /**
    * Advance one tick. When `record` is true the input is kept for reconciliation (we are online).
@@ -57,7 +63,7 @@ export class LocalPlayer {
     input.yaw = yaw;
     input.pitch = pitch;
     this.previous.set(this.state.x, this.state.y, this.state.z);
-    stepPlayer(this.state, input);
+    stepPlayer(this.state, input, coolerColliders(input.seq >= this.coolerOpenFrom));
     if (record) this.remember(input);
     return input;
   }
@@ -105,7 +111,8 @@ export class LocalPlayer {
     s.pitch = server.pitch;
     s.grounded = server.grounded;
     for (let i = 0; i < this.pendingCount; i++) {
-      stepPlayer(s, this.pending[(this.pendingStart + i) % PENDING_CAPACITY]!);
+      const input = this.pending[(this.pendingStart + i) % PENDING_CAPACITY]!;
+      stepPlayer(s, input, coolerColliders(input.seq >= this.coolerOpenFrom));
     }
 
     const dx = oldX - s.x;

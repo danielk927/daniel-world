@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COOLER,
+  COOLER_OPEN_DELAY_INPUTS,
   GROUND_ACCEL,
   Keys,
+  PLAY_HALF_X,
   TICK_SECONDS,
   WALK_SPEED,
+  coolerColliders,
   createPlayerState,
   stepPlayer,
   type InputMessage,
@@ -18,6 +22,8 @@ class FakeServer {
   readonly state: PlayerState = createPlayerState();
   private readonly inbox: InputMessage[][] = [];
   ack = -1;
+  /** The first input whose step sees the walk-in's doorway open. */
+  coolerOpenFrom = Infinity;
   private readonly latency: number;
   constructor(latency: number) {
     this.latency = latency;
@@ -31,7 +37,7 @@ class FakeServer {
 
   tick(): PlayerSnapshot {
     for (const input of this.inbox.shift() ?? []) {
-      stepPlayer(this.state, input);
+      stepPlayer(this.state, input, coolerColliders(input.seq >= this.coolerOpenFrom));
       this.ack = input.seq;
     }
     // JSON round trip, exactly like the wire.
@@ -52,6 +58,36 @@ function inputAt(i: number): [number, number, number] {
 }
 
 describe('LocalPlayer prediction and reconciliation', () => {
+  it('walks into the walk-in as it opens without a correction, told ahead of time by the server', () => {
+    const latency = 4;
+    const player = new LocalPlayer();
+    const server = new FakeServer(latency);
+    const start = {
+      ...createPlayerState(6.6, -3, -Math.PI / 2),
+      id: 1,
+      dead: false,
+      armed: true,
+      ack: -1,
+    };
+    player.reset(start);
+    Object.assign(server.state, createPlayerState(6.6, -3, -Math.PI / 2));
+    let told: { at: number; openFrom: number } | null = null;
+    for (let i = 0; i < 240; i++) {
+      // Pressing at the shut door all along; it bursts on the 60th tick.
+      const input = player.tick(Keys.Forward, -Math.PI / 2, 0, true);
+      server.receive(input);
+      player.reconcile(server.tick());
+      if (i === 60) {
+        server.coolerOpenFrom = server.ack + COOLER_OPEN_DELAY_INPUTS;
+        told = { at: i + latency, openFrom: server.coolerOpenFrom };
+        expect(player.state.x).toBeCloseTo(PLAY_HALF_X, 3);
+      }
+      if (told && i === told.at) player.coolerOpenFrom = told.openFrom;
+    }
+    expect(player.lastCorrection).toBe(0);
+    expect(player.state.x).toBeCloseTo(COOLER.maxX - 0.4, 3);
+  });
+
   it('never needs a correction when the server sees every input', () => {
     const player = new LocalPlayer();
     const server = new FakeServer(3);

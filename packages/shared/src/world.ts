@@ -1,4 +1,11 @@
-import { ROOM_HALF_X, ROOM_HALF_Z, ROOM_HEIGHT } from './constants.ts';
+import {
+  PLAY_HALF_X,
+  PLAY_HALF_Z,
+  PLAYER_RADIUS,
+  ROOM_HALF_X,
+  ROOM_HALF_Z,
+  ROOM_HEIGHT,
+} from './constants.ts';
 
 /**
  * The static world layout: a classical French brigade kitchen. Client and server both build
@@ -85,8 +92,9 @@ export const KITCHEN = {
 export type Wall = 'north' | 'south' | 'east' | 'west';
 
 /**
- * Doors are painted onto the walls; nobody walks through them. Spans run along the wall: x for the
- * north and south walls, z for the east and west walls.
+ * Doors are painted onto the walls; nobody walks through them, except the walk-in's once it has
+ * been broken open (see COOLER). Spans run along the wall: x for the north and south walls, z for
+ * the east and west walls.
  */
 export interface Door {
   readonly wall: Wall;
@@ -113,6 +121,254 @@ export const WINDOWS = {
   /** Mullions divide the strip into this many panes. */
   panes: 10,
 } as const;
+
+// ---------- The walk-in cooler ----------
+//
+// Behind the walk-in's door in the east wall is a real cold room. The door stays shut until enough
+// hits burst it open (see cooler.ts); after that its doorway is open to walk and throw through, and
+// the cold room's walls stop players and knives. The kitchen's walls are colliders like any
+// fixture, so the doorway is simply a gap in the east wall: plugged by the door while it is shut.
+
+/** How thick the east wall is around the walk-in's doorway. */
+export const COOLER_WALL = 0.2;
+
+/**
+ * The cold room's inside: a box behind the east wall, as long as the walk-in door is from the north
+ * wall and running back from it. Its south wall lines up with the south side of the doorway, so the
+ * door swings in flat against it.
+ */
+export const COOLER = {
+  minX: ROOM_HALF_X + COOLER_WALL,
+  maxX: ROOM_HALF_X + COOLER_WALL + 3.4,
+  minZ: -6.1,
+  maxZ: DOORS.walkIn.to,
+  /** A walk-in's ceiling is low, well under the kitchen's vault. */
+  height: 2.6,
+} as const;
+
+/**
+ * The walk-in's door: a heavy slab in the doorway, its kitchen face flush with the wall (where
+ * punches and knives meet it). It is hinged at the back of its south edge, so it swings in, into the
+ * cooler, and lies flat against the cooler's south wall once open. Across the wall it runs a
+ * centimeter past the opening on either side, behind the frame.
+ */
+export const COOLER_DOOR = {
+  /** The face the kitchen sees. */
+  face: ROOM_HALF_X,
+  thickness: 0.1,
+  from: DOORS.walkIn.from - 0.01,
+  to: DOORS.walkIn.to + 0.01,
+  bottom: 0.01,
+  top: DOORS.walkIn.height - 0.005,
+  /** The hinge axis, upright, at the back of the door's south edge. */
+  hingeX: ROOM_HALF_X + 0.1,
+  hingeZ: DOORS.walkIn.to + 0.01,
+} as const;
+
+/** Empty wire shelving along the cooler's walls, waiting to be filled. */
+export const COOLER_SHELVES: readonly Fixture[] = [
+  { minX: COOLER.minX + 0.25, maxX: COOLER.minX + 1.65, minZ: COOLER.minZ, maxZ: -5.6, top: 1.85 },
+  { minX: COOLER.maxX - 1.55, maxX: COOLER.maxX - 0.15, minZ: COOLER.minZ, maxZ: -5.6, top: 1.85 },
+  { minX: COOLER.maxX - 0.48, maxX: COOLER.maxX, minZ: -5.3, maxZ: -3.9, top: 1.85 },
+];
+
+/** The kitchen's walls as colliders are this thick wherever nothing lies behind them. */
+const WALL_COLLIDER = 1;
+/** Walls reach far above anyone's head, however they jump. */
+const WALL_COLLIDER_TOP = 10;
+
+function wallCollider(
+  minX: number,
+  maxX: number,
+  minZ: number,
+  maxZ: number,
+  bottom = -1,
+  top = WALL_COLLIDER_TOP,
+): BoxCollider {
+  return { kind: 'box', minX, maxX, minZ, maxZ, bottom, top };
+}
+
+const DOORWAY = DOORS.walkIn;
+
+/**
+ * The kitchen's four walls, with a gap in the east wall for the walk-in's doorway. The east wall is
+ * only as thick as it really is north of the doorway, where the cooler lies behind it.
+ */
+const KITCHEN_WALLS: readonly BoxCollider[] = [
+  wallCollider(
+    -ROOM_HALF_X - WALL_COLLIDER,
+    ROOM_HALF_X + WALL_COLLIDER,
+    -ROOM_HALF_Z - WALL_COLLIDER,
+    -ROOM_HALF_Z,
+  ),
+  wallCollider(
+    -ROOM_HALF_X - WALL_COLLIDER,
+    ROOM_HALF_X + WALL_COLLIDER,
+    ROOM_HALF_Z,
+    ROOM_HALF_Z + WALL_COLLIDER,
+  ),
+  wallCollider(
+    -ROOM_HALF_X - WALL_COLLIDER,
+    -ROOM_HALF_X,
+    -ROOM_HALF_Z - WALL_COLLIDER,
+    ROOM_HALF_Z + WALL_COLLIDER,
+  ),
+  wallCollider(ROOM_HALF_X, COOLER.minX, -ROOM_HALF_Z - WALL_COLLIDER, DOORWAY.from),
+  wallCollider(ROOM_HALF_X, ROOM_HALF_X + WALL_COLLIDER, DOORWAY.to, ROOM_HALF_Z + WALL_COLLIDER),
+];
+
+/** The shut door, filling the doorway through the wall's whole thickness. */
+const SHUT_DOOR: BoxCollider = wallCollider(ROOM_HALF_X, COOLER.minX, DOORWAY.from, DOORWAY.to);
+
+/** With the door open: the doorway's lintel, the cold room's walls and ceiling, and the open door. */
+const OPEN_COOLER: readonly BoxCollider[] = [
+  wallCollider(ROOM_HALF_X, COOLER.minX, DOORWAY.from, DOORWAY.to, DOORWAY.height),
+  wallCollider(COOLER.minX, COOLER.maxX + WALL_COLLIDER, COOLER.minZ - WALL_COLLIDER, COOLER.minZ),
+  wallCollider(
+    COOLER.maxX,
+    COOLER.maxX + WALL_COLLIDER,
+    COOLER.minZ - WALL_COLLIDER,
+    COOLER.maxZ + WALL_COLLIDER,
+  ),
+  wallCollider(COOLER.minX, COOLER.maxX + WALL_COLLIDER, COOLER.maxZ, COOLER.maxZ + WALL_COLLIDER),
+  wallCollider(COOLER.minX, COOLER.maxX, COOLER.minZ, COOLER.maxZ, COOLER.height),
+  ...COOLER_SHELVES.map((f) =>
+    wallCollider(f.minX, f.maxX, f.minZ, f.maxZ, -1, FIXTURE_COLLIDER_TOP),
+  ),
+  // The door, swung in flat against the south wall.
+  wallCollider(
+    COOLER_DOOR.hingeX,
+    COOLER_DOOR.hingeX + (COOLER_DOOR.to - COOLER_DOOR.from),
+    COOLER_DOOR.hingeZ - COOLER_DOOR.thickness,
+    COOLER.maxZ,
+    -1,
+    COOLER_DOOR.top,
+  ),
+];
+
+/** Player centers stay inside this box whatever happens: the kitchen and the cooler beside it. */
+export const PLAY_BOUNDS: Footprint = {
+  minX: -PLAY_HALF_X,
+  maxX: COOLER.maxX - PLAYER_RADIUS,
+  minZ: -PLAY_HALF_Z,
+  maxZ: PLAY_HALF_Z,
+};
+
+/**
+ * Whether a player may stand at (x, z): in the kitchen, or, with the walk-in open, in its doorway
+ * or the cooler. For placing players (spawn hints), not for moving them.
+ */
+export function inPlayArea(x: number, z: number, coolerOpen: boolean): boolean {
+  const e = 1e-6;
+  if (Math.abs(x) <= PLAY_HALF_X + e && Math.abs(z) <= PLAY_HALF_Z + e) return true;
+  if (!coolerOpen) return false;
+  const doorway =
+    x <= COOLER.minX + PLAYER_RADIUS + e &&
+    z >= DOORWAY.from + PLAYER_RADIUS - e &&
+    z <= COOLER_DOOR.hingeZ - COOLER_DOOR.thickness - PLAYER_RADIUS + e;
+  const cooler =
+    x >= COOLER.minX + PLAYER_RADIUS - e &&
+    x <= COOLER.maxX - PLAYER_RADIUS + e &&
+    z >= COOLER.minZ + PLAYER_RADIUS - e &&
+    z <= COOLER_DOOR.hingeZ - COOLER_DOOR.thickness - PLAYER_RADIUS + e;
+  return x > 0 && (doorway || cooler);
+}
+
+/**
+ * What a thrown knife can stick into once the walk-in is open, besides the floor: the wall around
+ * the doorway, the cold room's walls and ceiling, and the open door. While the door is shut the
+ * kitchen's east wall stops every knife, the door included.
+ */
+export const COOLER_KNIFE_SOLIDS: readonly BoxCollider[] = [
+  // The wall north of the doorway and over it, between the kitchen and the cold room.
+  wallCollider(ROOM_HALF_X, COOLER.minX, COOLER.minZ - COOLER_WALL, DOORWAY.from, 0, COOLER.height),
+  wallCollider(ROOM_HALF_X, COOLER.minX, DOORWAY.from, DOORWAY.to, DOORWAY.height, COOLER.height),
+  // The cold room's walls and ceiling, a wall's thickness each.
+  wallCollider(
+    ROOM_HALF_X,
+    COOLER.maxX + COOLER_WALL,
+    COOLER.minZ - COOLER_WALL,
+    COOLER.minZ,
+    0,
+    COOLER.height,
+  ),
+  wallCollider(
+    COOLER.maxX,
+    COOLER.maxX + COOLER_WALL,
+    COOLER.minZ - COOLER_WALL,
+    COOLER.maxZ + COOLER_WALL,
+    0,
+    COOLER.height,
+  ),
+  wallCollider(
+    ROOM_HALF_X,
+    COOLER.maxX + COOLER_WALL,
+    COOLER.maxZ,
+    COOLER.maxZ + COOLER_WALL,
+    0,
+    COOLER.height,
+  ),
+  wallCollider(
+    ROOM_HALF_X,
+    COOLER.maxX + COOLER_WALL,
+    COOLER.minZ - COOLER_WALL,
+    COOLER.maxZ + COOLER_WALL,
+    COOLER.height,
+    COOLER.height + COOLER_WALL,
+  ),
+  // The open door.
+  wallCollider(
+    COOLER_DOOR.hingeX,
+    COOLER_DOOR.hingeX + (COOLER_DOOR.to - COOLER_DOOR.from),
+    COOLER_DOOR.hingeZ - COOLER_DOOR.thickness,
+    COOLER.maxZ,
+    COOLER_DOOR.bottom,
+    COOLER_DOOR.top,
+  ),
+];
+
+/** Whether a knife crossing the east wall's plane at (y, z) goes on into the open doorway. */
+export function inCoolerDoorway(y: number, z: number): boolean {
+  return y >= 0 && y <= DOORWAY.height && z >= DOORWAY.from && z <= DOORWAY.to;
+}
+
+/**
+ * Whether the wall between the kitchen and the cooler hides (bx, by, bz) from (ax, ay, az): a sight
+ * line from one to the other passes beside the doorway, or the door is shut. Nothing else in the
+ * kitchen hides anything from anyone, for labels and picking.
+ */
+export function coolerWallBetween(
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+  coolerOpen: boolean,
+): boolean {
+  if (ax > ROOM_HALF_X === bx > ROOM_HALF_X) return false;
+  if (!coolerOpen) return true;
+  // Through both faces of the wall, inside the doorway. Labels ask every frame: no allocations.
+  return (
+    crossesBesideDoorway(ROOM_HALF_X, ax, ay, az, bx, by, bz) ||
+    crossesBesideDoorway(COOLER.minX, ax, ay, az, bx, by, bz)
+  );
+}
+
+/** Whether a segment crosses the plane x = `plane` outside the walk-in's doorway. */
+function crossesBesideDoorway(
+  plane: number,
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+): boolean {
+  const t = (plane - ax) / (bx - ax);
+  if (t < 0 || t > 1) return false;
+  return !inCoolerDoorway(ay + (by - ay) * t, az + (bz - az) * t);
+}
 
 export type StationId =
   | 'passe'
@@ -227,7 +483,23 @@ function buildColliders(): Collider[] {
   return colliders;
 }
 
-export const COLLIDERS: readonly Collider[] = buildColliders();
+/**
+ * Everything a player bumps into while the walk-in is shut: the fixtures, the walls, and the door.
+ * `coolerColliders(true)` has the doorway open and the cold room behind it instead.
+ */
+export const COLLIDERS: readonly Collider[] = [...buildColliders(), ...KITCHEN_WALLS, SHUT_DOOR];
+
+/** Everything a player bumps into once the walk-in is open: its doorway is open, its room solid. */
+export const OPEN_COOLER_COLLIDERS: readonly Collider[] = [
+  ...buildColliders(),
+  ...KITCHEN_WALLS,
+  ...OPEN_COOLER,
+];
+
+/** What players collide with, with the walk-in shut or open. */
+export function coolerColliders(open: boolean): readonly Collider[] {
+  return open ? OPEN_COOLER_COLLIDERS : COLLIDERS;
+}
 
 /** How far the barrel vault rises above the top of the walls. */
 export const VAULT_RISE = 1.8;

@@ -1,5 +1,13 @@
-import { FrontSide, Mesh, MeshBasicMaterial, Raycaster, Vector3 } from 'three';
-import { EYE_HEIGHT, PLAY_HALF_X, PLAY_HALF_Z, ROOM_HALF_Z, WINDOWS } from '@world/shared';
+import { Box3, FrontSide, Mesh, MeshBasicMaterial, Ray, Raycaster, Vector3 } from 'three';
+import {
+  COOLER,
+  COOLER_WALL,
+  EYE_HEIGHT,
+  PLAY_HALF_X,
+  PLAY_HALF_Z,
+  ROOM_HALF_Z,
+  WINDOWS,
+} from '@world/shared';
 import { describe, expect, it } from 'vitest';
 import { SKYLIGHT_OPENINGS } from './kitchen.ts';
 import { SKY_CENTER, SKY_RADIUS, landHeight, paintOutside } from './outside.ts';
@@ -77,6 +85,38 @@ describe('the view outside', () => {
       if (point.z > WALL_OUTSIDE + 1e-4) expect(point.length()).toBeGreaterThan(160);
     }
     for (const bulb of outside.bulbs) expect(bulb.z).toBeLessThan(WALL_OUTSIDE);
+  });
+
+  it('never shows the walk-in cooler, which stands behind the east wall', () => {
+    // The cooler, walls and all, lies south of the window wall, so no sight line through a pane can
+    // reach it, and nothing of the view outside is built inside it.
+    const box = new Box3(
+      new Vector3(COOLER.minX - COOLER_WALL, 0, COOLER.minZ - COOLER_WALL),
+      new Vector3(
+        COOLER.maxX + COOLER_WALL,
+        COOLER.height + COOLER_WALL,
+        COOLER.maxZ + COOLER_WALL,
+      ),
+    );
+    expect(box.min.z).toBeGreaterThan(-ROOM_HALF_Z);
+    const ray = new Ray();
+    for (const x of [-PLAY_HALF_X, 0, PLAY_HALF_X]) {
+      const eye = new Vector3(x, EYE_HEIGHT, -5.45);
+      for (let i = 0; i <= 12; i++) {
+        const pane = new Vector3(
+          WINDOWS.from + ((WINDOWS.to - WINDOWS.from) * i) / 12,
+          2,
+          -ROOM_HALF_Z,
+        );
+        ray.set(pane, pane.clone().sub(eye).normalize());
+        expect(ray.intersectsBox(box)).toBe(false);
+      }
+    }
+    const position = outside.geometry.getAttribute('position');
+    const point = new Vector3();
+    for (let i = 0; i < position.count; i++) {
+      expect(box.containsPoint(point.fromBufferAttribute(position, i))).toBe(false);
+    }
   });
 
   it('is flat by the kitchen and rises to mountains at the edge', () => {

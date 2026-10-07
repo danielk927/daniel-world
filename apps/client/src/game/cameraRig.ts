@@ -45,6 +45,11 @@ export class CameraRig {
     this.flinch = 1;
   }
 
+  /** A smaller jolt: a fist meeting something solid. */
+  bump(): void {
+    this.flinch = Math.max(this.flinch, 0.3);
+  }
+
   /** A hard landing pushes the view down; the spring brings it back. */
   land(fallSpeed: number): void {
     this.dipVelocity -= Math.min(3.5, fallSpeed * 0.28);

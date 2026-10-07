@@ -99,6 +99,8 @@ export class LabelLayer {
   private height = 1;
 
   private readonly camera: PerspectiveCamera;
+  /** Whether something solid hides a point from the camera; a hidden label does not show. */
+  hides: ((camera: Vector3, point: Vector3) => boolean) | null = null;
 
   constructor(parent: HTMLElement, camera: PerspectiveCamera) {
     this.camera = camera;
@@ -171,6 +173,11 @@ export class LabelLayer {
       scratch.copy(label.anchor);
       scratch.y += label.offsetY;
       const distance = scratch.distanceTo(camPos);
+      if (this.hides?.(camPos, scratch)) {
+        label.distance = distance;
+        label.opacity = 0;
+        continue;
+      }
       scratch.project(this.camera);
       const onScreen =
         distance < label.maxDistance &&
