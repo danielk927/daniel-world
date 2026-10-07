@@ -23,4 +23,10 @@ Local changes are marked with "kitchen:" comments:
   i_input.c   Key events carry the character the key types, and savegame
               names use it (vanilla_keyboard_mapping off), so movement keys
               mapped to arrows still type letters (cheats, savegames).
+              Each poll also reads the mouse (DG_GetMouse in dg_kitchen.c)
+              and posts one ev_mouse for its buttons and horizontal motion,
+              with no acceleration and no vertical motion (data3 0), so the
+              mouse turns and fires but never walks.
   i_system.c  I_Quit powers the machine off; the host reboots it.
+  m_menu.c    Sideways mouse motion no longer moves the menu's sliders; a
+              click still picks the item.

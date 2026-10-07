@@ -59,6 +59,17 @@ int DG_GetKey(int *pressed, unsigned char *key)
     return 1;
 }
 
+/* Read by i_input.c once per poll: horizontal motion in counts since the
+   last call, and the buttons as DOOM numbers them (bit 0, the left button,
+   fires). */
+void DG_GetMouse(int *dx, int *buttons)
+{
+    unsigned state = MMIO_REG(MMIO_MOUSE);
+
+    *dx = (int)state >> 16;
+    *buttons = (state & MMIO_MOUSE_LEFT) ? 1 : 0;
+}
+
 void DG_SetWindowTitle(const char *title)
 {
     (void)title;

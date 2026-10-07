@@ -54,6 +54,9 @@ static int shiftdown = 0;
 // type the wrong letters into cheats and savegame names.
 extern unsigned char DG_TypedChar;
 
+// kitchen: the mouse, from the platform layer.
+extern void DG_GetMouse(int *dx, int *buttons);
+
 // Lookup table for mapping AT keycodes to their doom keycode
 static const char at_to_doom[] =
 {
@@ -331,15 +334,27 @@ void I_GetEvent(void)
     }
 
 
-                /*
-            case SDL_MOUSEMOTION:
-                event.type = ev_mouse;
-                event.data1 = mouse_button_state;
-                event.data2 = AccelerateMouse(sdlevent.motion.xrel);
-                event.data3 = -AccelerateMouse(sdlevent.motion.yrel);
-                D_PostEvent(&event);
-                break;
-                */
+    // kitchen: one mouse event a poll, as the SDL port posts, for all the
+    // motion since the last: each poll builds one ticcmd, and G_Responder
+    // keeps only the latest event's motion. No acceleration, and data3 (the
+    // vertical motion vanilla DOOM walks with) always 0, so the mouse turns
+    // and fires but never walks, as DOS players got with "novert".
+    {
+        static int mouse_buttons;
+        int dx, buttons;
+
+        DG_GetMouse(&dx, &buttons);
+        if (dx != 0 || buttons != mouse_buttons)
+        {
+            mouse_buttons = buttons;
+            event.type = ev_mouse;
+            event.data1 = buttons;
+            event.data2 = dx;
+            event.data3 = 0;
+            event.data4 = 0;
+            D_PostEvent(&event);
+        }
+    }
 }
 
 void I_InitInput(void)
