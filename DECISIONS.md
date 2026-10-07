@@ -355,3 +355,16 @@ Judgment calls made during the unattended build, with reasons.
 - **The UCLA research assistant role sits under Research, not Experience**, next to the Math Directed Reading Program, so Experience holds the industry internship.
 - **Never the graduation date or the phone number**: a content test rejects graduation wording, any year after 2026, and phone-shaped numbers.
 - **Panel items stack** (title, subtitle, then the date or place in small), since the panel is too narrow for a date beside a long title; the portfolio keeps them side by side except on phones.
+
+### Turning Chef Skinner off (2026-10-07)
+
+- **A visitor can switch Chef Skinner off for themselves**: "Chef Skinner throws knives at me" in Settings, on by default and saved with the other settings.
+  It is sent in every hello and again whenever it changes, so it applies at once and survives reconnects and reloads.
+- **Off means out of each other's game, both ways.** He never picks them, gives up mid wind-up when his target switches him off, and his knives and theirs pass through each other.
+  One shared rule (`chefSpares`) decides it, on the server for hits and on every screen for the replay, checked each tick and frame, so a change mid-flight is handled too.
+- **Everyone's choice is public**: player info carries each cook's prefs, and a change is announced, so every screen replays his knives as the server flies them.
+  Telling only the server would have shown his knives vanishing into an opted-out cook on everyone else's screen.
+- **He does not avoid opted-out cooks when he throws**: a knife at someone behind them simply passes through.
+  Holding his throws was tried first; it let an opted-out cook shield others and was not needed once every screen knew.
+- **The first time he knocks a visitor out, the knockout card says he can be turned off.**
+- This changed the protocol (prefs in the hello and in player info, a prefs message each way, the resident flag), within version 7.
