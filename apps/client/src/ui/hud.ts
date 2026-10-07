@@ -14,8 +14,15 @@ export class Hud {
   readonly element: HTMLElement;
   private readonly crosshair = el('div', { class: 'crosshair' });
   private readonly prompt = el('div', { class: 'prompt', attrs: { 'aria-live': 'polite' } });
+  /** While the mouse is free in play: how to get it back for looking around. */
+  private readonly lookCue = el('div', { class: 'look-cue', text: 'Click to look around' });
+  private lookCueShown = false;
   private readonly roomName = el('span', { class: 'hud-room-name' });
-  private readonly statusDot = el('span', { class: 'status-dot' });
+  private readonly statusDot = el(
+    'span',
+    { class: 'status-signal', attrs: { 'aria-hidden': 'true' } },
+    [el('i'), el('i'), el('i')],
+  );
   private readonly statusText = el('span', { class: 'hud-status-text' });
   private readonly status = el('div', { class: 'hud-status' }, [this.statusDot, this.statusText]);
   /** Screen readers hear only status changes, not the ping or countdown ticking. */
@@ -39,6 +46,8 @@ export class Hud {
   ]);
   /** The bottom right corner, where the loadout stacks over the minimap. */
   readonly corner = el('div', { class: 'hud-corner' });
+  /** Under the player list, top right: where the kill feed goes. */
+  readonly feedSlot = el('div', { class: 'hud-feed' });
   private hintTimer = 0;
   private promptText = '';
   private playersKey = '';
@@ -47,23 +56,27 @@ export class Hud {
     this.element = el('div', { class: 'hud', attrs: { hidden: '' } }, [
       this.crosshair,
       this.prompt,
+      this.lookCue,
       el('div', { class: 'hud-panel hud-room' }, [
         el('span', { class: 'hud-label', text: 'Room' }),
         this.roomName,
         this.status,
         this.statusAnnouncement,
       ]),
-      el(
-        'section',
-        { class: 'hud-panel hud-players', attrs: { 'aria-label': 'Players in this room' } },
-        [
-          el('div', { class: 'hud-players-head' }, [
-            el('span', { class: 'hud-label', text: 'Players' }),
-            this.playerCount,
-          ]),
-          this.playerList,
-        ],
-      ),
+      el('div', { class: 'hud-right' }, [
+        el(
+          'section',
+          { class: 'hud-panel hud-players', attrs: { 'aria-label': 'Players in this room' } },
+          [
+            el('div', { class: 'hud-players-head' }, [
+              el('span', { class: 'hud-label', text: 'Players' }),
+              this.playerCount,
+            ]),
+            this.playerList,
+          ],
+        ),
+        this.feedSlot,
+      ]),
       this.hint,
       this.corner,
     ]);
@@ -90,7 +103,14 @@ export class Hud {
     this.roomName.textContent = code === DEFAULT_ROOM ? 'lobby' : `#${code}`;
   }
 
-  setStatus(status: ConnectionStatus, detail: string): void {
+  /**
+   * Connection, in a player's words: online with signal bars (the round trip is in the tooltip),
+   * connecting, or solo. Retries happen quietly in the background; no countdown ticks here.
+   */
+  setStatus(
+    status: ConnectionStatus,
+    options: { rtt?: number | null; updating?: boolean } = {},
+  ): void {
     if (this.status.dataset.status !== status) {
       this.statusAnnouncement.textContent =
         status === 'online'
@@ -100,7 +120,25 @@ export class Hud {
             : 'Offline, playing solo';
     }
     this.status.dataset.status = status;
-    this.statusText.textContent = detail;
+    const rtt = options.rtt ?? null;
+    this.status.dataset.signal =
+      status !== 'online' ? '0' : rtt === null || rtt < 90 ? '3' : rtt < 180 ? '2' : '1';
+    this.status.title =
+      status === 'online' && rtt !== null ? `${Math.round(rtt)} ms round trip` : '';
+    this.statusText.textContent =
+      status === 'online'
+        ? 'Online'
+        : status === 'connecting'
+          ? 'Connecting'
+          : options.updating
+            ? 'Solo · updating'
+            : 'Solo';
+  }
+
+  setLookCue(shown: boolean): void {
+    if (shown === this.lookCueShown) return;
+    this.lookCueShown = shown;
+    this.lookCue.classList.toggle('is-visible', shown);
   }
 
   setPlayers(players: readonly HudPlayer[]): void {

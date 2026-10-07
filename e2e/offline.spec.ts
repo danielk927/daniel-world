@@ -9,7 +9,7 @@ test('with the server stopped the world still loads in single-player mode', asyn
   const page = await enterWorld(browser, { name: 'Solo', online: false });
   const state = await expectWorld(page, (w) => w.connection === 'offline', 'should be offline');
   expect(state.playerCount).toBe(1);
-  await expect(page.locator('.hud-status')).toContainText('solo mode');
+  await expect(page.locator('.hud-status')).toHaveText('Solo');
 
   // The world is fully playable: walking works without a server.
   const before = state.player.x;
@@ -43,7 +43,7 @@ test('a room server on another protocol version still lets visitors in, solo', a
   const page = await enterWorld(browser, { name: 'Early Bird', online: false });
   try {
     await expectWorld(page, (w) => w.connection === 'offline', 'should be offline');
-    await expect(page.locator('.hud-status')).toContainText('solo mode');
+    await expect(page.locator('.hud-status')).toHaveText('Solo · updating');
     // Still in the kitchen, not sent back to the landing screen.
     await page.waitForTimeout(1500);
     await expectWorld(page, (w) => w.mode === 'playing', 'should still be playing');

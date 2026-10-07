@@ -13,6 +13,7 @@ import { ServerClock, SnapshotBuffer } from '../net/interpolation.ts';
 import type { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
 import type { Hud, HudPlayer } from '../ui/hud.ts';
+import type { KillParty } from '../ui/killFeed.ts';
 import type { Label, LabelLayer } from '../ui/labels.ts';
 import type { Avatars, AvatarPose } from '../world/avatars.ts';
 import type { Knives } from '../world/knives.ts';
@@ -55,8 +56,11 @@ export interface MultiplayerDeps {
   onFatal: (message: string) => void;
   /** The server placed us somewhere new (first join, respawn); turn the view to match. */
   onSpawn: (yaw: number) => void;
-  /** A knife knocked this player out; `by` is the thrower's name. */
-  onKnockedOut: (by: string) => void;
+  /**
+   * A knife knocked someone out, as it arrives on this screen. `role` says whether this player
+   * threw it, was hit by it, or only saw it.
+   */
+  onKill: (thrower: KillParty, victim: KillParty, role: 'thrower' | 'victim' | 'witness') => void;
   /** This player is standing again: respawned, rejoined, or playing solo. */
   onBackOnFeet: () => void;
 }
@@ -107,7 +111,7 @@ export class Multiplayer {
         return { x: s.x, z: s.z, yaw: s.yaw };
       },
       {
-        onStatus: (status, retryInMs) => this.onStatus(status, retryInMs),
+        onStatus: (status) => this.onStatus(status),
         onWelcome: (welcome) => this.onWelcome(welcome),
         onMessage: (message) => this.onMessage(message),
         onFatal: (message) => deps.onFatal(message),
@@ -230,20 +234,17 @@ export class Multiplayer {
     if (!pose.dead) this.target(id, pose.x, pose.y, pose.z);
   };
 
-  private onStatus(status: ConnectionStatus, retryInMs: number | null): void {
+  private onStatus(status: ConnectionStatus): void {
     const { hud, chat } = this.deps;
     window.clearInterval(this.statusTimer);
     if (status === 'online') {
-      const showPing = (): void => {
-        const rtt = this.connection.rtt;
-        hud.setStatus('online', rtt === null ? 'Online' : `Online · ${Math.round(rtt)} ms`);
-      };
+      const showPing = (): void => hud.setStatus('online', { rtt: this.connection.rtt });
       showPing();
       this.statusTimer = window.setInterval(showPing, 1000);
       return;
     }
     if (status === 'connecting') {
-      hud.setStatus('connecting', 'Connecting…');
+      hud.setStatus('connecting');
       return;
     }
     // Offline: everyone else vanishes, the world keeps working in single player.
@@ -265,20 +266,7 @@ export class Multiplayer {
       );
       this.toldAboutMismatch = true;
     }
-    const retryAt = performance.now() + (retryInMs ?? 0);
-    const show = (): void => {
-      const seconds = Math.max(0, Math.ceil((retryAt - performance.now()) / 1000));
-      if (mismatch) hud.setStatus('offline', 'Offline · solo mode · multiplayer is updating');
-      else
-        hud.setStatus(
-          'offline',
-          seconds > 0
-            ? `Offline · solo mode · retrying in ${seconds}s`
-            : 'Offline · solo mode · retrying…',
-        );
-    };
-    show();
-    this.statusTimer = window.setInterval(show, 500);
+    hud.setStatus('offline', { updating: mismatch });
   }
 
   private onWelcome(welcome: WelcomeMessage): void {
@@ -411,18 +399,9 @@ export class Multiplayer {
   }
 
   private announceKill(from: number, to: number): void {
-    const { chat, notify } = this.deps;
-    const thrower = this.lookup(from)?.name ?? 'Someone';
-    const victim = this.lookup(to)?.name ?? 'someone';
-    if (to === this.selfId) {
-      chat.addSystem(`${thrower} got you`);
-      this.deps.onKnockedOut(thrower);
-    } else if (from === this.selfId) {
-      chat.addSystem(`You got ${victim}`);
-      notify(`You got ${victim}`);
-    } else {
-      chat.addSystem(`${thrower} got ${victim}`);
-    }
+    const someone = { name: 'Someone', color: '#f6f3ea' };
+    const role = to === this.selfId ? 'victim' : from === this.selfId ? 'thrower' : 'witness';
+    this.deps.onKill(this.lookup(from) ?? someone, this.lookup(to) ?? someone, role);
   }
 
   /** Name and color of anyone in the room, this player included. */

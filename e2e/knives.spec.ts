@@ -39,10 +39,14 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
     await throwKnife(thrower);
 
     await expectWorld(target, (w) => w.knockedOut, 'the target is knocked out');
-    await expect(target.getByRole('status').filter({ hasText: 'Knocked out' })).toContainText(
-      'by Thrower',
+    await expect(target.getByRole('status').filter({ hasText: 'Knocked out by' })).toContainText(
+      'Thrower',
     );
-    await expect(thrower.locator('.chat-log')).toContainText('You got Target');
+    // The thrower sees their hit land under the crosshair; both see it in the kill feed.
+    await expect(thrower.locator('.hit-banner')).toContainText('Target');
+    for (const page of [thrower, target]) {
+      await expect(page.locator('.kill-feed')).toContainText('Thrower knocked out Target');
+    }
 
     // Three seconds on the floor, then back up at a spawn point, somewhere new.
     const up = await expectWorld(target, (w) => !w.knockedOut, 'the target gets back up', 8000);

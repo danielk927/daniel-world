@@ -15,6 +15,8 @@ import { SERVER_URL } from '../env.ts';
 import { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
 import { Hud } from '../ui/hud.ts';
+import { Impact } from '../ui/impact.ts';
+import { KillFeed, type KillParty } from '../ui/killFeed.ts';
 import { Knockout } from '../ui/knockout.ts';
 import { LabelLayer, type Label } from '../ui/labels.ts';
 import { Loadout } from '../ui/loadout.ts';
@@ -60,6 +62,8 @@ export class Game {
   private readonly minimap: Minimap;
   private readonly loadout: Loadout;
   private readonly knockout: Knockout;
+  private readonly killFeed: KillFeed;
+  private readonly impact: Impact;
   private readonly viewmodel: Viewmodel;
   /** Down on the floor after a knife hit, until the server stands this player back up. */
   knockedOut = false;
@@ -111,6 +115,8 @@ export class Game {
     });
     this.toasts = new Toasts(overlay);
     this.knockout = new Knockout(overlay);
+    this.killFeed = new KillFeed(this.hud.feedSlot);
+    this.impact = new Impact(overlay);
     this.viewmodel = world.viewmodel;
     this.panel = new InfoPanel(overlay);
     this.pause = new PauseMenu(
@@ -189,7 +195,7 @@ export class Game {
       worldTime: () => this.elapsed,
       knives: this.world.knives,
       notify: (message) => this.toasts.show(message),
-      onKnockedOut: (by) => this.knockOut(by),
+      onKill: (thrower, victim, role) => this.onKill(thrower, victim, role),
       onBackOnFeet: () => this.backOnFeet(),
       onFatal: (message) => this.leave(message),
       onSpawn: (yaw) => {
@@ -215,6 +221,8 @@ export class Game {
     this.input.releaseAll();
     this.input.unlock();
     this.toasts.clear();
+    this.killFeed.clear();
+    this.impact.clear();
     this.multiplayer?.close();
     this.multiplayer = null;
     this.backOnFeet();
@@ -238,7 +246,6 @@ export class Game {
     this.input.enabled = true;
     this.hud.show();
     this.chat.show();
-    if (!this.input.locked) this.toasts.show('Click the world to look around with the mouse');
   }
 
   /**
@@ -251,10 +258,7 @@ export class Game {
     this.setCovered(false);
     this.mode = 'playing';
     this.input.enabled = true;
-    const locked = look && (await this.input.lock());
-    if (!locked && this.mode === 'playing') {
-      this.toasts.show('Click the world to look around with the mouse');
-    }
+    if (look) await this.input.lock();
   }
 
   private openPause(note = ''): void {
@@ -304,10 +308,23 @@ export class Game {
     this.world.knives.throwOwn(input.seq, this.multiplayer?.selfId ?? -1, knife, online, hand);
   }
 
-  private knockOut(by: string): void {
+  private onKill(
+    thrower: KillParty,
+    victim: KillParty,
+    role: 'thrower' | 'victim' | 'witness',
+  ): void {
+    this.killFeed.add(thrower, victim, role !== 'witness');
+    if (role === 'victim') this.knockOut(thrower);
+    else if (role === 'thrower') this.impact.landed(victim);
+  }
+
+  private knockOut(by: KillParty): void {
     this.knockedOut = true;
     this.throwAt = null;
     if (this.mode === 'chat') this.chat.close();
+    this.impact.hit();
+    this.rig.hit();
+    this.world.renderer.domElement.classList.add('is-dimmed');
     this.rig.setKnockedOut(true);
     this.viewmodel.setShown(false);
     // Station labels would float over the knockout card.
@@ -326,6 +343,9 @@ export class Game {
     this.knockedOut = false;
     this.rig.setKnockedOut(false);
     this.knockout.hide();
+    this.world.renderer.domElement.classList.remove('is-dimmed');
+    // Leaving the world is not waking up; only blink when play goes on.
+    if (this.mode !== 'landing') this.impact.blink();
     this.viewmodel.setShown(this.inWorld);
     this.labels.element.hidden = this.mode !== 'playing' && this.mode !== 'chat';
   }
@@ -465,6 +485,7 @@ export class Game {
       this.player.state.grounded,
     );
     this.updateMinimap(dt);
+    this.hud.setLookCue(this.mode === 'playing' && !this.input.locked && !this.knockedOut);
     this.loadout.update(this.armed, this.viewmodel.knifeReadiness);
     // Labels and picking project through the camera, so its matrices must be current.
     this.world.camera.updateMatrixWorld();
