@@ -1,10 +1,15 @@
-import type { BufferGeometry } from 'three';
-import { BoxGeometry, Color, Float32BufferAttribute, MeshStandardMaterial } from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { BufferGeometry, Color, Float32BufferAttribute, MeshStandardMaterial } from 'three';
+import { DEFAULT_LOOK, lookKey, type KnifeLook, type KnifeSkin } from '@world/shared';
+import { FINISHES, WHITE_UV, finishTexture, finishUv, paintFinish } from './knifeFinishes.ts';
+import { mergeNonIndexed, type KnifePart, type V2 } from './knifeShapes.ts';
+import { knifeModel, type KnifeModel } from './knifeSkins.ts';
 
 /**
- * A chef's knife, low-poly like the kitchen: a steel blade tapering to its tip, a bolster and a dark
- * handle, merged into one vertex-colored geometry so every knife in the world is one draw call.
+ * Knives as the renderer sees them: every model (knifeSkins.ts) painted in each of its finishes
+ * (knifeFinishes.ts), as one vertex-colored geometry per look so every knife of a look in the world
+ * is one draw call, and as separate parts for the hand on screen, whose knife can open and fold.
+ * Geometries are built the first time a look is seen and shared after that; one material and one
+ * small texture serve them all.
  *
  * Local space: the tip is at the origin and the knife lies along +Z, handle last, with the blade's
  * flat facing ±X and its edge down. So a knife whose blade points along `d` (tip first) is the model
@@ -14,68 +19,186 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export const BLADE_LENGTH = 0.19;
 export const HANDLE_LENGTH = 0.11;
 export const KNIFE_LENGTH = BLADE_LENGTH + 0.015 + HANDLE_LENGTH;
-/** Where a hand holds it, measured from the tip. */
+/** Where a hand holds the chef's knife, measured from the tip. */
 export const GRIP = BLADE_LENGTH + 0.015 + HANDLE_LENGTH * 0.5;
-/** The middle of the knife, which it tumbles around in flight. */
+/** The middle of the chef's knife, which it tumbles around in flight. */
 export const KNIFE_CENTER = KNIFE_LENGTH * 0.45;
 
-const STEEL = '#d5dbe0';
-const BOLSTER = '#9aa3ab';
-const HANDLE = '#3a2a21';
+export type { KnifeModel };
+export { knifeModel };
 
-function painted(geometry: BufferGeometry, color: string): BufferGeometry {
-  const c = new Color(color);
-  const count = geometry.getAttribute('position').count;
-  const colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) colors.set([c.r, c.g, c.b], i * 3);
-  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+/** Hardware that wears the finish (guards, rings, a butterfly's handles) is a shade darker. */
+const METAL_SHADE = 0.86;
+
+interface Bounds {
+  z0: number;
+  z1: number;
+  y0: number;
+  y1: number;
+}
+
+function bounds(geometries: readonly BufferGeometry[]): Bounds {
+  const b = { z0: Infinity, z1: -Infinity, y0: Infinity, y1: -Infinity };
+  for (const g of geometries) {
+    const p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i);
+      const z = p.getZ(i);
+      b.z0 = Math.min(b.z0, z);
+      b.z1 = Math.max(b.z1, z);
+      b.y0 = Math.min(b.y0, y);
+      b.y1 = Math.max(b.y1, y);
+    }
+  }
+  return b;
+}
+
+const bladeBounds = new Map<KnifeSkin, Bounds>();
+
+/** The extent of a knife's blade, which its finish is stretched over. */
+function bladeExtent(model: KnifeModel): Bounds {
+  let b = bladeBounds.get(model.skin);
+  if (!b) {
+    b = bounds(model.parts.filter((p) => p.kind === 'blade').map((p) => p.geometry));
+    bladeBounds.set(model.skin, b);
+  }
+  return b;
+}
+
+/** A part's geometry with the look's finish laid on it: texture coordinates and vertex colors. */
+function paint(model: KnifeModel, part: KnifePart, look: KnifeLook): BufferGeometry {
+  const finish = FINISHES[look.finish];
+  const source = part.geometry;
+  const p = source.getAttribute('position');
+  const uv = new Float32Array(p.count * 2);
+  const color = new Float32Array(p.count * 3);
+  const blade = bladeExtent(model);
+  const length = Math.max(1e-6, blade.z1 - blade.z0);
+  const height = Math.max(1e-6, blade.y1 - blade.y0);
+  const own = part.kind === 'metal' ? bounds([source]) : blade;
+  const tint = new Color(
+    part.kind === 'grip' ? (finish.grip ?? part.color ?? '#ffffff') : (part.color ?? '#ffffff'),
+  );
+  if (part.kind === 'metal') tint.setScalar(METAL_SHADE);
+  if (part.kind === 'blade') tint.setScalar(1);
+  const at: [number, number] = [0, 0];
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    const z = p.getZ(i);
+    if (part.kind === 'blade') {
+      finishUv(look.finish, (z - blade.z0) / length, (y - blade.y0) / height, at);
+    } else if (part.kind === 'metal') {
+      // Hardware takes the finish as it is at the blade's base, running on away from the blade.
+      finishUv(look.finish, 1 - (z - own.z0) / length, (y - own.y0) / height, at);
+    } else {
+      at[0] = WHITE_UV[0];
+      at[1] = WHITE_UV[1];
+    }
+    uv[i * 2] = at[0];
+    uv[i * 2 + 1] = at[1];
+    color[i * 3] = tint.r;
+    color[i * 3 + 1] = tint.g;
+    color[i * 3 + 2] = tint.b;
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', p);
+  geometry.setAttribute('normal', source.getAttribute('normal'));
+  geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  geometry.setAttribute('color', new Float32BufferAttribute(color, 3));
   return geometry;
 }
 
-function buildKnife(): BufferGeometry {
-  // The blade: a thin wedge, full height at the bolster, running to a point at the tip.
-  const blade = new BoxGeometry(0.006, 0.042, BLADE_LENGTH, 1, 1, 1);
-  const position = blade.getAttribute('position');
-  for (let i = 0; i < position.count; i++) {
-    const z = position.getZ(i);
-    const y = position.getY(i);
-    if (z < 0) {
-      // The tip end: the spine sweeps down to meet the edge.
-      position.setY(i, y > 0 ? -0.012 : -0.021);
-      position.setX(i, position.getX(i) * 0.4);
-    }
+const partGeometries = new Map<string, BufferGeometry>();
+const lookGeometries = new Map<string, BufferGeometry>();
+
+/** One part of a knife in a look, for the hand on screen, which moves its parts. */
+export function knifePartGeometry(look: KnifeLook, part: KnifePart): BufferGeometry {
+  const key = `${lookKey(look)}/${part.name}`;
+  let geometry = partGeometries.get(key);
+  if (!geometry) {
+    paintFinish(look.finish);
+    geometry = paint(knifeModel(look.skin), part, look);
+    partGeometries.set(key, geometry);
   }
-  blade.translate(0, 0, BLADE_LENGTH / 2);
-  blade.computeVertexNormals();
-  const bolster = new BoxGeometry(0.014, 0.048, 0.015);
-  bolster.translate(0, 0.002, BLADE_LENGTH + 0.0075);
-  const handle = new BoxGeometry(0.02, 0.028, HANDLE_LENGTH);
-  handle.translate(0, 0.004, BLADE_LENGTH + 0.015 + HANDLE_LENGTH / 2);
-  const merged = mergeGeometries([
-    painted(blade.toNonIndexed(), STEEL),
-    painted(bolster.toNonIndexed(), BOLSTER),
-    painted(handle.toNonIndexed(), HANDLE),
-  ]);
-  if (!merged) throw new Error('Could not build the knife');
-  return merged;
+  return geometry;
 }
 
-let geometry: BufferGeometry | null = null;
+/** A whole knife in a look, open and in one piece: every knife of that look in the world shares it. */
+export function knifeGeometry(look: KnifeLook = DEFAULT_LOOK): BufferGeometry {
+  const key = lookKey(look);
+  let geometry = lookGeometries.get(key);
+  if (!geometry) {
+    const model = knifeModel(look.skin);
+    const parts = model.parts.map((part) => knifePartGeometry(look, part));
+    const merged = mergeNonIndexed(parts);
+    const uv: number[] = [];
+    const color: number[] = [];
+    for (const g of parts) {
+      uv.push(...(g.getAttribute('uv').array as Float32Array));
+      color.push(...(g.getAttribute('color').array as Float32Array));
+    }
+    merged.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+    merged.setAttribute('color', new Float32BufferAttribute(color, 3));
+    merged.computeBoundingSphere();
+    geometry = merged;
+    lookGeometries.set(key, geometry);
+  }
+  return geometry;
+}
+
 let material: MeshStandardMaterial | null = null;
 
-/** The one knife geometry, shared by every knife in the world, in hands and on screen. */
-export function knifeGeometry(): BufferGeometry {
-  return (geometry ??= buildKnife());
-}
-
-/** The one knife material: faceted, with a little sheen on the steel. */
+/** The one knife material: faceted, with a little sheen on the steel, and the finishes' texture. */
 export function knifeMaterial(): MeshStandardMaterial {
   return (material ??= new MeshStandardMaterial({
     vertexColors: true,
     flatShading: true,
     metalness: 0.35,
     roughness: 0.45,
+    map: finishTexture(),
     // Steel shows the kitchen in it, like the counters (see the environment in lighting.ts).
     envMapIntensity: 10,
   }));
+}
+
+/** Where a hand holds a knife, in its model space. */
+export function knifeGrip(skin: KnifeSkin): V2 {
+  return knifeModel(skin).grip;
+}
+
+/** The middle a knife tumbles about in flight, in its model space. */
+export function knifeCenter(skin: KnifeSkin): V2 {
+  return knifeModel(skin).center;
+}
+
+/**
+ * A knife's silhouette in side view, as SVG paths (one per part, holes cut with even-odd) in a box
+ * that fits it, tip to the left and spine up.
+ */
+export function knifeSilhouette(skin: KnifeSkin): { viewBox: string; paths: string[] } {
+  const model = knifeModel(skin);
+  let z0 = Infinity;
+  let z1 = -Infinity;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const part of model.parts) {
+    for (const loop of part.outline) {
+      for (const [z, y] of loop.points) {
+        z0 = Math.min(z0, z);
+        z1 = Math.max(z1, z);
+        y0 = Math.min(y0, y);
+        y1 = Math.max(y1, y);
+      }
+    }
+  }
+  // Millimetres, y flipped so the spine is up.
+  const mm = (n: number): string => (n * 1000).toFixed(1);
+  const paths = model.parts.map((part) =>
+    part.outline
+      .map((loop) => `M${loop.points.map(([z, y]) => `${mm(z)} ${mm(-y)}`).join('L')}Z`)
+      .join(''),
+  );
+  const pad = 0.004;
+  const viewBox = [z0 - pad, -(y1 + pad), z1 - z0 + pad * 2, y1 - y0 + pad * 2].map(mm).join(' ');
+  return { viewBox, paths };
 }

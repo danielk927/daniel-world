@@ -13,7 +13,19 @@ import {
   type ArmPose,
 } from './viewmodel.ts';
 
-const blank = (): ArmPose => ({ x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, knife: true, spin: 0 });
+const blank = (): ArmPose => ({
+  x: 0,
+  y: 0,
+  z: 0,
+  rx: 0,
+  ry: 0,
+  rz: 0,
+  knife: true,
+  spin: 0,
+  flip: 0,
+  a: 0,
+  b: 0,
+});
 const keys = ['x', 'y', 'z', 'rx', 'ry', 'rz'] as const;
 
 function largestJump(pose: (t: number, out: ArmPose) => ArmPose, end: number): number {
