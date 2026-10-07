@@ -3,6 +3,7 @@ import {
   encode,
   parseServerMessage,
   type ClientMessage,
+  type Prefs,
   type ServerMessage,
   type WelcomeMessage,
 } from '@world/shared';
@@ -27,7 +28,8 @@ const SILENCE_TIMEOUT_MS = 4000;
 
 /**
  * One logical connection to a room. Handles the hello handshake, validates every incoming message,
- * measures round-trip time and reconnects with exponential backoff until closed.
+ * measures round-trip time and reconnects with exponential backoff until closed. The visitor's
+ * prefs go with every hello and to the server whenever they change.
  */
 export class Connection {
   status: ConnectionStatus = 'connecting';
@@ -48,6 +50,9 @@ export class Connection {
   private pingId = 0;
   private lastMessageAt = 0;
   private readonly pingSentAt = new Map<number, number>();
+  private prefs: Readonly<Prefs>;
+  /** The prefs the server has, or will have once it reads our hello. */
+  private sentPrefs: Readonly<Prefs> | null = null;
   private readonly url: string;
   private readonly name: string;
   private readonly room: string;
@@ -59,12 +64,14 @@ export class Connection {
     name: string,
     room: string,
     spawnHint: () => { x: number; z: number; yaw: number } | undefined,
+    prefs: Readonly<Prefs>,
     handlers: ConnectionHandlers,
   ) {
     this.url = url;
     this.name = name;
     this.room = room;
     this.spawnHint = spawnHint;
+    this.prefs = prefs;
     this.handlers = handlers;
     this.open();
   }
@@ -77,6 +84,18 @@ export class Connection {
     if (this.status === 'online' && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(encode(message));
     }
+  }
+
+  /** Takes effect at once when online; otherwise the next hello carries it. */
+  setPrefs(prefs: Readonly<Prefs>): void {
+    this.prefs = prefs;
+    this.syncPrefs();
+  }
+
+  private syncPrefs(): void {
+    if (!this.isOnline || this.sentPrefs?.chef === this.prefs.chef) return;
+    this.send({ t: 'prefs', prefs: this.prefs });
+    this.sentPrefs = this.prefs;
   }
 
   close(): void {
@@ -111,6 +130,7 @@ export class Connection {
     this.ws = ws;
     ws.addEventListener('open', () => {
       const spawn = this.spawnHint();
+      this.sentPrefs = this.prefs;
       ws.send(
         encode({
           t: 'hello',
@@ -118,6 +138,7 @@ export class Connection {
           name: this.name,
           room: this.room,
           ...(spawn ? { spawn } : {}),
+          prefs: this.prefs,
         }),
       );
     });
@@ -143,6 +164,8 @@ export class Connection {
         this.attempt = 0;
         this.versionMismatch = false;
         this.setStatus('online');
+        // Changed while we waited for the welcome: the hello had the old ones.
+        this.syncPrefs();
         this.startPinging();
         this.handlers.onWelcome(message);
         return;

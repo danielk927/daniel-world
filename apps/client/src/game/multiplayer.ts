@@ -5,6 +5,7 @@ import {
   type KnifeTarget,
   type InputMessage,
   type PlayerInfo,
+  type Prefs,
   type ServerMessage,
   type WelcomeMessage,
 } from '@world/shared';
@@ -44,6 +45,8 @@ export interface MultiplayerDeps {
   url: string;
   name: string;
   room: string;
+  /** What the visitor has chosen about the room; `setPrefs` changes it. */
+  prefs: Readonly<Prefs>;
   player: LocalPlayer;
   avatars: Avatars;
   labels: LabelLayer;
@@ -94,10 +97,12 @@ export class Multiplayer {
   /** Whether the chat has explained the version mismatch, so it says so only once. */
   private toldAboutMismatch = false;
   private statusTimer = 0;
+  private prefs: Readonly<Prefs>;
 
   constructor(deps: MultiplayerDeps) {
     this.deps = deps;
     this.room = deps.room;
+    this.prefs = deps.prefs;
     deps.hud.setRoom(deps.room);
     this.refreshPlayers();
     this.connection = new Connection(
@@ -110,6 +115,7 @@ export class Multiplayer {
         const s = deps.player.state;
         return { x: s.x, z: s.z, yaw: s.yaw };
       },
+      deps.prefs,
       {
         onStatus: (status) => this.onStatus(status),
         onWelcome: (welcome) => this.onWelcome(welcome),
@@ -147,6 +153,12 @@ export class Multiplayer {
   /** Everyone a knife could hit, as drawn on this screen: other players, and this one. */
   knifeTargets(): readonly KnifeTarget[] {
     return this.targets;
+  }
+
+  /** The visitor changed their mind about the room; the server hears at once, or on rejoining. */
+  setPrefs(prefs: Readonly<Prefs>): void {
+    this.prefs = prefs;
+    this.connection.setPrefs(prefs);
   }
 
   sendChat(text: string): void {
@@ -350,7 +362,10 @@ export class Multiplayer {
           vz: message.vz,
           t: 0,
         };
-        this.deps.knives.launch(message.id, message.from, message.seq, state, self, delay);
+        // The server lets Chef Skinner's knives through a visitor who has turned him off; so do we.
+        const resident = this.remotes.get(message.from)?.info.resident === true;
+        const through = resident && !this.prefs.chef ? this.selfId : null;
+        this.deps.knives.launch(message.id, message.from, message.seq, state, self, delay, through);
         if (!self)
           this.deps.avatars.playThrow(message.from, this.deps.worldTime() + delay - THROW_LEAD);
         return;
@@ -405,7 +420,7 @@ export class Multiplayer {
   }
 
   /** Name and color of anyone in the room, this player included. */
-  private lookup(id: number): { name: string; color: string } | null {
+  private lookup(id: number): KillParty | null {
     if (id === this.selfId) {
       return {
         name: this.selfInfo?.name ?? this.deps.name,
@@ -413,7 +428,9 @@ export class Multiplayer {
       };
     }
     const remote = this.remotes.get(id);
-    return remote ? { name: remote.info.name, color: remote.info.color } : null;
+    if (!remote) return null;
+    const { name, color, resident } = remote.info;
+    return resident ? { name, color, resident } : { name, color };
   }
 
   private addRemote(info: PlayerInfo): void {

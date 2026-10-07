@@ -81,4 +81,19 @@ describe('Knives', () => {
     expect(knives.flyingCount).toBe(1);
     expect(knives.mesh.count).toBe(0);
   });
+
+  it('flies a knife on through the player it passes, still drawn, still hitting anyone else', () => {
+    const knives = new Knives();
+    const at = (z: number) => ({ id: 2, x: 0, y: 0, z });
+    knives.launch(1, 7, 0, launchKnife(0, 1.62, 5.6, 0, -0.1), false, 0, 2);
+    for (let i = 0; i < 20; i++) knives.update(1 / 60, [at(3.2)]);
+    expect(knives.flyingCount).toBe(1);
+    expect(knives.mesh.count).toBe(1);
+    // Someone else in its path is another matter.
+    knives.launch(2, 7, 1, launchKnife(0, 1.62, 5.6, 0, -0.1), false, 0, 2);
+    for (let i = 0; i < 20; i++) knives.update(1 / 60, [{ ...at(3.2), id: 3 }]);
+    // Only the first is drawn, landed somewhere beyond; the second has gone into cook 3.
+    expect(knives.flyingCount).toBe(2);
+    expect(knives.mesh.count).toBe(1);
+  });
 });

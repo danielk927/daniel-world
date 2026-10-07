@@ -41,6 +41,8 @@ interface Flight {
   landed: KnifeImpact | null;
   /** Seconds spent landed, waiting for the verdict. */
   waited: number;
+  /** A player it flies straight through (one who has turned its thrower off), or null. */
+  readonly through: number | null;
   /** Where it is drawn, relative to where it flies, at release; fades to nothing over HAND_BLEND. */
   readonly ox: number;
   readonly oy: number;
@@ -74,6 +76,7 @@ export class Knives {
   private readonly p = new Vector3();
   private readonly scale = new Vector3(SCALE, SCALE, SCALE);
   private readonly xAxis = new Vector3(1, 0, 0);
+  private readonly someTargets: KnifeTarget[] = [];
 
   constructor() {
     this.mesh = new InstancedMesh(knifeGeometry(), knifeMaterial(), KNIFE_MAX_STUCK + MAX_FLYING);
@@ -113,6 +116,7 @@ export class Knives {
       outcome: null,
       landed: null,
       waited: 0,
+      through: null,
       ox,
       oy,
       oz,
@@ -122,7 +126,7 @@ export class Knives {
   /**
    * The server announced a throw. Our own is matched to the knife already flying; anyone else's
    * starts after `delay` seconds, so it leaves their hand as drawn (other players are shown slightly
-   * in the past).
+   * in the past). It flies through player `through`, if given, as the server lets it.
    */
   launch(
     id: number,
@@ -131,6 +135,7 @@ export class Knives {
     state: KnifeState,
     self: boolean,
     delay: number,
+    through: number | null = null,
   ): void {
     if (self) {
       const own = this.flights.find((f) => f.id === null && f.seq === seq);
@@ -149,6 +154,7 @@ export class Knives {
       outcome: null,
       landed: null,
       waited: 0,
+      through,
       ox: 0,
       oy: 0,
       oz: 0,
@@ -195,7 +201,7 @@ export class Knives {
         f.landed = flyKnife(
           f.state,
           Math.min(f.clock, KNIFE_MAX_FLIGHT_SECONDS) - f.state.t,
-          targets,
+          f.through === null ? targets : this.without(targets, f.through),
           f.from,
         );
       } else {
@@ -208,6 +214,14 @@ export class Knives {
       this.dirty = true;
     }
     if (this.dirty) this.draw();
+  }
+
+  /** `targets` but one, in a reused list. */
+  private without(targets: readonly KnifeTarget[], id: number): readonly KnifeTarget[] {
+    const out = this.someTargets;
+    out.length = 0;
+    for (const target of targets) if (target.id !== id) out.push(target);
+    return out;
   }
 
   /** Whether a flight is over, settling it if so. */

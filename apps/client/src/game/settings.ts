@@ -16,6 +16,8 @@ export interface SettingsValues {
   showFps: boolean;
   /** No head bob, shake or screen effects that move. */
   reduceMotion: boolean;
+  /** Chef Skinner, the lobby's resident cook, may throw knives at this player. */
+  chefThrows: boolean;
 }
 
 export const SENSITIVITY_RANGE = [0.2, 3] as const;
@@ -33,6 +35,7 @@ export function defaultSettings(prefersReducedMotion: boolean): SettingsValues {
     quality: 'auto',
     showFps: false,
     reduceMotion: prefersReducedMotion,
+    chefThrows: true,
   };
 }
 
@@ -67,6 +70,7 @@ export function parseSettings(
     values.quality = r.quality;
   if (typeof r.showFps === 'boolean') values.showFps = r.showFps;
   if (typeof r.reduceMotion === 'boolean') values.reduceMotion = r.reduceMotion;
+  if (typeof r.chefThrows === 'boolean') values.chefThrows = r.chefThrows;
   return values;
 }
 
