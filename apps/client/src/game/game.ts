@@ -16,6 +16,7 @@ import type { LoreEntry } from '../content.ts';
 import { SERVER_URL } from '../env.ts';
 import { JoinError, joinRoom, type JoinedRoom } from '../net/connection.ts';
 import { Chat } from '../ui/chat.ts';
+import { ComputerGuide } from '../ui/computerGuide.ts';
 import { el } from '../ui/dom.ts';
 import { Hud } from '../ui/hud.ts';
 import { Impact } from '../ui/impact.ts';
@@ -100,6 +101,7 @@ export class Game {
   private readonly ray = new Ray();
   /** The kitchen computer on the chef's desk, which runs DOOM. */
   readonly desk: ComputerDesk;
+  private readonly computerGuide: ComputerGuide;
   private computerHovered = false;
   private computerLabel: Label | null = null;
   /** 0 standing in the kitchen, 1 square in front of the computer's screen; eases between. */
@@ -192,6 +194,7 @@ export class Game {
     });
 
     this.desk = new ComputerDesk(world.computer, (message) => this.toasts.show(message));
+    this.computerGuide = new ComputerGuide(overlay);
     const pcLabel = el('div', { class: 'lore-label' }, [
       el('span', {}, [el('small', { class: 'lore-label-station', text: 'Kitchen PC' }), 'DOOM']),
     ]);
@@ -391,8 +394,9 @@ export class Game {
     // Set the mode first: closing the panel would otherwise try to resume play.
     this.mode = 'landing';
     this.desk.stepAway();
+    this.computerGuide.hide();
     this.computerBlend = 0;
-    this.hud.setComputer(false);
+    this.hud.setComputer('off');
     this.pause.hide();
     this.panel.close();
     this.chat.hide();
@@ -760,7 +764,8 @@ export class Game {
     this.mode = 'computer';
     this.input.enabled = false;
     this.input.releaseAll();
-    this.hud.setComputer(true);
+    this.hud.setComputer('guide');
+    this.computerGuide.show();
     this.labels.element.hidden = true;
     this.viewmodel.setShown(false);
     void this.desk.use();
@@ -769,11 +774,19 @@ export class Game {
   private leaveComputer(): void {
     if (this.mode !== 'computer') return;
     this.desk.stepAway();
+    this.computerGuide.hide();
     this.mode = 'playing';
     this.input.enabled = true;
-    this.hud.setComputer(false);
+    this.hud.setComputer('off');
     this.labels.element.hidden = false;
     this.viewmodel.setShown(!this.knockedOut);
+  }
+
+  /** The first key or click at the computer puts the controls away; it still reaches DOOM. */
+  private putGuideAway(): void {
+    if (!this.computerGuide.shown) return;
+    this.computerGuide.hide();
+    this.hud.setComputer('playing');
   }
 
   /**
@@ -789,6 +802,7 @@ export class Game {
       if (down) this.leaveComputer();
       return;
     }
+    if (down) this.putGuideAway();
     this.desk.key(event.code === 'Backquote' ? 'Escape' : event.code, down);
   };
 

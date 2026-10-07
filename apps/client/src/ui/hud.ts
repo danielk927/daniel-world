@@ -48,20 +48,22 @@ export class Hud {
   ]);
   /** How to play DOOM, and how to stop, while at the kitchen computer. */
   private readonly computerHint = el('div', { class: 'hint computer-hint' }, [
-    el('kbd', { text: 'Esc' }),
-    ' step away ',
-    el('kbd', { text: '`' }),
-    ' menu ',
-    el('kbd', { text: 'WASD' }),
-    ' move ',
-    el('kbd', { text: 'Space' }),
+    el('kbd', { text: 'Mouse' }),
+    ' turn ',
+    el('kbd', { text: 'Click' }),
     ' fire ',
     el('kbd', { text: 'E' }),
     ' open ',
-    el('kbd', { text: '1-7' }),
-    ' weapons ',
+    el('kbd', { text: 'WASD' }),
+    ' move ',
+    el('kbd', { text: 'Shift' }),
+    ' run ',
     el('kbd', { text: 'Tab' }),
-    ' map',
+    ' map ',
+    el('kbd', { text: '`' }),
+    ' menu ',
+    el('kbd', { text: 'Esc' }),
+    ' step away',
   ]);
   /** The bottom right corner, where the loadout stacks over the minimap. */
   readonly corner = el('div', { class: 'hud-corner' });
@@ -120,9 +122,13 @@ export class Hud {
     this.element.classList.toggle('is-covered', covered);
   }
 
-  /** At the kitchen computer: only the room, the players and how to play DOOM show. */
-  setComputer(on: boolean): void {
-    this.element.classList.toggle('is-computer', on);
+  /**
+   * At the kitchen computer only the room, the players and how to play DOOM show: the full guide
+   * over the screen at first, then a one-line reminder along the bottom.
+   */
+  setComputer(state: 'off' | 'guide' | 'playing'): void {
+    this.element.classList.toggle('is-computer', state !== 'off');
+    this.element.classList.toggle('is-computer-guide', state === 'guide');
   }
 
   setRoom(code: string): void {
