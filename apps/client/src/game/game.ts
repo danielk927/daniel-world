@@ -41,7 +41,7 @@ import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
 import { addressForRoom, inviteLink, joinFailureMessage, roomName } from './party.ts';
-import type { Settings } from './settings.ts';
+import { prefsOf, type Settings } from './settings.ts';
 import type { Quality } from '../util/capabilities.ts';
 
 export type Mode = 'landing' | 'entering' | 'playing' | 'chat' | 'paused' | 'panel' | 'computer';
@@ -184,7 +184,9 @@ export class Game {
       this.showFps = values.showFps;
       this.hud.setFps(values.showFps ? 0 : null);
       document.documentElement.classList.toggle('reduce-motion', values.reduceMotion);
-      this.multiplayer?.setPrefs({ chef: values.chefThrows });
+      this.multiplayer?.setPrefs(prefsOf(values));
+      // Drawn fresh the next time the arm comes into view, as the menu closes.
+      this.viewmodel.setLook(values.knife);
     });
 
     this.world.stations.entries.forEach((entry, i) => {
@@ -285,7 +287,7 @@ export class Game {
         url: SERVER_URL,
         name: this.name,
         room,
-        prefs: { chef: this.settings.values.chefThrows },
+        prefs: prefsOf(this.settings.values),
         player: this.player,
         avatars: this.world.avatars,
         labels: this.labels,
@@ -338,7 +340,7 @@ export class Game {
           name: this.name,
           room,
           intent,
-          prefs: { chef: this.settings.values.chefThrows },
+          prefs: prefsOf(this.settings.values),
         },
         joining.signal,
       );
@@ -532,7 +534,14 @@ export class Game {
     const knife = launchKnife(s.x, s.y + EYE_HEIGHT, s.z, input.yaw, input.pitch);
     // Drawn leaving the hand on screen, flying from the eye where it can hit.
     const hand = this.viewmodel.knifeCenter(this.hand);
-    this.world.knives.throwOwn(input.seq, this.multiplayer?.selfId ?? -1, knife, online, hand);
+    this.world.knives.throwOwn(
+      input.seq,
+      this.multiplayer?.selfId ?? -1,
+      knife,
+      online,
+      hand,
+      this.viewmodel.look,
+    );
   }
 
   private onKill(

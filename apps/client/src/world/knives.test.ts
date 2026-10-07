@@ -27,7 +27,7 @@ describe('Knives', () => {
     run(knives, 0.5);
     expect(knives.flyingCount).toBe(0);
     expect(knives.stuckCount).toBe(1);
-    expect(knives.mesh.count).toBe(1);
+    expect(knives.drawnCount).toBe(1);
   });
 
   it('waits for the server, then sticks the knife where the server says', () => {
@@ -48,9 +48,9 @@ describe('Knives', () => {
     const knives = new Knives();
     knives.launch(1, 2, 0, intoFloor(), false, 0.1);
     knives.update(1 / 20, []);
-    expect(knives.mesh.count).toBe(0);
+    expect(knives.drawnCount).toBe(0);
     knives.update(1 / 10, []);
-    expect(knives.mesh.count).toBe(1);
+    expect(knives.drawnCount).toBe(1);
   });
 
   it('takes a knife away when the server says it hit someone, as it gets there', () => {
@@ -71,7 +71,7 @@ describe('Knives', () => {
     knives.resolve(500, { kind: 'stuck', knife: stuckAt(500), at: 0 });
     knives.update(0, []);
     expect(knives.stuckCount).toBe(KNIFE_MAX_STUCK);
-    expect(knives.mesh.count).toBe(KNIFE_MAX_STUCK);
+    expect(knives.drawnCount).toBe(KNIFE_MAX_STUCK);
   });
 
   it('lets a knife flying at a player vanish into them on screen while the server decides', () => {
@@ -79,7 +79,7 @@ describe('Knives', () => {
     knives.throwOwn(0, 1, launchKnife(0, 1.62, 5.6, 0, -0.1), true);
     for (let i = 0; i < 20; i++) knives.update(1 / 60, [{ id: 2, x: 0, y: 0, z: 3.2 }]);
     expect(knives.flyingCount).toBe(1);
-    expect(knives.mesh.count).toBe(0);
+    expect(knives.drawnCount).toBe(0);
   });
 
   it('flies a knife on through anyone it spares, still drawn, still hitting anyone else', () => {
@@ -90,13 +90,13 @@ describe('Knives', () => {
     knives.launch(1, 7, 0, launchKnife(0, 1.62, 5.6, 0, -0.1), false, 0);
     for (let i = 0; i < 20; i++) knives.update(1 / 60, at(2), spares);
     expect(knives.flyingCount).toBe(1);
-    expect(knives.mesh.count).toBe(1);
+    expect(knives.drawnCount).toBe(1);
     // Someone else in its path is another matter.
     knives.launch(2, 7, 1, launchKnife(0, 1.62, 5.6, 0, -0.1), false, 0);
     for (let i = 0; i < 20; i++) knives.update(1 / 60, at(3), spares);
     // Only the first is drawn, landed somewhere beyond; the second has gone into cook 3.
     expect(knives.flyingCount).toBe(2);
-    expect(knives.mesh.count).toBe(1);
+    expect(knives.drawnCount).toBe(1);
   });
 
   it('asks afresh every frame, so a change of mind mid-flight shows at once', () => {
@@ -107,6 +107,6 @@ describe('Knives', () => {
     spared = true;
     for (let i = 0; i < 20; i++)
       knives.update(1 / 60, [{ id: 2, x: 0, y: 0, z: 3.2 }], () => spared);
-    expect(knives.mesh.count).toBe(1);
+    expect(knives.drawnCount).toBe(1);
   });
 });

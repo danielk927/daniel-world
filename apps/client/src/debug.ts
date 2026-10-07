@@ -23,8 +23,13 @@ export interface WorldDebugState {
   readonly computer: { state: string; frames: number };
   /** Knocked out by a knife, waiting to respawn. */
   readonly knockedOut: boolean;
-  /** Knives stuck around the room, and in the air, as this screen shows them. */
-  readonly knives: { stuck: number; flying: number };
+  /** The knife this player carries, as the hand on screen holds it. */
+  readonly knife: { skin: string; finish: string };
+  /**
+   * Knives stuck around the room, and in the air, as this screen shows them; `looks` counts those
+   * drawn of each look, keyed `skin/finish`.
+   */
+  readonly knives: { stuck: number; flying: number; looks: Record<string, number> };
   /**
    * The walk-in cooler's door: hits the room has decided, whether that has burst it open, and how
    * far it has swung open on this screen, in radians (a right angle is fully open).
@@ -99,8 +104,16 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     get knockedOut() {
       return game.knockedOut;
     },
+    get knife() {
+      const { skin, finish } = world.viewmodel.look;
+      return { skin, finish };
+    },
     get knives() {
-      return { stuck: world.knives.stuckCount, flying: world.knives.flyingCount };
+      return {
+        stuck: world.knives.stuckCount,
+        flying: world.knives.flyingCount,
+        looks: world.knives.drawnLooks(),
+      };
     },
     get cooler() {
       return { hits: game.cooler.hits, open: game.cooler.open, angle: world.cooler.angle };

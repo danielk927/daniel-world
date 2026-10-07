@@ -3,6 +3,8 @@ import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
   chefSpares,
+  knifeLook,
+  lookKey,
   type CoolerDent,
   type CoolerHitMessage,
   type Cook,
@@ -103,6 +105,8 @@ export interface RemoteDebugInfo {
   z: number;
   /** Punches seen from this player. */
   punches: number;
+  /** The knife they carry, as `skin/finish`. */
+  knife: string;
 }
 
 /**
@@ -260,6 +264,7 @@ export class Multiplayer {
       y: r.server.y,
       z: r.server.z,
       punches: r.punches,
+      knife: lookKey(knifeLook(r.prefs.skin, r.prefs.finish)),
     }));
   }
 
@@ -442,7 +447,9 @@ export class Multiplayer {
           vz: message.vz,
           t: 0,
         };
-        this.deps.knives.launch(message.id, message.from, message.seq, state, self, delay);
+        // The knife the thrower carried, as the server says, even if they have changed it since.
+        const look = knifeLook(message.skin, message.finish);
+        this.deps.knives.launch(message.id, message.from, message.seq, state, self, delay, look);
         if (!self)
           this.deps.avatars.playThrow(message.from, this.deps.worldTime() + delay - THROW_LEAD);
         return;
@@ -450,7 +457,9 @@ export class Multiplayer {
       case 'prefs': {
         // Our own are whatever we last chose, which may be newer than this echo.
         const remote = this.remotes.get(message.id);
-        if (remote) remote.prefs = message.prefs;
+        if (!remote) return;
+        remote.prefs = message.prefs;
+        this.deps.avatars.setLook(message.id, knifeLook(message.prefs.skin, message.prefs.finish));
         return;
       }
       case 'punch': {
@@ -568,6 +577,7 @@ export class Multiplayer {
       punches: 0,
     };
     this.remotes.set(info.id, remote);
+    this.deps.avatars.setLook(info.id, knifeLook(info.prefs.skin, info.prefs.finish));
   }
 
   private removeRemote(id: number): void {

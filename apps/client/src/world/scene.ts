@@ -127,7 +127,7 @@ export class WorldScene {
       createSteam(kit.steam),
       this.stations.group,
       this.avatars.group,
-      this.knives.mesh,
+      this.knives.group,
       this.computer.mesh,
       this.cooler.group,
     );
