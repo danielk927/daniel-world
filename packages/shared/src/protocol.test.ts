@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_KEYS, Keys, MAX_PLAYERS_PER_ROOM, PLAYER_COLORS } from './constants.ts';
+import { COOLER_HITS_TO_OPEN } from './cooler.ts';
 import {
   chefSpares,
   encode,
@@ -147,6 +148,67 @@ describe('parseServerMessage', () => {
     const changed = { t: 'prefs', id: 4, prefs: { chef: false } } as const;
     expect(parseServerMessage(encode(changed))).toEqual(changed);
     expect(parseServerMessage('{"t":"prefs","id":4,"prefs":{"chef":"no"}}')).toBeNull();
+  });
+
+  it("round trips hits on the walk-in's door, and the welcome's door", () => {
+    const punch = { t: 'cooler', from: 2, dent: { z: -3, y: 1.62, by: 'fist' } } as const;
+    const knife = {
+      t: 'cooler',
+      from: 3,
+      dent: { z: -2.5, y: 1.1, by: 'knife' },
+      knife: { id: 7, at: 0.21 },
+    } as const;
+    const burst = { ...punch, openFrom: 412 };
+    for (const message of [punch, knife, burst]) {
+      expect(parseServerMessage(encode(message))).toEqual(message);
+    }
+    const dents = Array.from({ length: COOLER_HITS_TO_OPEN }, () => punch.dent);
+    const welcome = {
+      t: 'welcome',
+      v: 7,
+      id: 1,
+      room: 'lobby',
+      tick: 3,
+      players: [],
+      self: {
+        id: 1,
+        x: 0,
+        y: 0,
+        z: 5.6,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        yaw: 0,
+        pitch: 0,
+        grounded: true,
+        dead: false,
+        armed: true,
+        ack: -1,
+      },
+      knives: [],
+      cooler: { dents },
+    } as const;
+    expect(parseServerMessage(encode(welcome))).toEqual(welcome);
+    // An older server says nothing about the door.
+    const untouched: Partial<typeof welcome> = { ...welcome };
+    delete untouched.cooler;
+    expect(parseServerMessage(encode(untouched as typeof welcome))).toEqual(untouched);
+    // A door takes no more hits than it takes to open it.
+    expect(
+      parseServerMessage(encode({ ...welcome, cooler: { dents: [...dents, punch.dent] } })),
+    ).toBeNull();
+  });
+
+  it.each([
+    ['a hit beside the door', { from: 1, dent: { z: 0, y: 1, by: 'fist' } }],
+    ['a hit above the door', { from: 1, dent: { z: -3, y: 2.6, by: 'fist' } }],
+    ['a hit by a kick', { from: 1, dent: { z: -3, y: 1, by: 'foot' } }],
+    ['a hit without a place', { from: 1, dent: { by: 'fist' } }],
+    ['a hit nobody made', { dent: { z: -3, y: 1, by: 'fist' } }],
+    ['a negative input to open from', { from: 1, dent: { z: -3, y: 1, by: 'fist' }, openFrom: -1 }],
+    ['a knife hit with no flight time', { from: 1, dent: { z: -3, y: 1, by: 'knife' }, knife: 2 }],
+  ])("rejects %s on the walk-in's door", (_label, body) => {
+    expect(parseServerMessage(JSON.stringify({ t: 'cooler', ...body }))).toBeNull();
   });
 
   it('rejects malformed colors', () => {

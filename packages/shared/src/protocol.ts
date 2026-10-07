@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { ALL_KEYS, KNIFE_MAX_STUCK, MAX_PITCH } from './constants.ts';
+import { COOLER_HITS_TO_OPEN } from './cooler.ts';
+import { COOLER_DOOR } from './world.ts';
 
 /**
  * Wire protocol. Every message is one JSON object with a `t` discriminator.
@@ -151,6 +153,18 @@ export const stuckKnifeSchema = z.object({
   dz: unit,
 });
 
+/** Where a hit landed on the walk-in's door, and what by: every screen dents it there. */
+export const coolerDentSchema = z.object({
+  z: finite.min(COOLER_DOOR.from).max(COOLER_DOOR.to),
+  y: finite.min(COOLER_DOOR.bottom).max(COOLER_DOOR.top),
+  by: z.enum(['fist', 'knife']),
+});
+
+/** The walk-in's door so far: every hit it has taken, oldest first. It is open after the tenth. */
+export const coolerStateSchema = z.object({
+  dents: z.array(coolerDentSchema).max(COOLER_HITS_TO_OPEN),
+});
+
 export const welcomeSchema = z.object({
   t: z.literal('welcome'),
   v: z.number().int(),
@@ -161,6 +175,8 @@ export const welcomeSchema = z.object({
   self: playerSnapshotSchema,
   /** Knives already stuck around the room, oldest first. */
   knives: z.array(stuckKnifeSchema).max(KNIFE_MAX_STUCK),
+  /** The walk-in's door. Absent means nobody has touched it. Open already means open at once. */
+  cooler: coolerStateSchema.optional(),
 });
 
 export const joinSchema = z.object({ t: z.literal('join'), player: playerInfoSchema });
@@ -188,7 +204,7 @@ export const prefsChangedSchema = z.object({
   prefs: prefsSchema,
 });
 
-/** Someone punched with the bare hand. Only for looks: a punch hits nothing. */
+/** Someone punched with the bare hand. A punch hits nobody, though it can dent the walk-in's door. */
 export const punchSchema = z.object({ t: z.literal('punch'), id: playerId });
 
 /**
@@ -224,6 +240,20 @@ export const killSchema = z.object({
   at: finite.nonnegative(),
 });
 
+/**
+ * Someone's punch or knife hit the walk-in's door. A knife's dent shows when that knife, `at`
+ * seconds into its flight, arrives on screen. The hit that bursts the door open also names
+ * `openFrom`, the first of the recipient's own inputs whose step sees the doorway open: a little
+ * ahead of what they have sent, so their prediction and the server agree on it.
+ */
+export const coolerHitSchema = z.object({
+  t: z.literal('cooler'),
+  from: playerId,
+  dent: coolerDentSchema,
+  knife: z.object({ id: knifeId, at: finite.nonnegative() }).optional(),
+  openFrom: z.number().int().nonnegative().optional(),
+});
+
 /** A knocked out player is back on their feet somewhere new. */
 export const respawnSchema = z.object({ t: z.literal('respawn'), player: playerSnapshotSchema });
 
@@ -257,6 +287,7 @@ export const serverMessageSchema = z.discriminatedUnion('t', [
   knifeStuckSchema,
   killSchema,
   respawnSchema,
+  coolerHitSchema,
 ]);
 
 export type PlayerInfo = z.infer<typeof playerInfoSchema>;
@@ -266,6 +297,8 @@ export type SnapshotMessage = z.infer<typeof snapshotSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 export type StuckKnife = z.infer<typeof stuckKnifeSchema>;
 export type KnifeThrownMessage = z.infer<typeof knifeThrownSchema>;
+export type CoolerState = z.infer<typeof coolerStateSchema>;
+export type CoolerHitMessage = z.infer<typeof coolerHitSchema>;
 
 function parseWith<T>(schema: z.ZodType<T>, raw: unknown): T | null {
   if (typeof raw !== 'string') return null;
