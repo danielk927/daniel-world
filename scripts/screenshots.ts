@@ -44,11 +44,12 @@ function run(command: string, args: string[]): ChildProcess {
 
 async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.goto(`${clientUrl}/?quality=high&time=20:00`);
-  await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 30_000 });
+  // Other pages may still be rendering on the same GPU, so loading can take a while.
+  await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 60_000 });
   await page.getByLabel('Your name').fill(name);
   await page.getByLabel('Private party').fill(room);
   await page.getByRole('button', { name: 'Enter world' }).click();
-  await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 30_000 });
+  await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 60_000 });
 }
 
 /** Drag the view to a yaw and pitch, the way a visitor without pointer lock looks around. */
@@ -140,6 +141,8 @@ async function main(): Promise<void> {
     await reader.getByRole('dialog', { name: 'Interests' }).waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
+    // Done with it: a page left open keeps rendering and slows the next ones down.
+    await reader.close();
 
     // Knives in a private room: two stuck in the wall past a cook, then one that knocks them out.
     const thrower = await context.newPage();
@@ -169,6 +172,8 @@ async function main(): Promise<void> {
     await thrower.keyboard.press('KeyI');
     await thrower.waitForTimeout(700);
     await thrower.screenshot({ path: `${outDir}/inspect.png` });
+    await thrower.close();
+    await target.close();
 
     // The kitchen computer in the south-west corner, booted into DOOM's first level.
     const gamer = await context.newPage();
@@ -188,6 +193,7 @@ async function main(): Promise<void> {
     }
     await gamer.waitForTimeout(1500);
     await gamer.screenshot({ path: `${outDir}/computer-doom.png` });
+    await gamer.close();
 
     await page.goto(`${clientUrl}/portfolio.html`);
     await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });
