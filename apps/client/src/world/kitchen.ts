@@ -2,30 +2,40 @@ import {
   CircleGeometry,
   Color,
   ExtrudeGeometry,
-  LatheGeometry,
   PlaneGeometry,
   Shape,
   TorusGeometry,
-  Vector2,
   Vector3,
 } from 'three';
 import {
   COUNTER_HEIGHT,
   DOORS,
+  ISLAND_SHELVES,
   KITCHEN,
+  PENDANT_LAMPS,
+  PENDANT_SHADE,
   ROOM_HALF_X,
   ROOM_HALF_Z,
   ROOM_HEIGHT,
+  SHELVING_SHELVES,
+  SKYLIGHTS,
+  SKYLIGHT_WELLS,
+  STACKED,
+  VAULT_EDGES,
+  VAULT_FACETS,
   VAULT_RISE,
   vaultHeight,
   WINDOWS,
+  WINDOW_GLASS_DEPTH,
   createRandom,
+  islandStacks,
+  shelvingBins,
   type Fixture,
   type Wall,
 } from '@world/shared';
 import { at } from './builder.ts';
 import { buildCooler } from './coolerRoom.ts';
-import { paint, type Kit, type LayerName } from './kit.ts';
+import { paint, shadeGeometry, type Kit, type LayerName } from './kit.ts';
 
 /**
  * The room after the kitchen at the French Laundry: white walls under a white barrel vault with
@@ -38,11 +48,6 @@ const HZ = ROOM_HALF_Z;
 const TOP = COUNTER_HEIGHT;
 /** Counters are a body under a 6 cm work surface. */
 const SLAB = 0.06;
-const VAULT_SEGMENTS = 12;
-/** The vault segments with a skylight, over the aisles either side of the hood. */
-const SKYLIGHT_SEGMENTS = [2, VAULT_SEGMENTS - 3];
-const SKYLIGHT_HALF = 6;
-const SKYLIGHT_PANES = 6;
 const VAULT_RADIUS = (HZ * HZ + VAULT_RISE * VAULT_RISE) / (2 * VAULT_RISE);
 
 interface Opening {
@@ -181,26 +186,14 @@ function createFloor(kit: Kit): void {
   }
 }
 
-/** Where the vault's facets meet, north to south. */
-const VAULT_POINTS: readonly { z: number; y: number }[] = Array.from(
-  { length: VAULT_SEGMENTS + 1 },
-  (_, i) => {
-    const maxAngle = Math.asin(HZ / VAULT_RADIUS);
-    const angle = -maxAngle + (i / VAULT_SEGMENTS) * maxAngle * 2;
-    const z = i === 0 ? -HZ : i === VAULT_SEGMENTS ? HZ : VAULT_RADIUS * Math.sin(angle);
-    return { z, y: vaultHeight(z) };
-  },
-);
-
 /** The skylights' openings in the vault, each as its four corners. */
-export const SKYLIGHT_OPENINGS: readonly (readonly Vector3[])[] = SKYLIGHT_SEGMENTS.map((i) => {
-  const a = VAULT_POINTS[i]!;
-  const b = VAULT_POINTS[i + 1]!;
+export const SKYLIGHT_OPENINGS: readonly (readonly Vector3[])[] = SKYLIGHT_WELLS.map(({ a, b }) => {
+  const h = SKYLIGHTS.halfLength;
   return [
-    new Vector3(-SKYLIGHT_HALF, a.y, a.z),
-    new Vector3(SKYLIGHT_HALF, a.y, a.z),
-    new Vector3(SKYLIGHT_HALF, b.y, b.z),
-    new Vector3(-SKYLIGHT_HALF, b.y, b.z),
+    new Vector3(-h, a.y, a.z),
+    new Vector3(h, a.y, a.z),
+    new Vector3(h, b.y, b.z),
+    new Vector3(-h, b.y, b.z),
   ];
 });
 
@@ -221,16 +214,15 @@ function createShell(kit: Kit): void {
   }
 
   // The vault: a faceted arc spanning north to south, running the length of the room.
-  const points = VAULT_POINTS;
-  for (let i = 0; i < VAULT_SEGMENTS; i++) {
-    const a = points[i]!;
-    const b = points[i + 1]!;
+  for (let i = 0; i < VAULT_FACETS; i++) {
+    const a = VAULT_EDGES[i]!;
+    const b = VAULT_EDGES[i + 1]!;
     const down = new Vector3(0, -1, -(a.z + b.z) / 2 / VAULT_RADIUS);
     // Skylight segments leave the middle open.
-    const spans: [number, number][] = SKYLIGHT_SEGMENTS.includes(i)
+    const spans: [number, number][] = (SKYLIGHTS.facets as readonly number[]).includes(i)
       ? [
-          [-HX, -SKYLIGHT_HALF],
-          [SKYLIGHT_HALF, HX],
+          [-HX, -SKYLIGHTS.halfLength],
+          [SKYLIGHTS.halfLength, HX],
         ]
       : [[-HX, HX]];
     for (const [x0, x1] of spans) {
@@ -263,16 +255,14 @@ function createShell(kit: Kit): void {
   }
   // Skylights: two long strips open to the evening sky over the aisles, either side of the hood,
   // each a shallow well through the vault with night glass and glazing bars at the top.
-  for (const i of SKYLIGHT_SEGMENTS) {
-    const a = points[i]!;
-    const b = points[i + 1]!;
-    const h = SKYLIGHT_HALF;
-    const out = new Vector3(0, 1, (a.z + b.z) / 2 / VAULT_RADIUS).normalize();
+  for (const { a, b, out: o } of SKYLIGHT_WELLS) {
+    const h = SKYLIGHTS.halfLength;
+    const out = new Vector3(0, o.y, o.z);
     const lift = (p: Vector3, depth: number) => p.clone().addScaledVector(out, depth);
     const [a0, a1] = [new Vector3(-h, a.y, a.z), new Vector3(h, a.y, a.z)];
     const [b0, b1] = [new Vector3(-h, b.y, b.z), new Vector3(h, b.y, b.z)];
     const across = new Vector3(0, b.y - a.y, b.z - a.z).normalize();
-    const well = 0.22;
+    const well = SKYLIGHTS.depth;
     kit.quad('shell', [a0, a1, lift(a1, well), lift(a0, well)], across, paint.vault);
     kit.quad(
       'shell',
@@ -282,19 +272,20 @@ function createShell(kit: Kit): void {
     );
     kit.quad('shell', [a0, b0, lift(b0, well), lift(a0, well)], new Vector3(1, 0, 0), paint.vault);
     kit.quad('shell', [a1, b1, lift(b1, well), lift(a1, well)], new Vector3(-1, 0, 0), paint.vault);
-    const glass = well - 0.04;
+    const glass = SKYLIGHTS.glass;
     kit.quad(
       'window',
       [lift(a0, glass), lift(a1, glass), lift(b1, glass), lift(b0, glass)],
       out.clone().negate(),
     );
-    const mid = lift(a0.clone().add(b1).multiplyScalar(0.5), glass - 0.03);
+    const mid = lift(a0.clone().add(b1).multiplyScalar(0.5), SKYLIGHTS.barDepth);
     const length = a0.distanceTo(b0);
     const rx = Math.atan2(-(b.y - a.y), b.z - a.z);
-    for (let k = 1; k < SKYLIGHT_PANES; k++) {
-      const x = -h + (2 * h * k) / SKYLIGHT_PANES;
+    const bar = SKYLIGHTS.bar;
+    for (let k = 1; k < SKYLIGHTS.panes; k++) {
+      const x = -h + (2 * h * k) / SKYLIGHTS.panes;
       // On the shell, which casts no shadow: the overhead light sits above the ceiling.
-      kit.boxAt('shell', x, mid.y, mid.z, 0.05, 0.05, length, { rx, color: paint.windowFrame });
+      kit.boxAt('shell', x, mid.y, mid.z, bar, bar, length, { rx, color: paint.windowFrame });
     }
   }
   // Light lines where the vault springs from the long walls.
@@ -336,7 +327,7 @@ function createWindows(kit: Kit): void {
   kit.add(
     'window',
     new PlaneGeometry(to - from, top - bottom),
-    at((from + to) / 2, (top + bottom) / 2, -HZ - 0.1),
+    at((from + to) / 2, (top + bottom) / 2, -HZ - WINDOW_GLASS_DEPTH),
   );
   // Every Second Counts: The Bear's nameplate, on the wall over the windows. From the pass, the
   // line of sight runs under the hood straight to it.
@@ -606,8 +597,6 @@ function createClockHousing(kit: Kit): void {
 
 /** A charcoal-topped prep island on a steel frame, plates stacked on its open shelves. */
 function island(kit: Kit, f: Fixture): void {
-  const random = createRandom(Math.round((f.minX + 10) * 100));
-  const cz = (f.minZ + f.maxZ) / 2;
   kit.box(
     'matte',
     f.minX - 0.04,
@@ -627,7 +616,7 @@ function island(kit: Kit, f: Fixture): void {
     f.minZ + 0.03,
     f.maxZ - 0.03,
   );
-  for (const y of [0.16, 0.5]) {
+  for (const y of ISLAND_SHELVES) {
     kit.box('steel', f.minX + 0.05, f.maxX - 0.05, y, y + 0.025, f.minZ + 0.05, f.maxZ - 0.05);
   }
   for (const x of [f.minX + 0.06, f.maxX - 0.06]) {
@@ -637,63 +626,44 @@ function island(kit: Kit, f: Fixture): void {
     }
   }
   // A few stacks of white plates and bowls on each shelf.
-  for (const y of [0.185, 0.525]) {
-    for (let x = f.minX + 0.45; x < f.maxX - 0.3; x += 0.75) {
-      const stack = 4 + Math.floor(random() * 6);
-      const bowls = random() < 0.4;
-      for (let i = 0; i < stack; i++) {
-        kit.cylinder(
-          'gloss',
-          x,
-          y + i * (bowls ? 0.03 : 0.018),
-          cz,
-          bowls ? 0.11 : 0.14,
-          bowls ? 0.05 : 0.014,
-          {
-            taper: bowls ? 1.4 : 1,
-            color: paint.porcelain,
-          },
-        );
-      }
+  for (const { x, y, z, count, bowls } of islandStacks(f)) {
+    const { radius, height, step, taper } = bowls ? STACKED.bowl : STACKED.plate;
+    for (let i = 0; i < count; i++) {
+      kit.cylinder('gloss', x, y + i * step, z, radius, height, { taper, color: paint.porcelain });
     }
   }
 }
 
-/** The bottom of the brass pendant shades over the islands, above any head, even mid-jump. */
-const PENDANT_Y = 2.95;
-
 /** Where the pendant lamps over the two islands hang: a pair along each, by their bulbs. */
-export const PENDANTS: readonly Vector3[] = [KITCHEN.pastryIsland, KITCHEN.gardeManger].flatMap(
-  (f) => {
-    const cx = (f.minX + f.maxX) / 2;
-    const cz = (f.minZ + f.maxZ) / 2;
-    return [-1, 1].map((side) => new Vector3(cx + side * 1.05, PENDANT_Y + 0.06, cz));
-  },
+export const PENDANTS: readonly Vector3[] = PENDANT_LAMPS.map(
+  (p) => new Vector3(p.x, p.y + 0.06, p.z),
 );
 
-/** A wide brass dome, open below, with a thin wall so it reads from above and below. */
-const PENDANT_SHADE = new LatheGeometry(
-  [
-    [0.001, 0.2],
-    [0.05, 0.2],
-    [0.17, 0.14],
-    [0.25, 0.0],
-    [0.24, 0.0],
-    [0.16, 0.13],
-    [0.045, 0.19],
-    [0.001, 0.19],
-  ].map(([x, y]) => new Vector2(x, y)),
-  12,
-);
+/** A wide brass dome, open below. */
+const PENDANT_DOME = shadeGeometry(PENDANT_SHADE, 12);
+const PENDANT_DOME_TOP = PENDANT_SHADE.outside[PENDANT_SHADE.outside.length - 1]![1];
 
 /** Brass pendants on long rods from the vault, each with a glowing bulb inside the shade. */
 function createPendants(kit: Kit): void {
-  for (const p of PENDANTS) {
-    kit.add('brass', PENDANT_SHADE, at(p.x, PENDANT_Y, p.z));
-    kit.sphere('light', p.x, p.y, p.z, 0.055, { sy: 0.8, color: paint.lamp });
-    const top = vaultHeight(p.z);
-    kit.cylinder('iron', p.x, PENDANT_Y + 0.2, p.z, 0.008, top - PENDANT_Y - 0.2, { segments: 4 });
+  for (const p of PENDANT_LAMPS) {
+    kit.add('brass', PENDANT_DOME, at(p.x, p.y, p.z));
+    kit.sphere('light', p.x, p.y + 0.06, p.z, 0.055, { sy: 0.8, color: paint.lamp });
+    const rod = p.y + PENDANT_DOME_TOP;
+    kit.cylinder('iron', p.x, rod, p.z, 0.008, ceilingOver(p.x, p.z) - rod, { segments: 4 });
   }
+}
+
+/** The height of the ceiling over a point: the vault, or the glass of a skylight's well. */
+function ceilingOver(x: number, z: number): number {
+  for (const { a, b, out } of SKYLIGHT_WELLS) {
+    const glass = { z: a.z + SKYLIGHTS.glass * out.z, y: a.y + SKYLIGHTS.glass * out.y };
+    const end = { z: b.z + SKYLIGHTS.glass * out.z, y: b.y + SKYLIGHTS.glass * out.y };
+    const t = (z - glass.z) / (end.z - glass.z);
+    if (Math.abs(x) <= SKYLIGHTS.halfLength && t >= 0 && t <= 1) {
+      return glass.y + t * (end.y - glass.y);
+    }
+  }
+  return vaultHeight(z);
 }
 
 function createCounters(kit: Kit): void {
@@ -776,15 +746,15 @@ function createCounters(kit: Kit): void {
       kit.box('steel', x - 0.015, x + 0.015, 0, s.top, z - 0.015, z + 0.015);
     }
   }
-  const random = createRandom(55);
   const fillings = ['#efe6cf', '#d9b36c', '#b8c98f'];
-  for (const y of [0.3, 0.85, 1.4, 1.95]) {
+  const bins = shelvingBins();
+  for (const y of SHELVING_SHELVES) {
     kit.box('steel', s.minX, s.maxX, y - 0.02, y, s.minZ, s.maxZ);
-    if (y > 1.9) continue;
-    for (let z = s.minZ + 0.3; z < s.maxZ - 0.2; z += 0.5) {
-      if (random() < 0.5) {
+    for (const { kind, y: on, z, pick } of bins) {
+      if (on !== y) continue;
+      if (kind === 'tub') {
         kit.box('glass', s.minX + 0.06, s.maxX - 0.06, y, y + 0.28, z - 0.18, z + 0.18);
-        const filling = fillings[Math.floor(random() * fillings.length)]!;
+        const filling = fillings[Math.floor(pick * fillings.length)]!;
         kit.box('matte', s.minX + 0.08, s.maxX - 0.08, y, y + 0.12, z - 0.16, z + 0.16, filling);
       } else {
         for (let k = 0; k < 2; k++) {

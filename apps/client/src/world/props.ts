@@ -1,7 +1,9 @@
-import { Color, LatheGeometry, TorusGeometry, Vector2, Vector3 } from 'three';
+import { Color, TorusGeometry, Vector3 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   COUNTER_HEIGHT,
+  HEAT_LAMP_HOUSING_Y,
+  HEAT_LAMP_SHADE,
   KITCHEN,
   PASS_DISHES,
   STATIONS,
@@ -10,7 +12,7 @@ import {
   type StationId,
 } from '@world/shared';
 import { at } from './builder.ts';
-import { paint, type Kit } from './kit.ts';
+import { paint, shadeGeometry, type Kit } from './kit.ts';
 
 /**
  * The centerpiece of each station: what a cook at that station would have in front of them.
@@ -23,17 +25,7 @@ const ZONE = TOP + 0.01;
 /** Heat lamp bulbs glow brighter than any paint, so their color goes past 1. */
 const BULB = new Color(paint.bulb).multiplyScalar(1.4);
 /** A heat lamp shade with a thin wall, so it reads from above and below. */
-const LAMP_SHADE = new LatheGeometry(
-  [
-    [0.001, 0.15],
-    [0.05, 0.15],
-    [0.14, 0.0],
-    [0.132, 0.0],
-    [0.045, 0.14],
-    [0.001, 0.14],
-  ].map(([x, y]) => new Vector2(x, y)),
-  10,
-);
+const LAMP_SHADE = shadeGeometry(HEAT_LAMP_SHADE, 10);
 
 /** An open gas burner: a crown, a cast iron grate, and flames. Returns where a pan sits. */
 function burner(kit: Kit, x: number, z: number, size = 1): number {
@@ -614,7 +606,7 @@ function passe(kit: Kit): void {
   const p = KITCHEN.pass;
   const cz = (p.minZ + p.maxZ) / 2;
   // Gantry: steel posts carrying the lamp housing high enough to see under.
-  const housing = 2.18;
+  const housing = HEAT_LAMP_HOUSING_Y;
   for (const x of [p.minX + 0.2, p.maxX - 0.2]) {
     kit.cylinder('steel', x, TOP, cz, 0.028, housing + 0.12 - TOP);
   }
@@ -775,9 +767,9 @@ function patisserie(kit: Kit): void {
     0.008,
   );
 
-  // A rolling pin in a dusting of flour.
+  // A rolling pin in a dusting of flour, which stays on the marble.
   const rx = cx + 1.55;
-  kit.cylinder('matte', rx, top + 0.001, cz + 0.15, 0.18, 0.002, { color: '#fbfaf6' });
+  kit.cylinder('matte', rx, top + 0.001, cz + 0.15, 0.15, 0.002, { color: '#fbfaf6' });
   kit.cylinder('matte', rx, top + 0.03, cz - 0.08, 0.03, 0.46, {
     rx: Math.PI / 2,
     color: paint.woodLight,
