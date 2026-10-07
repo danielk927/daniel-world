@@ -170,3 +170,28 @@ describe('a cook’s knife in their hand', () => {
     expect(visible()).toEqual([]);
   });
 });
+
+describe('knives stuck in the walk-in’s door', () => {
+  it('swing open with it, each still the knife its thrower carried', () => {
+    const knives = new Knives();
+    const motion = new Matrix4().makeTranslation(0.5, 0, 0);
+    knives.setCarrier({ carries: (x) => x > 0.15, motion });
+    knives.reset([stuck(1, { skin: 'karambit', finish: 'fade' }), stuck(2)]);
+    run(knives, 1 / 30);
+    expect(knives.drawnLooks()).toEqual({ 'karambit/fade': 1, 'kitchen/stock': 1 });
+    const placed = (look: string): number => {
+      const mesh = knives.group.children.find((c) => c.name === `knives:${look}`) as InstancedMesh;
+      const m = new Matrix4();
+      mesh.getMatrixAt(0, m);
+      return m.elements[12];
+    };
+    // The karambit (at x 0.1) is not in the door; the chef's knife (at x 0.2) is, and moved with it.
+    expect(placed('karambit/fade')).toBeCloseTo(0.1, 6);
+    expect(placed('kitchen/stock')).toBeCloseTo(0.7, 6);
+    // In the door, the karambit moves with it and is still the karambit.
+    knives.setCarrier({ carries: (x) => x < 0.15, motion });
+    run(knives, 1 / 30);
+    expect(placed('karambit/fade')).toBeCloseTo(0.6, 6);
+    expect(knives.drawnLooks()).toEqual({ 'karambit/fade': 1, 'kitchen/stock': 1 });
+  });
+});
