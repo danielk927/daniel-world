@@ -773,6 +773,13 @@ void TryRunTics (void)
 	if (lowtic < gametic/ticdup)
 	    I_Error ("TryRunTics: lowtic < gametic");
 
+        // kitchen: run the tic that just arrived rather than leave to
+        // draw the old one again, which doubled the frames drawn per tic.
+        if (PlayersInGame() && lowtic >= gametic/ticdup + counts)
+        {
+            break;
+        }
+
         // Don't stay in this loop forever.  The menu is still running,
         // so return to update the screen
 
