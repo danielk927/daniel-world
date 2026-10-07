@@ -368,3 +368,15 @@ Judgment calls made during the unattended build, with reasons.
   Holding his throws was tried first; it let an opted-out cook shield others and was not needed once every screen knew.
 - **The first time he knocks a visitor out, the knockout card says he can be turned off.**
 - This changed the protocol (prefs in the hello and in player info, a prefs message each way, the resident flag), within version 7.
+
+### Private parties (2026-10-07)
+
+- **Private rooms are parties, managed in place from the pause menu's Party tab.** It is the menu's first tab: where you are, the invite link with Copy link (selecting the link where the clipboard is refused), and a code to start or join a party, or a way back to the lobby.
+  Moving joins the next room in the background and closes the last one only once it is in, so a full, taken, empty or unreachable room leaves the player where they were, and nothing reloads.
+- **Hello carries an optional intent, `start` or `join`.** Start is refused when the code is in use (`room_taken`), join when nobody is there (`no_room`); links and reconnects send none and join or make the room, and the lobby ignores it.
+  Only the first hello sends it, so a reconnect is never turned away from its own party. This reveals nothing new: joining a code already shows who is there.
+  It shipped within protocol version 7, with the 60 Hz simulation and the Chef switch.
+- **Party codes are refused, not cleaned up, when typed with anything but letters, digits, dashes and spaces** (a leading `#` is allowed), so the code a visitor shares is the one they typed. Spaces become dashes, the most is 24 characters, and `lobby` is the lobby. The landing field uses the same rules.
+- **Random codes look like `h7kq-m3xp`:** eight characters from 31 that cannot be mistaken for each other (no 0, 1, i, l or o), about 40 bits, drawn with `crypto.getRandomValues`.
+- **The address bar follows the room** (`history.replaceState`, `?room=` set for a party and removed for the lobby, other parameters kept as written), so a reload or a copied address comes back to the same party.
+- **A kill waiting for its knife to arrive on screen is forgotten when its room is closed or lost;** announced later, it knocked the player out where no respawn would come.

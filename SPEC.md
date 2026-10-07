@@ -32,7 +32,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 
 ## Experience
 
-1. **Landing screen**: site title, short tagline, name input (prefilled with a random adjective + animal, saved in `localStorage`), room code field (empty = public `lobby`), "Enter world" button, live player count for the lobby, and a "Skip to portfolio" link.
+1. **Landing screen**: site title, short tagline, name input (prefilled with a random adjective + animal, saved in `localStorage`), private party field (empty = public `lobby`), "Enter world" button, live player count for the lobby, and a "Skip to portfolio" link.
 2. **World**: a three-star French kitchen at real scale, laid out after the French Laundry, where the players are the cooks. Low-poly: a stainless cooking suite under a lit hood, charcoal-topped islands, white walls under a barrel vault with skylights, garden windows, live flames and steam, and The Bear's "Every Second Counts" sign. The walls are the boundary.
    It is evening service, lit after Gusteau's kitchen in Ratatouille: the blue hour outside the windows and skylights, warm light from the kitchen's own lamps inside, in pools.
 3. **Controls**: pointer-lock first-person, WASD + mouse look, Space to jump, Shift to sprint, collision with ground and major objects. Esc releases the mouse and opens a pause menu.
@@ -42,7 +42,7 @@ Build an original implementation. Do not copy code, assets, or content from that
    - Remote avatars move smoothly (snapshot interpolation) and animate (bob while walking, jump).
    - HUD: room code, player list and count, connection status.
    - Text chat (Enter to open, 120 char max, plain text only).
-   - Rooms: default public `lobby`, plus private rooms by code. Max 16 players per room.
+   - Rooms: default public `lobby`, plus private parties by code. Max 16 players per room. The pause menu starts a party (custom or random code), joins one, or returns to the lobby in place, and shares an invite link (`/?room=<code>`) with a copy button.
 6. **Portfolio fallback**: `/portfolio.html`, a clean static page rendering the same `content.ts` data, for mobile, no-WebGL, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it.
 7. **Offline mode**: if the server is unreachable, the world still works in single player with a small notice, and retries in the background.
 8. **Knives**: every cook carries an endless supply in every room, and a left click throws one; holding the button keeps throwing, about one every 0.8 s, as fast as each knife is drawn (the server allows one every 0.7 s).
