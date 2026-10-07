@@ -114,6 +114,8 @@ Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in on
 The beige PC on the chef's desk, in the south-west corner, runs the original DOOM (press E at it; Esc steps away, the backquote key opens DOOM's menu).
 It is not a port to the browser but a small computer of its own:
 
+![DOOM on the kitchen computer](docs/screenshots/computer-doom.png)
+
 - **A RISC-V (RV32IM) CPU emulator in TypeScript** (`apps/client/src/computer/`), with 32 MiB of RAM and memory-mapped devices: a 320x200 8-bit framebuffer and palette, a keyboard queue, a millisecond timer, a console and a disk window holding the WAD. The ABI is one header, `firmware/include/machine.h`, mirrored in `abi.ts` and checked by a test.
 - **DOOM cross-compiled bare metal for it** (`firmware/`): the vendored `doomgeneric` (GPLv2) with a platform layer for those devices, a freestanding libc written for it (strings, a malloc over the linker script's heap, printf and scanf as far as DOOM needs, 64-bit division, an in-memory file system with the WAD mounted read-only), `crt0.S` and a linker script that leaves page 0 unmapped so null pointers fault.
 - **Two engines**: a reference interpreter, and a JIT that compiles regions of RISC-V into JavaScript functions, guest registers in locals and self-loops as native loops. Measured in Chromium on an Apple M5, the JIT runs DOOM's timedemo at about 3.2 billion guest instructions a second (the interpreter about 180 million); live play needs under 40 million, about 2% of a core. It runs in a Web Worker, so the kitchen's frame budget is untouched.

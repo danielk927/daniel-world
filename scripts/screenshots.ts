@@ -170,6 +170,25 @@ async function main(): Promise<void> {
     await thrower.waitForTimeout(700);
     await thrower.screenshot({ path: `${outDir}/inspect.png` });
 
+    // The kitchen computer in the south-west corner, booted into DOOM's first level.
+    const gamer = await context.newPage();
+    await enter(gamer, 'Gamer', 'docs-computer');
+    await gamer.keyboard.press('KeyQ'); // the bare hand, so a stray click punches, not throws
+    await walkUntil(gamer, 'KeyA', (p) => p.x < -6.2);
+    await turnTo(gamer, Math.PI / 2, -0.32);
+    await gamer.mouse.move(720, 450);
+    await gamer.getByText('Press E to play DOOM').waitFor();
+    await gamer.waitForTimeout(400);
+    await gamer.screenshot({ path: `${outDir}/computer-desk.png` });
+    await gamer.keyboard.press('KeyE');
+    await gamer.waitForFunction(() => window.__world!.computer.frames > 60);
+    for (const key of ['Enter', 'Enter', 'Enter', 'Enter']) {
+      await gamer.keyboard.press(key);
+      await gamer.waitForTimeout(600);
+    }
+    await gamer.waitForTimeout(1500);
+    await gamer.screenshot({ path: `${outDir}/computer-doom.png` });
+
     await page.goto(`${clientUrl}/portfolio.html`);
     await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });
     const phone = await browser.newContext({
