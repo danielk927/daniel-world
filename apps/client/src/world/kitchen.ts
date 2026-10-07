@@ -649,8 +649,21 @@ function createPendants(kit: Kit): void {
     kit.add('brass', PENDANT_DOME, at(p.x, p.y, p.z));
     kit.sphere('light', p.x, p.y + 0.06, p.z, 0.055, { sy: 0.8, color: paint.lamp });
     const rod = p.y + PENDANT_DOME_TOP;
-    kit.cylinder('iron', p.x, rod, p.z, 0.008, vaultHeight(p.z) - rod, { segments: 4 });
+    kit.cylinder('iron', p.x, rod, p.z, 0.008, ceilingOver(p.x, p.z) - rod, { segments: 4 });
   }
+}
+
+/** The height of the ceiling over a point: the vault, or the glass of a skylight's well. */
+function ceilingOver(x: number, z: number): number {
+  for (const { a, b, out } of SKYLIGHT_WELLS) {
+    const glass = { z: a.z + SKYLIGHTS.glass * out.z, y: a.y + SKYLIGHTS.glass * out.y };
+    const end = { z: b.z + SKYLIGHTS.glass * out.z, y: b.y + SKYLIGHTS.glass * out.y };
+    const t = (z - glass.z) / (end.z - glass.z);
+    if (Math.abs(x) <= SKYLIGHTS.halfLength && t >= 0 && t <= 1) {
+      return glass.y + t * (end.y - glass.y);
+    }
+  }
+  return vaultHeight(z);
 }
 
 function createCounters(kit: Kit): void {
