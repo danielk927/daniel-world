@@ -69,6 +69,7 @@ a:focus-visible {
   margin: 0;
   font-size: 19px;
   color: var(--ink-muted);
+  text-wrap: pretty;
 }
 
 .pf-intro {
@@ -78,6 +79,9 @@ a:focus-visible {
 }
 
 .pf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 6px;
 }
 
@@ -96,6 +100,24 @@ a:focus-visible {
 
 .pf-button:hover {
   background: var(--navy-light);
+}
+
+/* Email, LinkedIn and GitHub wrap as one group, never one of them alone. */
+.pf-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pf-button-secondary {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.pf-button-secondary:hover {
+  border-color: #c9c5b8;
+  background: var(--card);
 }
 
 .pf-nav {
@@ -203,6 +225,8 @@ a:focus-visible {
   font-size: 16px;
   line-height: 1.65;
   color: var(--ink-muted);
+  /* No word left alone on the last line. */
+  text-wrap: pretty;
 }
 
 .lore-items {
@@ -222,9 +246,10 @@ a:focus-visible {
 
 .lore-item-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 2px 12px;
 }
 
 .lore-item-title {
@@ -246,10 +271,37 @@ a:focus-visible {
   color: var(--ink-faint);
 }
 
+.lore-item-subtitle {
+  margin: 2px 0 0;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--navy);
+  text-wrap: pretty;
+}
+
 .lore-item-desc {
   margin: 6px 0 0;
   font-size: 15px;
   color: var(--ink-muted);
+  /* No word left alone on the last line. */
+  text-wrap: pretty;
+}
+
+.lore-item-points {
+  display: grid;
+  list-style: disc;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  /* No word left alone on the last line. */
+  text-wrap: pretty;
+}
+
+.lore-item-points li::marker {
+  color: var(--ink-faint);
 }
 
 .tag-list {
@@ -323,6 +375,40 @@ a:focus-visible {
 .pf-footer-link {
   color: var(--ink);
   font-weight: 600;
+}
+
+/* On a phone, more room for the text, and items stack the way they do in the world's panel. */
+@media (max-width: 560px) {
+  .pf-section {
+    padding: 22px 18px 22px 22px;
+  }
+
+  .lore-item {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+  }
+
+  .lore-item > * {
+    order: 3;
+  }
+
+  .lore-item-head {
+    display: contents;
+  }
+
+  .lore-item-title {
+    order: 0;
+  }
+
+  .lore-item-subtitle {
+    order: 1;
+  }
+
+  .lore-item-meta {
+    order: 2;
+    margin-top: 2px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

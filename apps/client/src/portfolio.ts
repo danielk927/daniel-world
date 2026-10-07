@@ -1,7 +1,7 @@
 import './styles/portfolio.css';
 import { lore, site } from './content.ts';
 import { el } from './ui/dom.ts';
-import { renderLoreBody } from './ui/loreContent.ts';
+import { link, renderLoreBody } from './ui/loreContent.ts';
 
 function render(): void {
   const root = document.getElementById('portfolio')!;
@@ -14,6 +14,11 @@ function render(): void {
     el('p', { class: 'pf-intro', text: site.intro }),
     el('div', { class: 'pf-actions' }, [
       el('a', { class: 'pf-button', text: 'Enter the 3D world', attrs: { href: '/' } }),
+      el(
+        'div',
+        { class: 'pf-links' },
+        site.links.map((l) => link(l.label, l.href, 'pf-button pf-button-secondary')),
+      ),
     ]),
     el(
       'nav',

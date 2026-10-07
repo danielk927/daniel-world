@@ -6,10 +6,12 @@ import rotiPhoto from './assets/dishes/roti.webp';
 import truffleCroissantPhoto from './assets/dishes/truffle-croissant.webp';
 
 /**
- * Every piece of personal content on the site lives here.
- * The 3D kitchen (stations) and the static portfolio page both render from this file.
+ * Every piece of personal content on the site lives here, taken from Daniel's resume.
+ * The 3D kitchen (`stations` and `dishes`) and the static portfolio page (`lore`) both render from
+ * this file and share the same items, so a change to a role or a project shows up in both.
  *
- * Placeholders are marked with TODO(daniel). Search for that tag and replace each one.
+ * The few places that still want Daniel's own words are marked TODO(daniel).
+ * Never publish the graduation date or the phone number here.
  */
 
 export interface LoreLink {
@@ -19,10 +21,15 @@ export interface LoreLink {
 
 export interface LoreItem {
   readonly title: string;
-  /** Short secondary line, for example a date range or role. */
+  /** A line under the title: the role and the city, or what a project is. */
+  readonly subtitle?: string;
+  /** Short line beside the title, for example a date range or a place. */
   readonly meta?: string;
   readonly description?: string;
+  /** Bullet points, as on a resume. */
+  readonly points?: readonly string[];
   readonly href?: string;
+  /** The tech stack, shown as tags. */
   readonly tags?: readonly string[];
 }
 
@@ -34,10 +41,12 @@ export interface LoreImage {
 
 export interface LoreEntry {
   readonly id: string;
-  /** Label in the world and heading of the info panel. */
+  /** Heading of the info panel and of the portfolio section, and the station's label in the world. */
   readonly title: string;
-  /** One line shown under the title. */
+  /** One line shown above the title. At a station it names the station. */
   readonly kicker: string;
+  /** The station that serves this entry, by its French name: the small line on its label. */
+  readonly station?: string;
   /** Accent color of the label and panel, as a CSS hex color. */
   readonly color: string;
   /** A photo shown above the text. */
@@ -48,88 +57,210 @@ export interface LoreEntry {
   readonly links?: readonly LoreLink[];
 }
 
+/** How to reach Daniel. Never the phone number. */
+const links: readonly LoreLink[] = [
+  { label: 'Email', href: 'mailto:dkim927@uchicago.edu' },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/in/doyoondanielkim' },
+  { label: 'GitHub', href: 'https://github.com/danielk927' },
+];
+
 export const site = {
   name: 'Daniel Kim',
   worldName: "Daniel's World",
-  // TODO(daniel): one-line tagline shown on the landing screen and portfolio header.
-  tagline: 'A classical French kitchen about who I am and what I build. Come cook with me.',
-  // TODO(daniel): short intro for the top of the portfolio page.
-  intro:
-    'Hi, I am Daniel. This is the plain version of my site: same content as the 3D world, none of the walking.',
+  tagline:
+    'I study computer science and statistics at UChicago and build everything from CUDA kernels to rehab games. Come cook with me.',
+  intro: 'This is the plain version of my site: everything in the 3D kitchen, none of the walking.',
+  links,
 } as const;
 
-/** The sections of the portfolio page, in order. */
+// ---------- The resume, item by item ----------
+
+const aboutParagraphs = [
+  'Hi, I am Daniel. I study computer science and statistics at the University of Chicago, and I build from the GPU up: an LLM inference engine in C++ and CUDA, a synthetic data engine for microscopy, and gesture-controlled rehab games.',
+  'I have built LLM evaluation pipelines as an engineering intern at Anto Biosciences (YC F25), modeled thermal performance in fruit flies as a research assistant at UCLA, and won Best Hardware at LAHacks 2026 with a Braille transcriber.',
+  'Away from the keyboard I am on the Hong Kong National Kendo Team, and I love to cook, bake and eat. Welcome to my kitchen.',
+];
+
+const anto: LoreItem = {
+  title: 'Anto Biosciences (YC F25)',
+  subtitle: 'Engineering Intern · San Francisco, CA',
+  meta: 'Oct 2025 - Apr 2026',
+  points: [
+    'Developed a Python ETL pipeline on the MIT SuperCloud cluster for LLM-as-a-judge evaluation: regex parsing, structured JSON extraction, rating normalization and validation heuristics across 1,200+ papers.',
+    'Engineered system prompts with structured evaluation rubrics, which boosted prediction accuracy from 46% to 73%.',
+    'Authored 7 data visualizations and scientific figures for preprints on tokenization methods in machine learning and on deep reinforcement learning for data sparsification, papers pending for NeurIPS and Nature.',
+  ],
+  tags: ['Python', 'MIT SuperCloud', 'LLM-as-a-judge', 'Prompt engineering'],
+};
+
+const uclaLab: LoreItem = {
+  title: 'University of California, Los Angeles',
+  subtitle: 'Undergraduate Research Assistant · Los Angeles, CA',
+  meta: 'Jan 2026 - present',
+  points: [
+    'Engineered thermal performance curve models with rTPC in R and Python scripts (Pandas and SciPy), and visualized the results in Matplotlib to find the thermal optimum zone in Drosophila. Paper pending for Science Advances.',
+    'Created a data preprocessing pipeline in Pandas and NumPy to clean and normalize heterogeneous sleep data.',
+  ],
+  tags: ['R', 'rTPC', 'Python', 'Pandas', 'SciPy', 'NumPy', 'Matplotlib'],
+};
+
+const readingProgram: LoreItem = {
+  title: 'Math Directed Reading Program',
+  subtitle: 'Mentored by William Chang, UCLA Applied Math Ph.D. student',
+  meta: 'Jan 2026 - present',
+  points: [
+    'Authored 2 research papers on bilevel optimization with SGD and functional scaling laws in feature learning, papers pending for AAAI and AISTATS.',
+  ],
+};
+
+const inferenceEngine: LoreItem = {
+  title: 'LLM Inference Engine',
+  subtitle: 'C++/CUDA model serving',
+  meta: 'Sep 2026 - present',
+  points: [
+    'Built a C++/CUDA transformer inference runtime with custom kernels, cuBLAS matrix multiplication and KV-cached decoding, and validated intermediate activations and output logits against a PyTorch reference.',
+    'Implemented paged KV-cache allocation, continuous batching and chunked prefill for variable-length requests, with reproducible benchmarks of prefill latency, decode throughput and GPU memory usage.',
+  ],
+  tags: ['C++', 'CUDA', 'cuBLAS', 'PyTorch'],
+};
+
+const generativeOmics: LoreItem = {
+  title: 'Generative Omics',
+  subtitle: 'Synthetic data engine for biomedical segmentation',
+  meta: 'Aug 2026 - present',
+  points: [
+    'Built a synthetic data platform that converted measured cell morphology into 1,000+ labeled microscopy images, reducing dataset preparation time by 39% through procedural cell modeling and physics-based rendering.',
+    'Increased dataset generation throughput from 10 to 15 image-mask pairs a minute with parallel batch workers behind an asynchronous FastAPI service, with object storage and PostgreSQL metadata tracking.',
+  ],
+  tags: ['FastAPI', 'PostgreSQL', 'Object storage', 'Physics-based rendering'],
+};
+
+const sync: LoreItem = {
+  title: 'Sync',
+  subtitle: 'AI neurorehabilitation platform',
+  meta: 'May - Aug 2026',
+  points: [
+    "Built 10+ gesture-controlled rehab games with Three.js and MediaPipe for real-time pose tracking, backed by PostgreSQL with row-level security to keep each patient's data apart, and deployed on Vercel and Cloudflare.",
+    'Deployed to 3 NGO pilots in Hong Kong, with 1,400+ waitlist signups and investment offers from 2 angels.',
+  ],
+  tags: ['Three.js', 'MediaPipe', 'PostgreSQL', 'Vercel', 'Cloudflare'],
+};
+
+const bridge: LoreItem = {
+  title: 'Bridge',
+  subtitle: 'Real-time image and audio to Braille transcriber',
+  meta: 'Apr 2026',
+  points: [
+    'Best Hardware Award: 1st place out of 300+ teams at LAHacks 2026.',
+    'Engineered the pipeline with Faster-Whisper, the Claude API and a custom 3D-printed Braille encoder on an ESP32.',
+  ],
+  tags: ['Faster-Whisper', 'Claude API', 'ESP32', '3D printing'],
+};
+
+const thisKitchen: LoreItem = {
+  title: "Daniel's World",
+  subtitle: 'This multiplayer 3D kitchen',
+  meta: '2026',
+  description:
+    'A first-person personal site where every visitor is a cook in a classical French brigade kitchen, built from primitives in Three.js, with a WebSocket room server so everyone in it sees each other in real time.',
+  tags: ['TypeScript', 'Three.js', 'Node.js', 'WebSockets'],
+};
+
+const skills: readonly LoreItem[] = [
+  {
+    title: 'Languages',
+    tags: ['C++', 'Python', 'JavaScript', 'TypeScript', 'HTML/CSS', 'R', 'SQL'],
+  },
+  {
+    title: 'Libraries and frameworks',
+    tags: [
+      'PyTorch',
+      'cuBLAS',
+      'CUDA',
+      'NumPy',
+      'Pandas',
+      'Matplotlib',
+      'MediaPipe',
+      'React',
+      'FastAPI',
+      'Node.js',
+    ],
+  },
+  { title: 'Tools', tags: ['Git', 'Docker', 'PostgreSQL', 'GitHub'] },
+];
+
+const education: readonly LoreItem[] = [
+  {
+    title: 'University of Chicago',
+    subtitle: 'B.S. Computer Science, B.S. Statistics',
+    meta: 'Chicago, IL',
+    description:
+      'Activities: Hong Kong National Kendo Team, Financial Markets Program, Susquehanna Virtual Discovery Day.',
+  },
+  {
+    title: 'University of California, Los Angeles',
+    subtitle: 'B.S. Computational Biology, transferred',
+    meta: 'Los Angeles, CA',
+  },
+];
+
+/** The interests, as paragraphs and the resume's own list. */
+const interests = {
+  paragraphs: [
+    'I am on the Hong Kong National Kendo Team.',
+    'I love to cook and bake, hence the kitchen, and to eat: my five favorite dishes are on the pass, and I keep my restaurant rankings on Beli.',
+    // TODO(daniel): a line of your own here, for example your team or a favorite designer.
+    'I also watch the NBA, and I am into fashion.',
+  ],
+  tags: ['Kendo', 'Cooking and baking', 'Eating', 'Beli', 'Watching the NBA', 'Fashion'],
+} as const;
+
+// ---------- The portfolio page ----------
+
+/** The sections of the portfolio page, in order: a resume, then how the kitchen works. */
 export const lore: readonly LoreEntry[] = [
   {
     id: 'about',
     title: 'About',
     kicker: 'Who I am',
     color: '#ffb86b',
-    paragraphs: [
-      // TODO(daniel): replace with a real introduction.
-      'I am a builder who likes turning fuzzy ideas into things people can touch. This paragraph is a placeholder for a short, friendly introduction.',
-      // TODO(daniel): replace with where you are and what you are doing now.
-      'Currently studying and building side projects. Replace this with where you are, what you are learning, and what gets you excited.',
-    ],
-  },
-  {
-    id: 'projects',
-    title: 'Projects',
-    kicker: 'Things I have made',
-    color: '#7ad7c4',
-    items: [
-      // TODO(daniel): replace each project with real ones (title, one-liner, link, tags).
-      {
-        title: 'This world',
-        meta: '2026',
-        description:
-          'A multiplayer 3D personal site built with Three.js and a tiny WebSocket server. You are standing in it.',
-        tags: ['TypeScript', 'Three.js', 'WebSockets'],
-      },
-      {
-        title: 'Project Two',
-        meta: 'Year',
-        description: 'One sentence about what it does and why it was interesting to build.',
-        tags: ['Tag', 'Tag'],
-      },
-      {
-        title: 'Project Three',
-        meta: 'Year',
-        description: 'One sentence about the problem, your role, and the outcome.',
-        tags: ['Tag'],
-      },
-    ],
+    paragraphs: aboutParagraphs,
   },
   {
     id: 'experience',
     title: 'Experience',
     kicker: 'Where I have worked',
-    color: '#9fb4ff',
-    items: [
-      // TODO(daniel): replace with real roles, most recent first.
-      {
-        title: 'Role, Organization',
-        meta: 'Start - End',
-        description: 'What you worked on and what changed because of it.',
-      },
-      {
-        title: 'Role, Organization',
-        meta: 'Start - End',
-        description: 'A second role, internship, research position, or club.',
-      },
-    ],
+    color: '#e8a25c',
+    items: [anto],
   },
   {
-    id: 'skills',
-    title: 'Skills',
-    kicker: 'Tools of the trade',
-    color: '#c3a6ff',
-    paragraphs: [
-      // TODO(daniel): replace with a sentence about how you like to work.
-      'A mix of things I use every day and things I am getting better at.',
-    ],
-    // TODO(daniel): replace with your real skills.
-    tags: ['TypeScript', 'Python', 'React', 'Three.js', 'Node.js', 'SQL', 'Git', 'Figma'],
+    id: 'projects',
+    title: 'Projects',
+    kicker: 'Things I have built',
+    color: '#e07a5f',
+    items: [inferenceEngine, generativeOmics, sync, bridge, thisKitchen],
+  },
+  {
+    id: 'research',
+    title: 'Research',
+    kicker: 'Labs and papers',
+    color: '#7ec8e3',
+    items: [uclaLab, readingProgram],
+  },
+  { id: 'skills', title: 'Skills', kicker: 'Tools of the trade', color: '#9fd8ef', items: skills },
+  {
+    id: 'education',
+    title: 'Education',
+    kicker: 'Where I study',
+    color: '#a9b8ff',
+    items: education,
+  },
+  {
+    id: 'interests',
+    title: 'Interests',
+    kicker: 'Away from the keyboard',
+    color: '#f4a6c6',
+    ...interests,
   },
   {
     id: 'contact',
@@ -137,42 +268,9 @@ export const lore: readonly LoreEntry[] = [
     kicker: 'Say hello',
     color: '#ff8fa3',
     paragraphs: [
-      // TODO(daniel): replace with how you would like people to reach you.
-      'The best way to reach me is email. I am always happy to talk about projects, internships, or anything in this kitchen.',
+      'Email is the best way to reach me. I am happy to talk about anything in this kitchen.',
     ],
-    links: [
-      // TODO(daniel): replace with real links.
-      { label: 'Email', href: 'mailto:hello@example.com' },
-      { label: 'GitHub', href: 'https://github.com/' },
-      { label: 'LinkedIn', href: 'https://www.linkedin.com/' },
-    ],
-  },
-  {
-    id: 'now',
-    title: 'Now',
-    kicker: 'What I am into lately',
-    color: '#ffd76b',
-    items: [
-      // TODO(daniel): replace with what you are currently reading, playing, or learning.
-      { title: 'Reading', description: 'A book you are reading right now.' },
-      { title: 'Playing', description: 'A game you keep coming back to.' },
-      { title: 'Learning', description: 'Something new you are picking up.' },
-    ],
-  },
-  {
-    id: 'fun-facts',
-    title: 'Fun facts',
-    kicker: 'Assorted trivia',
-    color: '#8fe388',
-    items: [
-      // TODO(daniel): replace with real fun facts.
-      { title: 'Fact one', description: 'Something surprising about you.' },
-      { title: 'Fact two', description: 'A hobby, a record, or a strong opinion about snacks.' },
-      {
-        title: 'Fact three',
-        description: 'The kitchen has eight stations. Did you visit them all?',
-      },
-    ],
+    links,
   },
   {
     id: 'guest-notes',
@@ -186,21 +284,35 @@ export const lore: readonly LoreEntry[] = [
   },
 ];
 
+// ---------- The kitchen ----------
+
 export type StationContent = Readonly<Record<StationId, LoreEntry>>;
 
 /**
- * What each station's panel says when it is clicked in the kitchen.
- * TODO(daniel): when you are ready, point a station at one of your sections above, for example
- * `saucier: lore[0]!`, and its panel will show that section instead.
+ * A section as a station serves it. The title says what it holds; the kicker and the label name
+ * the station, so a visitor can tell what is where before opening anything.
+ */
+function station(
+  id: StationId,
+  name: string,
+  work: string,
+  entry: Omit<LoreEntry, 'id' | 'kicker' | 'station'>,
+): LoreEntry {
+  return { ...entry, id, station: name, kicker: `${name} · ${work}` };
+}
+
+/**
+ * What each station's panel says when it is opened in the kitchen. Each station of the brigade
+ * serves the part of the resume that suits its work: the pass, the first thing a visitor sees,
+ * introduces Daniel; the saucier, the senior station, holds his experience; the plonge, where every
+ * cook starts and by the door to the dining room, holds his education and how to reach him.
  */
 export const stations: StationContent = {
-  passe: {
-    id: 'passe',
-    title: 'Le passe',
-    kicker: 'The pass',
+  passe: station('passe', 'Le passe', 'the pass', {
+    title: 'About me',
     color: '#ffb86b',
     paragraphs: [
-      'Every plate stops here under the heat lamps for one last look before it goes out to the dining room.',
+      ...aboutParagraphs,
       'Tonight the pass holds my five favorite dishes of all time, each one from a meal I actually ate.',
     ],
     items: [
@@ -210,60 +322,48 @@ export const stations: StationContent = {
       { title: 'Ricotta toast', meta: 'Theodora, Brooklyn' },
       { title: 'Truffle croissant', meta: 'Kasama, Chicago' },
     ],
-  },
-  saucier: {
-    id: 'saucier',
-    title: 'Saucier',
-    kicker: 'Sauces and sautés',
+  }),
+  saucier: station('saucier', 'Saucier', 'sauces', {
+    title: 'Experience',
     color: '#e8a25c',
-    paragraphs: [
-      'The most senior station on the line: stocks, reductions, and the sauces that tie each dish together.',
-    ],
-  },
-  poissonnier: {
-    id: 'poissonnier',
-    title: 'Poissonnier',
-    kicker: 'Fish and shellfish',
+    items: [anto],
+  }),
+  poissonnier: station('poissonnier', 'Poissonnier', 'fish', {
+    title: 'Research',
     color: '#7ec8e3',
-    paragraphs: [
-      'Whole fish are scaled, filleted and cooked to the second, along with their sauces.',
-    ],
-  },
-  rotisseur: {
-    id: 'rotisseur',
-    title: 'Rôtisseur',
-    kicker: 'Roasts and braises',
+    items: [uclaLab, readingProgram],
+  }),
+  rotisseur: station('rotisseur', 'Rôtisseur', 'roasts', {
+    title: 'Systems and ML',
     color: '#e07a5f',
-    paragraphs: ['Roasting, braising and grilling, and the jus that comes from them.'],
-  },
-  entremetier: {
-    id: 'entremetier',
-    title: 'Entremetier',
-    kicker: 'Vegetables, soups and eggs',
+    paragraphs: ['Projects in systems and machine learning, both still cooking.'],
+    items: [inferenceEngine, generativeOmics],
+  }),
+  entremetier: station('entremetier', 'Entremetier', 'vegetables', {
+    title: 'Products',
     color: '#8fd18a',
-    paragraphs: ['Everything from the garden: vegetables, soups, starches and egg dishes.'],
-  },
-  'garde-manger': {
-    id: 'garde-manger',
-    title: 'Garde manger',
-    kicker: 'The cold kitchen',
+    paragraphs: ['Projects built for people to use, from a hackathon weekend to NGO pilots.'],
+    items: [sync, bridge, thisKitchen],
+  }),
+  'garde-manger': station('garde-manger', 'Garde manger', 'the cold kitchen', {
+    title: 'Skills',
     color: '#9fd8ef',
-    paragraphs: ['Terrines, pâtés, cheeses, salads and oysters: anything served cold.'],
-  },
-  patisserie: {
-    id: 'patisserie',
-    title: 'Pâtisserie',
-    kicker: 'Pastry and desserts',
+    items: skills,
+  }),
+  patisserie: station('patisserie', 'Pâtisserie', 'pastry', {
+    title: 'Interests',
     color: '#f4a6c6',
-    paragraphs: ['Breads, viennoiserie and desserts, measured to the gram on cool marble.'],
-  },
-  plonge: {
-    id: 'plonge',
-    title: 'Plonge',
-    kicker: 'The dish pit',
+    ...interests,
+  }),
+  plonge: station('plonge', 'Plonge', 'the dish pit', {
+    title: 'Education and contact',
     color: '#a9b8ff',
-    paragraphs: ['Pots, pans and plates. No service survives without it.'],
-  },
+    paragraphs: [
+      'Every cook starts at the plonge, and it sits by the door to the dining room: here is where I study, and how to reach me. Email is the best way.',
+    ],
+    items: education,
+    links,
+  }),
 };
 
 export type DishContent = Readonly<Record<DishId, LoreEntry>>;

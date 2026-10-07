@@ -133,11 +133,11 @@ async function main(): Promise<void> {
     await walkUntil(reader, 'KeyD', (p) => p.x > -3.2);
     await walkUntil(reader, 'KeyW', (p) => p.z < -2.9);
     await reader.mouse.move(720, 450);
-    await reader.getByText('Press E to open Pâtisserie').waitFor();
+    await reader.getByText('Press E to open Interests').waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/lore-object.png` });
     await reader.keyboard.press('KeyE');
-    await reader.getByRole('dialog', { name: 'Pâtisserie' }).waitFor();
+    await reader.getByRole('dialog', { name: 'Interests' }).waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
 
