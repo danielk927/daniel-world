@@ -33,7 +33,9 @@ test('Chef Skinner walks the lobby and throws at a cook on the move', async ({ b
   // lands: in the room or in us. He leaves newcomers alone for a few seconds first.
   const thrown = (w: Awaited<ReturnType<typeof world>>) =>
     w.knives.stuck + w.knives.flying > 0 || w.knockedOut;
-  for (let i = 0; i < 80 && !thrown(await world(page)); i++) {
+  // His wander is random and the hood or the pass can stand between us for a while, so allow up to
+  // a minute and a half; it usually takes a quarter of that.
+  for (let i = 0; i < 150 && !thrown(await world(page)); i++) {
     const key = i % 2 === 0 ? 'KeyA' : 'KeyD';
     await page.keyboard.down(key);
     await page.waitForTimeout(600);

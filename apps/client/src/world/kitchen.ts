@@ -25,7 +25,6 @@ import {
 } from '@world/shared';
 import { at } from './builder.ts';
 import { paint, type Kit, type LayerName } from './kit.ts';
-import { buildOutside } from './outside.ts';
 
 /**
  * The room after the kitchen at the French Laundry: white walls under a white barrel vault with
@@ -328,7 +327,6 @@ function createWindows(kit: Kit): void {
     const y = signY + side * 0.265;
     kit.box('matte', -1.13, 1.13, y - 0.022, y + 0.022, -HZ, -HZ + 0.03, paint.rail);
   }
-  buildOutside(kit);
 }
 
 function createDoors(kit: Kit): void {
@@ -571,6 +569,44 @@ function createHood(kit: Kit): void {
   }
 }
 
+/** The LED clock's display, in meters: four times as wide as it is tall, like its face. */
+export const CLOCK_SIZE = { width: 1.16, height: 0.29 } as const;
+
+/**
+ * Where the kitchen clock's faces are: hung under the front of the hood, between two heat lamps,
+ * where the aisle by the dining room doors looks straight at it, and its twin on the hood's north
+ * face under the stars, for the line and the windows. KitchenClock draws them.
+ */
+export const CLOCK_DISPLAYS = [
+  { x: 1.5, y: 2.45, z: KITCHEN.hood.maxZ + 0.052, ry: 0 },
+  { x: 0, y: 3.45, z: KITCHEN.hood.minZ - 0.052, ry: Math.PI },
+] as const;
+
+/** The clock's black housings; the faces themselves are KitchenClock's. */
+function createClockHousings(kit: Kit): void {
+  for (const face of CLOCK_DISPLAYS) {
+    const z = face.z - Math.cos(face.ry) * 0.027;
+    kit.boxAt('matte', face.x, face.y, z, CLOCK_SIZE.width + 0.14, CLOCK_SIZE.height + 0.13, 0.05, {
+      color: '#151414',
+    });
+    // The front clock hangs from the hood's skirt on two short rods.
+    const top = face.y + (CLOCK_SIZE.height + 0.13) / 2;
+    if (top < KITCHEN.hood.bottom) {
+      for (const dx of [-0.45, 0.45]) {
+        kit.box(
+          'steel',
+          face.x + dx - 0.01,
+          face.x + dx + 0.01,
+          top,
+          KITCHEN.hood.bottom,
+          z - 0.01,
+          z + 0.01,
+        );
+      }
+    }
+  }
+}
+
 /** A charcoal-topped prep island on a steel frame, plates stacked on its open shelves. */
 function island(kit: Kit, f: Fixture): void {
   const random = createRandom(Math.round((f.minX + 10) * 100));
@@ -794,6 +830,7 @@ export function buildKitchen(kit: Kit): void {
   createDoors(kit);
   createPiano(kit);
   createHood(kit);
+  createClockHousings(kit);
   createCounters(kit);
   createPendants(kit);
 }

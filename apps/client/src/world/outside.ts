@@ -6,25 +6,29 @@ import {
   CylinderGeometry,
   Float32BufferAttribute,
   IcosahedronGeometry,
+  Group,
   MathUtils,
+  Mesh,
+  MeshBasicMaterial,
   Vector3,
   type Matrix4,
 } from 'three';
 import { ROOM_HALF_Z, createRandom } from '@world/shared';
 import { at } from './builder.ts';
-import type { Kit } from './kit.ts';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SKY_ELEVATIONS, skyward, type SkyLook } from './timeOfDay.ts';
 
 /**
- * The view through the north windows at the blue hour: the kitchen garden across a country lane,
- * vines on the slope behind it, a farmhouse and a village with their lamps lit, wooded hills, a
- * ring of mountains, and the sky with the last of the afterglow, a few stars and a new moon.
+ * The view through the north windows: the kitchen garden across a country lane, vines on the
+ * slope behind it, a farmhouse and a village, wooded hills, a ring of mountains, and a whole sky,
+ * which at the blue hour has the last of the afterglow, a few stars and a new moon.
  *
  * It is all real geometry, so each layer slides past the next as a visitor walks along the
  * windows, and it closes in every direction a window can see: the land runs to the mountains on
  * either side, the mountains stand against a whole dome of sky. It is unlit, like a matte
  * painting: the dusk light and the haze of distance are baked into the vertex colors once, so the
- * whole view is one draw call and costs nothing per frame. The string lights are the only part
- * on the kitchen's own `light` layer, so the bloom catches them.
+ * whole view is one draw call and costs nothing per frame. The light is the visitor's local time
+ * of day (see timeOfDay.ts); the view is repainted as it changes.
  */
 
 /** The outside face of the north wall; the land starts here. */
@@ -39,43 +43,25 @@ export const SKY_CENTER = new Vector3(0, 0, WALL_Z);
 /** The land, out to the far side of the mountains. */
 const LAND_RADIUS = 166;
 
-/** The sun has just set, a little west of north: the afterglow sits low on that horizon. */
-const AFTERGLOW = new Vector3(-0.55, 0.1, -0.83).normalize();
-const AFTERGLOW_TINT = new Color('#ffb48a');
-
-/** The sky by elevation (degrees): cool on most of the horizon, warm toward the afterglow. */
-const SKY_STOPS: readonly (readonly [number, Color, Color])[] = (
-  [
-    [-90, '#1a202c', '#1a202c'],
-    [-6, '#2a3040', '#2d3040'],
-    [0, '#8e8aa8', '#efa982'],
-    [4, '#8786a6', '#d99f8c'],
-    [11, '#727599', '#a4889a'],
-    [22, '#4d5b86', '#57618d'],
-    [40, '#32416a', '#34436b'],
-    [65, '#1f2b4b', '#1f2b4b'],
-    [90, '#151f38', '#151f38'],
-  ] as const
-).map(([e, cool, warm]) => [e, new Color(cool), new Color(warm)] as const);
-
 const scratchCool = new Color();
 const scratchWarm = new Color();
 
-/** The color of the sky in a direction (any length). */
-export function skyColor(direction: Vector3, target = new Color()): Color {
+/** The color of the sky in a direction (any length), in `look`. */
+export function skyColor(direction: Vector3, look: SkyLook, target = new Color()): Color {
   const length = direction.length();
   const elevation = MathUtils.radToDeg(Math.asin(MathUtils.clamp(direction.y / length, -1, 1)));
   const flat = Math.hypot(direction.x, direction.z) || 1;
-  const toward = (direction.x * AFTERGLOW.x + direction.z * AFTERGLOW.z) / flat;
-  const glowFlat = Math.hypot(AFTERGLOW.x, AFTERGLOW.z);
-  const warmth = Math.max(0, toward / glowFlat) ** 3;
+  const sun = look.sun;
+  const sunFlat = Math.hypot(sun.x, sun.z) || 1;
+  const toward = (direction.x * sun.x + direction.z * sun.z) / flat / sunFlat;
+  const warmth = Math.max(0, toward) ** look.spread;
   let i = 1;
-  while (i < SKY_STOPS.length - 1 && SKY_STOPS[i]![0] < elevation) i++;
-  const [e0, cool0, warm0] = SKY_STOPS[i - 1]!;
-  const [e1, cool1, warm1] = SKY_STOPS[i]!;
+  while (i < SKY_ELEVATIONS.length - 1 && SKY_ELEVATIONS[i]! < elevation) i++;
+  const e0 = SKY_ELEVATIONS[i - 1]!;
+  const e1 = SKY_ELEVATIONS[i]!;
   const t = MathUtils.clamp((elevation - e0) / (e1 - e0), 0, 1);
-  scratchCool.lerpColors(cool0, cool1, t);
-  scratchWarm.lerpColors(warm0, warm1, t);
+  scratchCool.lerpColors(look.cool[i - 1]!, look.cool[i]!, t);
+  scratchWarm.lerpColors(look.warm[i - 1]!, look.warm[i]!, t);
   return target.lerpColors(scratchCool, scratchWarm, warmth);
 }
 
@@ -139,8 +125,13 @@ const haze = new Color();
  * fades far things into the sky behind them so the hills stand in layers.
  */
 class Painter {
+  readonly look: SkyLook;
   private readonly positions: number[] = [];
   private readonly colors: number[] = [];
+
+  constructor(look: SkyLook) {
+    this.look = look;
+  }
 
   /** A triangle with its own corner colors, turned to face `facing` if given. */
   triangle(
@@ -173,13 +164,14 @@ class Painter {
     normal.crossVectors(edge1, edge2).normalize();
     if (facing && normal.dot(facing) < 0) normal.negate();
     centroid.copy(p0).add(p1).add(p2).divideScalar(3);
-    const sky = 0.5 + 0.5 * Math.max(0, normal.y);
-    const glow = Math.max(0, normal.dot(AFTERGLOW));
+    const look = this.look;
+    const sky = look.ambient + look.skylight * Math.max(0, normal.y);
+    const sun = Math.max(0, normal.dot(look.sun)) * look.sunlight;
     shaded.copy(base).multiplyScalar(sky);
-    shaded.r += AFTERGLOW_TINT.r * base.r * 1.6 * glow;
-    shaded.g += AFTERGLOW_TINT.g * base.g * 1.6 * glow;
-    shaded.b += AFTERGLOW_TINT.b * base.b * 1.6 * glow;
-    hazed(shaded, centroid, 1);
+    shaded.r += look.sunTint.r * base.r * sun;
+    shaded.g += look.sunTint.g * base.g * sun;
+    shaded.b += look.sunTint.b * base.b * sun;
+    hazed(shaded, centroid, 1, look);
     this.triangle(p0, p1, p2, shaded, shaded, shaded, facing);
   }
 
@@ -189,11 +181,23 @@ class Painter {
     this.face(p0, p2, p3, base, facing);
   }
 
-  /** A lit window or a lamp: its own color, only lightly veiled by the haze. */
-  glow(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, color: Color, facing: Vector3): void {
+  /**
+   * A window or a lamp: lit, its own color, only lightly veiled by the haze; unlit by day, the color
+   * of the glass in daylight.
+   */
+  glow(
+    p0: Vector3,
+    p1: Vector3,
+    p2: Vector3,
+    p3: Vector3,
+    lit: Color,
+    unlit: Color,
+    facing: Vector3,
+  ): void {
     centroid.copy(p0).add(p2).multiplyScalar(0.5);
-    shaded.copy(color);
-    hazed(shaded, centroid, 0.35);
+    const lamps = this.look.lamps;
+    shaded.copy(unlit).multiplyScalar(this.look.ambient).lerp(lit, lamps);
+    hazed(shaded, centroid, 0.35 + 0.65 * (1 - lamps), this.look);
     this.triangle(p0, p1, p2, shaded, shaded, shaded, facing);
     this.triangle(p0, p2, p3, shaded, shaded, shaded, facing);
   }
@@ -220,14 +224,14 @@ class Painter {
 }
 
 /** Fade a color at `point` into the sky behind it, the further away the more. */
-function hazed(color: Color, point: Vector3, strength: number): Color {
+function hazed(color: Color, point: Vector3, strength: number, look: SkyLook): Color {
   toward.subVectors(point, EYE);
   const distance = toward.length();
   // The haze is the color of the sky low behind the point, not the sky straight above it.
   toward.y *= 0.4;
-  skyColor(toward, haze);
+  skyColor(toward, look, haze);
   // Blended as paint, in sRGB: in linear light a little of the bright horizon swamps the darks.
-  const t = (1 - Math.exp(-distance / 160)) * 0.8 * strength;
+  const t = (1 - Math.exp(-distance / 160)) * 0.8 * strength * look.haze;
   return color.convertLinearToSRGB().lerp(haze.convertLinearToSRGB(), t).convertSRGBToLinear();
 }
 
@@ -257,6 +261,9 @@ const PALETTE = {
   terracotta: hex('#9a5b3c'),
   lamplight: hex('#ffc26e'),
   glasshouse: hex('#d9a35e'),
+  /** Glass with no lamp behind it: the glasshouse catches the sky, a house window is dark. */
+  glass: hex('#a7bccb'),
+  window: hex('#39404c'),
   star: hex('#e8edff'),
   moon: hex('#f6edd2'),
 } as const;
@@ -296,7 +303,7 @@ function paintSky(painter: Painter): void {
         point(row + 1, column + 1),
         point(row + 1, column),
       ];
-      const [c0, c1, c2, c3] = directions.map((d) => skyColor(d));
+      const [c0, c1, c2, c3] = directions.map((d) => skyColor(d, painter.look));
       const [p0, p1, p2, p3] = directions.map((d) => aloft(d, SKY_RADIUS));
       inward.copy(directions[0]!).add(directions[2]!).negate();
       painter.triangle(p0!, p1!, p2!, c0!, c1!, c2!, inward);
@@ -308,13 +315,6 @@ function paintSky(painter: Painter): void {
 /** The point `distance` out along `direction` from the middle of the sky. */
 function aloft(direction: Vector3, distance: number): Vector3 {
   return direction.clone().multiplyScalar(distance).add(SKY_CENTER);
-}
-
-/** A direction in the sky by azimuth (degrees east of north) and elevation (degrees). */
-function skyward(azimuth: number, elevation: number): Vector3 {
-  const t = MathUtils.degToRad(azimuth);
-  const e = MathUtils.degToRad(elevation);
-  return new Vector3(Math.cos(e) * Math.sin(t), Math.sin(e), -Math.cos(e) * Math.cos(t));
 }
 
 /** An orthonormal frame across the sky at `direction`: right, and up. */
@@ -330,51 +330,9 @@ const MOON = skyward(-40, 24);
 function paintNight(painter: Painter): void {
   const random = createRandom(311);
   const inward = new Vector3();
-
-  // The moon's halo: a fan, brighter in the middle, that fades out into the sky.
-  const [right, up] = skyFrame(MOON);
-  const center = aloft(MOON, SKY_RADIUS - 3);
-  const middle = skyColor(MOON).add(new Color(0.05, 0.045, 0.04));
-  const sides = 28;
-  const haloRadius = 11;
-  inward.copy(MOON).negate();
-  for (let i = 0; i < sides; i++) {
-    const rim = (k: number): Vector3 => {
-      const angle = (k / sides) * Math.PI * 2;
-      return center
-        .clone()
-        .addScaledVector(right, Math.cos(angle) * haloRadius)
-        .addScaledVector(up, Math.sin(angle) * haloRadius);
-    };
-    const r0 = rim(i);
-    const r1 = rim(i + 1);
-    const color = (p: Vector3) => skyColor(p.clone().sub(SKY_CENTER));
-    painter.triangle(center, r0, r1, middle, color(r0), color(r1), inward);
-  }
-
-  // The crescent: between the lit limb (a half circle) and the terminator (a half ellipse),
-  // turned so the limb faces down and toward the afterglow.
-  const radius = 2.4;
-  const angle = MathUtils.degToRad(-75);
-  const lit = right.clone().multiplyScalar(Math.cos(angle)).addScaledVector(up, Math.sin(angle));
-  const along = new Vector3().crossVectors(MOON, lit).normalize();
-  const moonCenter = aloft(MOON, SKY_RADIUS - 5);
-  const steps = 18;
-  const limb = (t: number, width: number): Vector3 =>
-    moonCenter
-      .clone()
-      .addScaledVector(lit, Math.cos(t) * radius * width)
-      .addScaledVector(along, Math.sin(t) * radius);
-  for (let i = 0; i < steps; i++) {
-    const t0 = -Math.PI / 2 + (i / steps) * Math.PI;
-    const t1 = -Math.PI / 2 + ((i + 1) / steps) * Math.PI;
-    const o0 = limb(t0, 1);
-    const o1 = limb(t1, 1);
-    const i0 = limb(t0, 0.45);
-    const i1 = limb(t1, 0.45);
-    painter.triangle(i0, o0, o1, PALETTE.moon, PALETTE.moon, PALETTE.moon, inward);
-    painter.triangle(i0, o1, i1, PALETTE.moon, PALETTE.moon, PALETTE.moon, inward);
-  }
+  const look = painter.look;
+  if (look.moon > 0.02) paintMoon(painter, look, inward);
+  if (look.stars < 0.02) return;
 
   // Stars come out where the sky is darkest, high up and away from the afterglow and the moon.
   const color = new Color();
@@ -385,8 +343,8 @@ function paintNight(painter: Painter): void {
     const direction = skyward(azimuth, elevation);
     if (direction.angleTo(MOON) < 0.12) continue;
     placed++;
-    const sky = skyColor(direction);
-    const brightness = 0.25 + random() ** 2 * 0.75;
+    const sky = skyColor(direction, look);
+    const brightness = (0.25 + random() ** 2 * 0.75) * look.stars;
     const fade = MathUtils.smoothstep(elevation, 14, 34);
     color.lerpColors(sky, PALETTE.star, brightness * fade);
     const size = 0.22 + random() * 0.18 + (random() < 0.08 ? 0.2 : 0);
@@ -402,6 +360,55 @@ function paintNight(painter: Painter): void {
     const [n, e, s, w] = [corner(0, 1), corner(1, 0), corner(0, -1), corner(-1, 0)];
     painter.triangle(n, e, s, color, color, color, inward);
     painter.triangle(n, s, w, color, color, color, inward);
+  }
+}
+
+/** The new moon and its halo, as bright as the look has it. */
+function paintMoon(painter: Painter, look: SkyLook, inward: Vector3): void {
+  // The moon's halo: a fan, brighter in the middle, that fades out into the sky.
+  const [right, up] = skyFrame(MOON);
+  const center = aloft(MOON, SKY_RADIUS - 3);
+  const middle = skyColor(MOON, look).add(new Color(0.05, 0.045, 0.04).multiplyScalar(look.moon));
+  const sides = 28;
+  const haloRadius = 11;
+  inward.copy(MOON).negate();
+  for (let i = 0; i < sides; i++) {
+    const rim = (k: number): Vector3 => {
+      const angle = (k / sides) * Math.PI * 2;
+      return center
+        .clone()
+        .addScaledVector(right, Math.cos(angle) * haloRadius)
+        .addScaledVector(up, Math.sin(angle) * haloRadius);
+    };
+    const r0 = rim(i);
+    const r1 = rim(i + 1);
+    const color = (p: Vector3) => skyColor(p.clone().sub(SKY_CENTER), look);
+    painter.triangle(center, r0, r1, middle, color(r0), color(r1), inward);
+  }
+
+  // The crescent: between the lit limb (a half circle) and the terminator (a half ellipse),
+  // turned so the limb faces down and toward the afterglow.
+  const radius = 2.4;
+  const angle = MathUtils.degToRad(-75);
+  const lit = right.clone().multiplyScalar(Math.cos(angle)).addScaledVector(up, Math.sin(angle));
+  const along = new Vector3().crossVectors(MOON, lit).normalize();
+  const moonCenter = aloft(MOON, SKY_RADIUS - 5);
+  const steps = 18;
+  const moon = skyColor(MOON, look).lerp(PALETTE.moon, look.moon);
+  const limb = (t: number, width: number): Vector3 =>
+    moonCenter
+      .clone()
+      .addScaledVector(lit, Math.cos(t) * radius * width)
+      .addScaledVector(along, Math.sin(t) * radius);
+  for (let i = 0; i < steps; i++) {
+    const t0 = -Math.PI / 2 + (i / steps) * Math.PI;
+    const t1 = -Math.PI / 2 + ((i + 1) / steps) * Math.PI;
+    const o0 = limb(t0, 1);
+    const o1 = limb(t1, 1);
+    const i0 = limb(t0, 0.45);
+    const i1 = limb(t1, 0.45);
+    painter.triangle(i0, o0, o1, moon, moon, moon, inward);
+    painter.triangle(i0, o1, i1, moon, moon, moon, inward);
   }
 }
 
@@ -627,6 +634,7 @@ function paintGarden(painter: Painter, bulbs: Vector3[]): void {
     corner(hw, eaves, hd),
     corner(-hw, eaves, hd),
     lit,
+    PALETTE.glass,
     south,
   );
   painter.glow(
@@ -635,6 +643,7 @@ function paintGarden(painter: Painter, bulbs: Vector3[]): void {
     corner(hw, ridge, 0),
     corner(-hw, ridge, 0),
     lit,
+    PALETTE.glass,
     new Vector3(0, 1, 1),
   );
   for (const sx of [-1, 1]) {
@@ -645,6 +654,7 @@ function paintGarden(painter: Painter, bulbs: Vector3[]): void {
       corner(sx * hw, eaves, -hd),
       corner(sx * hw, eaves, hd),
       lit,
+      PALETTE.glass,
       out,
     );
     painter.glow(
@@ -653,6 +663,7 @@ function paintGarden(painter: Painter, bulbs: Vector3[]): void {
       corner(sx * hw, ridge, 0),
       corner(sx * hw, ridge, 0),
       lit,
+      PALETTE.glass,
       out,
     );
   }
@@ -868,6 +879,7 @@ function house(
       new Vector3(wx + 0.4, wy + 0.55, wz),
       new Vector3(wx - 0.4, wy + 0.55, wz),
       PALETTE.lamplight,
+      PALETTE.window,
       south,
     );
   }
@@ -948,9 +960,9 @@ export interface Outside {
   readonly bulbs: readonly Vector3[];
 }
 
-/** Paint everything outside the north windows. */
-export function paintOutside(): Outside {
-  const painter = new Painter();
+/** Paint everything outside the north windows, in `look`. */
+export function paintOutside(look: SkyLook): Outside {
+  const painter = new Painter(look);
   const bulbs: Vector3[] = [];
   paintSky(painter);
   paintNight(painter);
@@ -964,10 +976,48 @@ export function paintOutside(): Outside {
   return { geometry: painter.build(), bulbs };
 }
 
-/** Add the view outside to the kitchen: one unlit layer, and the string lights on `light`. */
-export function buildOutside(kit: Kit): void {
-  const { geometry, bulbs } = paintOutside();
-  kit.add('outside', geometry);
-  for (const bulb of bulbs)
-    kit.sphere('light', bulb.x, bulb.y, bulb.z, 0.045, { color: '#e09a52' });
+/** The string lights' bulbs, warm; lamps shine past white on the high tier for the bloom. */
+const BULB = new Color('#e09a52');
+
+/**
+ * The view outside as the scene shows it: one unlit mesh repainted for the time of day, and the
+ * string lights, which come on toward dusk.
+ */
+export class OutsideView {
+  readonly group = new Group();
+  private readonly view: Mesh<BufferGeometry, MeshBasicMaterial>;
+  private readonly bulbs: Mesh<BufferGeometry, MeshBasicMaterial>;
+  private readonly glow: number;
+
+  /** `hdr`: the bulbs shine brighter than white, for the bloom to catch. */
+  constructor(look: SkyLook, hdr: boolean) {
+    this.glow = hdr ? 2.2 : 1;
+    const { geometry, bulbs } = paintOutside(look);
+    this.view = new Mesh(
+      geometry,
+      new MeshBasicMaterial({ vertexColors: true, fog: false, toneMapped: false }),
+    );
+    const bulb = new IcosahedronGeometry(0.045, 0);
+    const strand = mergeGeometries(bulbs.map((p) => bulb.clone().translate(p.x, p.y, p.z)));
+    this.bulbs = new Mesh(strand ?? new BufferGeometry(), new MeshBasicMaterial());
+    for (const mesh of [this.view, this.bulbs]) {
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+    }
+    this.group.add(this.view, this.bulbs);
+    this.setLamps(look.lamps);
+  }
+
+  /** Paint the view again in a new look. It takes a few tens of milliseconds, so do it when idle. */
+  repaint(look: SkyLook): void {
+    const old = this.view.geometry;
+    this.view.geometry = paintOutside(look).geometry;
+    old.dispose();
+    this.setLamps(look.lamps);
+  }
+
+  private setLamps(lamps: number): void {
+    this.bulbs.material.color.copy(BULB).multiplyScalar(this.glow * lamps);
+    this.bulbs.visible = lamps > 0.02;
+  }
 }

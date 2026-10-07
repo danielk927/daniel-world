@@ -32,7 +32,6 @@ export type LayerName =
   | 'glass'
   | 'window'
   | 'light'
-  | 'outside'
   | 'sign'
   | 'exit';
 
@@ -195,12 +194,6 @@ export class Kit {
         vertexColors: true,
         receiveShadow: false,
       })
-      // The view outside (see outside.ts): unlit, its dusk light and haze baked into its colors.
-      .layer(
-        'outside',
-        new MeshBasicMaterial({ vertexColors: true, fog: false, toneMapped: false }),
-        { vertexColors: true, receiveShadow: false },
-      )
       .layer('sign', standard({ map: everySecondCountsTexture(), roughness: 0.9 }))
       .layer('exit', new MeshBasicMaterial({ map: exitSignTexture() }), { receiveShadow: false });
   }

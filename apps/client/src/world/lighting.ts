@@ -20,6 +20,7 @@ import { KITCHEN, PASS_DISHES, ROOM_HALF_X, ROOM_HALF_Z, ROOM_HEIGHT } from '@wo
 import { createLightCones } from './effects.ts';
 import { PENDANTS } from './kitchen.ts';
 import type { Quality } from '../util/capabilities.ts';
+import type { SkyLook } from './timeOfDay.ts';
 
 /**
  * Evening service, lit after Sharon Calahan's Gusteau's kitchen in Ratatouille, where the human
@@ -51,6 +52,8 @@ const HAZE = '#5e5049';
 export interface Lighting {
   /** Flicker the fire. */
   update(time: number): void;
+  /** Light the room for the time of day outside: what comes in through the windows, and the fill. */
+  applyLook(look: SkyLook): void;
 }
 
 /**
@@ -188,9 +191,22 @@ export function createLighting(scene: Scene, renderer: WebGLRenderer, quality: Q
   // A little haze, so the far end of the room sits back into the evening.
   scene.fog = new FogExp2(HAZE, high ? 0.012 : 0.008);
 
+  const fillBase = fill.intensity;
+  const duskBase = dusk.intensity;
   return {
     update(time: number): void {
       if (fire) fire.intensity = 0.9 + Math.sin(time * 13) * 0.07 + Math.sin(time * 7.3) * 0.05;
+    },
+    applyLook(look: SkyLook): void {
+      dusk.color.copy(look.windowColor);
+      dusk.intensity = duskBase * look.windowStrength;
+      if (high) {
+        fill.color.copy(look.fillColor);
+        fill.intensity = fillBase * look.fillStrength;
+      } else {
+        // The low tier keeps its warm-neutral fill, only a little brighter by day.
+        fill.intensity = fillBase * (1 + (look.fillStrength - 1) * 0.25);
+      }
     },
   };
 }

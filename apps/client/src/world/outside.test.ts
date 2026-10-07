@@ -3,8 +3,9 @@ import { EYE_HEIGHT, PLAY_HALF_X, PLAY_HALF_Z, ROOM_HALF_Z, WINDOWS } from '@wor
 import { describe, expect, it } from 'vitest';
 import { SKYLIGHT_OPENINGS } from './kitchen.ts';
 import { SKY_CENTER, SKY_RADIUS, landHeight, paintOutside } from './outside.ts';
+import { lookAt } from './timeOfDay.ts';
 
-const outside = paintOutside();
+const outside = paintOutside(lookAt(19.8));
 // Front faces only, as drawn: a ray that only finds the back of something sees through it.
 const mesh = new Mesh(outside.geometry, new MeshBasicMaterial({ side: FrontSide }));
 const raycaster = new Raycaster();

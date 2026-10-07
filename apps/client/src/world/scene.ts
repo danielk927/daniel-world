@@ -14,12 +14,15 @@ import { worldTime } from './clock.ts';
 import { createFlames, createSteam } from './effects.ts';
 import { Kit } from './kit.ts';
 import { Knives } from './knives.ts';
-import { buildKitchen } from './kitchen.ts';
+import { CLOCK_DISPLAYS, CLOCK_SIZE, buildKitchen } from './kitchen.ts';
+import { KitchenClock } from './kitchenClock.ts';
 import { createLighting, type Lighting } from './lighting.ts';
 import { storage } from '../util/storage.ts';
 import { QualityGovernor, RENDER_LEVELS } from './governor.ts';
 import type { PostProcessing } from './post.ts';
+import { OutsideView } from './outside.ts';
 import { buildStationProps } from './props.ts';
+import { lookAt, pinnedHour, visitorHour } from './timeOfDay.ts';
 import { assignShadowDepthMaterials } from './shadowDepth.ts';
 import { Stations } from './stations.ts';
 import { Viewmodel } from './viewmodel.ts';
@@ -45,6 +48,15 @@ export class WorldScene {
   /** Steps the high tier's cost down when the GPU falls behind; see governor.ts. */
   private governor: QualityGovernor | null = null;
   private frameDt = 0;
+  /** The view outside, lit for the visitor's local time. */
+  private readonly outside: OutsideView;
+  /** The LED clock over the pass, on the visitor's local time. */
+  private readonly clock: KitchenClock;
+  /** The local hour the look was painted for, and the quarter hour it falls in. */
+  hour: number;
+  private quarter: number;
+  /** Seconds until the clock is checked for a new quarter hour. */
+  private lookCheck = 0;
 
   readonly quality: Quality;
 
@@ -74,6 +86,21 @@ export class WorldScene {
     this.scene.background = new Color('#151f38');
     this.lighting = createLighting(this.scene, this.renderer, quality);
     this.viewmodel.matchLighting(high, this.scene.environment, this.scene.environmentIntensity);
+
+    this.hour = visitorHour(new Date(), location.search);
+    this.quarter = Math.floor(this.hour * 4);
+    const look = lookAt(this.hour);
+    this.lighting.applyLook(look);
+    this.outside = new OutsideView(look, high);
+    this.scene.add(this.outside.group);
+    this.clock = new KitchenClock(
+      CLOCK_DISPLAYS,
+      CLOCK_SIZE.width,
+      CLOCK_SIZE.height,
+      pinnedHour(location.search),
+      high,
+    );
+    this.scene.add(this.clock.mesh);
 
     const kit = new Kit(high);
     buildKitchen(kit);
@@ -152,6 +179,30 @@ export class WorldScene {
     }
     this.stations.update(dt);
     this.lighting.update(time);
+    this.followClock(dt);
+    this.clock.update();
+  }
+
+  /**
+   * Every quarter of an hour the light outside moves on: repaint the view and relight the room,
+   * when the browser is idle, since painting takes a few tens of milliseconds.
+   */
+  private followClock(dt: number): void {
+    this.lookCheck -= dt;
+    if (this.lookCheck > 0) return;
+    this.lookCheck = 20;
+    const hour = visitorHour(new Date(), location.search);
+    const quarter = Math.floor(hour * 4);
+    if (quarter === this.quarter) return;
+    this.quarter = quarter;
+    const repaint = (): void => {
+      this.hour = hour;
+      const look = lookAt(hour);
+      this.outside.repaint(look);
+      this.lighting.applyLook(look);
+    };
+    if ('requestIdleCallback' in window) requestIdleCallback(repaint, { timeout: 2000 });
+    else setTimeout(repaint, 0);
   }
 
   render(): void {
