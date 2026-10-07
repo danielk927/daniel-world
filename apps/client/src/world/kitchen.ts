@@ -24,6 +24,7 @@ import {
   type Wall,
 } from '@world/shared';
 import { at } from './builder.ts';
+import { buildCooler } from './coolerRoom.ts';
 import { paint, type Kit, type LayerName } from './kit.ts';
 
 /**
@@ -72,7 +73,17 @@ const WALLS: Record<Wall, WallSpec> = {
     openings: [{ from: WINDOWS.from, to: WINDOWS.to, bottom: WINDOWS.bottom, top: WINDOWS.top }],
   },
   south: { plane: HZ, axis: 'x', from: -HX, to: HX, normal: new Vector3(0, 0, -1), openings: [] },
-  east: { plane: HX, axis: 'z', from: -HZ, to: HZ, normal: new Vector3(-1, 0, 0), openings: [] },
+  east: {
+    plane: HX,
+    axis: 'z',
+    from: -HZ,
+    to: HZ,
+    normal: new Vector3(-1, 0, 0),
+    // The walk-in's doorway, filled by its door (see cooler.ts).
+    openings: [
+      { from: DOORS.walkIn.from, to: DOORS.walkIn.to, bottom: 0, top: DOORS.walkIn.height },
+    ],
+  },
   west: { plane: -HX, axis: 'z', from: -HZ, to: HZ, normal: new Vector3(1, 0, 0), openings: [] },
 };
 
@@ -198,7 +209,15 @@ function createShell(kit: Kit): void {
   createFloor(kit);
   for (const wall of Object.values(WALLS)) {
     wallFace(kit, wall, 0, ROOM_HEIGHT, paint.wall);
-    wallBox(kit, 'shell', wall, wall.from, wall.to, 0, 0.1, 0, 0.02, paint.seam);
+    // The skirting runs along the floor, round any doorway.
+    let start = wall.from;
+    for (const o of [...wall.openings]
+      .filter((o) => o.bottom === 0)
+      .sort((a, b) => a.from - b.from)) {
+      wallBox(kit, 'shell', wall, start, o.from, 0, 0.1, 0, 0.02, paint.seam);
+      start = o.to;
+    }
+    wallBox(kit, 'shell', wall, start, wall.to, 0, 0.1, 0, 0.02, paint.seam);
   }
 
   // The vault: a faceted arc spanning north to south, running the length of the room.
@@ -357,33 +376,8 @@ function createDoors(kit: Kit): void {
     wallBox(kit, 'steel', south, hu - 0.015, hu + 0.015, 0.85, 1.25, 0.05, 0.08);
   }
 
-  // The walk-in cooler: a heavy steel door with chrome hardware and a temperature readout.
-  const walkIn = DOORS.walkIn;
-  const east = WALLS[walkIn.wall];
-  wallBox(
-    kit,
-    'steel',
-    east,
-    walkIn.from - 0.12,
-    walkIn.to + 0.12,
-    0,
-    walkIn.height + 0.12,
-    0,
-    0.05,
-  );
-  wallBox(kit, 'steel', east, walkIn.from, walkIn.to, 0.02, walkIn.height, 0.05, 0.11);
-  for (const y of [0.4, 1.8]) {
-    wallBox(kit, 'steel', east, walkIn.to - 0.09, walkIn.to - 0.01, y - 0.11, y + 0.11, 0.11, 0.18);
-  }
-  wallBox(kit, 'steel', east, walkIn.from + 0.05, walkIn.from + 0.37, 1.07, 1.13, 0.13, 0.19);
-  wallBox(kit, 'iron', east, walkIn.from - 0.45, walkIn.from - 0.23, 1.54, 1.66, 0, 0.05);
-  const display = wallPoint(east, walkIn.from - 0.34, 1.6, 0.052);
-  kit.add(
-    'light',
-    new PlaneGeometry(0.16, 0.06),
-    at(display.x, display.y, display.z, { ry: -Math.PI / 2 }),
-    paint.walkInDisplay,
-  );
+  // The walk-in cooler, a heavy steel door in a steel frame: see coolerRoom.ts and cooler.ts.
+  buildCooler(kit);
 
   // Back door, with the exit sign above it.
   const back = DOORS.back;

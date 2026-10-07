@@ -32,6 +32,7 @@ export type LayerName =
   | 'glass'
   | 'window'
   | 'light'
+  | 'cold'
   | 'sign'
   | 'exit';
 
@@ -59,7 +60,6 @@ export const paint = {
   lamp: '#fff4df',
   bulb: '#ff8a47',
   porthole: '#ffc98c',
-  walkInDisplay: '#ff4d3d',
 } as const;
 
 export interface Burner {
@@ -191,6 +191,12 @@ export class Kit {
         { receiveShadow: false, renderOrder: -1 },
       )
       .layer('light', new MeshBasicMaterial({ vertexColors: true, color: glow(hdr ? 2.2 : 1) }), {
+        vertexColors: true,
+        receiveShadow: false,
+      })
+      // The walk-in cooler's inside: lit by its own lamps, baked into its colors, out of the
+      // kitchen's light (see cooler.ts).
+      .layer('cold', new MeshBasicMaterial({ vertexColors: true }), {
         vertexColors: true,
         receiveShadow: false,
       })
