@@ -53,6 +53,28 @@ describe('parseClientMessage', () => {
     const parsed = parseClientMessage('{"t":"ping","id":3,"admin":true}');
     expect(parsed).toEqual({ t: 'ping', id: 3 });
   });
+
+  it("carries the visitor's prefs in the hello, and on their own when they change", () => {
+    const hello = { t: 'hello', v: 7, name: 'Otter', room: 'lobby', prefs: { chef: false } };
+    expect(parseClientMessage(JSON.stringify(hello))).toEqual(hello);
+    const prefs = { t: 'prefs', prefs: { chef: true } };
+    expect(parseClientMessage(JSON.stringify(prefs))).toEqual(prefs);
+    // Unknown prefs are dropped, as anywhere else.
+    expect(
+      parseClientMessage(JSON.stringify({ t: 'prefs', prefs: { chef: false, god: true } })),
+    ).toEqual({ t: 'prefs', prefs: { chef: false } });
+  });
+
+  it.each([
+    ['prefs without a body', '{"t":"prefs"}'],
+    ['prefs missing the choice', '{"t":"prefs","prefs":{}}'],
+    ['a choice that is not a boolean', '{"t":"prefs","prefs":{"chef":"off"}}'],
+    ['a choice of 0', '{"t":"prefs","prefs":{"chef":0}}'],
+    ['prefs that are not an object', '{"t":"prefs","prefs":[false]}'],
+    ['a hello with bad prefs', '{"t":"hello","v":7,"name":"a","room":"b","prefs":{"chef":null}}'],
+  ])('rejects %s', (_label, raw) => {
+    expect(parseClientMessage(raw)).toBeNull();
+  });
 });
 
 describe('parseServerMessage', () => {
@@ -92,6 +114,17 @@ describe('parseServerMessage', () => {
     // A blade direction is a unit vector.
     expect(
       parseServerMessage(encode({ t: 'stuck', knife: { ...knife, dy: -3 }, at: 0.3 })),
+    ).toBeNull();
+  });
+
+  it("marks the room's resident, and nobody else", () => {
+    const chef = { id: 1, name: 'Chef Skinner', color: '#ffffff', resident: true as const };
+    expect(parseServerMessage(encode({ t: 'join', player: chef }))).toEqual({
+      t: 'join',
+      player: chef,
+    });
+    expect(
+      parseServerMessage(JSON.stringify({ t: 'join', player: { ...chef, resident: false } })),
     ).toBeNull();
   });
 

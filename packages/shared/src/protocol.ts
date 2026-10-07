@@ -12,6 +12,17 @@ const playerId = z.number().int().nonnegative();
 
 // ---------- Client to server ----------
 
+/** What a visitor has chosen about the room for themselves, in the hello and on every change. */
+export const prefsSchema = z.object({
+  /** Chef Skinner, the lobby's resident cook, may throw knives at this player. */
+  chef: z.boolean(),
+});
+
+export type Prefs = z.infer<typeof prefsSchema>;
+
+/** A visitor who has not said otherwise (an older client) gets the room as it comes. */
+export const DEFAULT_PREFS: Readonly<Prefs> = { chef: true };
+
 export const helloSchema = z.object({
   t: z.literal('hello'),
   v: z.number().int(),
@@ -19,6 +30,8 @@ export const helloSchema = z.object({
   room: z.string().max(64),
   /** Where the player was before a reconnect. The server clamps it to the play area. */
   spawn: z.object({ x: finite, z: finite, yaw: finite }).optional(),
+  /** Absent means DEFAULT_PREFS. */
+  prefs: prefsSchema.optional(),
 });
 
 export const inputSchema = z.object({
@@ -48,11 +61,18 @@ export const pingSchema = z.object({
   id: z.number().int().nonnegative(),
 });
 
+/** The visitor changed their prefs; they apply at once. */
+export const prefsMessageSchema = z.object({
+  t: z.literal('prefs'),
+  prefs: prefsSchema,
+});
+
 export const clientMessageSchema = z.discriminatedUnion('t', [
   helloSchema,
   inputSchema,
   chatSendSchema,
   pingSchema,
+  prefsMessageSchema,
 ]);
 
 export type InputMessage = z.infer<typeof inputSchema>;
@@ -64,6 +84,8 @@ export const playerInfoSchema = z.object({
   id: playerId,
   name: z.string(),
   color: z.string().regex(/^#[0-9a-f]{6}$/),
+  /** Lives in the room, driven by the server (Chef Skinner); absent for visitors. */
+  resident: z.literal(true).optional(),
 });
 
 /** Full simulation state of one player, as sent in snapshots. */
