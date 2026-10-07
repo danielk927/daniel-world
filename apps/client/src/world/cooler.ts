@@ -85,7 +85,7 @@ export function dentShape(dent: CoolerDent, index: number): DentShape {
     ry: fist ? 0.075 + random() * 0.02 : 0.03 + random() * 0.01,
     cos: Math.cos(turn),
     sin: Math.sin(turn),
-    depth: fist ? 0.02 + random() * 0.008 : 0.011 + random() * 0.004,
+    depth: fist ? 0.025 + random() * 0.009 : 0.012 + random() * 0.004,
     fist,
     scuff: fist ? 0.12 + random() * 0.06 : 0.22 + random() * 0.08,
   };
@@ -496,11 +496,11 @@ export class CoolerDoor {
         ? this.joltStrength * Math.exp(-sinceJolt * 9) * Math.sin(sinceJolt * 70)
         : 0;
     const shut = this.angle === 0 ? 1 : Math.max(0, 1 - this.angle * 4);
-    const turn = this.angle + (this.damage.shift + Math.abs(jolt) * 0.008) * shut;
+    const turn = this.angle + (this.damage.shift + Math.abs(jolt) * 0.016) * shut;
     const sag = this.damage.sag * shut;
     this.turn.makeRotationY(-turn);
     // A jolt rattles it in its frame; damage drops it on its hinges.
-    this.offset.makeTranslation(jolt * 0.002, -sag, 0);
+    this.offset.makeTranslation(Math.abs(jolt) * 0.004, -sag, 0);
     this.leaf.matrix
       .makeTranslation(COOLER_DOOR.hingeX, 0, COOLER_DOOR.hingeZ)
       .multiply(this.turn)
@@ -698,23 +698,23 @@ export class CoolerDoor {
     const unlit = '#2a0f0b';
     const on = value > -1;
     const tenths = on ? Math.round(value * 10) : 0;
-    const digits = [Math.floor(tenths / 100) % 10, Math.floor(tenths / 10) % 10, tenths % 10];
-    const cell = { w: 18, h: 30, t: 4, y: 9 };
-    digits.forEach((d, i) => {
-      // No leading zero: the tens place is dark under ten degrees.
-      const value = i === 0 && d === 0 ? -1 : d;
-      sevenSegment(ctx, 16 + i * 28, cell, on ? value : -1, lit, unlit);
-    });
-    // The decimal point, and a small degree sign and C.
+    const tens = Math.floor(tenths / 100) % 10;
+    // Whole degrees in big digits (no leading zero), the tenth after a clear point in small, so it
+    // never reads as thirty.
+    const big = { w: 17, h: 30, t: 4, y: 9 };
+    sevenSegment(ctx, 12, big, on && tens > 0 ? tens : -1, lit, unlit);
+    sevenSegment(ctx, 38, big, on ? Math.floor(tenths / 10) % 10 : -1, lit, unlit);
     ctx.fillStyle = on ? lit : unlit;
-    ctx.fillRect(68, 36, 4, 4);
+    ctx.fillRect(62, 34, 5, 5);
+    sevenSegment(ctx, 72, { w: 10, h: 18, t: 3, y: 21 }, on ? tenths % 10 : -1, lit, unlit);
+    // A small degree sign and C.
     ctx.strokeStyle = on ? lit : unlit;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(104, 13, 3, 0, Math.PI * 2);
+    ctx.arc(98, 13, 3, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.font = '600 16px Jost, sans-serif';
-    ctx.fillText('C', 108, 36);
+    ctx.font = '600 17px Jost, sans-serif';
+    ctx.fillText('C', 104, 37);
     this.readoutTexture.needsUpdate = true;
   }
 }
@@ -821,8 +821,8 @@ function createMist(open: { value: number }): InstancedMesh {
         c.z = mix(uDoor.y, uDoor.z, lane) + (lane - 0.5) * 1.4 * t;
         float start = 0.08 + pow(aSeed.y, 1.5) * (0.9 + burst * 0.8);
         c.y = mix(start, 0.1 + aSeed.z * 0.12, smoothstep(0.0, 0.8, t));
-        float size = mix(0.7, 2.3, t) * (1.0 + burst * 0.4);
-        vAlpha = smoothstep(0.0, 0.06, t) * pow(1.0 - t, 1.3) * (0.09 + 0.3 * burst);
+        float size = mix(0.7, 2.3, t) * (1.0 + burst * 0.6);
+        vAlpha = smoothstep(0.0, 0.06, t) * pow(1.0 - t, 1.3) * (0.09 + 0.22 * burst);
         vec4 view = modelViewMatrix * vec4(c, 1.0);
         // Wider than tall: the cold air lies low and spreads.
         view.xy += position.xy * size * vec2(1.0, 0.6);
