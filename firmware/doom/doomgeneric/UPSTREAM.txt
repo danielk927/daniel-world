@@ -1,0 +1,17 @@
+doomgeneric, vendored for the kitchen computer
+==============================================
+
+Source:  https://github.com/ozkl/doomgeneric
+Commit:  dcb7a8dbc7a16ce3dda29382ac9aae9d77d21284 (2026-04-12)
+License: GNU General Public License, version 2 or later (see LICENSE).
+
+doomgeneric is ozkl's portable fork of Chocolate Doom, which is based on
+the DOOM source code released by id Software in 1997.
+
+Only the files the kitchen computer builds are kept: the engine, its
+headers and the stdio WAD reader. The platform backends (SDL, X11, Win32,
+Allegro, emscripten, ...), the sound backends and the Makefiles are left
+out; firmware/doom/dg_kitchen.c is the platform layer for this machine and
+firmware/doom/build.sh builds it.
+
+Local changes are marked with "kitchen:" comments.
