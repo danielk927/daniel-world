@@ -5,7 +5,7 @@ import {
   KNIFE_GRAVITY,
   KNIFE_MAX_FLIGHT_SECONDS,
   KNIFE_SPEED,
-  ROOM_HEIGHT,
+  ROOM_HALF_Z,
 } from './constants.ts';
 import {
   flyKnife,
@@ -22,7 +22,11 @@ import {
   HEAT_LAMP_SHADE,
   PENDANT_LAMPS,
   PENDANT_SHADE,
-  vaultHeight,
+  SKYLIGHTS,
+  SKYLIGHT_WELLS,
+  VAULT_EDGES,
+  WINDOWS,
+  WINDOW_GLASS_DEPTH,
   type Ring,
   type ShadeOutline,
 } from './world.ts';
@@ -96,6 +100,13 @@ function inShadeWall(shade: ShadeOutline, rim: Point, point: Point): boolean {
   return r <= outside && (inside < 0 || r >= inside);
 }
 
+/** The vault's height over z, as it is built: flat facets between its edges. */
+function facetHeight(z: number): number {
+  const i = VAULT_EDGES.findIndex((edge, k) => k > 0 && z <= edge.z) - 1;
+  const [a, b] = [VAULT_EDGES[i]!, VAULT_EDGES[i + 1]!];
+  return a.y + ((z - a.z) / (b.z - a.z)) * (b.y - a.y);
+}
+
 const NORTH = 0;
 const EAST = -Math.PI / 2;
 const WEST = Math.PI / 2;
@@ -154,12 +165,11 @@ describe('knife flight', () => {
     expect(hit.dy).toBeLessThan(0);
   });
 
-  it('sticks into the vault from below', () => {
+  it('sticks into the vault from below, where its facets are', () => {
     const vault = throwFrom(0, 1.6, 5, NORTH, UP);
     expect(vault?.kind).toBe('surface');
     if (vault?.kind !== 'surface') return;
-    expect(vault.y).toBeGreaterThan(ROOM_HEIGHT);
-    expect(vault.y).toBeCloseTo(vaultHeight(vault.z) + KNIFE_EMBED * vault.dy, 2);
+    expect(vault.y).toBeCloseTo(facetHeight(vault.z) + KNIFE_EMBED * vault.dy, 2);
   });
 
   it('hits a player it passes through, and never the thrower', () => {
@@ -288,6 +298,29 @@ describe('knives in the structures of the kitchen', () => {
     const target: Point = [3.15, 1.06, -0.65 + 0.32 * 0.42];
     const kettle = throwAt([3.15, STAND, 2.6], target);
     expect(distance(kettle.contact, target)).toBeLessThan(0.01);
+  });
+
+  it('fly into the window strip and stick in the glass, set back in the wall', () => {
+    const glass = -ROOM_HALF_Z - WINDOW_GLASS_DEPTH;
+    const window = throwAt([2, STAND, -5.3], [2, 2, glass]);
+    expect(window.contact[2]).toBeCloseTo(glass, 3);
+    // Beside the strip, the wall is where it always was.
+    const wall = throwAt([WINDOWS.to + 0.6, STAND, -5.3], [WINDOWS.to + 0.6, 2, -ROOM_HALF_Z]);
+    expect(wall.contact[2]).toBeCloseTo(-ROOM_HALF_Z, 3);
+  });
+
+  it('fly up a skylight and stick in its glass or a glazing bar', () => {
+    const { a, b, out } = SKYLIGHT_WELLS[0]!;
+    const middle = (depth: number, x: number): Point => [
+      x,
+      (a.y + b.y) / 2 + depth * out.y,
+      (a.z + b.z) / 2 + depth * out.z,
+    ];
+    const glass = middle(SKYLIGHTS.glass, 1);
+    expect(distance(throwAt([1, STAND, -2.6], glass).contact, glass)).toBeLessThan(0.005);
+    // The bar at x = 0 is 5 cm square, its middle 3 cm under the glass.
+    const bar = middle(SKYLIGHTS.barDepth - SKYLIGHTS.bar / 2, 0);
+    expect(distance(throwAt([0, STAND, -2.6], bar).contact, bar)).toBeLessThan(0.005);
   });
 
   it('keep every solid inside the room and round solids convex, as the flight assumes', () => {

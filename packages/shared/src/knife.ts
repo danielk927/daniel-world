@@ -11,7 +11,11 @@ import {
 import {
   COOLER_KNIFE_SOLIDS,
   KNIFE_SOLIDS,
-  vaultHeight,
+  SKYLIGHTS,
+  SKYLIGHT_WELLS,
+  VAULT_EDGES,
+  WINDOWS,
+  WINDOW_GLASS_DEPTH,
   inCoolerDoorway,
   type BoxCollider,
   type Ring,
@@ -71,8 +75,6 @@ export type KnifeImpact =
 
 /** Flight steps are this short, so the arc is followed closely between ticks. */
 const SUBSTEP = 1 / 80;
-/** Bisection steps to find where a segment crosses the curved vault. */
-const VAULT_ITERATIONS = 12;
 /** A knife's tip stops this short of the far side of something thin, like a shelf or a shade. */
 const EMBED_CLEARANCE = 0.005;
 
@@ -227,7 +229,7 @@ function firstHit(
   const ex = x + dx;
   const ey = y + dy;
   const ez = z + dz;
-  // The room's shell: floor, walls, and the vault overhead.
+  // The room's shell: floor, walls (the north one with its windows), and the vault overhead.
   if (ey < 0 && y >= 0) consider(y / (y - ey), null, Infinity);
   if (ex > ROOM_HALF_X) {
     const f = (ROOM_HALF_X - x) / dx;
@@ -236,11 +238,10 @@ function firstHit(
   }
   if (ex < -ROOM_HALF_X) consider((-ROOM_HALF_X - x) / dx, null, Infinity);
   if (ez > ROOM_HALF_Z) consider((ROOM_HALF_Z - z) / dz, null, Infinity);
-  if (ez < -ROOM_HALF_Z) consider((-ROOM_HALF_Z - z) / dz, null, Infinity);
-  if (ey > ROOM_HEIGHT && aboveVault(ey, ez)) {
-    consider(vaultCrossing(y, z, dy, dz), null, Infinity);
-  }
+  if (ez < -ROOM_HALF_Z) consider(northWall(x, y, z, dx, dy, dz), null, Infinity);
+  if (y > ROOM_HEIGHT || ey > ROOM_HEIGHT) consider(vault(x, y, z, dx, dy, dz), null, Infinity);
   const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  consider(glazingBars(x, y, z, dx, dy, dz), null, barThrough * length);
   // The solids over the floor cells the segment crosses, passing over any its bounds cannot reach.
   const minX = Math.min(x, ex);
   const maxX = Math.max(x, ex);
@@ -288,20 +289,157 @@ function firstHit(
   return result;
 }
 
-function aboveVault(y: number, z: number): boolean {
-  return y > vaultHeight(Math.max(-ROOM_HALF_Z, Math.min(ROOM_HALF_Z, z)));
+/**
+ * Where a segment that ends past the north wall meets it. Over the window strip a knife flies on
+ * into the opening and sticks in the glass, or in the opening's side, sill or head if it meets one
+ * of them first. Infinity if it reaches nothing.
+ */
+function northWall(x: number, y: number, z: number, dx: number, dy: number, dz: number): number {
+  if (z >= -ROOM_HALF_Z) {
+    const f = (-ROOM_HALF_Z - z) / dz;
+    const wx = x + dx * f;
+    const wy = y + dy * f;
+    if (wx < WINDOWS.from || wx > WINDOWS.to || wy < WINDOWS.bottom || wy > WINDOWS.top) return f;
+  }
+  let out = Infinity;
+  if (dz < 0) out = (-ROOM_HALF_Z - WINDOW_GLASS_DEPTH - z) / dz;
+  if (dx > 0) out = Math.min(out, (WINDOWS.to - x) / dx);
+  else if (dx < 0) out = Math.min(out, (WINDOWS.from - x) / dx);
+  if (dy > 0) out = Math.min(out, (WINDOWS.top - y) / dy);
+  else if (dy < 0) out = Math.min(out, (WINDOWS.bottom - y) / dy);
+  return out;
 }
 
-/** Where a segment that starts under the vault and ends above it crosses it, by bisection. */
-function vaultCrossing(y: number, z: number, dy: number, dz: number): number {
-  let lo = 0;
-  let hi = 1;
-  for (let i = 0; i < VAULT_ITERATIONS; i++) {
-    const mid = (lo + hi) / 2;
-    if (aboveVault(y + dy * mid, z + dz * mid)) hi = mid;
-    else lo = mid;
+/**
+ * The vault's facets as planes, y = y0 + slope * (z - z0). The vault is an arch, so the room under
+ * it is the space under every one of them, and a knife leaves it through the first it rises through.
+ */
+const FACETS = VAULT_EDGES.slice(1).map((b, i) => {
+  const a = VAULT_EDGES[i]!;
+  return { z: a.z, y: a.y, slope: (b.y - a.y) / (b.z - a.z) };
+});
+
+/**
+ * Each skylight's well in the frame its walls are built in: from its north edge, `u` along the
+ * facet it opens in and `v` out of the vault, found from a point's offset in z and y by this
+ * inverse.
+ */
+const WELLS = SKYLIGHT_WELLS.map(({ a, b, out }, i) => {
+  const span = Math.sqrt((b.z - a.z) * (b.z - a.z) + (b.y - a.y) * (b.y - a.y));
+  const alongZ = (b.z - a.z) / span;
+  const alongY = (b.y - a.y) / span;
+  const det = alongZ * out.y - out.z * alongY;
+  return {
+    facet: SKYLIGHTS.facets[i]!,
+    z: a.z,
+    y: a.y,
+    span,
+    uz: out.y / det,
+    uy: -out.z / det,
+    vz: -alongY / det,
+    vy: alongZ / det,
+  };
+});
+type Well = (typeof WELLS)[number];
+const PANE = (SKYLIGHTS.halfLength * 2) / SKYLIGHTS.panes;
+/** Nothing of the skylights is lower than the lowest edge of their openings. */
+const WELLS_BOTTOM = Math.min(...SKYLIGHT_WELLS.map(({ a, b }) => Math.min(a.y, b.y)));
+
+/** Where a segment leaves the room through the vault, or up a skylight; Infinity if it does not. */
+function vault(x: number, y: number, z: number, dx: number, dy: number, dz: number): number {
+  // Already up a skylight's well: it can only leave by the glass or the well's walls.
+  for (const well of WELLS) {
+    const rz = z - well.z;
+    const ry = y - well.y;
+    const u = rz * well.uz + ry * well.uy;
+    const v = rz * well.vz + ry * well.vy;
+    if (v > 0 && Math.abs(x) <= SKYLIGHTS.halfLength && u >= 0 && u <= well.span) {
+      return wellExit(well, x, y, z, dx, dy, dz);
+    }
   }
-  return hi;
+  let first = Infinity;
+  let facet = -1;
+  for (let i = 0; i < FACETS.length; i++) {
+    const plane = FACETS[i]!;
+    const rise = dy - plane.slope * dz;
+    if (rise <= 0) continue;
+    const f = Math.max(0, (plane.y + plane.slope * (z - plane.z) - y) / rise);
+    if (f < first) {
+      first = f;
+      facet = i;
+    }
+  }
+  if (first > 1) return Infinity;
+  // Through a skylight's opening: on up its well.
+  for (const well of WELLS) {
+    if (well.facet !== facet) continue;
+    const u = (z + dz * first - well.z) * well.uz + (y + dy * first - well.y) * well.uy;
+    if (Math.abs(x + dx * first) <= SKYLIGHTS.halfLength && u >= 0 && u <= well.span) {
+      return wellExit(well, x, y, z, dx, dy, dz);
+    }
+  }
+  return first;
+}
+
+/**
+ * Where a line in a skylight's well (or coming up into it through its opening) meets the glass or
+ * the well's walls; Infinity if it drops back out through the opening first.
+ */
+function wellExit(
+  well: Well,
+  x: number,
+  y: number,
+  z: number,
+  dx: number,
+  dy: number,
+  dz: number,
+): number {
+  const rz = z - well.z;
+  const ry = y - well.y;
+  const u = rz * well.uz + ry * well.uy;
+  const du = dz * well.uz + dy * well.uy;
+  const v = rz * well.vz + ry * well.vy;
+  const dv = dz * well.vz + dy * well.vy;
+  // Back down through the opening, into the room again.
+  if (dv <= 0) return Infinity;
+  const h = SKYLIGHTS.halfLength;
+  let out = (SKYLIGHTS.glass - v) / dv;
+  if (dx > 0) out = Math.min(out, (h - x) / dx);
+  else if (dx < 0) out = Math.min(out, (-h - x) / dx);
+  if (du > 0) out = Math.min(out, (well.span - u) / du);
+  else if (du < 0) out = Math.min(out, -u / du);
+  return out;
+}
+
+/**
+ * Where a segment meets a skylight's glazing bars, as a fraction of it; Infinity if it does not.
+ * Each bar is a box in its well's frame, just under the glass.
+ */
+function glazingBars(x: number, y: number, z: number, dx: number, dy: number, dz: number): number {
+  if (y < WELLS_BOTTOM && y + dy < WELLS_BOTTOM) return Infinity;
+  const half = SKYLIGHTS.bar / 2;
+  let first = Infinity;
+  for (const well of WELLS) {
+    const rz = z - well.z;
+    const ry = y - well.y;
+    const u = rz * well.uz + ry * well.uy;
+    const du = dz * well.uz + dy * well.uy;
+    const v = rz * well.vz + ry * well.vy;
+    const dv = dz * well.vz + dy * well.vy;
+    for (let k = 1; k < SKYLIGHTS.panes; k++) {
+      const barX = -SKYLIGHTS.halfLength + k * PANE;
+      enter = -Infinity;
+      exit = Infinity;
+      if (!clipAxis(x, dx, barX - half, barX + half)) continue;
+      if (!clipAxis(u, du, 0, well.span)) continue;
+      if (!clipAxis(v, dv, SKYLIGHTS.barDepth - half, SKYLIGHTS.barDepth + half)) continue;
+      if (enter >= 0 && enter < first) {
+        first = enter;
+        barThrough = exit - enter;
+      }
+    }
+  }
+  return first;
 }
 
 /** The segment's entry and exit, as fractions of it, narrowed one axis at a time. */
@@ -309,6 +447,8 @@ let enter = 0;
 let exit = 1;
 /** How far the segment's line runs on inside the solid it last met, as a fraction of it. */
 let through = 0;
+/** The same for the glazing bar it meets first. */
+let barThrough = 0;
 
 /** Narrow [enter, exit] to where p + f * d lies within [min, max]. False if it never does. */
 function clipAxis(p: number, d: number, min: number, max: number): boolean {
