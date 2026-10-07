@@ -6,6 +6,7 @@ import {
 } from '../game/settings.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { el, trapFocus } from './dom.ts';
+import { KnivesPanel } from './knivesPanel.ts';
 import { PartyPanel, type PartyAvailability, type PartyHandlers } from './party.ts';
 
 export interface PauseHandlers extends PartyHandlers {
@@ -39,8 +40,8 @@ function row(label: string, id: string, control: HTMLElement, help?: HTMLElement
 }
 
 /**
- * The pause menu, laid out like a game's: who and where you are along the top, Party, Settings and
- * Controls as tabs, Resume and Leave along the bottom. Settings apply as they change.
+ * The pause menu, laid out like a game's: who and where you are along the top, Party, Knives,
+ * Settings and Controls as tabs, Resume and Leave along the bottom. Settings apply as they change.
  */
 export class PauseMenu {
   readonly element: HTMLElement;
@@ -52,6 +53,8 @@ export class PauseMenu {
   private readonly note = el('p', { class: 'pause-note' });
   private readonly status = el('p', { class: 'pause-status' });
   private readonly party: PartyPanel;
+  private readonly knives: KnivesPanel;
+  private selected = 0;
   private readonly tabs: HTMLButtonElement[] = [];
   private readonly panels: HTMLElement[] = [];
   private releaseFocus: (() => void) | null = null;
@@ -68,8 +71,10 @@ export class PauseMenu {
       attrs: { type: 'button' },
     });
     this.party = new PartyPanel(handlers);
+    this.knives = new KnivesPanel(settings);
     const panels: [string, HTMLElement][] = [
       ['Party', this.party.element],
+      ['Knives', this.knives.element],
       ['Settings', this.settingsPanel(settings, quality)],
       ['Controls', this.controlsPanel()],
     ];
@@ -147,12 +152,19 @@ export class PauseMenu {
   }
 
   private select(index: number): void {
+    this.selected = index;
     this.tabs.forEach((tab, i) => {
       const selected = i === index;
       tab.setAttribute('aria-selected', String(selected));
       tab.tabIndex = selected ? 0 : -1;
       this.panels[i]!.hidden = !selected;
     });
+    this.syncKnives();
+  }
+
+  /** The Knives page draws its preview only while it is on screen. */
+  private syncKnives(): void {
+    this.knives.setActive(this.isOpen && this.panels[this.selected] === this.knives.element);
   }
 
   private settingsPanel(
@@ -329,6 +341,7 @@ export class PauseMenu {
     this.element.hidden = false;
     this.releaseFocus = trapFocus(this.element);
     this.resumeButton.focus({ preventScroll: true });
+    this.syncKnives();
   }
 
   hide(): void {
@@ -338,5 +351,6 @@ export class PauseMenu {
     this.element.hidden = true;
     this.releaseFocus?.();
     this.releaseFocus = null;
+    this.syncKnives();
   }
 }

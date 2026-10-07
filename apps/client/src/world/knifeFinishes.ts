@@ -353,3 +353,20 @@ export function finishPixels(): { data: Uint8Array; width: number; height: numbe
   const tex = finishTexture();
   return { data: tex.image.data as Uint8Array, width: WIDTH, height: HEIGHT };
 }
+
+/** A finish's pattern as painted along a blade (tip first), for a swatch: RGBA rows, edge to spine. */
+export function finishSwatch(finish: KnifeFinish): {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+} {
+  paintFinish(finish);
+  const data = finishTexture().image.data as Uint8Array;
+  const rows = STRIP - MARGIN * 2;
+  const start = ((KNIFE_FINISHES.indexOf(finish) + 1) * STRIP + MARGIN) * WIDTH * 4;
+  return {
+    data: new Uint8ClampedArray(data.subarray(start, start + rows * WIDTH * 4)),
+    width: WIDTH,
+    height: rows,
+  };
+}

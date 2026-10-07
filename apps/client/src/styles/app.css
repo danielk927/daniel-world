@@ -1901,6 +1901,226 @@ kbd {
   min-width: 132px;
 }
 
+/* The Knives tab: a live look at the chosen knife beside its finishes, every knife in a grid below. */
+.knives {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.knives-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 196px;
+  gap: 16px;
+}
+
+.knife-preview {
+  position: relative;
+  min-height: 168px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--navy-deep);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.knife-preview:active {
+  cursor: grabbing;
+}
+
+.knife-preview canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.knives-details {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  min-width: 0;
+}
+
+.knives-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.knives-finish {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.finish-list {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.finish {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.finish:hover {
+  color: var(--ink);
+}
+
+.finish[aria-checked='true'] {
+  border-color: var(--panel-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.finish-swatch {
+  flex: none;
+  width: 44px;
+  height: 12px;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px rgba(246, 243, 234, 0.22);
+}
+
+.knives-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.knives-equip {
+  width: 100%;
+}
+
+.knives-status {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ok);
+}
+
+.knives-status:empty {
+  display: none;
+}
+
+.knife-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+
+.knife-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 9px 8px 7px;
+  border: 1px solid rgba(246, 243, 234, 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  font: inherit;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.knife-tile svg {
+  display: block;
+  width: 100%;
+  height: 20px;
+  fill: currentColor;
+}
+
+.knife-tile-name {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.knife-tile:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink-muted);
+}
+
+.knife-tile[aria-checked='true'] {
+  border-color: var(--ivory);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+}
+
+/* The knife carried now: a small ivory mark in the corner. */
+.knife-tile.is-equipped::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ivory);
+}
+
+.knife-tile:focus-visible,
+.finish:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+@media (max-width: 600px) {
+  .knives-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knife-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Four tabs across a phone: closer together, in smaller capitals. */
+@media (max-width: 480px) {
+  .tabs {
+    gap: 14px;
+  }
+
+  .tab {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+}
+
+@media (max-width: 400px) {
+  .knife-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .pause-footer {
   display: flex;
   flex-wrap: wrap;
