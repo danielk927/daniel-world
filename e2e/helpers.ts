@@ -59,20 +59,23 @@ export async function expectWorld(
   return last!;
 }
 
-/** Open the site in a fresh browser context and walk through the landing screen like a visitor. */
+/**
+ * Open the site in a fresh browser context and walk through the landing screen like a visitor.
+ * `path` opens another address first, such as an invite link.
+ */
 export async function enterWorld(
   browser: Browser,
-  options: { name: string; room?: string; online?: boolean },
+  options: { name: string; room?: string; online?: boolean; path?: string },
 ): Promise<Page> {
   // A modest viewport keeps several software-rendered pages responsive on one machine.
   const context = await browser.newContext({ viewport: { width: 960, height: 540 } });
   const page = await context.newPage();
-  await page.goto('/');
+  await page.goto(options.path ?? '/');
   // Pages already in the world keep rendering in software on the same CPU, so a third page can take
   // a while to build the kitchen and compile its shaders.
   await expect(page.getByRole('button', { name: 'Enter world' })).toBeVisible({ timeout: 60_000 });
   await page.getByLabel('Your name').fill(options.name);
-  if (options.room) await page.getByLabel('Room code').fill(options.room);
+  if (options.room) await page.getByLabel('Private party').fill(options.room);
   await page.getByRole('button', { name: 'Enter world' }).click();
   const online = options.online ?? true;
   await expectWorld(

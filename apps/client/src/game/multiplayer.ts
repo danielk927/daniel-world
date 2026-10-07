@@ -2,13 +2,19 @@ import type { Vector3 } from 'three';
 import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
+  type ErrorCode,
   type KnifeTarget,
   type InputMessage,
   type PlayerInfo,
   type ServerMessage,
   type WelcomeMessage,
 } from '@world/shared';
-import { Connection, type ConnectionStatus } from '../net/connection.ts';
+import {
+  Connection,
+  type ConnectionHandlers,
+  type ConnectionStatus,
+  type JoinedRoom,
+} from '../net/connection.ts';
 import { ServerClock, SnapshotBuffer } from '../net/interpolation.ts';
 import type { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
@@ -18,6 +24,7 @@ import type { Label, LabelLayer } from '../ui/labels.ts';
 import type { Avatars, AvatarPose } from '../world/avatars.ts';
 import type { Knives } from '../world/knives.ts';
 import type { LocalPlayer } from './localPlayer.ts';
+import { roomName } from './party.ts';
 
 const BUBBLE_MS = 6000;
 /** A remote thrower's swing starts this long before their knife leaves the hand. */
@@ -53,7 +60,10 @@ export interface MultiplayerDeps {
   /** Seconds, the same clock the world animates with. */
   worldTime: () => number;
   notify: (message: string) => void;
-  onFatal: (message: string) => void;
+  /** The server refused this room for good, saying why. */
+  onFatal: (code: ErrorCode) => void;
+  /** The connection changed state (online, connecting, offline). */
+  onStatus: (status: ConnectionStatus) => void;
   /** The server placed us somewhere new (first join, respawn); turn the view to match. */
   onSpawn: (yaw: number) => void;
   /**
@@ -95,28 +105,41 @@ export class Multiplayer {
   private toldAboutMismatch = false;
   private statusTimer = 0;
 
-  constructor(deps: MultiplayerDeps) {
+  /**
+   * Connects to `deps.room`, or, given a room already joined in the background, takes over its
+   * connection and starts from its welcome.
+   */
+  constructor(deps: MultiplayerDeps, joined?: JoinedRoom) {
     this.deps = deps;
     this.room = deps.room;
     deps.hud.setRoom(deps.room);
     this.refreshPlayers();
-    this.connection = new Connection(
-      deps.url,
-      deps.name,
-      deps.room,
-      () => {
+    const handlers: ConnectionHandlers = {
+      onStatus: (status) => this.onStatus(status),
+      onWelcome: (welcome) => this.onWelcome(welcome),
+      onMessage: (message) => this.onMessage(message),
+      onFatal: (code) => deps.onFatal(code),
+      spawnHint: () => {
         // Rejoin where we are standing after a reconnect instead of back at a spawn point.
         if (!this.hasBeenOnline) return undefined;
         const s = deps.player.state;
         return { x: s.x, z: s.z, yaw: s.yaw };
       },
-      {
-        onStatus: (status) => this.onStatus(status),
-        onWelcome: (welcome) => this.onWelcome(welcome),
-        onMessage: (message) => this.onMessage(message),
-        onFatal: (message) => deps.onFatal(message),
-      },
-    );
+    };
+    if (joined) {
+      this.connection = joined.connection;
+      this.connection.setHandlers(handlers);
+      this.onStatus('online');
+      this.onWelcome(joined.welcome);
+      for (const message of joined.backlog) this.onMessage(message);
+    } else {
+      this.connection = new Connection({
+        url: deps.url,
+        name: deps.name,
+        room: deps.room,
+        handlers,
+      });
+    }
   }
 
   get status(): ConnectionStatus {
@@ -129,6 +152,11 @@ export class Multiplayer {
 
   get rtt(): number | null {
     return this.connection.rtt;
+  }
+
+  /** Offline because the server runs another version of the protocol. */
+  get versionMismatch(): boolean {
+    return this.connection.versionMismatch;
   }
 
   /** Called once per simulation tick with the input that was just predicted. */
@@ -237,6 +265,7 @@ export class Multiplayer {
   private onStatus(status: ConnectionStatus): void {
     const { hud, chat } = this.deps;
     window.clearInterval(this.statusTimer);
+    this.deps.onStatus(status);
     if (status === 'online') {
       const showPing = (): void => hud.setStatus('online', { rtt: this.connection.rtt });
       showPing();
@@ -282,10 +311,11 @@ export class Multiplayer {
     }
     this.refreshPlayers();
     const others = welcome.players.length - 1;
+    const room = roomName(welcome.room);
     this.deps.chat.addSystem(
       others === 0
-        ? `You joined ${welcome.room}. Nobody else is here yet.`
-        : `You joined ${welcome.room} with ${others} ${others === 1 ? 'other cook' : 'other cooks'}.`,
+        ? `You joined ${room}. Nobody else is here yet.`
+        : `You joined ${room} with ${others} ${others === 1 ? 'other cook' : 'other cooks'}.`,
     );
     if (this.hasBeenOnline) this.deps.notify('Reconnected');
     this.hasBeenOnline = true;

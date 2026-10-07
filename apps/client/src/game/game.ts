@@ -9,9 +9,11 @@ import {
   launchKnife,
   type InputMessage,
   type KnifeTarget,
+  type RoomIntent,
 } from '@world/shared';
 import type { LoreEntry } from '../content.ts';
 import { SERVER_URL } from '../env.ts';
+import { JoinError, joinRoom, type JoinedRoom } from '../net/connection.ts';
 import { Chat } from '../ui/chat.ts';
 import { el } from '../ui/dom.ts';
 import { Hud } from '../ui/hud.ts';
@@ -32,6 +34,7 @@ import { CameraRig } from './cameraRig.ts';
 import { Input } from './input.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
+import { addressForRoom, inviteLink, joinFailureMessage } from './party.ts';
 import type { Settings } from './settings.ts';
 import type { Quality } from '../util/capabilities.ts';
 
@@ -91,6 +94,10 @@ export class Game {
   private hoveredIndex = -1;
   private readonly stationLabels: Label[] = [];
   private room = DEFAULT_ROOM;
+  /** The name this player entered with. */
+  private name = '';
+  /** A move to another room under way, joining it in the background. */
+  private joining: AbortController | null = null;
   /** Smoothed main-thread time spent per frame (simulation, animation, render submission), in ms. */
   frameCpuMs = 0;
   /** The minimap redraws at 30 Hz; dots on a small map look the same and it halves the cost. */
@@ -136,7 +143,7 @@ export class Game {
       {
         onResume: (look) => void this.resume(look),
         onLeave: () => this.leave(),
-        onCopyInvite: () => void this.copyInvite(),
+        onMove: (room, intent) => this.moveTo(room, intent),
       },
       settings,
       { active: world.quality, auto: autoQuality },
@@ -208,30 +215,124 @@ export class Game {
     this.enterToQuat.setFromEuler(this.euler.set(0, SPAWN.yaw, 0));
     this.enterProgress = 0;
     this.mode = 'entering';
-    this.pause.setPrivateRoom(room !== DEFAULT_ROOM);
+    this.name = name;
     this.chat.clear();
-    this.multiplayer = new Multiplayer({
-      url: SERVER_URL,
-      name,
-      room,
-      player: this.player,
-      avatars: this.world.avatars,
-      labels: this.labels,
-      hud: this.hud,
-      chat: this.chat,
-      worldTime: () => this.elapsed,
-      knives: this.world.knives,
-      notify: (message) => this.toasts.show(message),
-      onKill: (thrower, victim, role) => this.onKill(thrower, victim, role),
-      onBackOnFeet: () => this.backOnFeet(),
-      onFatal: (message) => this.leave(message),
-      onSpawn: (yaw) => {
-        this.input.yaw = yaw;
-        this.input.pitch = 0;
-        this.enterToQuat.setFromEuler(this.euler.set(0, yaw, 0));
-      },
-    });
+    this.multiplayer = this.connect(room);
+    this.showRoom();
     void this.input.lock();
+  }
+
+  /** Be in `room`: connect to it, or take over a connection already joined to it. */
+  private connect(room: string, joined?: JoinedRoom): Multiplayer {
+    return new Multiplayer(
+      {
+        url: SERVER_URL,
+        name: this.name,
+        room,
+        player: this.player,
+        avatars: this.world.avatars,
+        labels: this.labels,
+        hud: this.hud,
+        chat: this.chat,
+        worldTime: () => this.elapsed,
+        knives: this.world.knives,
+        notify: (message) => this.toasts.show(message),
+        onKill: (thrower, victim, role) => this.onKill(thrower, victim, role),
+        onBackOnFeet: () => this.backOnFeet(),
+        onFatal: (code) => this.leave(joinFailureMessage(code, room)),
+        onStatus: () => this.onConnectionStatus(),
+        onSpawn: (yaw) => this.faceSpawn(yaw),
+      },
+      joined,
+    );
+  }
+
+  private faceSpawn(yaw: number): void {
+    this.input.yaw = yaw;
+    this.input.pitch = 0;
+    this.enterToQuat.setFromEuler(this.euler.set(0, yaw, 0));
+  }
+
+  /**
+   * Move to another room in place, from the pause menu: join it in the background, and only once
+   * it has let us in, leave this one, so a full, taken or unreachable room leaves the player where
+   * they were. Offline there is nobody to lose, so going back to the lobby just goes.
+   * Resolves to null once there, or to why not.
+   */
+  private async moveTo(room: string, intent?: RoomIntent): Promise<string | null> {
+    const current = this.multiplayer;
+    if (!current || this.mode !== 'paused' || this.joining) return null;
+    if (room === this.room) return null;
+    if (!current.isOnline) {
+      if (room !== DEFAULT_ROOM) return joinFailureMessage('unreachable', room);
+      this.moveInto(room);
+      return null;
+    }
+    const joining = new AbortController();
+    this.joining = joining;
+    try {
+      const joined = await joinRoom(
+        { url: SERVER_URL, name: this.name, room, intent },
+        joining.signal,
+      );
+      // Left the world while the new room was letting us in.
+      if (joining.signal.aborted) {
+        joined.connection.close();
+        return null;
+      }
+      this.moveInto(room, joined);
+      return null;
+    } catch (error) {
+      return joinFailureMessage(error instanceof JoinError ? error.failure : 'unreachable', room);
+    } finally {
+      if (this.joining === joining) this.joining = null;
+    }
+  }
+
+  /** Leave this room for `room` and start over there: its spawn, its players, its knives, its chat. */
+  private moveInto(room: string, joined?: JoinedRoom): void {
+    this.multiplayer?.close();
+    this.room = room;
+    this.chat.clear();
+    this.killFeed.clear();
+    this.impact.clear();
+    this.world.knives.reset([]);
+    this.throwAt = null;
+    this.punchPending = false;
+    this.lastThrowSeq = -Infinity;
+    // Without a welcome to place us, stand at the spawn as when playing solo.
+    if (!joined) {
+      this.player.reset();
+      this.faceSpawn(SPAWN.yaw);
+    }
+    this.backOnFeet();
+    this.multiplayer = this.connect(room, joined);
+    this.showRoom();
+  }
+
+  /** Show which room this is everywhere it appears: the menu, its invite link, the address bar. */
+  private showRoom(): void {
+    const party = this.room !== DEFAULT_ROOM;
+    const siteRoot = new URL(import.meta.env.BASE_URL, location.origin).href;
+    this.pause.setRoom(this.room, party ? inviteLink(this.room, siteRoot) : null);
+    // A reload, or the address shared as is, comes back to the same party.
+    history.replaceState(history.state, '', addressForRoom(location.href, this.room));
+    this.onConnectionStatus();
+  }
+
+  /** Keep the menu's status line and party controls in step with the connection. */
+  private onConnectionStatus(): void {
+    const mp = this.multiplayer;
+    this.pause.setStatus(this.statusLine());
+    this.pause.setPartyAvailability(
+      !mp || mp.status === 'connecting'
+        ? 'connecting'
+        : mp.status === 'online'
+          ? 'online'
+          : mp.versionMismatch
+            ? 'updating'
+            : 'offline',
+    );
   }
 
   /** Back to the landing screen, optionally explaining why. */
@@ -250,12 +351,16 @@ export class Game {
     this.toasts.clear();
     this.killFeed.clear();
     this.impact.clear();
+    this.joining?.abort();
+    this.joining = null;
     this.multiplayer?.close();
     this.multiplayer = null;
     this.backOnFeet();
     this.viewmodel.setShown(false);
     this.world.knives.reset([]);
     this.landing.setNotice(reason);
+    // Entering again goes back to the same room, as the address bar says.
+    this.landing.setRoom(this.room);
     this.landing.show();
     // Labels would float over the landing card; the world behind it is just scenery.
     this.labels.element.hidden = true;
@@ -290,7 +395,7 @@ export class Game {
 
   /** The room and the connection, as the pause menu says it. */
   private statusLine(): string {
-    const room = this.room === DEFAULT_ROOM ? 'The lobby' : `Room #${this.room}`;
+    const room = this.room === DEFAULT_ROOM ? 'The lobby' : `Party #${this.room}`;
     const mp = this.multiplayer;
     if (!mp || mp.status === 'offline') return `${room} · Playing solo`;
     if (mp.status === 'connecting') return `${room} · Connecting`;
@@ -386,19 +491,6 @@ export class Game {
     if (this.mode !== 'landing') this.impact.blink();
     this.viewmodel.setShown(this.inWorld);
     this.labels.element.hidden = this.mode !== 'playing' && this.mode !== 'chat';
-  }
-
-  private async copyInvite(): Promise<void> {
-    const url = new URL(location.href);
-    url.search = '';
-    url.hash = '';
-    url.searchParams.set('room', this.room);
-    try {
-      await navigator.clipboard.writeText(url.toString());
-      this.toasts.show('Invite link copied');
-    } catch {
-      this.toasts.show(`Share this link: ${url.toString()}`, 6000);
-    }
   }
 
   private onLockChange(locked: boolean): void {

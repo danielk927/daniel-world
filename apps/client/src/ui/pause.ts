@@ -6,12 +6,12 @@ import {
 } from '../game/settings.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { el, trapFocus } from './dom.ts';
+import { PartyPanel, type PartyAvailability, type PartyHandlers } from './party.ts';
 
-export interface PauseHandlers {
+export interface PauseHandlers extends PartyHandlers {
   /** `look`: take the mouse back for looking around (not after Esc; see InfoPanel). */
   onResume(look: boolean): void;
   onLeave(): void;
-  onCopyInvite(): void;
 }
 
 const CONTROLS: readonly (readonly [string, string])[] = [
@@ -39,7 +39,7 @@ function row(label: string, id: string, control: HTMLElement, help?: HTMLElement
 }
 
 /**
- * The pause menu, laid out like a game's: who and where you are along the top, Settings and
+ * The pause menu, laid out like a game's: who and where you are along the top, Party, Settings and
  * Controls as tabs, Resume and Leave along the bottom. Settings apply as they change.
  */
 export class PauseMenu {
@@ -51,11 +51,7 @@ export class PauseMenu {
   });
   private readonly note = el('p', { class: 'pause-note' });
   private readonly status = el('p', { class: 'pause-status' });
-  private readonly inviteButton = el('button', {
-    class: 'button button-secondary',
-    text: 'Copy invite link',
-    attrs: { type: 'button' },
-  });
+  private readonly party: PartyPanel;
   private readonly tabs: HTMLButtonElement[] = [];
   private readonly panels: HTMLElement[] = [];
   private releaseFocus: (() => void) | null = null;
@@ -71,7 +67,9 @@ export class PauseMenu {
       text: 'Leave world',
       attrs: { type: 'button' },
     });
+    this.party = new PartyPanel(handlers);
     const panels: [string, HTMLElement][] = [
+      ['Party', this.party.element],
       ['Settings', this.settingsPanel(settings, quality)],
       ['Controls', this.controlsPanel()],
     ];
@@ -127,7 +125,6 @@ export class PauseMenu {
           el('footer', { class: 'pause-footer' }, [
             this.resumeButton,
             leaveButton,
-            this.inviteButton,
             el('a', {
               class: 'text-link pause-portfolio',
               text: 'Plain portfolio page',
@@ -146,7 +143,6 @@ export class PauseMenu {
       handlers.onResume(false);
     });
     leaveButton.addEventListener('click', () => handlers.onLeave());
-    this.inviteButton.addEventListener('click', () => handlers.onCopyInvite());
     parent.append(this.element);
   }
 
@@ -295,9 +291,14 @@ export class PauseMenu {
     ]);
   }
 
-  /** Private rooms can be shared with a link. */
-  setPrivateRoom(isPrivate: boolean): void {
-    this.inviteButton.hidden = !isPrivate;
+  /** The room the player is in, and the link that invites others to it (null for the lobby). */
+  setRoom(room: string, inviteLink: string | null): void {
+    this.party.setRoom(room, inviteLink);
+  }
+
+  /** Whether parties can be started or joined, as the connection allows. */
+  setPartyAvailability(availability: PartyAvailability): void {
+    this.party.setAvailability(availability);
   }
 
   /** Where the player is and how the connection is, under the title. */

@@ -1,16 +1,13 @@
-import {
-  DEFAULT_ROOM,
-  NAME_MAX_LENGTH,
-  ROOM_CODE_MAX_LENGTH,
-  normalizeRoomCode,
-  sanitizeName,
-} from '@world/shared';
+import { DEFAULT_ROOM, NAME_MAX_LENGTH, sanitizeName } from '@world/shared';
 import { site } from '../content.ts';
+import { checkPartyCode, partyFromAddress } from '../game/party.ts';
 import { randomName } from '../util/names.ts';
 import { storage } from '../util/storage.ts';
 import { el } from './dom.ts';
 
 const NAME_KEY = 'world.name';
+const ROOM_HELP = 'Type a code to join friends, or make one up to start a party.';
+const INVITED_HELP = 'You are invited to this party. Clear the code for the public lobby.';
 
 export interface LandingHandlers {
   onEnter(name: string, room: string): void;
@@ -21,6 +18,12 @@ export class Landing {
   readonly element: HTMLElement;
   private readonly nameInput: HTMLInputElement;
   private readonly roomInput: HTMLInputElement;
+  private readonly roomHelp = el('p', {
+    class: 'field-help',
+    attrs: { id: 'landing-room-help', 'aria-live': 'polite' },
+  });
+  /** The party the address invited this visitor to, if any. */
+  private readonly invitedTo: string | null;
   private readonly enterButton: HTMLButtonElement;
   private readonly count = el('p', { class: 'landing-count', attrs: { 'aria-live': 'polite' } });
   private readonly notice = el('p', {
@@ -59,14 +62,18 @@ export class Landing {
         id: 'landing-room',
         name: 'room',
         type: 'text',
-        placeholder: `${DEFAULT_ROOM} (public)`,
+        placeholder: 'Leave empty for the public lobby',
         autocomplete: 'off',
         spellcheck: 'false',
-        maxlength: String(ROOM_CODE_MAX_LENGTH),
+        // Room for a too-long code to be pasted and called too long, not cut off without a word.
+        maxlength: '64',
+        'aria-describedby': 'landing-room-help',
       },
     });
-    const roomParam = new URLSearchParams(location.search).get('room');
-    if (roomParam) this.roomInput.value = normalizeRoomCode(roomParam);
+    this.invitedTo = partyFromAddress(location.search);
+    this.roomInput.value = this.invitedTo ?? '';
+    this.roomInput.addEventListener('input', () => this.describeRoom());
+    this.describeRoom();
 
     this.enterButton = el('button', {
       class: 'button button-primary button-large',
@@ -80,19 +87,28 @@ export class Landing {
         el('div', { class: 'input-with-action' }, [this.nameInput, shuffle]),
       ]),
       el('div', { class: 'field' }, [
-        el('label', { class: 'field-label', text: 'Room code', attrs: { for: 'landing-room' } }),
+        el('label', {
+          class: 'field-label',
+          text: 'Private party',
+          attrs: { for: 'landing-room' },
+        }),
         this.roomInput,
-        el('p', { class: 'field-help', text: 'Leave empty to join everyone in the lobby.' }),
+        this.roomHelp,
       ]),
       this.enterButton,
     ]);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       if (this.enterButton.disabled) return;
+      const room = this.chosenRoom();
+      if (room === null) {
+        this.roomInput.focus();
+        return;
+      }
       const name = sanitizeName(this.nameInput.value) || randomName();
       this.nameInput.value = name;
       storage.set(NAME_KEY, name);
-      handlers.onEnter(name, normalizeRoomCode(this.roomInput.value));
+      handlers.onEnter(name, room);
     });
 
     this.element = el(
@@ -122,6 +138,33 @@ export class Landing {
     );
     parent.append(this.element);
     this.count.textContent = 'Checking who is here…';
+  }
+
+  /** The room to enter: the lobby when the field is empty, null while the code is not valid. */
+  private chosenRoom(): string | null {
+    const check = checkPartyCode(this.roomInput.value);
+    if (check.ok) return check.code;
+    return check.problem === 'empty' || check.problem === 'lobby' ? DEFAULT_ROOM : null;
+  }
+
+  /** The line under the party code: what the field does, the invitation, or what is wrong. */
+  private describeRoom(): void {
+    const value = this.roomInput.value;
+    const check = checkPartyCode(value);
+    const invalid = !check.ok && (check.problem === 'characters' || check.problem === 'too_long');
+    this.roomHelp.textContent = invalid
+      ? check.message
+      : this.invitedTo !== null && check.ok && check.code === this.invitedTo
+        ? INVITED_HELP
+        : ROOM_HELP;
+    this.roomHelp.dataset.tone = invalid ? 'error' : 'help';
+    this.roomInput.setAttribute('aria-invalid', String(invalid));
+  }
+
+  /** Show the room the player was last in, so entering again goes back there. */
+  setRoom(room: string): void {
+    this.roomInput.value = room === DEFAULT_ROOM ? '' : room;
+    this.describeRoom();
   }
 
   show(): void {

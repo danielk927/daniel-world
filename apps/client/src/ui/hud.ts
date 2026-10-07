@@ -17,6 +17,7 @@ export class Hud {
   /** While the mouse is free in play: how to get it back for looking around. */
   private readonly lookCue = el('div', { class: 'look-cue', text: 'Click to look around' });
   private lookCueShown = false;
+  private readonly roomLabel = el('span', { class: 'hud-label', text: 'Room' });
   private readonly roomName = el('span', { class: 'hud-room-name' });
   private readonly statusDot = el(
     'span',
@@ -59,7 +60,7 @@ export class Hud {
       this.prompt,
       this.lookCue,
       el('div', { class: 'hud-panel hud-room' }, [
-        el('span', { class: 'hud-label', text: 'Room' }),
+        this.roomLabel,
         this.roomName,
         this.status,
         this.fps,
@@ -102,7 +103,9 @@ export class Hud {
   }
 
   setRoom(code: string): void {
-    this.roomName.textContent = code === DEFAULT_ROOM ? 'lobby' : `#${code}`;
+    const party = code !== DEFAULT_ROOM;
+    this.roomLabel.textContent = party ? 'Party' : 'Room';
+    this.roomName.textContent = party ? `#${code}` : 'lobby';
   }
 
   /**
