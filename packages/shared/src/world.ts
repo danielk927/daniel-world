@@ -348,13 +348,26 @@ export function coolerWallBetween(
 ): boolean {
   if (ax > ROOM_HALF_X === bx > ROOM_HALF_X) return false;
   if (!coolerOpen) return true;
-  // Through both faces of the wall, inside the doorway.
-  for (const plane of [ROOM_HALF_X, COOLER.minX]) {
-    const t = (plane - ax) / (bx - ax);
-    if (t < 0 || t > 1) continue;
-    if (!inCoolerDoorway(ay + (by - ay) * t, az + (bz - az) * t)) return true;
-  }
-  return false;
+  // Through both faces of the wall, inside the doorway. Labels ask every frame: no allocations.
+  return (
+    crossesBesideDoorway(ROOM_HALF_X, ax, ay, az, bx, by, bz) ||
+    crossesBesideDoorway(COOLER.minX, ax, ay, az, bx, by, bz)
+  );
+}
+
+/** Whether a segment crosses the plane x = `plane` outside the walk-in's doorway. */
+function crossesBesideDoorway(
+  plane: number,
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+): boolean {
+  const t = (plane - ax) / (bx - ax);
+  if (t < 0 || t > 1) return false;
+  return !inCoolerDoorway(ay + (by - ay) * t, az + (bz - az) * t);
 }
 
 export type StationId =
