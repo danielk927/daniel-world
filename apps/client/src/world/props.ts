@@ -767,9 +767,9 @@ function patisserie(kit: Kit): void {
     0.008,
   );
 
-  // A rolling pin in a dusting of flour.
+  // A rolling pin in a dusting of flour, which stays on the marble.
   const rx = cx + 1.55;
-  kit.cylinder('matte', rx, top + 0.001, cz + 0.15, 0.18, 0.002, { color: '#fbfaf6' });
+  kit.cylinder('matte', rx, top + 0.001, cz + 0.15, 0.15, 0.002, { color: '#fbfaf6' });
   kit.cylinder('matte', rx, top + 0.03, cz - 0.08, 0.03, 0.46, {
     rx: Math.PI / 2,
     color: paint.woodLight,
