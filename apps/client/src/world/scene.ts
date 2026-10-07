@@ -15,7 +15,7 @@ import { worldTime } from './clock.ts';
 import { createFlames, createSteam } from './effects.ts';
 import { Kit } from './kit.ts';
 import { Knives } from './knives.ts';
-import { CLOCK_DISPLAYS, CLOCK_SIZE, buildKitchen } from './kitchen.ts';
+import { CLOCK_DISPLAY, CLOCK_SIZE, buildKitchen } from './kitchen.ts';
 import { KitchenClock } from './kitchenClock.ts';
 import { createLighting, type Lighting } from './lighting.ts';
 import { storage } from '../util/storage.ts';
@@ -53,7 +53,7 @@ export class WorldScene {
   private frameDt = 0;
   /** The view outside, lit for the visitor's local time. */
   private readonly outside: OutsideView;
-  /** The LED clock over the pass, on the visitor's local time. */
+  /** The LED clock over the dining room doors, on the visitor's local time. */
   private readonly clock: KitchenClock;
   /** The local hour the look was painted for, and the quarter hour it falls in. */
   hour: number;
@@ -97,7 +97,7 @@ export class WorldScene {
     this.outside = new OutsideView(look, high);
     this.scene.add(this.outside.group);
     this.clock = new KitchenClock(
-      CLOCK_DISPLAYS,
+      CLOCK_DISPLAY,
       CLOCK_SIZE.width,
       CLOCK_SIZE.height,
       pinnedHour(location.search),

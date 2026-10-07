@@ -329,12 +329,15 @@ function createWindows(kit: Kit): void {
   }
 }
 
+/** The steel lintel over the dining room doors, which the clock above them sits clear of. */
+const DOOR_LINTEL = 0.12;
+
 function createDoors(kit: Kit): void {
   // Swinging doors to the dining room, with warm light through their portholes.
   const dining = DOORS.dining;
   const south = WALLS[dining.wall];
   const { from, to, height } = dining;
-  wallBox(kit, 'steel', south, from - 0.1, to + 0.1, height, height + 0.12, 0, 0.06);
+  wallBox(kit, 'steel', south, from - 0.1, to + 0.1, height, height + DOOR_LINTEL, 0, 0.06);
   wallBox(kit, 'steel', south, from - 0.1, from, 0, height, 0, 0.06);
   wallBox(kit, 'steel', south, to, to + 0.1, 0, height, 0, 0.06);
   for (const side of [-1, 1]) {
@@ -570,41 +573,41 @@ function createHood(kit: Kit): void {
 }
 
 /** The LED clock's display, in meters: four times as wide as it is tall, like its face. */
-export const CLOCK_SIZE = { width: 1.16, height: 0.29 } as const;
+export const CLOCK_SIZE = { width: 1.36, height: 0.34 } as const;
+/** The clock's black housing: a margin round the display, and how far it stands off the wall. */
+const CLOCK_HOUSING = { width: CLOCK_SIZE.width + 0.14, height: CLOCK_SIZE.height + 0.13 };
+const CLOCK_DEPTH = 0.06;
 
 /**
- * Where the kitchen clock's faces are: hung under the front of the hood, between two heat lamps,
- * where the aisle by the dining room doors looks straight at it, and its twin on the hood's north
- * face under the stars, for the line and the windows. KitchenClock draws them.
+ * Where the kitchen clock's face is: flat on the south wall, centered over the dining room doors a
+ * little above their frame and well under the light line, facing into the kitchen. From the
+ * islands and the windows it shows between the hood and the heat lamps over the pass.
+ * KitchenClock draws it.
  */
-export const CLOCK_DISPLAYS = [
-  { x: 1.5, y: 2.45, z: KITCHEN.hood.maxZ + 0.052, ry: 0 },
-  { x: 0, y: 3.45, z: KITCHEN.hood.minZ - 0.052, ry: Math.PI },
-] as const;
+export const CLOCK_DISPLAY = {
+  x: (DOORS.dining.from + DOORS.dining.to) / 2,
+  y: DOORS.dining.height + DOOR_LINTEL + 0.22 + CLOCK_HOUSING.height / 2,
+  // Just proud of the housing's front.
+  z: HZ - CLOCK_DEPTH - 0.003,
+  ry: Math.PI,
+} as const;
 
-/** The clock's black housings; the faces themselves are KitchenClock's. */
-function createClockHousings(kit: Kit): void {
-  for (const face of CLOCK_DISPLAYS) {
-    const z = face.z - Math.cos(face.ry) * 0.027;
-    kit.boxAt('matte', face.x, face.y, z, CLOCK_SIZE.width + 0.14, CLOCK_SIZE.height + 0.13, 0.05, {
-      color: '#151414',
-    });
-    // The front clock hangs from the hood's skirt on two short rods.
-    const top = face.y + (CLOCK_SIZE.height + 0.13) / 2;
-    if (top < KITCHEN.hood.bottom) {
-      for (const dx of [-0.45, 0.45]) {
-        kit.box(
-          'steel',
-          face.x + dx - 0.01,
-          face.x + dx + 0.01,
-          top,
-          KITCHEN.hood.bottom,
-          z - 0.01,
-          z + 0.01,
-        );
-      }
-    }
-  }
+/** The clock's black housing; the face itself is KitchenClock's. */
+function createClockHousing(kit: Kit): void {
+  const { x, y } = CLOCK_DISPLAY;
+  const { width, height } = CLOCK_HOUSING;
+  wallBox(
+    kit,
+    'matte',
+    WALLS.south,
+    x - width / 2,
+    x + width / 2,
+    y - height / 2,
+    y + height / 2,
+    0,
+    CLOCK_DEPTH,
+    '#151414',
+  );
 }
 
 /** A charcoal-topped prep island on a steel frame, plates stacked on its open shelves. */
@@ -830,7 +833,7 @@ export function buildKitchen(kit: Kit): void {
   createDoors(kit);
   createPiano(kit);
   createHood(kit);
-  createClockHousings(kit);
+  createClockHousing(kit);
   createCounters(kit);
   createPendants(kit);
 }

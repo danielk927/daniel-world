@@ -5,15 +5,14 @@ import {
   MeshBasicMaterial,
   PlaneGeometry,
   SRGBColorSpace,
-  type BufferGeometry,
 } from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { at } from './builder.ts';
 
 /**
- * The kitchen clock: a red LED display, the kind every pass has, showing the visitor's own local
- * time with the seconds running beside it (every second counts). Seven-segment digits, the unlit
- * segments faintly there as on a real display, the colon blinking each second.
+ * The kitchen clock: a red LED display over the doors to the dining room, as in many a restaurant
+ * kitchen, showing the visitor's own local time with the seconds running beside it (every second
+ * counts). Seven-segment digits, the unlit segments faintly there as on a real display, the colon
+ * blinking each second.
  */
 
 const WIDTH = 512;
@@ -64,12 +63,12 @@ export class KitchenClock {
   private readonly offset: number;
 
   /**
-   * `width` and `height` are the display's size in meters. `pinned` is a fixed starting hour, for
-   * trying the look at another time of day; the clock then runs on from it. `hdr` lets the lit
-   * segments shine past white so the bloom catches them, dimly.
+   * `display` is where the face hangs, `width` and `height` its size in meters. `pinned` is a fixed
+   * starting hour, for trying the look at another time of day; the clock then runs on from it.
+   * `hdr` lets the lit segments shine past white so the bloom catches them, dimly.
    */
   constructor(
-    displays: readonly ClockDisplay[],
+    display: ClockDisplay,
     width: number,
     height: number,
     pinned: number | null,
@@ -88,12 +87,9 @@ export class KitchenClock {
         ? 0
         : new Date(now).setHours(Math.floor(pinned), Math.round((pinned % 1) * 60), 0, 0) -
           now.getTime();
-    const plane = new PlaneGeometry(width, height);
-    const faces: BufferGeometry[] = displays.map((d) =>
-      plane.clone().applyMatrix4(at(d.x, d.y, d.z, { ry: d.ry })),
-    );
+    const { x, y, z, ry } = display;
     this.mesh = new Mesh(
-      mergeGeometries(faces),
+      new PlaneGeometry(width, height).applyMatrix4(at(x, y, z, { ry })),
       new MeshBasicMaterial({
         map: this.texture,
         color: new Color(1, 1, 1).multiplyScalar(hdr ? 1.5 : 1),
