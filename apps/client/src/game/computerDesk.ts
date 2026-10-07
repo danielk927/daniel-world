@@ -67,6 +67,16 @@ export class ComputerDesk {
     this.machine?.pause();
   }
 
+  /** Mouse motion, as MouseEvent.movementX: turns the marine. */
+  mouseMove(dx: number): void {
+    this.machine?.mouseMove(dx);
+  }
+
+  /** A mouse button, as MouseEvent.button: the left one fires. */
+  mouseButton(button: number, down: boolean): void {
+    this.machine?.mouseButton(button, down);
+  }
+
   /** A key from the cook at the keyboard, as a KeyboardEvent code. */
   key(code: string, down: boolean): void {
     this.machine?.key(code, down);

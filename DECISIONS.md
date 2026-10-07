@@ -395,3 +395,10 @@ Judgment calls made during the unattended build, with reasons.
 - **The screen is 4:3**, as DOOM's 320x200 was meant to be shown, with nearest-neighbour sampling and faint scanlines, and the lit picture kept dim so the bloom barely catches it.
 - **The monitor is solid to knives.** A knife thrown at the screen used to fly through the CRT into the wall behind it and poke its handle out through the glass, in the middle of the game.
 - **The firmware is committed prebuilt**, since Vercel's build has no RISC-V toolchain; the build is reproducible with `brew install llvm lld` and `firmware/doom/build.sh`. The ELF is GPL like `doomgeneric`, and its source is in the public repository.
+- **The controls are laid out over the screen whenever a cook sits down**, with a line on what the machine is; the first key or click puts them away and still reaches DOOM, leaving a one-line reminder along the bottom.
+  Daniel got stuck between rooms with only a short hint bar to go on.
+- **A mouse, because players reach for one.** With only the arrow keys to turn, modern players could not face a door squarely, and DOOM's use only reaches a line straight ahead within arm's length.
+  The machine has a mouse register: horizontal motion counted on the host until the guest reads it, at most 2048 counts a read so DOOM's 16-bit turn never overflows, and the left button with clicks held until read.
+  The mouse turns and fires but never walks (DOOM walked on vertical motion; the register has none, as DOS players got with `novert`), and no longer nudges the menu's sliders.
+  A pixel of mouse motion turns the marine as far as it turns a cook in the kitchen, half a turn in about 1430 pixels, times the visitor's sensitivity; sitting down takes pointer lock, since E is a key press.
+- **Space opens doors, as in DOOM**, and E and F too; Ctrl and the left button fire.

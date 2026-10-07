@@ -111,4 +111,4 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 
 - The kitchen computer's firmware (`apps/client/src/computer/assets/doom.elf`) is committed prebuilt, because the site's builds have no RISC-V toolchain; after changing anything in `firmware/`, rebuild it with `firmware/doom/build.sh` and commit the ELF.
   `firmware/include/machine.h` and `src/computer/abi.ts` must agree (`abi.test.ts` checks).
-  At the computer every key goes to DOOM except Esc, which steps away (under pointer lock the browser takes Esc anyway); DOOM's menu is on the backquote key.
+  At the computer every key goes to DOOM except Esc, which steps away (under pointer lock the browser takes Esc anyway); DOOM's menu is on the backquote key, and the mouse takes `movementX` in CSS pixels (`KitchenComputer.mouseMove` scales it to DOOM's counts).

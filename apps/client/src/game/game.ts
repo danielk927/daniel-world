@@ -210,6 +210,9 @@ export class Game {
     this.computerQuat.setFromEuler(this.euler.set(0, Math.PI / 2, 0));
     window.addEventListener('keydown', this.onComputerKey, true);
     window.addEventListener('keyup', this.onComputerKey, true);
+    document.addEventListener('mousemove', this.onComputerMouseMove);
+    canvas.addEventListener('mousedown', this.onComputerMouseButton);
+    window.addEventListener('mouseup', this.onComputerMouseButton);
 
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKey = (code) => this.onKey(code);
@@ -768,6 +771,8 @@ export class Game {
     this.computerGuide.show();
     this.labels.element.hidden = true;
     this.viewmodel.setShown(false);
+    // The mouse turns the marine, so hold on to it; E is a key press, so the browser allows it.
+    void this.input.lock();
     void this.desk.use();
   }
 
@@ -781,6 +786,24 @@ export class Game {
     this.labels.element.hidden = false;
     this.viewmodel.setShown(!this.knockedOut);
   }
+
+  /** At the computer, with the mouse held, its motion turns the marine. */
+  private readonly onComputerMouseMove = (event: MouseEvent): void => {
+    if (this.mode !== 'computer' || !this.input.locked) return;
+    this.desk.mouseMove(event.movementX * this.input.sensitivity);
+  };
+
+  /** A click at the computer fires; without the mouse held, the first one only takes it back. */
+  private readonly onComputerMouseButton = (event: MouseEvent): void => {
+    if (this.mode !== 'computer') return;
+    const down = event.type === 'mousedown';
+    if (down && !this.input.locked) {
+      void this.input.lock();
+      return;
+    }
+    if (down) this.putGuideAway();
+    this.desk.mouseButton(event.button, down);
+  };
 
   /** The first key or click at the computer puts the controls away; it still reaches DOOM. */
   private putGuideAway(): void {

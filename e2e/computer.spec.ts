@@ -25,13 +25,19 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
     'DOOM boots and draws frames',
     60_000,
   );
-  await expect(page.locator('.computer-hint')).toBeVisible();
+  // The controls are laid out over the screen until the first key, which still reaches DOOM.
+  const guide = page.getByRole('region', { name: 'DOOM' });
+  await expect(guide).toBeVisible();
+  await expect(guide).toContainText('Open doors and flip switches');
+  await expect(page.locator('.computer-hint')).toBeHidden();
 
   // At the computer the keys play DOOM: the cook stays where they are.
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(500);
   await page.keyboard.up('KeyW');
   expect((await world(page)).player).toEqual(running.player);
+  await expect(guide).toBeHidden();
+  await expect(page.locator('.computer-hint')).toBeVisible();
 
   // Esc steps away; the game pauses where it is, and the keys walk the kitchen again.
   await page.keyboard.press('Escape');
