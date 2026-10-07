@@ -345,3 +345,13 @@ Judgment calls made during the unattended build, with reasons.
 - **The clock hangs over the dining room doors**, at Daniel's request: one face flat on the south wall in its black housing, centered on the doors a little above their steel frame and clear of the light line, facing into the kitchen.
   It replaced a clock hung under the front of the hood and a twin under the stars, and grew to 1.36 by 0.34 m so it reads from the windows across the room.
   From the islands and the windows it shows between the hood and the heat lamps over the pass; from the aisle between the piano and the pass the lamps' bar hides it, and no height under the light line would clear it.
+
+### Stations serve the resume (2026-10-07)
+
+- **Each station serves the part of Daniel's resume that suits its work**: le passe About me (with the five dishes), saucier Experience, rôtisseur Systems and ML projects, entremetier Products (Sync, Bridge, this kitchen), poissonnier Research, garde manger Skills, pâtisserie Interests, plonge Education and contact.
+  The pass is the first thing a visitor sees, the saucier is the senior station, and the plonge is where every cook starts and sits by the dining room door.
+- **A visitor can tell what a station holds before opening it**: the label shows the section in capitals under the station's French name in small italics, and the panel's kicker names the station ("Saucier · sauces") above the section title.
+- **Roles and projects are written once in `content.ts`** and shared by the station panels and the portfolio page, so they cannot drift; a test checks that everything a station shows is also on the portfolio.
+- **The UCLA research assistant role sits under Research, not Experience**, next to the Math Directed Reading Program, so Experience holds the industry internship.
+- **Never the graduation date or the phone number**: a content test rejects graduation wording, any year after 2026, and phone-shaped numbers.
+- **Panel items stack** (title, subtitle, then the date or place in small), since the panel is too narrow for a date beside a long title; the portfolio keeps them side by side except on phones.

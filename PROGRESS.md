@@ -93,7 +93,7 @@ npm run bots -- --count 5   # optional: some company
 
 ### What needs Daniel's input
 
-- **Real content**: replace every `TODO(daniel)` in `apps/client/src/content.ts` (tagline, intro, about, projects, experience, skills, contact links, now, fun facts).
+- **Real content**: done (Daniel's resume on every station and the portfolio). Remaining `TODO(daniel)`: a personal line on the NBA or fashion, and optional lines on the dishes.
 - **Deployment accounts and domains**: a host for the server (Fly.io, Railway, or Render) and for the static client (Vercel, Netlify, or GitHub Pages).
   Then set `VITE_SERVER_URL` for the client build and `ALLOWED_ORIGINS` / `TRUST_PROXY` for the server.
 - **Optional taste calls**: site title and eyebrow text (`site` in `content.ts`), the palette in `apps/client/src/world/palette.ts`, and whether tag should also be allowed in the public lobby.

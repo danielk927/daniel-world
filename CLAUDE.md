@@ -29,7 +29,7 @@ node scripts/perf.ts         # 16-player perf report (needs the dev client on :5
 - `apps/server` - Node WebSocket room server (`ws`), and Chef Skinner, the lobby's resident knife-throwing cook (`chef.ts`).
   Runs TypeScript natively in dev (`node --watch src/index.ts`), bundled with esbuild for production.
 - `apps/client` - Vite + Three.js client.
-  `src/content.ts` holds all personal content (placeholders marked `TODO(daniel)`).
+  `src/content.ts` holds all personal content (Daniel's resume; the few lines still wanting his words are marked `TODO(daniel)`).
   `index.html` is the 3D world, `portfolio.html` is the static fallback.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
