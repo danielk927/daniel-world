@@ -87,7 +87,14 @@ export function makeElf(
   view.setUint16(40, 52, true);
   view.setUint16(42, 32, true);
   view.setUint16(44, segments, true);
-  const segment = (k: number, offset: number, vaddr: number, filesz: number, memsz: number, flags: number) => {
+  const segment = (
+    k: number,
+    offset: number,
+    vaddr: number,
+    filesz: number,
+    memsz: number,
+    flags: number,
+  ) => {
     const at = 52 + 32 * k;
     view.setUint32(at, 1, true); // PT_LOAD
     view.setUint32(at + 4, offset, true);
@@ -101,7 +108,14 @@ export function makeElf(
   segment(0, header, CODE, codeBytes, codeBytes, 5);
   code.forEach((word, k) => view.setUint32(header + k * 4, word, true));
   if (segments === 2) {
-    segment(1, header + codeBytes, options.dataAddr ?? DATA, dataBytes, dataBytes + (options.bss ?? 0), 6);
+    segment(
+      1,
+      header + codeBytes,
+      options.dataAddr ?? DATA,
+      dataBytes,
+      dataBytes + (options.bss ?? 0),
+      6,
+    );
     if (options.data) bytes.set(options.data, header + codeBytes);
   }
   return bytes;

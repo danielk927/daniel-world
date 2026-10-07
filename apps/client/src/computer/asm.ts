@@ -28,8 +28,7 @@ const b = (imm: number, rs2: number, rs1: number, f3: number) =>
   0;
 
 export const lui = (rd: number, value: number) => ((value & 0xfffff000) | (rd << 7) | 0x37) >>> 0;
-export const auipc = (rd: number, value: number) =>
-  ((value & 0xfffff000) | (rd << 7) | 0x17) >>> 0;
+export const auipc = (rd: number, value: number) => ((value & 0xfffff000) | (rd << 7) | 0x17) >>> 0;
 export const jal = (rd: number, offset: number) =>
   ((((offset >> 20) & 1) << 31) |
     (((offset >> 1) & 0x3ff) << 21) |

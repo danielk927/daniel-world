@@ -15,7 +15,10 @@ firmware="$(dirname "$here")"
 root="$(dirname "$firmware")"
 out="$root/apps/client/src/computer/testdata/riscv-tests"
 commit=bcffa2b3188b040c611f90dc0b6e422f54775a09
-src="$here/build/riscv-tests"
+# Outside the repository, so the checkout never meets the linters.
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+src="$work/riscv-tests"
 
 llvm="$(brew --prefix llvm 2>/dev/null || echo /usr)/bin"
 lld="$(brew --prefix lld 2>/dev/null || echo /usr)/bin"
@@ -23,21 +26,18 @@ CC="${CC:-$llvm/clang}"
 LD="${LD:-$lld/ld.lld}"
 STRIP="${STRIP:-$llvm/llvm-strip}"
 
-if [ ! -d "$src/.git" ]; then
-  rm -rf "$src"
-  git clone --quiet https://github.com/riscv-software-src/riscv-tests.git "$src"
-fi
+git clone --quiet https://github.com/riscv-software-src/riscv-tests.git "$src"
 git -C "$src" checkout --quiet "$commit"
 
 rm -rf "$out"
-mkdir -p "$out" "$here/build/obj"
+mkdir -p "$out" "$work/obj"
 cp "$src/LICENSE" "$out/LICENSE"
 
 for suite in rv32ui rv32um; do
   for test in "$src/isa/$suite"/*.S; do
     name="$(basename "$test" .S)"
     [ "$name" = fence_i ] && continue
-    obj="$here/build/obj/$suite-$name.o"
+    obj="$work/obj/$suite-$name.o"
     "$CC" --target=riscv32-unknown-elf -march=rv32im -mabi=ilp32 -mno-relax \
       -I"$here" -I"$firmware/include" -I"$src/isa/macros/scalar" \
       -c "$test" -o "$obj"

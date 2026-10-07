@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as A from './asm.ts';
 import type { Cpu } from './cpu.ts';
 import { Jit } from './jit.ts';
+import type { TestBus } from './testRig.ts';
 import { CODE, DATA, execute, makeCpu, random } from './testRig.ts';
 
 /** Everything architecturally visible after a run. */
@@ -64,7 +65,8 @@ function randomProgram(seed: number): number[] {
       // A counted loop.
       const body = 1 + int(5);
       out.push(A.addi(COUNTER, 0, 1 + int(20)));
-      for (let k = 0; k < body; k++) out.push(rand() < 0.7 ? alu() : stores[int(3)]!(src(), int(2048), BASE));
+      for (let k = 0; k < body; k++)
+        out.push(rand() < 0.7 ? alu() : stores[int(3)]!(src(), int(2048), BASE));
       out.push(A.addi(COUNTER, COUNTER, -1), A.bne(COUNTER, 0, -(body + 1) * 4));
     } else {
       // A call to a tiny function placed inline and jumped over.
@@ -93,7 +95,7 @@ describe('the JIT against the interpreter', () => {
       // Right after the register setup, write the register that stops the CPU.
       program.splice(32, 0, ...A.li(20, 0x4000000c), A.sw(0, 0, 20));
       const cpus = [makeCpu(program), makeCpu(program)] as const;
-      for (const cpu of cpus) (cpu.bus as { stopping: Set<number> }).stopping.add(0x0c);
+      for (const cpu of cpus) (cpu.bus as TestBus).stopping.add(0x0c);
       execute(cpus[0], 'interpreter');
       execute(cpus[1], 'jit');
       expect(cpus[0].trap).toBe(null);

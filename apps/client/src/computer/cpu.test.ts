@@ -7,7 +7,19 @@ const INT_MIN = -0x80000000;
 
 describe('64-bit products without BigInt', () => {
   it('match BigInt arithmetic on edge cases and random operands', () => {
-    const values = [0, 1, -1, 2, -2, INT_MIN, 0x7fffffff, 0x10000, -0x10000, 0x12345678, -0x6789abcd];
+    const values = [
+      0,
+      1,
+      -1,
+      2,
+      -2,
+      INT_MIN,
+      0x7fffffff,
+      0x10000,
+      -0x10000,
+      0x12345678,
+      -0x6789abcd,
+    ];
     for (let k = 0; k < 2000; k++) values.push((Math.random() * 2 ** 32) | 0);
     const high = (product: bigint) => Number(BigInt.asIntN(32, product >> 32n));
     for (let k = 0; k < values.length; k++) {
@@ -97,7 +109,10 @@ describe.each(ENGINES)('RV32IM on the %s', (engine) => {
   });
 
   it('builds constants with LUI and AUIPC', () => {
-    const r = exec([], [A.lui(10, 0xfffff000), A.auipc(11, 0x1000), ...A.li(12, -1), ...A.li(13, 0x12345fff)]);
+    const r = exec(
+      [],
+      [A.lui(10, 0xfffff000), A.auipc(11, 0x1000), ...A.li(12, -1), ...A.li(13, 0x12345fff)],
+    );
     expect(r[10]).toBe(-4096);
     expect(r[11]).toBe(CODE + 4 + 0x1000);
     expect(r[12]).toBe(-1);
@@ -193,7 +208,14 @@ describe.each(ENGINES)('RV32IM on the %s', (engine) => {
 
   it('stores bytes, halves and words, aligned or not', () => {
     const cpu = run(
-      [...A.li(1, DATA), ...A.li(2, 0x11223344), A.sw(2, 0, 1), A.sh(2, 5, 1), A.sb(2, 8, 1), A.sw(2, 13, 1)],
+      [
+        ...A.li(1, DATA),
+        ...A.li(2, 0x11223344),
+        A.sw(2, 0, 1),
+        A.sh(2, 5, 1),
+        A.sb(2, 8, 1),
+        A.sw(2, 13, 1),
+      ],
       engine,
     );
     expect([...cpu.u8.subarray(DATA, DATA + 17)]).toEqual([
@@ -253,7 +275,14 @@ describe.each(ENGINES)('RV32IM on the %s', (engine) => {
     const bus = new TestBus();
     bus.values.set(0x10, 0x1234);
     const cpu = makeCpu(
-      [A.addi(0, 0, 5), A.lui(0, 0x1000), A.jal(0, 4), ...A.li(1, 0x40000010), A.lw(0, 0, 1), A.add(10, 0, 0)],
+      [
+        A.addi(0, 0, 5),
+        A.lui(0, 0x1000),
+        A.jal(0, 4),
+        ...A.li(1, 0x40000010),
+        A.lw(0, 0, 1),
+        A.add(10, 0, 0),
+      ],
       bus,
     );
     execute(cpu, engine);
@@ -312,7 +341,10 @@ describe.each(ENGINES)('RV32IM on the %s', (engine) => {
   it('stops right after a register write that asks it to', () => {
     const bus = new TestBus();
     bus.stopping.add(0x0c);
-    const cpu = makeCpu([...A.li(1, 0x4000000c), A.sw(0, 0, 1), A.addi(2, 0, 1), A.addi(2, 0, 2)], bus);
+    const cpu = makeCpu(
+      [...A.li(1, 0x4000000c), A.sw(0, 0, 1), A.addi(2, 0, 1), A.addi(2, 0, 2)],
+      bus,
+    );
     expect(execute(cpu, engine)).toBe(3);
     expect(cpu.pc).toBe(CODE + 12);
     expect(cpu.regs[2]).toBe(0);

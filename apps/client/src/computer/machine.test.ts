@@ -53,7 +53,13 @@ describe.each(ENGINES)('the machine on the %s', (engine) => {
   it('keeps virtual time that moves only when the guest sleeps', () => {
     const machine = small();
     machine.boot(
-      program(load(10, MMIO_TIME_MS), store(MMIO_SLEEP_MS, 30), load(11, MMIO_TIME_MS), store(MMIO_SLEEP_MS, 5), load(12, MMIO_TIME_MS)),
+      program(
+        load(10, MMIO_TIME_MS),
+        store(MMIO_SLEEP_MS, 30),
+        load(11, MMIO_TIME_MS),
+        store(MMIO_SLEEP_MS, 5),
+        load(12, MMIO_TIME_MS),
+      ),
     );
     expect(machine.run(1000)).toBe('trap');
     expect([...machine.cpu.regs.subarray(10, 13)]).toEqual([0, 30, 35]);
@@ -86,7 +92,11 @@ describe.each(ENGINES)('the machine on the %s', (engine) => {
   it('drops key events past a full queue', () => {
     const machine = small();
     // Count the events: read the register 70 times, adding one to x8 for each non-zero.
-    const reads = Array.from({ length: 70 }, () => [...load(7, MMIO_KEY), A.beq(7, 0, 8), A.addi(8, 8, 1)]);
+    const reads = Array.from({ length: 70 }, () => [
+      ...load(7, MMIO_KEY),
+      A.beq(7, 0, 8),
+      A.addi(8, 8, 1),
+    ]);
     machine.boot(program(...reads));
     for (let k = 0; k < 70; k++) machine.key(13, true);
     machine.run(10_000);
@@ -109,7 +119,9 @@ describe.each(ENGINES)('the machine on the %s', (engine) => {
     expect(machine.frames).toBe(1);
     expect(machine.indices[0]).toBe(5);
     expect(machine.indices[1]).toBe(0);
-    expect([...machine.screenBytes.subarray(0, 8)]).toEqual([0xff, 0x80, 0, 255, 0x11, 0x22, 0x33, 255]);
+    expect([...machine.screenBytes.subarray(0, 8)]).toEqual([
+      0xff, 0x80, 0, 255, 0x11, 0x22, 0x33, 255,
+    ]);
     expect(machine.screen[319]).toBe(machine.screen[0]);
     expect(machine.run(1000)).toBe('trap');
   });
@@ -123,14 +135,18 @@ describe.each(ENGINES)('the machine on the %s', (engine) => {
   it('puts the disk and the command line in RAM and says where', () => {
     const machine = new Machine({ engine });
     const disk = new Uint8Array([1, 2, 3, 4, 5, 6]);
-    machine.boot(program(load(10, MMIO_DISK_ADDR), load(11, MMIO_DISK_SIZE), load(12, MMIO_ARGS)), disk, '-timedemo demo1');
+    machine.boot(
+      program(load(10, MMIO_DISK_ADDR), load(11, MMIO_DISK_SIZE), load(12, MMIO_ARGS)),
+      disk,
+      '-timedemo demo1',
+    );
     machine.run(1000);
     const [addr, size, args] = machine.cpu.regs.subarray(10, 13);
     expect(addr).toBe(DISK_BASE);
     expect(size).toBe(6);
-    expect([...machine.cpu.u8.subarray(addr!, addr! + 6)]).toEqual([1, 2, 3, 4, 5, 6]);
+    expect([...machine.cpu.u8.subarray(addr, addr! + 6)]).toEqual([1, 2, 3, 4, 5, 6]);
     expect(args).toBe(DISK_BASE + 8);
-    const text = machine.cpu.u8.subarray(args!, args! + 16);
+    const text = machine.cpu.u8.subarray(args, args! + 16);
     expect(new TextDecoder().decode(text)).toBe('-timedemo demo1\0');
   });
 

@@ -359,9 +359,12 @@ function generate(cpu: Cpu, plan: Plan): string {
       // A block that branches back to its own start (the pixel loops of the renderer,
       // memcpy) becomes a JavaScript loop, which skips the switch on every iteration.
       const end = i32[last >> 2]!;
-      selfLoop =
-        (end & 0x7f) === OP_BRANCH && !isIllegal(end) && ((last + immB(end)) | 0) === pc;
-      out.push(selfLoop ? `case ${pc}: for (;;) { n += ${blockLength};` : `case ${pc}: n += ${blockLength};`);
+      selfLoop = (end & 0x7f) === OP_BRANCH && !isIllegal(end) && ((last + immB(end)) | 0) === pc;
+      out.push(
+        selfLoop
+          ? `case ${pc}: for (;;) { n += ${blockLength};`
+          : `case ${pc}: n += ${blockLength};`,
+      );
     }
     const remaining = blockLength - positionInBlock - 1;
     positionInBlock++;

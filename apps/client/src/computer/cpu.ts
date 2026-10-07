@@ -213,9 +213,9 @@ export function divu(a: number, b: number): number {
 }
 
 export function rem(a: number, b: number): number {
-  return b === 0 ? a : a % b | 0;
+  return b === 0 ? a : (a % b) | 0;
 }
 
 export function remu(a: number, b: number): number {
-  return b === 0 ? a : (a >>> 0) % (b >>> 0) | 0;
+  return b === 0 ? a : ((a >>> 0) % (b >>> 0)) | 0;
 }

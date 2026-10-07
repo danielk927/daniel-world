@@ -51,9 +51,9 @@ describe('the ELF loader', () => {
 
   it('refuses segments outside RAM or in the null page', () => {
     const cpu = new Cpu(0x10000, new TestBus());
-    expect(() => loadElf(cpu, parseElf(makeElf([0], { data: new Uint8Array(4), dataAddr: 0x10 })))).toThrow(
-      /does not fit/,
-    );
+    expect(() =>
+      loadElf(cpu, parseElf(makeElf([0], { data: new Uint8Array(4), dataAddr: 0x10 }))),
+    ).toThrow(/does not fit/);
     expect(() =>
       loadElf(cpu, parseElf(makeElf([0], { data: new Uint8Array(4), dataAddr: 0xfffe }))),
     ).toThrow(/does not fit/);
