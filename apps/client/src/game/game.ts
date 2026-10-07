@@ -7,6 +7,7 @@ import {
   Keys,
   SPAWN,
   TICK_SECONDS,
+  coolerWallBetween,
   launchKnife,
   type InputMessage,
   type KnifeTarget,
@@ -103,6 +104,7 @@ export class Game {
   private readonly enterToQuat = new Quaternion();
   private readonly feet = new Vector3();
   private readonly ray = new Ray();
+  private readonly reach = new Vector3();
   /** The kitchen computer on the chef's desk, which runs DOOM. */
   readonly desk: ComputerDesk;
   private readonly computerGuide: ComputerGuide;
@@ -143,6 +145,9 @@ export class Game {
     this.input = new Input(canvas);
     this.rig = new CameraRig(world.camera);
     this.labels = new LabelLayer(overlay, world.camera);
+    // From inside the walk-in, the kitchen's labels only show through its doorway, and the other way.
+    this.labels.hides = (eye, at) =>
+      coolerWallBetween(eye.x, eye.y, eye.z, at.x, at.y, at.z, world.cooler.open);
     // The game starts on the landing screen, where labels stay hidden.
     this.labels.element.hidden = true;
     this.hud = new Hud(overlay);
@@ -882,8 +887,14 @@ export class Game {
           .sub(camera.position)
           .normalize();
       }
-      computer = this.desk.picked(this.ray, PICK_DISTANCE);
-      if (!computer) index = this.world.stations.pick(this.ray);
+      // Nothing in the kitchen can be picked through the walk-in's walls.
+      const o = this.ray.origin;
+      this.reach.copy(o).addScaledVector(this.ray.direction, PICK_DISTANCE);
+      const r = this.reach;
+      if (!coolerWallBetween(o.x, o.y, o.z, r.x, r.y, r.z, this.world.cooler.open)) {
+        computer = this.desk.picked(this.ray, PICK_DISTANCE);
+        if (!computer) index = this.world.stations.pick(this.ray);
+      }
     }
     if (index === this.hoveredIndex && computer === this.computerHovered) return;
     if (computer !== this.computerHovered && this.computerLabel) {
