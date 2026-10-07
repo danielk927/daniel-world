@@ -10,6 +10,9 @@ import {
   MMIO_FB_ADDR,
   MMIO_FB_PRESENT,
   MMIO_KEY,
+  MMIO_MOUSE,
+  MMIO_MOUSE_LEFT,
+  MMIO_MOUSE_MAX_DX,
   MMIO_PALETTE,
   MMIO_SLEEP_MS,
   MMIO_TIME_MS,
@@ -115,6 +118,48 @@ describe.each(ENGINES)('the machine on the %s', (engine) => {
     expect(events[63]).toBe(99);
   });
 
+  it('adds up mouse motion until the guest reads it, and clears it on reading', () => {
+    const machine = small();
+    machine.boot(program(load(10, MMIO_MOUSE), load(11, MMIO_MOUSE)));
+    machine.mouse(5, 0);
+    machine.mouse(-12, 0);
+    machine.mouse(2.9, 0);
+    machine.mouse(Number.NaN, 0);
+    machine.run(1000);
+    // -5 counts in the top half, sign and all; then nothing.
+    expect([...machine.cpu.regs.subarray(10, 12)]).toEqual([-5 << 16, 0]);
+    machine.mouse(300, 0);
+    expect(machine.read(MMIO_MOUSE)).toBe(300 << 16);
+    expect(machine.read(MMIO_MOUSE)).toBe(0);
+  });
+
+  it('hands a fast swipe over a few reads, and forgets what is past a full turn', () => {
+    const machine = small();
+    const reads = Array.from({ length: 6 }, (_, k) => [...load(7, MMIO_MOUSE), A.sw(7, k * 4, 9)]);
+    machine.boot(program(A.li(9, DATA), ...reads));
+    machine.mouse(-1_000_000, 0);
+    machine.mouse(100, 0);
+    machine.run(1000);
+    const dx = [...machine.cpu.i32.subarray(DATA >> 2, (DATA >> 2) + 6)].map((v) => v >> 16);
+    const step = MMIO_MOUSE_MAX_DX;
+    expect(dx).toEqual([-step, -step, -step, -step + 100, 0, 0]);
+  });
+
+  it('reports a button while it is held, and a click that came and went between reads', () => {
+    const machine = small();
+    machine.mouse(0, MMIO_MOUSE_LEFT);
+    expect(machine.read(MMIO_MOUSE)).toBe(MMIO_MOUSE_LEFT);
+    expect(machine.read(MMIO_MOUSE)).toBe(MMIO_MOUSE_LEFT);
+    machine.mouse(0, 0);
+    expect(machine.read(MMIO_MOUSE)).toBe(0);
+    // Down and up again before the guest looks: it still sees the click, once. Buttons
+    // the machine does not have are ignored.
+    machine.mouse(0, MMIO_MOUSE_LEFT | 0b110);
+    machine.mouse(3, 0);
+    expect(machine.read(MMIO_MOUSE)).toBe((3 << 16) | MMIO_MOUSE_LEFT);
+    expect(machine.read(MMIO_MOUSE)).toBe(0);
+  });
+
   it('scans the frame out through the palette when the guest presents it', () => {
     const machine = new Machine({ engine, ramSize: 0x20000 });
     machine.boot(
@@ -166,12 +211,14 @@ describe.each(ENGINES)('the machine on the %s', (engine) => {
     const machine = small();
     machine.boot(program(A.li(7, DATA), [A.addi(8, 0, 9), A.sw(8, 0, 7)], store(MMIO_EXIT, 0)));
     machine.key(1, true);
+    machine.mouse(40, MMIO_MOUSE_LEFT);
     expect(machine.run(1000)).toBe('exit');
     expect(machine.cpu.u8[DATA]).toBe(9);
     machine.reboot();
     expect(machine.exitCode).toBe(null);
     expect(machine.cpu.u8[DATA]).toBe(0);
     expect(machine.read(MMIO_KEY)).toBe(0);
+    expect(machine.read(MMIO_MOUSE)).toBe(0);
     expect(machine.run(1000)).toBe('exit');
   });
 });

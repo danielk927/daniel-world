@@ -63,6 +63,14 @@
 #define MMIO_FB_ADDR 0x020u
 /* W: the frame is complete; the host scans it out through the palette. */
 #define MMIO_FB_PRESENT 0x024u
+/* R: the mouse since the last read, (dx << 16) | buttons. dx is the
+   horizontal motion in counts, signed, positive to the right, and at most
+   MMIO_MOUSE_MAX_DX either way: the host keeps any more for the next reads,
+   so a fast swipe arrives over a few reads instead of being lost. buttons
+   has MMIO_MOUSE_LEFT set while the left button is down, and also when it
+   went down and came back up since the last read, so a quick click is never
+   missed. There is no vertical motion. */
+#define MMIO_MOUSE 0x028u
 /* W: 256 palette entries, 0x00RRGGBB, at MMIO_PALETTE + 4 * index. */
 #define MMIO_PALETTE 0x400u
 
@@ -70,6 +78,9 @@
 #define MACHINE_FB_HEIGHT 200
 
 #define MMIO_KEY_PRESSED 0x100u
+
+#define MMIO_MOUSE_LEFT 0x1u
+#define MMIO_MOUSE_MAX_DX 2048
 
 #ifndef __ASSEMBLER__
 #define MMIO_REG(offset) (*(volatile unsigned int *)(MACHINE_MMIO_BASE + (offset)))
