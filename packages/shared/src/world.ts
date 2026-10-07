@@ -6,6 +6,7 @@ import {
   ROOM_HALF_Z,
   ROOM_HEIGHT,
 } from './constants.ts';
+import { createRandom } from './random.ts';
 
 /**
  * The static world layout: a classical French brigade kitchen. Client and server both build
@@ -508,6 +509,185 @@ const VAULT_RADIUS = (ROOM_HALF_Z * ROOM_HALF_Z + VAULT_RISE * VAULT_RISE) / (2 
 /** Height of the barrel vault above the floor at a given z. */
 export function vaultHeight(z: number): number {
   return ROOM_HEIGHT + Math.sqrt(VAULT_RADIUS * VAULT_RADIUS - z * z) - (VAULT_RADIUS - VAULT_RISE);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shared details of the kitchen as drawn
+//
+// What has to be drawn and solid the same way and is more than a box (the lamp shades, the
+// skylights, the plates stacked on the islands) is defined here and drawn from.
+// ---------------------------------------------------------------------------------------------
+
+/** A radius at a height, on the outline of something round. */
+export type Ring = readonly [radius: number, y: number];
+
+/**
+ * A lamp shade's outline from the rim up, in its own frame: the outside, and the hollow under it,
+ * which is open at the rim, so a knife can fly up into the shade and stick in its inside.
+ */
+export interface ShadeOutline {
+  readonly outside: readonly Ring[];
+  readonly inside: readonly Ring[];
+}
+
+/** The wide brass domes over the islands, with a thin wall so they read from above and below. */
+export const PENDANT_SHADE: ShadeOutline = {
+  outside: [
+    [0.25, 0],
+    [0.17, 0.14],
+    [0.05, 0.2],
+  ],
+  inside: [
+    [0.24, 0],
+    [0.16, 0.13],
+    [0.045, 0.19],
+  ],
+};
+
+/** The steel cones of the heat lamps over the pass. */
+export const HEAT_LAMP_SHADE: ShadeOutline = {
+  outside: [
+    [0.14, 0],
+    [0.05, 0.15],
+  ],
+  inside: [
+    [0.132, 0],
+    [0.045, 0.14],
+  ],
+};
+
+/**
+ * The middle of each pendant shade's rim: a pair along each island, high enough to clear any head,
+ * even mid-jump.
+ */
+export const PENDANT_LAMPS: readonly {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}[] = [KITCHEN.pastryIsland, KITCHEN.gardeManger].flatMap((f) => {
+  const cx = (f.minX + f.maxX) / 2;
+  const cz = (f.minZ + f.maxZ) / 2;
+  return [-1, 1].map((side) => ({ x: cx + side * 1.05, y: 2.95, z: cz }));
+});
+
+/** The bottom of the heat lamp housing over the pass; a lamp hangs under it over each dish. */
+export const HEAT_LAMP_HOUSING_Y = 2.18;
+
+/** The garden windows' glass is set back this far into the north wall. */
+export const WINDOW_GLASS_DEPTH = 0.1;
+
+/** The barrel vault is built of this many flat facets, north to south. */
+export const VAULT_FACETS = 12;
+
+/** Where the vault's facets meet, north to south, on the curve of `vaultHeight`. */
+export const VAULT_EDGES: readonly { readonly z: number; readonly y: number }[] = Array.from(
+  { length: VAULT_FACETS + 1 },
+  (_, i) => {
+    const maxAngle = Math.asin(ROOM_HALF_Z / VAULT_RADIUS);
+    const angle = -maxAngle + (i / VAULT_FACETS) * maxAngle * 2;
+    const z =
+      i === 0 ? -ROOM_HALF_Z : i === VAULT_FACETS ? ROOM_HALF_Z : VAULT_RADIUS * Math.sin(angle);
+    return { z, y: vaultHeight(z) };
+  },
+);
+
+/**
+ * The two skylights: the vault facets over the aisles either side of the hood, open across the
+ * middle of the room. Each is a shallow well out through the vault, glazed near its top, with
+ * glazing bars just under the glass.
+ */
+export const SKYLIGHTS = {
+  facets: [2, VAULT_FACETS - 3],
+  /** Half the length of each opening, along the room. */
+  halfLength: 6,
+  /** How far each well reaches out of the vault, and where its glass is. */
+  depth: 0.22,
+  glass: 0.18,
+  /** The bars divide each skylight into this many panes; their square section is `bar` across. */
+  panes: 6,
+  bar: 0.05,
+  /** How far out of the vault the bars' middle is. */
+  barDepth: 0.15,
+} as const;
+
+/** A skylight's well, in the frame it is built in. */
+export interface SkylightWell {
+  /** Its north and south edges, where it opens out of the vault. */
+  readonly a: { readonly z: number; readonly y: number };
+  readonly b: { readonly z: number; readonly y: number };
+  /** Out of the vault: a unit vector, in z and y, along which the well's walls run. */
+  readonly out: { readonly z: number; readonly y: number };
+}
+
+export const SKYLIGHT_WELLS: readonly SkylightWell[] = SKYLIGHTS.facets.map((i) => {
+  const a = VAULT_EDGES[i]!;
+  const b = VAULT_EDGES[i + 1]!;
+  const outZ = (a.z + b.z) / 2 / VAULT_RADIUS;
+  const length = Math.sqrt(1 + outZ * outZ);
+  return { a, b, out: { z: outZ / length, y: 1 / length } };
+});
+
+/** The island shelves' heights; each is 2.5 cm of steel, with plates and bowls stacked on it. */
+export const ISLAND_SHELVES = [0.16, 0.5] as const;
+const ISLAND_SHELF = 0.025;
+
+/** What is stacked on the island shelves: plates, and deeper bowls that flare toward the top. */
+export const STACKED = {
+  plate: { radius: 0.14, height: 0.014, step: 0.018, taper: 1 },
+  bowl: { radius: 0.11, height: 0.05, step: 0.03, taper: 1.4 },
+} as const;
+
+/** A stack of plates or bowls on an island shelf, standing on (x, y, z). */
+export interface PlateStack {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly count: number;
+  readonly bowls: boolean;
+}
+
+/** The plates and bowls on an island's two shelves, the same on every screen. */
+export function islandStacks(f: Footprint): readonly PlateStack[] {
+  const random = createRandom(Math.round((f.minX + 10) * 100));
+  const z = (f.minZ + f.maxZ) / 2;
+  const stacks: PlateStack[] = [];
+  for (const shelf of ISLAND_SHELVES) {
+    for (let x = f.minX + 0.45; x < f.maxX - 0.3; x += 0.75) {
+      const count = 4 + Math.floor(random() * 6);
+      const bowls = random() < 0.4;
+      stacks.push({ x, y: shelf + ISLAND_SHELF, z, count, bowls });
+    }
+  }
+  return stacks;
+}
+
+/** The storage shelving's wire shelves: the top of each, from the floor up. */
+export const SHELVING_SHELVES = [0.3, 0.85, 1.4, 1.95] as const;
+
+/**
+ * Something on the storage shelving: a clear tub (with a filling picked by `pick`, in [0, 1)) or a
+ * pair of stacked deli containers, standing on a shelf at height `y`, centered at `z`.
+ */
+export interface ShelfBin {
+  readonly kind: 'tub' | 'deli';
+  readonly y: number;
+  readonly z: number;
+  readonly pick: number;
+}
+
+/** What stands on the storage shelving, the same on every screen. The top shelf is kept clear. */
+export function shelvingBins(): readonly ShelfBin[] {
+  const s = KITCHEN.shelving;
+  const random = createRandom(55);
+  const bins: ShelfBin[] = [];
+  for (const y of SHELVING_SHELVES) {
+    if (y > 1.9) continue;
+    for (let z = s.minZ + 0.3; z < s.maxZ - 0.2; z += 0.5) {
+      if (random() < 0.5) bins.push({ kind: 'tub', y, z, pick: random() });
+      else bins.push({ kind: 'deli', y, z, pick: 0 });
+    }
+  }
+  return bins;
 }
 
 /**

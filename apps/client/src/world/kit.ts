@@ -9,11 +9,14 @@ import {
   MeshStandardMaterial,
   Quaternion,
   IcosahedronGeometry,
+  LatheGeometry,
   TorusGeometry,
+  Vector2,
   Vector3,
   Color,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import type { ShadeOutline } from '@world/shared';
 import { StaticBuilder, at } from './builder.ts';
 import { everySecondCountsTexture, exitSignTexture } from './textures.ts';
 
@@ -88,6 +91,25 @@ export function lowPolySides(radius: number, requested = Infinity): number {
   return Math.max(3, Math.min(requested, sides));
 }
 const cylinders = new Map<string, CylinderGeometry>();
+
+/**
+ * A lamp shade turned from its outline (shared, so knives stick where it is drawn): down the outside
+ * from the top to the rim and back up the inside, a thin wall that reads from above and below.
+ */
+export function shadeGeometry(outline: ShadeOutline, segments: number): LatheGeometry {
+  const outside = [...outline.outside].reverse();
+  const inside = outline.inside;
+  const profile = [
+    [0.001, outside[0]![1]],
+    ...outside,
+    ...inside,
+    [0.001, inside[inside.length - 1]![1]],
+  ];
+  return new LatheGeometry(
+    profile.map(([radius, y]) => new Vector2(radius, y)),
+    segments,
+  );
+}
 
 function unitCylinder(segments: number, topScale: number, open: boolean): CylinderGeometry {
   const key = `${segments}:${topScale}:${open}`;
