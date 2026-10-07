@@ -11,6 +11,7 @@ export class Knockout {
   private readonly by = el('p', { class: 'knockout-name' });
   private readonly countdown = el('p', { class: 'knockout-countdown' });
   private readonly bar = el('div', { class: 'knockout-bar-fill' });
+  private readonly hint = el('p', { class: 'knockout-hint', attrs: { hidden: '' } });
   private timer = 0;
 
   constructor(parent: HTMLElement) {
@@ -23,6 +24,7 @@ export class Knockout {
           this.by,
           el('div', { class: 'knockout-bar', attrs: { 'aria-hidden': 'true' } }, [this.bar]),
           this.countdown,
+          this.hint,
         ]),
       ],
     );
@@ -33,8 +35,11 @@ export class Knockout {
     return !this.element.hidden;
   }
 
-  show(by: KillParty): void {
+  /** `hint`, if any, is a line of advice under the countdown. */
+  show(by: KillParty, hint = ''): void {
     this.by.textContent = by.name;
+    this.hint.textContent = hint;
+    this.hint.hidden = hint === '';
     this.by.style.setProperty('--player-color', by.color);
     const until = performance.now() + DEATH_SECONDS * 1000;
     const tick = (): void => {

@@ -67,8 +67,11 @@ export class Game {
   private readonly killFeed: KillFeed;
   private readonly impact: Impact;
   private readonly viewmodel: Viewmodel;
+  private readonly settings: Settings;
   /** Down on the floor after a knife hit, until the server stands this player back up. */
   knockedOut = false;
+  /** Whether the knockout card has said Chef Skinner can be turned off; it says so once. */
+  private toldAboutChef = false;
   /** Holding the knife (true) or the bare hand. Q switches. */
   armed = true;
   /** World time the throw animation lets go of the knife; the tick after that throws it. */
@@ -109,6 +112,7 @@ export class Game {
   ) {
     this.world = world;
     this.landing = landing;
+    this.settings = settings;
     const canvas = world.renderer.domElement;
     this.input = new Input(canvas);
     this.rig = new CameraRig(world.camera);
@@ -149,6 +153,7 @@ export class Game {
       this.showFps = values.showFps;
       this.hud.setFps(values.showFps ? 0 : null);
       document.documentElement.classList.toggle('reduce-motion', values.reduceMotion);
+      this.multiplayer?.setPrefs({ chef: values.chefThrows });
     });
 
     this.world.stations.entries.forEach((entry, i) => {
@@ -214,6 +219,7 @@ export class Game {
       url: SERVER_URL,
       name,
       room,
+      prefs: { chef: this.settings.values.chefThrows },
       player: this.player,
       avatars: this.world.avatars,
       labels: this.labels,
@@ -367,7 +373,10 @@ export class Game {
     this.viewmodel.setShown(false);
     // Station labels would float over the knockout card.
     this.labels.element.hidden = true;
-    this.knockout.show(by);
+    // The first time Chef Skinner gets this visitor, say he need not.
+    const hint = by.resident && !this.toldAboutChef;
+    if (hint) this.toldAboutChef = true;
+    this.knockout.show(by, hint ? 'Rather he left you alone? Turn him off in Settings (Esc).' : '');
   }
 
   private setArmed(armed: boolean): void {
@@ -510,7 +519,8 @@ export class Game {
     }
 
     this.multiplayer?.update(now, dt);
-    this.world.knives.update(dt, this.multiplayer?.knifeTargets() ?? NO_TARGETS);
+    const mp = this.multiplayer;
+    this.world.knives.update(dt, mp?.knifeTargets() ?? NO_TARGETS, mp?.spares);
     this.updateCamera(dt);
     const color = this.multiplayer?.selfColor;
     if (color) this.viewmodel.setColor(color);

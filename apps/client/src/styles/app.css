@@ -1172,6 +1172,12 @@ kbd {
   color: var(--ink-muted);
 }
 
+.knockout-hint {
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
 /* While down, the world drains of color behind the card. */
 .world-canvas {
   transition: filter 0.6s ease;
@@ -1524,8 +1530,18 @@ kbd {
   box-shadow: var(--focus);
 }
 
-.pause-panel {
-  min-height: 372px;
+/* The panels share one cell, so the card is as tall as the tallest and keeps its size between tabs. */
+.pause-panels {
+  display: grid;
+}
+
+.pause-panels > .pause-panel {
+  grid-area: 1 / 1;
+}
+
+.pause-panels > .pause-panel[hidden] {
+  display: block !important;
+  visibility: hidden;
 }
 
 .settings-list {

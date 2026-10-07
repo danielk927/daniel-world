@@ -12,6 +12,36 @@ const playerId = z.number().int().nonnegative();
 
 // ---------- Client to server ----------
 
+/** What a visitor has chosen about the room for themselves, in the hello and on every change. */
+export const prefsSchema = z.object({
+  /** Chef Skinner, the lobby's resident cook, may throw knives at this player. */
+  chef: z.boolean(),
+});
+
+export type Prefs = z.infer<typeof prefsSchema>;
+
+/** A visitor who has not said otherwise (an older client) gets the room as it comes. */
+export const DEFAULT_PREFS: Readonly<Prefs> = { chef: true };
+
+export function samePrefs(a: Readonly<Prefs>, b: Readonly<Prefs>): boolean {
+  return (Object.keys(prefsSchema.shape) as (keyof Prefs)[]).every((key) => a[key] === b[key]);
+}
+
+/** Someone in the room, as far as Chef Skinner is concerned. */
+export interface Cook {
+  /** Chef Skinner himself. */
+  readonly resident?: boolean | undefined;
+  readonly prefs: Readonly<Prefs>;
+}
+
+/**
+ * Chef Skinner and a cook who has turned him off are out of each other's game: their knives pass
+ * through each other. The server decides hits with this, and every screen replays them with it.
+ */
+export function chefSpares(a: Cook, b: Cook): boolean {
+  return (a.resident === true && !b.prefs.chef) || (b.resident === true && !a.prefs.chef);
+}
+
 export const helloSchema = z.object({
   t: z.literal('hello'),
   v: z.number().int(),
@@ -19,6 +49,8 @@ export const helloSchema = z.object({
   room: z.string().max(64),
   /** Where the player was before a reconnect. The server clamps it to the play area. */
   spawn: z.object({ x: finite, z: finite, yaw: finite }).optional(),
+  /** Absent means DEFAULT_PREFS. */
+  prefs: prefsSchema.optional(),
 });
 
 export const inputSchema = z.object({
@@ -48,11 +80,18 @@ export const pingSchema = z.object({
   id: z.number().int().nonnegative(),
 });
 
+/** The visitor changed their prefs; they apply at once. */
+export const prefsMessageSchema = z.object({
+  t: z.literal('prefs'),
+  prefs: prefsSchema,
+});
+
 export const clientMessageSchema = z.discriminatedUnion('t', [
   helloSchema,
   inputSchema,
   chatSendSchema,
   pingSchema,
+  prefsMessageSchema,
 ]);
 
 export type InputMessage = z.infer<typeof inputSchema>;
@@ -64,6 +103,10 @@ export const playerInfoSchema = z.object({
   id: playerId,
   name: z.string(),
   color: z.string().regex(/^#[0-9a-f]{6}$/),
+  /** Lives in the room, driven by the server (Chef Skinner); absent for visitors. */
+  resident: z.literal(true).optional(),
+  /** Everyone's prefs are public, so every screen can replay knives as the server flies them. */
+  prefs: prefsSchema,
 });
 
 /** Full simulation state of one player, as sent in snapshots. */
@@ -130,6 +173,13 @@ export const chatBroadcastSchema = z.object({
 
 export const pongSchema = z.object({ t: z.literal('pong'), id: z.number().int() });
 
+/** A player changed their prefs. */
+export const prefsChangedSchema = z.object({
+  t: z.literal('prefs'),
+  id: playerId,
+  prefs: prefsSchema,
+});
+
 /** Someone punched with the bare hand. Only for looks: a punch hits nothing. */
 export const punchSchema = z.object({ t: z.literal('punch'), id: playerId });
 
@@ -184,6 +234,7 @@ export const serverMessageSchema = z.discriminatedUnion('t', [
   snapshotSchema,
   chatBroadcastSchema,
   punchSchema,
+  prefsChangedSchema,
   pongSchema,
   errorSchema,
   knifeThrownSchema,

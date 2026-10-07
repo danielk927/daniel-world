@@ -22,7 +22,8 @@ import type { Room, RoomPlayer } from './room.ts';
  * He walks the aisles and pauses at stations. Every few seconds he picks a cook in view, stops,
  * turns to face them (long enough to see it coming), and throws, leading his target and not quite
  * perfectly. He leaves alone anyone who just arrived, and anyone standing still: a visitor reading
- * about a station is safe.
+ * about a station is safe. A visitor can turn him off for themselves (`prefs.chef`): he never picks
+ * them and gives up on them mid wind-up, and his knives and theirs pass through each other.
  */
 
 export const CHEF_NAME = 'Chef Skinner';
@@ -197,6 +198,11 @@ export class Chef {
     this.nextThrow = room.tick + this.rest();
   }
 
+  /** Whom he is winding up to throw at, if anyone. */
+  get target(): number | null {
+    return this.plan.kind === 'wind-up' ? this.plan.target : null;
+  }
+
   /** He has knocked someone out. */
   onKnockout(victim: number): void {
     if (victim !== this.player.id && this.random() < 0.6) this.say(LINES_ON_HIT);
@@ -316,7 +322,8 @@ export class Chef {
   }
 
   private canTarget(player: RoomPlayer, tick: number): boolean {
-    if (player.resident || player.deadUntil !== null || player.protectedUntil > tick) return false;
+    if (player.resident || !player.prefs.chef) return false;
+    if (player.deadUntil !== null || player.protectedUntil > tick) return false;
     if (tick - (this.arrived.get(player.id) ?? tick) < GRACE_TICKS) return false;
     if (tick - (this.moved.get(player.id) ?? -Infinity) > STILL_TICKS) return false;
     const me = this.player.state;

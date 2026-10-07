@@ -219,6 +219,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       id: nextPlayerId++,
       name,
       spawn: message.spawn ? clampSpawn(message.spawn) : undefined,
+      prefs: message.prefs,
       send: (data) => sendRaw(conn, data),
     });
     conn.room = room;
@@ -259,6 +260,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     switch (message.t) {
       case 'input':
         room.enqueueInput(player, message);
+        break;
+      case 'prefs':
+        room.setPrefs(player, message.prefs);
         break;
       case 'chat': {
         if (!conn.chat.take()) return;

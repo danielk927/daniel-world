@@ -62,7 +62,7 @@ describe('Room', () => {
     const b = join('B');
     expect(inbox.get(a.id)!.map((m) => JSON.parse(m) as { t: string })).toContainEqual({
       t: 'join',
-      player: { id: b.id, name: 'B', color: b.color },
+      player: { id: b.id, name: 'B', color: b.color, prefs: { chef: true } },
     });
     expect(inbox.get(b.id)).toHaveLength(0);
     room.remove(b.id);

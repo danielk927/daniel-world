@@ -85,9 +85,9 @@ class TestClient {
     return this.waitFor(() => this.closeCode ?? undefined);
   }
 
-  async join(name: string, room = 'lobby'): Promise<Message<'welcome'>> {
+  async join(name: string, room = 'lobby', extra: object = {}): Promise<Message<'welcome'>> {
     await this.opened();
-    this.send({ t: 'hello', v: PROTOCOL_VERSION, name, room });
+    this.send({ t: 'hello', v: PROTOCOL_VERSION, name, room, ...extra });
     return this.waitForMessage('welcome');
   }
 
@@ -331,6 +331,52 @@ describe('Chef Skinner in the lobby', () => {
     expect(((await response.json()) as { players: number }).players).toBe(1);
     const hideout = await client().join('Bob', 'hideout');
     expect(hideout.players.map((p) => p.name)).toEqual(['Bob']);
+  });
+
+  it('is marked as the resident, and nobody else is', async () => {
+    const welcome = await client().join('Alice');
+    const chef = welcome.players.find((p) => p.name === 'Chef Skinner')!;
+    expect(chef.resident).toBe(true);
+    expect(welcome.players.find((p) => p.id === welcome.id)).not.toHaveProperty('resident');
+  });
+
+  it("keeps each visitor's choice about him, from the hello and whenever it changes", async () => {
+    const a = client();
+    const welcome = await a.join('Alice', 'lobby', { prefs: { chef: false } });
+    const prefs = () => server.rooms.get('lobby')!.players.get(welcome.id)!.prefs;
+    expect(prefs()).toEqual({ chef: false });
+    // Everyone knows, so every screen replays his knives as the server flies them.
+    const b = client();
+    const bWelcome = await b.join('Bob');
+    const alice = bWelcome.players.find((p) => p.id === welcome.id)!;
+    expect(alice.prefs).toEqual({ chef: false });
+    a.send({ t: 'prefs', prefs: { chef: true } });
+    await a.waitFor(() => prefs().chef);
+    const told = await b.waitForMessage('prefs');
+    expect(told).toEqual({ t: 'prefs', id: welcome.id, prefs: { chef: true } });
+    // Nonsense is dropped, and the choice stands.
+    a.send({ t: 'prefs', prefs: { chef: 'off' } });
+    a.send({ t: 'prefs' });
+    a.send({ t: 'ping', id: 1 });
+    await a.waitForMessage('pong');
+    expect(prefs()).toEqual({ chef: true });
+    expect(a.closeCode).toBeNull();
+    // Saying the same again is not news.
+    a.send({ t: 'prefs', prefs: { chef: true } });
+    a.send({ t: 'ping', id: 2 });
+    await a.waitForMessage('pong', (m) => m.id === 2);
+    expect(b.messages.filter((m) => m.t === 'prefs')).toHaveLength(1);
+    // A hello without prefs gets him as he comes.
+    expect(server.rooms.get('lobby')!.players.get(bWelcome.id)!.prefs).toEqual({ chef: true });
+  });
+
+  it('takes the choice in a private room too, where he is not', async () => {
+    const a = client();
+    const welcome = await a.join('Alice', 'hideout', { prefs: { chef: false } });
+    a.send({ t: 'prefs', prefs: { chef: true } });
+    await a.waitFor(() => server.rooms.get('hideout')!.players.get(welcome.id)!.prefs.chef);
+    a.send({ t: 'chat', text: 'still here' });
+    expect((await a.waitForMessage('chat')).text).toBe('still here');
   });
 
   it('leaves with the last visitor, and is back for the next one', async () => {

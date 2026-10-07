@@ -5,6 +5,8 @@ import { knifeIcon } from './icons.ts';
 export interface KillParty {
   readonly name: string;
   readonly color: string;
+  /** The room's resident, Chef Skinner. */
+  readonly resident?: boolean;
 }
 
 const LIFETIME_MS = 5500;

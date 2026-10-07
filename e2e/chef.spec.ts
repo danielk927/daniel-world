@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import type { WorldServer } from '../apps/server/src/server.ts';
 import { enterWorld, expectWorld, startRoomServer, world } from './helpers.ts';
 
@@ -43,4 +43,53 @@ test('Chef Skinner walks the lobby and throws at a cook on the move', async ({ b
   }
   expect(thrown(await world(page))).toBe(true);
   await page.context().close();
+});
+
+test('a visitor who switches him off is left alone while he throws at others', async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  /** What the room server knows about this page's visitor's choice. */
+  const choice = async (page: Page) => {
+    const { selfId } = await world(page);
+    return selfId === null ? undefined : server.rooms.get('lobby')?.players.get(selfId)?.prefs.chef;
+  };
+
+  // Off in the settings menu, with the keyboard; the server hears at once.
+  const reader = await enterWorld(browser, { name: 'Reader' });
+  await reader.keyboard.press('Escape');
+  const toggle = reader.getByRole('switch', { name: 'Chef Skinner throws knives at me' });
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await toggle.focus();
+  await reader.keyboard.press('Space');
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await expect.poll(() => choice(reader)).toBe(false);
+
+  // Still off after a reload: saved, and in the hello of the new connection.
+  await reader.reload();
+  await reader.getByRole('button', { name: 'Enter world' }).click({ timeout: 60_000 });
+  await expectWorld(
+    reader,
+    (w) => w.mode === 'playing' && w.connection === 'online',
+    'Reader is back',
+    30_000,
+  );
+  expect(await choice(reader)).toBe(false);
+
+  // Two cooks pace the aisle; he throws at the one who has not turned him off, never the other.
+  const pacer = await enterWorld(browser, { name: 'Pacer' });
+  // A knife of his landing anywhere, or in the pacer, shows he is throwing.
+  const seen = { knives: 0, pacerDown: false };
+  for (let i = 0; i < 150 && !seen.pacerDown && seen.knives < 3; i++) {
+    const key = i % 2 === 0 ? 'KeyA' : 'KeyD';
+    await Promise.all([reader.keyboard.down(key), pacer.keyboard.down(key)]);
+    await reader.waitForTimeout(600);
+    await Promise.all([reader.keyboard.up(key), pacer.keyboard.up(key)]);
+    const [r, p] = await Promise.all([world(reader), world(pacer)]);
+    expect(r.knockedOut, 'Reader is never knocked out').toBe(false);
+    seen.pacerDown ||= p.knockedOut;
+    seen.knives = Math.max(seen.knives, r.knives.stuck + r.knives.flying);
+  }
+  expect(seen.pacerDown || seen.knives >= 3, 'he has been throwing').toBe(true);
+  for (const page of [reader, pacer]) await page.context().close();
 });

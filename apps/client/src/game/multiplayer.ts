@@ -2,9 +2,12 @@ import type { Vector3 } from 'three';
 import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
+  chefSpares,
+  type Cook,
   type KnifeTarget,
   type InputMessage,
   type PlayerInfo,
+  type Prefs,
   type ServerMessage,
   type WelcomeMessage,
 } from '@world/shared';
@@ -23,8 +26,11 @@ const BUBBLE_MS = 6000;
 /** A remote thrower's swing starts this long before their knife leaves the hand. */
 const THROW_LEAD = 0.18;
 
-interface Remote {
+interface Remote extends Cook {
   readonly info: PlayerInfo;
+  readonly resident: boolean;
+  /** As they last told the room. */
+  prefs: Readonly<Prefs>;
   readonly buffer: SnapshotBuffer;
   readonly pose: AvatarPose;
   lastX: number;
@@ -44,6 +50,8 @@ export interface MultiplayerDeps {
   url: string;
   name: string;
   room: string;
+  /** What the visitor has chosen about the room; `setPrefs` changes it. */
+  prefs: Readonly<Prefs>;
   player: LocalPlayer;
   avatars: Avatars;
   labels: LabelLayer;
@@ -94,10 +102,13 @@ export class Multiplayer {
   /** Whether the chat has explained the version mismatch, so it says so only once. */
   private toldAboutMismatch = false;
   private statusTimer = 0;
+  /** This player, as far as Chef Skinner is concerned. */
+  private readonly self: { prefs: Readonly<Prefs> };
 
   constructor(deps: MultiplayerDeps) {
     this.deps = deps;
     this.room = deps.room;
+    this.self = { prefs: deps.prefs };
     deps.hud.setRoom(deps.room);
     this.refreshPlayers();
     this.connection = new Connection(
@@ -110,6 +121,7 @@ export class Multiplayer {
         const s = deps.player.state;
         return { x: s.x, z: s.z, yaw: s.yaw };
       },
+      deps.prefs,
       {
         onStatus: (status) => this.onStatus(status),
         onWelcome: (welcome) => this.onWelcome(welcome),
@@ -147,6 +159,23 @@ export class Multiplayer {
   /** Everyone a knife could hit, as drawn on this screen: other players, and this one. */
   knifeTargets(): readonly KnifeTarget[] {
     return this.targets;
+  }
+
+  /** The visitor changed their mind about the room; the server hears at once, or on rejoining. */
+  setPrefs(prefs: Readonly<Prefs>): void {
+    this.self.prefs = prefs;
+    this.connection.setPrefs(prefs);
+  }
+
+  /** Whether a knife from `from` passes through `to`, as the server decides it (`chefSpares`). */
+  readonly spares = (from: number, to: number): boolean => {
+    const a = this.cook(from);
+    const b = this.cook(to);
+    return a !== null && b !== null && chefSpares(a, b);
+  };
+
+  private cook(id: number): Cook | null {
+    return id === this.selfId ? this.self : (this.remotes.get(id) ?? null);
   }
 
   sendChat(text: string): void {
@@ -355,6 +384,12 @@ export class Multiplayer {
           this.deps.avatars.playThrow(message.from, this.deps.worldTime() + delay - THROW_LEAD);
         return;
       }
+      case 'prefs': {
+        // Our own are whatever we last chose, which may be newer than this echo.
+        const remote = this.remotes.get(message.id);
+        if (remote) remote.prefs = message.prefs;
+        return;
+      }
       case 'punch': {
         const remote = this.remotes.get(message.id);
         if (!remote) return;
@@ -405,7 +440,7 @@ export class Multiplayer {
   }
 
   /** Name and color of anyone in the room, this player included. */
-  private lookup(id: number): { name: string; color: string } | null {
+  private lookup(id: number): KillParty | null {
     if (id === this.selfId) {
       return {
         name: this.selfInfo?.name ?? this.deps.name,
@@ -413,7 +448,9 @@ export class Multiplayer {
       };
     }
     const remote = this.remotes.get(id);
-    return remote ? { name: remote.info.name, color: remote.info.color } : null;
+    if (!remote) return null;
+    const { name, color, resident } = remote.info;
+    return resident ? { name, color, resident } : { name, color };
   }
 
   private addRemote(info: PlayerInfo): void {
@@ -427,6 +464,8 @@ export class Multiplayer {
     tag.style.setProperty('--player-color', info.color);
     const remote: Remote = {
       info,
+      resident: info.resident === true,
+      prefs: info.prefs,
       buffer: new SnapshotBuffer(),
       pose: {
         x: 0,

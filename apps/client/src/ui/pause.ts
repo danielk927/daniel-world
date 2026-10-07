@@ -123,7 +123,7 @@ export class PauseMenu {
           ]),
           this.note,
           tabList,
-          ...this.panels,
+          el('div', { class: 'pause-panels' }, this.panels),
           el('footer', { class: 'pause-footer' }, [
             this.resumeButton,
             leaveButton,
@@ -195,7 +195,10 @@ export class PauseMenu {
       return el('div', { class: 'slider-row' }, [input, output]);
     };
 
-    const toggle = (id: string, key: 'invertY' | 'showFps' | 'reduceMotion'): HTMLElement => {
+    const toggle = (
+      id: string,
+      key: 'invertY' | 'showFps' | 'reduceMotion' | 'chefThrows',
+    ): HTMLElement => {
       const button = el(
         'button',
         {
@@ -278,6 +281,15 @@ export class PauseMenu {
         'setting-motion',
         toggle('setting-motion', 'reduceMotion'),
         el('p', { class: 'setting-help', text: 'No head bob, camera shake or flashes.' }),
+      ),
+      row(
+        'Chef Skinner throws knives at me',
+        'setting-chef',
+        toggle('setting-chef', 'chefThrows'),
+        el('p', {
+          class: 'setting-help',
+          text: "The lobby's head chef. Off, neither of you can hit the other.",
+        }),
       ),
     ]);
   }

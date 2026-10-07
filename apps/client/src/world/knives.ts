@@ -49,6 +49,9 @@ interface Flight {
 
 const FORWARD = new Vector3(0, 0, -1);
 
+/** Whether a knife thrown by `from` passes through `to`. */
+export type Spares = (from: number, to: number) => boolean;
+
 /**
  * Every knife in the world: stuck in the kitchen or flying. Flights are replayed with the shared
  * simulation and end where the server says, when the drawn flight reaches that moment, so a hit
@@ -74,6 +77,7 @@ export class Knives {
   private readonly p = new Vector3();
   private readonly scale = new Vector3(SCALE, SCALE, SCALE);
   private readonly xAxis = new Vector3(1, 0, 0);
+  private readonly someTargets: KnifeTarget[] = [];
 
   constructor() {
     this.mesh = new InstancedMesh(knifeGeometry(), knifeMaterial(), KNIFE_MAX_STUCK + MAX_FLYING);
@@ -185,8 +189,11 @@ export class Knives {
     for (const flight of this.flights) flight.online = false;
   }
 
-  /** Advance every flight by `dt`. `targets` are the players as drawn on this screen. */
-  update(dt: number, targets: readonly KnifeTarget[]): void {
+  /**
+   * Advance every flight by `dt`. `targets` are the players as drawn on this screen; a knife flies
+   * straight through anyone `spares(thrower, target)` says it does, as on the server.
+   */
+  update(dt: number, targets: readonly KnifeTarget[], spares?: Spares): void {
     for (let i = 0; i < this.flights.length; i++) {
       const f = this.flights[i]!;
       f.clock += dt;
@@ -195,7 +202,7 @@ export class Knives {
         f.landed = flyKnife(
           f.state,
           Math.min(f.clock, KNIFE_MAX_FLIGHT_SECONDS) - f.state.t,
-          targets,
+          spares ? this.hittable(targets, f.from, spares) : targets,
           f.from,
         );
       } else {
@@ -208,6 +215,18 @@ export class Knives {
       this.dirty = true;
     }
     if (this.dirty) this.draw();
+  }
+
+  /** The `targets` a knife from `from` can hit, in a reused list. */
+  private hittable(
+    targets: readonly KnifeTarget[],
+    from: number,
+    spares: Spares,
+  ): readonly KnifeTarget[] {
+    const out = this.someTargets;
+    out.length = 0;
+    for (const target of targets) if (!spares(from, target.id)) out.push(target);
+    return out;
   }
 
   /** Whether a flight is over, settling it if so. */

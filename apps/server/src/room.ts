@@ -11,6 +11,8 @@ import {
   launchKnife,
   MAX_PLAYERS_PER_ROOM,
   NAME_MAX_LENGTH,
+  DEFAULT_PREFS,
+  samePrefs,
   createPlayerState,
   isInsideCollider,
   spawnPoint,
@@ -20,6 +22,7 @@ import {
   type PlayerInput,
   type PlayerSnapshot,
   type PlayerState,
+  type Prefs,
   type ServerMessage,
   type StuckKnife,
 } from '@world/shared';
@@ -73,6 +76,8 @@ export interface RoomPlayer {
   armed: boolean;
   /** Where the player was over the last few ticks, so knives can be checked against the past. */
   readonly history: PositionHistory;
+  /** What the visitor has chosen for themselves; replaced whole when they change it. */
+  prefs: Readonly<Prefs>;
   send: (data: string) => void;
 }
 
@@ -82,6 +87,7 @@ export interface NewPlayer {
   send: (data: string) => void;
   spawn?: { x: number; z: number; yaw: number } | undefined;
   resident?: boolean;
+  prefs?: Readonly<Prefs> | undefined;
 }
 
 export class Room {
@@ -157,6 +163,7 @@ export class Room {
       lastPunchSeq: -Infinity,
       armed: true,
       history: new PositionHistory(),
+      prefs: { ...(joining.prefs ?? DEFAULT_PREFS) },
       send: joining.send,
     };
     player.history.record(this.tick, state.x, state.y, state.z);
@@ -186,7 +193,24 @@ export class Room {
   }
 
   info(player: RoomPlayer): PlayerInfo {
-    return { id: player.id, name: player.name, color: player.color };
+    const info: PlayerInfo = {
+      id: player.id,
+      name: player.name,
+      color: player.color,
+      prefs: { ...player.prefs },
+    };
+    if (player.resident) info.resident = true;
+    return info;
+  }
+
+  /**
+   * A player changed their prefs. Everything reads them fresh each tick (Chef Skinner's targeting,
+   * knife hits), so they apply at once; everyone is told, to replay knives the same way.
+   */
+  setPrefs(player: RoomPlayer, prefs: Readonly<Prefs>): void {
+    if (samePrefs(player.prefs, prefs)) return;
+    player.prefs = { ...prefs };
+    this.broadcast({ t: 'prefs', id: player.id, prefs: { ...prefs } });
   }
 
   playerList(): PlayerInfo[] {
@@ -287,7 +311,7 @@ export class Room {
     const s = player.state;
     const knife = launchKnife(s.x, s.y + EYE_HEIGHT, s.z, input.yaw, input.pitch);
     const rewind = input.view === undefined ? 0 : this.tick - input.view;
-    const id = this.knives.launch(player.id, knife, rewind);
+    const id = this.knives.launch(player, knife, rewind);
     this.broadcast({
       t: 'knife',
       id,
