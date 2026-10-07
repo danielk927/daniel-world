@@ -843,7 +843,9 @@ function shellSolids(): KnifeSolid[] {
   return [
     box(-HX, HX, 0, 0.1, -HZ, -HZ + 0.02),
     box(-HX, HX, 0, 0.1, HZ - 0.02, HZ),
-    box(HX - 0.02, HX, 0, 0.1, -HZ, HZ),
+    // The east wall's cove stops at the walk-in's doorway.
+    box(HX - 0.02, HX, 0, 0.1, -HZ, DOORS.walkIn.from),
+    box(HX - 0.02, HX, 0, 0.1, DOORS.walkIn.to, HZ),
     box(-HX, -HX + 0.02, 0, 0.1, -HZ, HZ),
     box(-HX, HX, line, line + 0.04, -HZ, -HZ + 0.05),
     box(-HX, HX, line, line + 0.04, HZ - 0.05, HZ),
@@ -857,10 +859,15 @@ function shellSolids(): KnifeSolid[] {
 }
 
 /**
- * The dining room doors in their steel frame, the clock over them, and the back door under its exit
- * sign. The walk-in cooler's door is left to the cooler room.
+ * The dining room doors in their steel frame, the clock over them, the back door under its exit
+ * sign, and the walk-in's steel frame and the controller beside it (coolerRoom.ts). The walk-in's
+ * door is the cooler's: its kitchen face is flush with the wall, which stops knives while it is
+ * shut, and `COOLER_KNIFE_SOLIDS` has it once it is open.
  */
 function doorSolids(): KnifeSolid[] {
+  const walkIn = DOORS.walkIn;
+  const casing = 0.12;
+  const controller = { y: 1.6, z: walkIn.from - 0.34 };
   const { from, to, height } = DOORS.dining;
   const lintel = height + 0.12;
   const clock = { x: (from + to) / 2, y: lintel + 0.22 + 0.235 };
@@ -882,6 +889,17 @@ function doorSolids(): KnifeSolid[] {
       exitSign.y + 0.11,
       exitSign.z - 0.28,
       exitSign.z + 0.28,
+    ),
+    box(HX - 0.05, HX, 0, walkIn.height + casing, walkIn.from - casing, walkIn.from),
+    box(HX - 0.05, HX, 0, walkIn.height + casing, walkIn.to, walkIn.to + casing),
+    box(HX - 0.05, HX, walkIn.height, walkIn.height + casing, walkIn.from, walkIn.to),
+    box(
+      HX - 0.05,
+      HX,
+      controller.y - 0.06,
+      controller.y + 0.06,
+      controller.z - 0.11,
+      controller.z + 0.11,
     ),
   ];
 }
@@ -1182,3 +1200,29 @@ export const KNIFE_SOLIDS: readonly KnifeSolid[] = [
   ...deskSolids(),
   ...stationPropSolids(),
 ];
+
+/**
+ * What hangs in the cold room behind the walk-in, for knives thrown in once it is open, as
+ * coolerRoom.ts draws it: its two lamps on the ceiling, and the refrigeration unit high on the back
+ * wall (its casing, the frosted fins of the coil under it, the drip tray, and the casing's ends). The
+ * room's walls, ceiling and open door are `COOLER_KNIFE_SOLIDS`; its shelving is wire.
+ */
+export const COOLER_ROOM_KNIFE_SOLIDS: readonly KnifeSolid[] = (() => {
+  const { minX, maxX, minZ, maxZ, height } = COOLER;
+  const lampZ = (minZ + maxZ) / 2;
+  const front = maxX - 0.42;
+  const top = height - 0.06;
+  const bottom = height - 0.52;
+  const coil = bottom + 0.11;
+  const [z0, z1] = [-4.9, -3.4];
+  return [
+    ...[minX + 0.95, maxX - 0.95].map((x) =>
+      box(x - 0.09, x + 0.09, height - 0.08, height, lampZ - 0.65, lampZ + 0.65),
+    ),
+    box(front, maxX, coil, top, z0, z1),
+    box(front + 0.005, maxX, bottom, coil, z0, z1),
+    box(front - 0.01, maxX, bottom - 0.025, bottom, z0, z1),
+    box(front, maxX, bottom, coil, z0, z0 + 0.03),
+    box(front, maxX, bottom, coil, z1 - 0.03, z1),
+  ];
+})();

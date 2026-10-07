@@ -5,6 +5,7 @@ import {
   KNIFE_GRAVITY,
   KNIFE_MAX_FLIGHT_SECONDS,
   KNIFE_SPEED,
+  ROOM_HALF_X,
   ROOM_HALF_Z,
 } from './constants.ts';
 import {
@@ -16,6 +17,8 @@ import {
 } from './knife.ts';
 import {
   COMPUTER,
+  COOLER,
+  DOORS,
   KITCHEN,
   KNIFE_SOLIDS,
   HEAT_LAMP_HOUSING_Y,
@@ -36,9 +39,10 @@ function fly(
   knife: KnifeState,
   targets: readonly KnifeTarget[] = [],
   thrower = -1,
+  coolerOpen = false,
 ): KnifeImpact | null {
   for (let i = 0; i < 200; i++) {
-    const impact = flyKnife(knife, 1 / 20, targets, thrower);
+    const impact = flyKnife(knife, 1 / 20, targets, thrower, coolerOpen);
     if (impact) return impact;
     if (knife.t >= KNIFE_MAX_FLIGHT_SECONDS) return null;
   }
@@ -62,16 +66,20 @@ type Point = readonly [number, number, number];
 
 /**
  * Throw from `eye` along the arc through `target` (the low one), and return where the knife met
- * what it hit (where the flight leaves it) and where its tip sank in.
+ * what it hit (where the flight leaves it) and where its tip sank in. `coolerOpen` opens the walk-in.
  */
-function throwAt(eye: Point, target: Point): { contact: Point; tip: Point; dir: Point } {
+function throwAt(
+  eye: Point,
+  target: Point,
+  coolerOpen = false,
+): { contact: Point; tip: Point; dir: Point } {
   const [dx, dy, dz] = [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]];
   const d = Math.hypot(dx, dz);
   const v2 = KNIFE_SPEED * KNIFE_SPEED;
   const g = KNIFE_GRAVITY;
   const pitch = Math.atan((v2 - Math.sqrt(v2 * v2 - g * (g * d * d + 2 * dy * v2))) / (g * d));
   const knife = launchKnife(eye[0], eye[1], eye[2], Math.atan2(-dx, -dz), pitch);
-  const hit = fly(knife);
+  const hit = fly(knife, [], -1, coolerOpen);
   if (hit?.kind !== 'surface') throw new Error(`the knife hit ${hit?.kind ?? 'nothing'}`);
   return {
     contact: [knife.x, knife.y, knife.z],
@@ -321,6 +329,47 @@ describe('knives in the structures of the kitchen', () => {
     // The bar at x = 0 is 5 cm square, its middle 3 cm under the glass.
     const bar = middle(SKYLIGHTS.barDepth - SKYLIGHTS.bar / 2, 0);
     expect(distance(throwAt([0, STAND, -2.6], bar).contact, bar)).toBeLessThan(0.005);
+  });
+
+  it('stick just the same with the walk-in open', () => {
+    const cz = (KITCHEN.pass.minZ + KITCHEN.pass.maxZ) / 2;
+    const p = PENDANT_LAMPS[1]!;
+    const throws: [Point, Point][] = [
+      [
+        [1, STAND, -3.2],
+        [1, 2.9, hood.minZ],
+      ],
+      [
+        [2, STAND, 2.6],
+        [2, HOOD_UNDERSIDE, 1],
+      ],
+      [
+        [p.x, STAND, -3.2],
+        [p.x, p.y + 0.19, p.z + 0.02],
+      ],
+      [
+        [0, STAND, 5.6],
+        [0, 2.1, cz + 0.098],
+      ],
+      [
+        [6.5, STAND, 1],
+        [hood.maxX, 2.9, 1],
+      ],
+    ];
+    for (const [eye, target] of throws)
+      expect(throwAt(eye, target, true)).toEqual(throwAt(eye, target));
+  });
+
+  it("fly through the walk-in's open door into what hangs in the cold room", () => {
+    // At the refrigeration unit high on the cold room's back wall, through the doorway.
+    const target: Point = [COOLER.maxX - 0.42, 2.35, -4];
+    const open = throwAt([7, STAND, -3], target, true);
+    expect(distance(open.contact, target)).toBeLessThan(0.01);
+    // With the door shut, the same knife sticks in the door.
+    const shut = throwAt([7, STAND, -3], target);
+    expect(shut.contact[0]).toBeCloseTo(ROOM_HALF_X, 3);
+    expect(shut.contact[2]).toBeGreaterThan(DOORS.walkIn.from);
+    expect(shut.contact[2]).toBeLessThan(DOORS.walkIn.to);
   });
 
   it('keep every solid inside the room and round solids convex, as the flight assumes', () => {

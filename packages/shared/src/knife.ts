@@ -10,6 +10,7 @@ import {
 } from './constants.ts';
 import {
   COOLER_KNIFE_SOLIDS,
+  COOLER_ROOM_KNIFE_SOLIDS,
   KNIFE_SOLIDS,
   SKYLIGHTS,
   SKYLIGHT_WELLS,
@@ -275,6 +276,14 @@ function firstHit(
   if (coolerOpen) {
     for (let i = 0; i < COOLER_KNIFE_SOLIDS.length; i++) {
       consider(segmentBox(x, y, z, dx, dy, dz, COOLER_KNIFE_SOLIDS[i]!), null, through * length);
+    }
+    for (let i = 0; i < COOLER_ROOM_KNIFE_SOLIDS.length; i++) {
+      const solid = COOLER_ROOM_KNIFE_SOLIDS[i]!;
+      const f =
+        solid.kind === 'box'
+          ? segmentBox(x, y, z, dx, dy, dz, solid)
+          : segmentRound(x, y, z, dx, dy, dz, solid);
+      consider(f, null, through * length);
     }
   }
   for (const target of targets) {
