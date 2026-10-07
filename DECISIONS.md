@@ -325,7 +325,7 @@ Judgment calls made during the unattended build, with reasons.
   The evening service look the room was lit for is the blue hour, unchanged.
 - **The view is repainted every quarter hour, when the browser is idle**: painting takes a few tens of milliseconds, a hitch nobody should feel mid-throw.
 - **By day the room is brighter but keeps its contrast.** The first try simply turned the window light and the sky fill up four times, and the white walls blew out; daylight comes in soft, mostly through the fill, while the kitchen's own lamps stay on as they would during service.
-- **A red LED clock** shows the visitor's time with the seconds running (every second counts), hung under the front of the hood between the heat lamps, where the aisle by the dining room doors looks straight at it, and on the hood's north face under the stars.
+- **A red LED clock** shows the visitor's time with the seconds running (every second counts), over the dining room doors (see "The clock over the doors" below).
   It is drawn as seven-segment digits with the unlit segments faintly there, follows the visitor's 12 or 24 hour habit, and redraws only when the second changes.
 
 ### Smooth movement (2026-10-07)
@@ -339,3 +339,9 @@ Judgment calls made during the unattended build, with reasons.
 - **Snapshots stay at 20 a second; inputs go every tick.** The room simulates every tick but broadcasts every third, so the downstream bandwidth is unchanged; remote players were already drawn 100 ms behind from interpolated snapshots.
   Each client now sends 60 small input messages a second, so the per-connection message bucket allows 90 a second (120 in a burst); the input queue, credit and idle limits are set in seconds, not ticks.
 - **One collision substep is enough at 60 Hz**: a sprint covers 0.14 m a tick, far less than a body's radius.
+
+### The clock over the doors (2026-10-07)
+
+- **The clock hangs over the dining room doors**, at Daniel's request: one face flat on the south wall in its black housing, centered on the doors a little above their steel frame and clear of the light line, facing into the kitchen.
+  It replaced a clock hung under the front of the hood and a twin under the stars, and grew to 1.36 by 0.34 m so it reads from the windows across the room.
+  From the islands and the windows it shows between the hood and the heat lamps over the pass; from the aisle between the piano and the pass the lamps' bar hides it, and no height under the light line would clear it.
