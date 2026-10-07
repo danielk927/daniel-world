@@ -64,7 +64,7 @@ export class KnifePreview {
     if (this.look && this.look.skin === look.skin && this.look.finish === look.finish) return;
     this.look = look;
     const mesh = this.mesh!;
-    (mesh.geometry).dispose();
+    mesh.geometry.dispose();
     // The world's geometry paints the finish into the shared pixels; this copy uploads them again.
     mesh.geometry = knifeGeometry(look).clone();
     this.texture!.needsUpdate = true;
