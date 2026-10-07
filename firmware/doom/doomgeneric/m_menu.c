@@ -1523,19 +1523,9 @@ boolean M_Responder (event_t* ev)
 		mousey = lasty += 30;
 	    }
 		
-	    mousex += ev->data2;
-	    if (mousex < lastx-30)
-	    {
-		key = key_menu_left;
-		mousewait = I_GetTime() + 5;
-		mousex = lastx -= 30;
-	    }
-	    else if (mousex > lastx+30)
-	    {
-		key = key_menu_right;
-		mousewait = I_GetTime() + 5;
-		mousex = lastx += 30;
-	    }
+	    // kitchen: sideways motion no longer works the menu's sliders,
+	    // which every small nudge of a resting hand would move (the volume,
+	    // the mouse sensitivity). A click still picks the item.
 		
 	    if (ev->data1&1)
 	    {

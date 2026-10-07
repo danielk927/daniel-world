@@ -166,5 +166,8 @@ scope.onmessage = (event) => {
     case 'key':
       machine?.key(message.key, message.down, message.typed);
       break;
+    case 'mouse':
+      machine?.mouse(message.dx, message.buttons);
+      break;
   }
 };

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FB_HEIGHT, FB_WIDTH } from './abi.ts';
+import { FB_HEIGHT, FB_WIDTH, MMIO_MOUSE_LEFT } from './abi.ts';
 import { DOOM_KEYS } from './keys.ts';
 import { Machine } from './machine.ts';
 import type { EngineName } from './testRig.ts';
@@ -59,6 +59,25 @@ function runFrames(machine: Machine, frames: number): void {
   }
 }
 
+/** Presses a key as KeyboardEvent.code, holding it for `frames` frames. */
+function press(machine: Machine, code: string, frames = 2): void {
+  const { key, typed } = DOOM_KEYS[code]!;
+  machine.key(key, true, typed);
+  runFrames(machine, frames);
+  machine.key(key, false, typed);
+  runFrames(machine, 3);
+}
+
+/** The 3D view, without the message line and the status bar. */
+const view = (machine: Machine) => machine.indices.slice(320 * 10, 320 * 168);
+/** The ammo count, big at the left of the status bar. */
+const ammo = (machine: Machine) => {
+  const rows = [];
+  for (let y = 171; y < 192; y++) rows.push(...machine.indices.subarray(y * 320, y * 320 + 48));
+  return rows;
+};
+const likeness = (a: Uint8Array, b: Uint8Array) => a.filter((v, i) => v === b[i]).length / a.length;
+
 const digest = (machine: Machine) => ({
   pc: machine.cpu.pc,
   instret: machine.cpu.instret,
@@ -103,23 +122,10 @@ describe.skipIf(!haveWad)('DOOM on the kitchen computer', () => {
 
   it('saves a game to its in-memory files and loads it back', () => {
     const machine = boot('jit');
-    /** Presses a key as KeyboardEvent.code, holding it for `frames` frames. */
-    const press = (code: string, frames = 2) => {
-      const { key, typed } = DOOM_KEYS[code]!;
-      machine.key(key, true, typed);
-      runFrames(machine, frames);
-      machine.key(key, false, typed);
-      runFrames(machine, 3);
-    };
-    /** The 3D view, without the message line and the status bar. */
-    const view = () => machine.indices.slice(320 * 10, 320 * 168);
-    const likeness = (a: Uint8Array, b: Uint8Array) =>
-      a.filter((v, i) => v === b[i]).length / a.length;
-
     runFrames(machine, 5);
-    for (const code of ['Escape', 'Enter', 'Enter', 'Enter']) press(code); // new game, E1, skill 3
+    for (const code of ['Escape', 'Enter', 'Enter', 'Enter']) press(machine, code); // new game, E1, skill 3
     runFrames(machine, 80);
-    press('KeyW', 20);
+    press(machine, 'KeyW', 20);
     runFrames(machine, 40);
     // Save Game, slot 1, named "A": the A key strafes but still types its letter.
     for (const code of [
@@ -131,19 +137,75 @@ describe.skipIf(!haveWad)('DOOM on the kitchen computer', () => {
       'Enter',
       'KeyA',
     ]) {
-      press(code);
+      press(machine, code);
     }
-    press('Enter');
+    press(machine, 'Enter');
     runFrames(machine, 10);
-    const saved = view();
-    press('KeyW', 40);
-    const away = view();
+    const saved = view(machine);
+    press(machine, 'KeyW', 40);
+    const away = view(machine);
     // Load Game is just above Save Game, where the menu cursor still is.
-    for (const code of ['Escape', 'ArrowUp', 'Enter', 'Enter']) press(code);
+    for (const code of ['Escape', 'ArrowUp', 'Enter', 'Enter']) press(machine, code);
     runFrames(machine, 80);
     expect(likeness(away, saved)).toBeLessThan(0.5);
-    expect(likeness(view(), saved)).toBeGreaterThan(0.99);
+    expect(likeness(view(machine), saved)).toBeGreaterThan(0.99);
   });
+
+  /** In E1M1, standing at the start, with the screen melt over. */
+  const inE1M1 = () => {
+    const machine = boot('jit', '-warp 1 1');
+    runFrames(machine, 80);
+    return machine;
+  };
+
+  it('turns with the mouse, half a turn for 4096 counts, and never walks', () => {
+    const still = inE1M1();
+    const half = inE1M1();
+    const full = inE1M1();
+    const back = inE1M1();
+    half.mouse(4096, 0);
+    // All at once: the machine hands it over 2048 counts a read, a tic each.
+    full.mouse(8192, 0);
+    back.mouse(-8192, 0);
+    for (const machine of [still, half, full, back]) runFrames(machine, 10);
+    expect(likeness(view(half), view(still))).toBeLessThan(0.5);
+    // A whole turn either way comes back to the same picture, so the turn is exactly
+    // what was asked for and the player has not moved an inch.
+    expect(view(full)).toEqual(view(still));
+    expect(view(back)).toEqual(view(still));
+  }, 30_000);
+
+  it('fires on a click of the left button, however short', () => {
+    const still = inE1M1();
+    const shot = inE1M1();
+    // Down and up before the guest has looked even once.
+    shot.mouse(0, MMIO_MOUSE_LEFT);
+    shot.mouse(0, 0);
+    runFrames(still, 30);
+    runFrames(shot, 30);
+    expect(ammo(shot)).not.toEqual(ammo(still));
+    expect(ammo(still)).toEqual(ammo(inE1M1()));
+  }, 30_000);
+
+  it('keeps sideways mouse motion out of the menu', () => {
+    /** E1M1 with the cursor on Options > Screen Size. */
+    const atScreenSize = () => {
+      const machine = inE1M1();
+      for (const code of ['Escape', 'ArrowDown', 'Enter', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
+        press(machine, code);
+      }
+      return machine;
+    };
+    const still = atScreenSize();
+    const nudged = atScreenSize();
+    const smaller = atScreenSize();
+    nudged.mouse(-300, 0);
+    smaller.key(DOOM_KEYS.ArrowLeft!.key, true);
+    smaller.key(DOOM_KEYS.ArrowLeft!.key, false);
+    for (const machine of [still, nudged, smaller]) runFrames(machine, 20);
+    expect(smaller.indices).not.toEqual(still.indices);
+    expect(nudged.indices).toEqual(still.indices);
+  }, 30_000);
 
   it('plays the start of demo 1 identically on both engines', () => {
     const reference = boot('interpreter', '-timedemo demo1');

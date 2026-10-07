@@ -11,6 +11,8 @@ export type ToWorker =
   | { type: 'run' }
   | { type: 'pause' }
   | { type: 'key'; key: number; typed: number; down: boolean }
+  /** Mouse counts moved right since the last message, and the buttons held (machine.h). */
+  | { type: 'mouse'; dx: number; buttons: number }
   | Uint8ClampedArray<ArrayBuffer>;
 
 export type FromWorker =

@@ -12,6 +12,9 @@ import {
   MMIO_FB_PRESENT,
   MMIO_KEY,
   MMIO_KEY_PRESSED,
+  MMIO_MOUSE,
+  MMIO_MOUSE_LEFT,
+  MMIO_MOUSE_MAX_DX,
   MMIO_PALETTE,
   MMIO_SLEEP_MS,
   MMIO_TIME_MS,
@@ -47,9 +50,16 @@ export interface MachineOptions {
 
 const FRAME_PIXELS = FB_WIDTH * FB_HEIGHT;
 const KEY_QUEUE = 64;
+/**
+ * Mouse motion the guest has yet to read, at most this many counts either way: a full
+ * turn in DOOM at its default sensitivity, worked off in four reads (four tics, 114 ms).
+ * Anything faster than that is a hand thrown across the desk, and turning on for longer
+ * after the hand has stopped would feel like lag.
+ */
+const MOUSE_BACKLOG = 4 * MMIO_MOUSE_MAX_DX;
 
 /**
- * The kitchen computer: the CPU plus its devices (console, timer, keyboard, disk,
+ * The kitchen computer: the CPU plus its devices (console, timer, keyboard, mouse, disk,
  * display), wired up as machine.h describes. Pure TypeScript with no DOM, so it runs the
  * same in a Web Worker, in Node and in tests.
  */
@@ -76,6 +86,11 @@ export class Machine implements Bus {
   private readonly keys = new Uint32Array(KEY_QUEUE);
   private keyHead = 0;
   private keyCount = 0;
+
+  /** Mouse counts not yet read, the buttons held, and buttons pressed since the last read. */
+  private mouseDx = 0;
+  private mouseButtons = 0;
+  private mousePressed = 0;
 
   private fbAddr = 0;
   /** The palette as RGBA pixels (little-endian 0xAABBGGRR). */
@@ -129,6 +144,9 @@ export class Machine implements Bus {
     this.virtualTime = 0;
     this.keyHead = 0;
     this.keyCount = 0;
+    this.mouseDx = 0;
+    this.mouseButtons = 0;
+    this.mousePressed = 0;
     this.fbAddr = 0;
     this.palette.fill(0xff000000);
     this.consoleLine = '';
@@ -178,6 +196,17 @@ export class Machine implements Bus {
     this.keyCount++;
   }
 
+  /**
+   * Moves the mouse `dx` counts to the right (negative: left) and sets the buttons held
+   * (MMIO_MOUSE_LEFT). Motion adds up until the guest reads it.
+   */
+  mouse(dx: number, buttons: number): void {
+    const counts = Number.isFinite(dx) ? Math.trunc(dx) : 0;
+    this.mouseDx = Math.max(-MOUSE_BACKLOG, Math.min(MOUSE_BACKLOG, this.mouseDx + counts));
+    this.mouseButtons = buttons & MMIO_MOUSE_LEFT;
+    this.mousePressed |= this.mouseButtons;
+  }
+
   private dropOldestPress(): boolean {
     const keys = this.keys;
     for (let k = 0; k < this.keyCount; k++) {
@@ -201,6 +230,13 @@ export class Machine implements Bus {
         this.keyHead = (this.keyHead + 1) % KEY_QUEUE;
         this.keyCount--;
         return event;
+      }
+      case MMIO_MOUSE: {
+        const dx = Math.max(-MMIO_MOUSE_MAX_DX, Math.min(MMIO_MOUSE_MAX_DX, this.mouseDx));
+        this.mouseDx -= dx;
+        const buttons = this.mouseButtons | this.mousePressed;
+        this.mousePressed = 0;
+        return (dx << 16) | buttons;
       }
       case MMIO_DISK_ADDR:
         return this.disk ? DISK_BASE : 0;

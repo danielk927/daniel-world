@@ -2,7 +2,7 @@
  * Keyboard mapping for DOOM: KeyboardEvent.code to a DOOM key code (doomkeys.h) and the
  * character the key types, which DOOM reads for cheats and savegame names. Movement keys
  * send DOOM's arrow and strafe codes but still type their letter, so W walks forward and
- * "iddqd" still works.
+ * "iddqd" still works. The mouse is not a key: it is a device of its own (machine.h).
  */
 
 export interface DoomKey {
@@ -43,7 +43,8 @@ function buildMap(): Record<string, DoomKey> {
   for (let d = 0; d <= 9; d++) map[`Digit${d}`] = plain(String(d));
   for (let f = 0; f < 10; f++) map[`F${f + 1}`] = { key: KEY_F1 + f, typed: 0 };
   Object.assign(map, {
-    // Walk and turn with the arrows or WASD; A and D strafe, like every game since.
+    // Walk with W and S or the arrows, turn with the mouse or the side arrows; A and D
+    // strafe, like every game since.
     ArrowUp: { key: KEY_UPARROW, typed: 0 },
     ArrowDown: { key: KEY_DOWNARROW, typed: 0 },
     ArrowLeft: { key: KEY_LEFTARROW, typed: 0 },
@@ -54,8 +55,10 @@ function buildMap(): Record<string, DoomKey> {
     KeyD: { key: KEY_STRAFE_R, typed: ascii('d') },
     Comma: { key: KEY_STRAFE_L, typed: ascii(',') },
     Period: { key: KEY_STRAFE_R, typed: ascii('.') },
-    // Fire with Space or Ctrl, open doors with E (or F).
-    Space: { key: KEY_FIRE, typed: ascii(' ') },
+    // Open doors and flip switches with Space, as in DOOM, or with E or F, as in most
+    // games since. Fire with Ctrl, or with the left mouse button
+    // (KitchenComputer.mouseButton).
+    Space: { key: KEY_USE, typed: ascii(' ') },
     ControlLeft: { key: KEY_FIRE, typed: 0 },
     ControlRight: { key: KEY_FIRE, typed: 0 },
     KeyE: { key: KEY_USE, typed: ascii('e') },

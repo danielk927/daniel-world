@@ -24,9 +24,13 @@ export const MMIO_DISK_SIZE = 0x018;
 export const MMIO_ARGS = 0x01c;
 export const MMIO_FB_ADDR = 0x020;
 export const MMIO_FB_PRESENT = 0x024;
+export const MMIO_MOUSE = 0x028;
 export const MMIO_PALETTE = 0x400;
 
 export const FB_WIDTH = 320;
 export const FB_HEIGHT = 200;
 
 export const MMIO_KEY_PRESSED = 0x100;
+
+export const MMIO_MOUSE_LEFT = 0x1;
+export const MMIO_MOUSE_MAX_DX = 2048;
