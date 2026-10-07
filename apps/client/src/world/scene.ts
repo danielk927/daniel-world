@@ -1,6 +1,7 @@
 import {
   ACESFilmicToneMapping,
   Color,
+  type Object3D,
   NoToneMapping,
   PCFShadowMap,
   PerspectiveCamera,
@@ -11,6 +12,7 @@ import type { DishContent, StationContent } from '../content.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { Avatars } from './avatars.ts';
 import { ComputerScreen, buildComputerDesk } from './computer.ts';
+import { CoolerDoor } from './cooler.ts';
 import { worldTime } from './clock.ts';
 import { createFlames, createSteam } from './effects.ts';
 import { Kit } from './kit.ts';
@@ -45,6 +47,10 @@ export class WorldScene {
   readonly viewmodel = new Viewmodel();
   /** The kitchen computer's screen, on the chef's desk. */
   readonly computer: ComputerScreen;
+  /** The walk-in's door, its readout and the cold air from it, once it is open. */
+  readonly cooler: CoolerDoor;
+  /** The cold room behind it, only drawn when something of it can be seen. */
+  private coolerRoom: Object3D | null = null;
   private readonly lighting: Lighting;
   /** Ambient occlusion, bloom, tone mapping and the grade. High quality only. */
   private post: PostProcessing | null = null;
@@ -110,18 +116,26 @@ export class WorldScene {
     buildStationProps(kit);
     buildComputerDesk(kit);
     this.computer = new ComputerScreen(high);
+    this.cooler = new CoolerDoor(high);
 
     this.stations = new Stations(content, dishes, high);
+    const kitchen = kit.builder.build();
+    this.coolerRoom = kitchen.getObjectByName('cold') ?? null;
     this.scene.add(
-      kit.builder.build(),
+      kitchen,
       createFlames(kit.burners),
       createSteam(kit.steam),
       this.stations.group,
       this.avatars.group,
       this.knives.mesh,
       this.computer.mesh,
+      this.cooler.group,
     );
     assignShadowDepthMaterials(this.scene);
+    // Knives stuck in the walk-in's door go with it when it swings open.
+    this.knives.setCarrier(this.cooler);
+    this.cooler.onMove = () => this.knives.carrierMoved();
+    this.showCooler();
 
     this.resize();
   }
@@ -171,8 +185,20 @@ export class WorldScene {
       this.post = new PostProcessing(this.renderer, this.scene, this.camera, this.viewmodel.scene);
       this.post.setSize(window.innerWidth, window.innerHeight);
     }
+    // The cold room is hidden until the walk-in opens, so show it to compile it.
+    if (this.coolerRoom) this.coolerRoom.visible = true;
     await this.renderer.compileAsync(this.scene, this.camera);
     await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
+    this.showCooler();
+  }
+
+  /**
+   * Draw the cold room only when the walk-in's door shows any of it; let knives through the
+   * doorway once the door is clear of it.
+   */
+  private showCooler(): void {
+    if (this.coolerRoom) this.coolerRoom.visible = this.cooler.showsInside;
+    this.knives.coolerOpen = this.cooler.angle > 1;
   }
 
   update(time: number, dt: number): void {
@@ -188,6 +214,8 @@ export class WorldScene {
     this.followClock(dt);
     this.clock.update();
     this.computer.update(dt);
+    this.cooler.update(time);
+    this.showCooler();
   }
 
   /**
