@@ -165,6 +165,13 @@ export const COOLER_DOOR = {
   hingeZ: DOORS.walkIn.to + 0.01,
 } as const;
 
+/** Empty wire shelving along the cooler's walls, waiting to be filled. */
+export const COOLER_SHELVES: readonly Fixture[] = [
+  { minX: COOLER.minX + 0.25, maxX: COOLER.minX + 1.65, minZ: COOLER.minZ, maxZ: -5.6, top: 1.85 },
+  { minX: COOLER.maxX - 1.55, maxX: COOLER.maxX - 0.15, minZ: COOLER.minZ, maxZ: -5.6, top: 1.85 },
+  { minX: COOLER.maxX - 0.48, maxX: COOLER.maxX, minZ: -5.3, maxZ: -3.9, top: 1.85 },
+];
+
 /** The kitchen's walls as colliders are this thick wherever nothing lies behind them. */
 const WALL_COLLIDER = 1;
 /** Walls reach far above anyone's head, however they jump. */
@@ -225,6 +232,9 @@ const OPEN_COOLER: readonly BoxCollider[] = [
   ),
   wallCollider(COOLER.minX, COOLER.maxX + WALL_COLLIDER, COOLER.maxZ, COOLER.maxZ + WALL_COLLIDER),
   wallCollider(COOLER.minX, COOLER.maxX, COOLER.minZ, COOLER.maxZ, COOLER.height),
+  ...COOLER_SHELVES.map((f) =>
+    wallCollider(f.minX, f.maxX, f.minZ, f.maxZ, -1, FIXTURE_COLLIDER_TOP),
+  ),
   // The door, swung in flat against the south wall.
   wallCollider(
     COOLER_DOOR.hingeX,
@@ -320,6 +330,31 @@ export const COOLER_KNIFE_SOLIDS: readonly BoxCollider[] = [
 /** Whether a knife crossing the east wall's plane at (y, z) goes on into the open doorway. */
 export function inCoolerDoorway(y: number, z: number): boolean {
   return y >= 0 && y <= DOORWAY.height && z >= DOORWAY.from && z <= DOORWAY.to;
+}
+
+/**
+ * Whether the wall between the kitchen and the cooler hides (bx, by, bz) from (ax, ay, az): a sight
+ * line from one to the other passes beside the doorway, or the door is shut. Nothing else in the
+ * kitchen hides anything from anyone, for labels and picking.
+ */
+export function coolerWallBetween(
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+  coolerOpen: boolean,
+): boolean {
+  if (ax > ROOM_HALF_X === bx > ROOM_HALF_X) return false;
+  if (!coolerOpen) return true;
+  // Through both faces of the wall, inside the doorway.
+  for (const plane of [ROOM_HALF_X, COOLER.minX]) {
+    const t = (plane - ax) / (bx - ax);
+    if (t < 0 || t > 1) continue;
+    if (!inCoolerDoorway(ay + (by - ay) * t, az + (bz - az) * t)) return true;
+  }
+  return false;
 }
 
 export type StationId =

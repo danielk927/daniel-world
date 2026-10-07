@@ -7,6 +7,7 @@ import {
   parseClientMessage,
   parseServerMessage,
   samePrefs,
+  type WelcomeMessage,
 } from './protocol.ts';
 
 describe('parseClientMessage', () => {
@@ -162,8 +163,8 @@ describe('parseServerMessage', () => {
     for (const message of [punch, knife, burst]) {
       expect(parseServerMessage(encode(message))).toEqual(message);
     }
-    const dents = Array.from({ length: COOLER_HITS_TO_OPEN }, () => punch.dent);
-    const welcome = {
+    const dents = Array.from({ length: COOLER_HITS_TO_OPEN }, () => ({ ...punch.dent }));
+    const welcome: WelcomeMessage = {
       t: 'welcome',
       v: 7,
       id: 1,
@@ -187,16 +188,15 @@ describe('parseServerMessage', () => {
       },
       knives: [],
       cooler: { dents },
-    } as const;
+    };
     expect(parseServerMessage(encode(welcome))).toEqual(welcome);
     // An older server says nothing about the door.
-    const untouched: Partial<typeof welcome> = { ...welcome };
+    const untouched: WelcomeMessage = { ...welcome };
     delete untouched.cooler;
-    expect(parseServerMessage(encode(untouched as typeof welcome))).toEqual(untouched);
+    expect(parseServerMessage(encode(untouched))).toEqual(untouched);
     // A door takes no more hits than it takes to open it.
-    expect(
-      parseServerMessage(encode({ ...welcome, cooler: { dents: [...dents, punch.dent] } })),
-    ).toBeNull();
+    const tooMany = { ...welcome, cooler: { dents: [...dents, { ...punch.dent }] } };
+    expect(parseServerMessage(encode(tooMany))).toBeNull();
   });
 
   it.each([

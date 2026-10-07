@@ -29,9 +29,11 @@ import {
   COLLIDERS,
   COOLER,
   COOLER_DOOR,
+  COOLER_SHELVES,
   DOORS,
   OPEN_COOLER_COLLIDERS,
   coolerColliders,
+  coolerWallBetween,
   inPlayArea,
 } from './world.ts';
 
@@ -168,10 +170,10 @@ describe('walking into the walk-in', () => {
     expect(s.x).toBeCloseTo(PLAY_HALF_X, 3);
   });
 
-  it('stays inside the cold room: its walls, the open door and the low ceiling', () => {
+  it('stays inside the cold room: its shelves, the open door and the low ceiling', () => {
     const start = createPlayerState(COOLER.minX + 1.5, -4, NORTH);
     const north = walk(start, { keys: Keys.Forward | Keys.Sprint, yaw: NORTH, pitch: 0 }, 2, true);
-    expect(north.z).toBeCloseTo(COOLER.minZ + PLAYER_RADIUS, 3);
+    expect(north.z).toBeCloseTo(COOLER_SHELVES[0]!.maxZ + PLAYER_RADIUS, 3);
     const south = walk(north, { keys: Keys.Forward | Keys.Sprint, yaw: SOUTH, pitch: 0 }, 2, true);
     expect(south.z).toBeCloseTo(COOLER_DOOR.hingeZ - COOLER_DOOR.thickness - PLAYER_RADIUS, 3);
     let highest = 0;
@@ -208,6 +210,27 @@ describe('walking into the walk-in', () => {
     expect(isInsideCollider(doorway, OPEN_COOLER_COLLIDERS)).toBe(false);
     expect(inPlayArea(doorway.x, doorway.z, false)).toBe(false);
     expect(inPlayArea(doorway.x, doorway.z, true)).toBe(true);
+  });
+});
+
+describe('seeing into the walk-in', () => {
+  const kitchen = { x: 4, y: 1.6, z: DOOR_Z };
+  const inside = { x: COOLER.minX + 1.5, y: 1.6, z: DOOR_Z };
+  const see = (a: typeof kitchen, b: typeof kitchen, open: boolean): boolean =>
+    !coolerWallBetween(a.x, a.y, a.z, b.x, b.y, b.z, open);
+
+  it('is only through the open doorway', () => {
+    expect(see(kitchen, inside, true)).toBe(true);
+    expect(see(inside, kitchen, true)).toBe(true);
+    expect(see(kitchen, inside, false)).toBe(false);
+    // Past the doorway's side, and over its lintel.
+    expect(see({ ...kitchen, z: 1 }, inside, true)).toBe(false);
+    expect(see(inside, { ...kitchen, y: 4.5 }, true)).toBe(false);
+  });
+
+  it('leaves the kitchen and the cooler each open to themselves', () => {
+    expect(see(kitchen, { x: -6, y: 1, z: 5 }, false)).toBe(true);
+    expect(see(inside, { x: COOLER.maxX - 0.2, y: 2, z: COOLER.minZ + 0.2 }, true)).toBe(true);
   });
 });
 
