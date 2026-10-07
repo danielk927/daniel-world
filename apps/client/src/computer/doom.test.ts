@@ -101,6 +101,50 @@ describe.skipIf(!haveWad)('DOOM on the kitchen computer', () => {
     expect(changed).toBeGreaterThan(5000);
   });
 
+  it('saves a game to its in-memory files and loads it back', () => {
+    const machine = boot('jit');
+    /** Presses a key as KeyboardEvent.code, holding it for `frames` frames. */
+    const press = (code: string, frames = 2) => {
+      const { key, typed } = DOOM_KEYS[code]!;
+      machine.key(key, true, typed);
+      runFrames(machine, frames);
+      machine.key(key, false, typed);
+      runFrames(machine, 3);
+    };
+    /** The 3D view, without the message line and the status bar. */
+    const view = () => machine.indices.slice(320 * 10, 320 * 168);
+    const likeness = (a: Uint8Array, b: Uint8Array) =>
+      a.filter((v, i) => v === b[i]).length / a.length;
+
+    runFrames(machine, 5);
+    for (const code of ['Escape', 'Enter', 'Enter', 'Enter']) press(code); // new game, E1, skill 3
+    runFrames(machine, 80);
+    press('KeyW', 20);
+    runFrames(machine, 40);
+    // Save Game, slot 1, named "A": the A key strafes but still types its letter.
+    for (const code of [
+      'Escape',
+      'ArrowDown',
+      'ArrowDown',
+      'ArrowDown',
+      'Enter',
+      'Enter',
+      'KeyA',
+    ]) {
+      press(code);
+    }
+    press('Enter');
+    runFrames(machine, 10);
+    const saved = view();
+    press('KeyW', 40);
+    const away = view();
+    // Load Game is just above Save Game, where the menu cursor still is.
+    for (const code of ['Escape', 'ArrowUp', 'Enter', 'Enter']) press(code);
+    runFrames(machine, 80);
+    expect(likeness(away, saved)).toBeLessThan(0.5);
+    expect(likeness(view(), saved)).toBeGreaterThan(0.99);
+  });
+
   it('plays the start of demo 1 identically on both engines', () => {
     const reference = boot('interpreter', '-timedemo demo1');
     const translated = boot('jit', '-timedemo demo1');

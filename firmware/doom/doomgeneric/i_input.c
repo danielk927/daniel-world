@@ -41,7 +41,9 @@
 
 #include "doomgeneric.h"
 
-int vanilla_keyboard_mapping = 1;
+// kitchen: savegame names come from the typed character (below), not the key
+// code, which for W, A, S, D and E is a movement key.
+int vanilla_keyboard_mapping = 0;
 
 // Is the shift key currently down?
 
