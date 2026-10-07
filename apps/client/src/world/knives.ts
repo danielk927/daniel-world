@@ -41,8 +41,6 @@ interface Flight {
   landed: KnifeImpact | null;
   /** Seconds spent landed, waiting for the verdict. */
   waited: number;
-  /** A player it flies straight through (one who has turned its thrower off), or null. */
-  readonly through: number | null;
   /** Where it is drawn, relative to where it flies, at release; fades to nothing over HAND_BLEND. */
   readonly ox: number;
   readonly oy: number;
@@ -50,6 +48,9 @@ interface Flight {
 }
 
 const FORWARD = new Vector3(0, 0, -1);
+
+/** Whether a knife thrown by `from` passes through `to`. */
+export type Spares = (from: number, to: number) => boolean;
 
 /**
  * Every knife in the world: stuck in the kitchen or flying. Flights are replayed with the shared
@@ -116,7 +117,6 @@ export class Knives {
       outcome: null,
       landed: null,
       waited: 0,
-      through: null,
       ox,
       oy,
       oz,
@@ -126,7 +126,7 @@ export class Knives {
   /**
    * The server announced a throw. Our own is matched to the knife already flying; anyone else's
    * starts after `delay` seconds, so it leaves their hand as drawn (other players are shown slightly
-   * in the past). It flies through player `through`, if given, as the server lets it.
+   * in the past).
    */
   launch(
     id: number,
@@ -135,7 +135,6 @@ export class Knives {
     state: KnifeState,
     self: boolean,
     delay: number,
-    through: number | null = null,
   ): void {
     if (self) {
       const own = this.flights.find((f) => f.id === null && f.seq === seq);
@@ -154,7 +153,6 @@ export class Knives {
       outcome: null,
       landed: null,
       waited: 0,
-      through,
       ox: 0,
       oy: 0,
       oz: 0,
@@ -191,8 +189,11 @@ export class Knives {
     for (const flight of this.flights) flight.online = false;
   }
 
-  /** Advance every flight by `dt`. `targets` are the players as drawn on this screen. */
-  update(dt: number, targets: readonly KnifeTarget[]): void {
+  /**
+   * Advance every flight by `dt`. `targets` are the players as drawn on this screen; a knife flies
+   * straight through anyone `spares(thrower, target)` says it does, as on the server.
+   */
+  update(dt: number, targets: readonly KnifeTarget[], spares?: Spares): void {
     for (let i = 0; i < this.flights.length; i++) {
       const f = this.flights[i]!;
       f.clock += dt;
@@ -201,7 +202,7 @@ export class Knives {
         f.landed = flyKnife(
           f.state,
           Math.min(f.clock, KNIFE_MAX_FLIGHT_SECONDS) - f.state.t,
-          f.through === null ? targets : this.without(targets, f.through),
+          spares ? this.hittable(targets, f.from, spares) : targets,
           f.from,
         );
       } else {
@@ -216,11 +217,15 @@ export class Knives {
     if (this.dirty) this.draw();
   }
 
-  /** `targets` but one, in a reused list. */
-  private without(targets: readonly KnifeTarget[], id: number): readonly KnifeTarget[] {
+  /** The `targets` a knife from `from` can hit, in a reused list. */
+  private hittable(
+    targets: readonly KnifeTarget[],
+    from: number,
+    spares: Spares,
+  ): readonly KnifeTarget[] {
     const out = this.someTargets;
     out.length = 0;
-    for (const target of targets) if (target.id !== id) out.push(target);
+    for (const target of targets) if (!spares(from, target.id)) out.push(target);
     return out;
   }
 

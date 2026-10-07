@@ -513,7 +513,8 @@ export class Game {
     }
 
     this.multiplayer?.update(now, dt);
-    this.world.knives.update(dt, this.multiplayer?.knifeTargets() ?? NO_TARGETS);
+    const mp = this.multiplayer;
+    this.world.knives.update(dt, mp?.knifeTargets() ?? NO_TARGETS, mp?.spares);
     this.updateCamera(dt);
     const color = this.multiplayer?.selfColor;
     if (color) this.viewmodel.setColor(color);

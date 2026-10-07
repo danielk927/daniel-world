@@ -123,7 +123,7 @@ export class PauseMenu {
           ]),
           this.note,
           tabList,
-          ...this.panels,
+          el('div', { class: 'pause-panels' }, this.panels),
           el('footer', { class: 'pause-footer' }, [
             this.resumeButton,
             leaveButton,
@@ -288,7 +288,7 @@ export class PauseMenu {
         toggle('setting-chef', 'chefThrows'),
         el('p', {
           class: 'setting-help',
-          text: "The lobby's head chef. Off, he never aims at you and his knives pass through you.",
+          text: "The lobby's head chef. Off, neither of you can hit the other.",
         }),
       ),
     ]);

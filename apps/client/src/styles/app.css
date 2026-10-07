@@ -1515,9 +1515,18 @@ kbd {
   box-shadow: var(--focus);
 }
 
-/* As tall as the settings list, so the card keeps its size when switching tabs. */
-.pause-panel {
-  min-height: 409px;
+/* The panels share one cell, so the card is as tall as the tallest and keeps its size between tabs. */
+.pause-panels {
+  display: grid;
+}
+
+.pause-panels > .pause-panel {
+  grid-area: 1 / 1;
+}
+
+.pause-panels > .pause-panel[hidden] {
+  display: block !important;
+  visibility: hidden;
 }
 
 .settings-list {

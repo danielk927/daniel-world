@@ -2,6 +2,7 @@ import {
   PROTOCOL_VERSION,
   encode,
   parseServerMessage,
+  samePrefs,
   type ClientMessage,
   type Prefs,
   type ServerMessage,
@@ -93,7 +94,7 @@ export class Connection {
   }
 
   private syncPrefs(): void {
-    if (!this.isOnline || this.sentPrefs?.chef === this.prefs.chef) return;
+    if (!this.isOnline || (this.sentPrefs && samePrefs(this.sentPrefs, this.prefs))) return;
     this.send({ t: 'prefs', prefs: this.prefs });
     this.sentPrefs = this.prefs;
   }

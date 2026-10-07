@@ -2,6 +2,8 @@ import type { Vector3 } from 'three';
 import {
   INTERPOLATION_DELAY_MS,
   TICK_MS,
+  chefSpares,
+  type Cook,
   type KnifeTarget,
   type InputMessage,
   type PlayerInfo,
@@ -24,8 +26,11 @@ const BUBBLE_MS = 6000;
 /** A remote thrower's swing starts this long before their knife leaves the hand. */
 const THROW_LEAD = 0.18;
 
-interface Remote {
+interface Remote extends Cook {
   readonly info: PlayerInfo;
+  readonly resident: boolean;
+  /** As they last told the room. */
+  prefs: Readonly<Prefs>;
   readonly buffer: SnapshotBuffer;
   readonly pose: AvatarPose;
   lastX: number;
@@ -97,12 +102,13 @@ export class Multiplayer {
   /** Whether the chat has explained the version mismatch, so it says so only once. */
   private toldAboutMismatch = false;
   private statusTimer = 0;
-  private prefs: Readonly<Prefs>;
+  /** This player, as far as Chef Skinner is concerned. */
+  private readonly self: { prefs: Readonly<Prefs> };
 
   constructor(deps: MultiplayerDeps) {
     this.deps = deps;
     this.room = deps.room;
-    this.prefs = deps.prefs;
+    this.self = { prefs: deps.prefs };
     deps.hud.setRoom(deps.room);
     this.refreshPlayers();
     this.connection = new Connection(
@@ -157,8 +163,19 @@ export class Multiplayer {
 
   /** The visitor changed their mind about the room; the server hears at once, or on rejoining. */
   setPrefs(prefs: Readonly<Prefs>): void {
-    this.prefs = prefs;
+    this.self.prefs = prefs;
     this.connection.setPrefs(prefs);
+  }
+
+  /** Whether a knife from `from` passes through `to`, as the server decides it (`chefSpares`). */
+  readonly spares = (from: number, to: number): boolean => {
+    const a = this.cook(from);
+    const b = this.cook(to);
+    return a !== null && b !== null && chefSpares(a, b);
+  };
+
+  private cook(id: number): Cook | null {
+    return id === this.selfId ? this.self : (this.remotes.get(id) ?? null);
   }
 
   sendChat(text: string): void {
@@ -362,12 +379,15 @@ export class Multiplayer {
           vz: message.vz,
           t: 0,
         };
-        // The server lets Chef Skinner's knives through a visitor who has turned him off; so do we.
-        const resident = this.remotes.get(message.from)?.info.resident === true;
-        const through = resident && !this.prefs.chef ? this.selfId : null;
-        this.deps.knives.launch(message.id, message.from, message.seq, state, self, delay, through);
+        this.deps.knives.launch(message.id, message.from, message.seq, state, self, delay);
         if (!self)
           this.deps.avatars.playThrow(message.from, this.deps.worldTime() + delay - THROW_LEAD);
+        return;
+      }
+      case 'prefs': {
+        // Our own are whatever we last chose, which may be newer than this echo.
+        const remote = this.remotes.get(message.id);
+        if (remote) remote.prefs = message.prefs;
         return;
       }
       case 'punch': {
@@ -444,6 +464,8 @@ export class Multiplayer {
     tag.style.setProperty('--player-color', info.color);
     const remote: Remote = {
       info,
+      resident: info.resident === true,
+      prefs: info.prefs,
       buffer: new SnapshotBuffer(),
       pose: {
         x: 0,
