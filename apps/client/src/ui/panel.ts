@@ -67,8 +67,9 @@ export class InfoPanel {
     this.kicker.textContent = entry.kicker;
     this.title.textContent = entry.title;
     this.body.replaceChildren(renderLoreBody(entry));
-    this.body.scrollTop = 0;
     this.element.hidden = false;
+    // Only once it shows: a hidden panel ignores this, and would open where the last one was left.
+    this.body.scrollTop = 0;
     // Next frame, so the slide-in transition runs.
     requestAnimationFrame(() => this.element.classList.add('open'));
     this.releaseFocus = trapFocus(this.element);

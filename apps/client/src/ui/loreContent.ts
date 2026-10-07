@@ -5,7 +5,8 @@ function isExternal(href: string): boolean {
   return /^https?:\/\//.test(href);
 }
 
-function link(label: string, href: string, className: string): HTMLAnchorElement {
+/** A link; external ones open in a new tab. */
+export function link(label: string, href: string, className: string): HTMLAnchorElement {
   const a = el('a', { class: className, text: label, attrs: { href } });
   if (isExternal(href)) {
     a.target = '_blank';
@@ -21,7 +22,15 @@ function renderItem(item: LoreItem): HTMLElement {
       el('h3', { class: 'lore-item-title' }, [title]),
       item.meta ? el('span', { class: 'lore-item-meta', text: item.meta }) : null,
     ]),
+    item.subtitle ? el('p', { class: 'lore-item-subtitle', text: item.subtitle }) : null,
     item.description ? el('p', { class: 'lore-item-desc', text: item.description }) : null,
+    item.points?.length
+      ? el(
+          'ul',
+          { class: 'lore-item-points' },
+          item.points.map((p) => el('li', { text: p })),
+        )
+      : null,
     item.tags?.length
       ? el(
           'ul',
@@ -47,7 +56,7 @@ export function renderLoreBody(entry: LoreEntry): HTMLElement {
     entry.tags?.length
       ? el(
           'ul',
-          { class: 'tag-list tag-list-large', attrs: { 'aria-label': 'Skills' } },
+          { class: 'tag-list tag-list-large', attrs: { 'aria-label': 'Tags' } },
           entry.tags.map((t) => el('li', { class: 'tag', text: t })),
         )
       : null,

@@ -1036,6 +1036,7 @@ kbd {
 
 .lore-label span {
   display: inline-block;
+  text-align: center;
   transition:
     background-color 160ms ease,
     color 160ms ease;
@@ -1048,6 +1049,20 @@ kbd {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* The station's own name, small, above what it holds. */
+.lore-label-station {
+  display: block;
+  margin-bottom: 1px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-transform: none;
+  color: color-mix(in srgb, currentColor 72%, transparent);
 }
 
 .lore-label.is-hovered span {
@@ -1843,6 +1858,8 @@ kbd {
   font-size: 15.5px;
   line-height: 1.6;
   color: var(--ink-muted);
+  /* No word left alone on the last line. */
+  text-wrap: pretty;
 }
 
 .lore-items {
@@ -1854,20 +1871,28 @@ kbd {
 }
 
 .lore-item {
+  display: flex;
+  flex-direction: column;
   padding: 14px 16px;
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+/*
+ * The panel is narrow, so an item is one column: title, subtitle, then the date or place in small,
+ * the same for every item however long its title.
+ */
+.lore-item > * {
+  order: 3;
+}
+
 .lore-item-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  display: contents;
 }
 
 .lore-item-title {
+  order: 0;
   margin: 0;
   font-size: 16px;
   font-weight: 600;
@@ -1881,9 +1906,19 @@ kbd {
 }
 
 .lore-item-meta {
-  flex-shrink: 0;
+  order: 2;
+  margin-top: 2px;
   font-size: 12.5px;
   color: var(--ink-faint);
+}
+
+.lore-item-subtitle {
+  order: 1;
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ivory);
+  text-wrap: pretty;
 }
 
 .lore-item-desc {
@@ -1891,6 +1926,25 @@ kbd {
   font-size: 14.5px;
   line-height: 1.55;
   color: var(--ink-muted);
+  /* No word left alone on the last line. */
+  text-wrap: pretty;
+}
+
+.lore-item-points {
+  display: grid;
+  list-style: disc;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  /* No word left alone on the last line. */
+  text-wrap: pretty;
+}
+
+.lore-item-points li::marker {
+  color: var(--ink-faint);
 }
 
 .tag-list {

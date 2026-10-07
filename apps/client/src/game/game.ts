@@ -154,7 +154,13 @@ export class Game {
     this.world.stations.entries.forEach((entry, i) => {
       const anchor = this.world.stations.anchor(i);
       if (!anchor) return;
-      const label = el('div', { class: 'lore-label' }, [el('span', { text: entry.title })]);
+      // What the station holds, under the station's own name in small.
+      const label = el('div', { class: 'lore-label' }, [
+        el('span', {}, [
+          entry.station ? el('small', { class: 'lore-label-station', text: entry.station }) : null,
+          entry.title,
+        ]),
+      ]);
       label.style.setProperty('--accent-entry', entry.color);
       // Labels show exactly as far away as the station can be clicked.
       this.stationLabels.push(this.labels.add(label, anchor, 0.55, PICK_DISTANCE, 'yield'));

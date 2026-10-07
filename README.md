@@ -54,9 +54,9 @@ The newest 60 knives stay stuck around the kitchen until everyone leaves the roo
 ## Editing the content
 
 All personal content lives in [`apps/client/src/content.ts`](apps/client/src/content.ts).
-Every placeholder is marked `TODO(daniel)`; search for that tag and replace each one.
-The portfolio page renders the `lore` sections, and each of the kitchen's eight stations shows its entry in `stations`.
-Point a station at one of your sections (for example `saucier: lore[0]!`) to show it in the kitchen.
+It holds Daniel's resume, item by item: each role and project is written once and shared by the portfolio page (the `lore` sections) and the kitchen's eight stations (`stations`), so a change shows up in both.
+Each station serves one part of it, and its label says which: the pass is About me, the saucier Experience, the rôtisseur and entremetier the projects, the poissonnier Research, the garde manger Skills, the pâtisserie Interests, and the plonge Education and contact.
+The few lines that still want Daniel's own words are marked `TODO(daniel)`.
 
 ## Scripts
 
