@@ -208,6 +208,9 @@ export class Kit {
           opacity: 0.22,
           depthWrite: false,
           side: DoubleSide,
+          // Flat panes need no back-then-front pass. Two passes made three.js flip the material's
+          // side and re-derive its shader parameters four times a frame (megabytes of garbage).
+          forceSinglePass: true,
         }),
         // Before the clear glass, so a tumbler seen against a window is not tinted as if behind it.
         { receiveShadow: false, renderOrder: -1 },

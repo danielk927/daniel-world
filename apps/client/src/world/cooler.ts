@@ -393,6 +393,9 @@ export class CoolerDoor {
     this.mist = createMist(this.mistOpen);
     this.lightPower = hdr ? 11 : 7;
     this.light = new PointLight(COLD_LIGHT, 0, 4.6, 2);
+    // Out of the lighting while it gives none: a light at zero intensity still costs every lit
+    // material its uniforms and a term in every fragment, all over the kitchen.
+    this.light.visible = false;
     this.light.position.set((COOLER.minX + COOLER.maxX) / 2, COOLER.height - 0.3, COOLER_LAMPS.z);
     this.group.add(this.leaf, this.readout, this.mist, this.light);
   }
@@ -512,6 +515,7 @@ export class CoolerDoor {
     }
     this.leaf.matrixWorldNeedsUpdate = true;
     this.light.intensity = this.lightPower * Math.min(1, this.angle / 0.6 + this.damage.shift * 3);
+    this.light.visible = this.light.intensity > 0;
     this.motion.multiplyMatrices(this.leaf.matrix, this.restInverse);
     this.onMove?.();
   }

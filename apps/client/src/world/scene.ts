@@ -185,10 +185,16 @@ export class WorldScene {
       this.post = new PostProcessing(this.renderer, this.scene, this.camera, this.viewmodel.scene);
       this.post.setSize(window.innerWidth, window.innerHeight);
     }
-    // The cold room and its mist are hidden until the walk-in opens, so show them to compile them.
+    // The cold room and its mist are hidden until the walk-in opens, so show them to compile them,
+    // and compile everything both without and with its light, so the door opening never stalls.
     this.cooler.mist.visible = true;
     if (this.coolerRoom) this.coolerRoom.visible = true;
+    const coldLight = this.cooler.light.visible;
+    this.cooler.light.visible = false;
     await this.renderer.compileAsync(this.scene, this.camera);
+    this.cooler.light.visible = true;
+    await this.renderer.compileAsync(this.scene, this.camera);
+    this.cooler.light.visible = coldLight;
     await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
     this.showCooler();
   }

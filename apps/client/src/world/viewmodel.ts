@@ -34,7 +34,7 @@ import {
   type KnifeMoves,
   type Offset,
 } from './knifeMoves.ts';
-import { knifeMaterial, knifeModel, knifePartGeometry, type KnifeModel } from './knifeModel.ts';
+import { handKnifeMaterial, knifeModel, knifePartGeometry, type KnifeModel } from './knifeModel.ts';
 import type { Joint } from './knifeShapes.ts';
 
 /**
@@ -417,7 +417,7 @@ export class Viewmodel {
       return inner;
     };
     for (const part of model.parts) {
-      const mesh = new Mesh(knifePartGeometry(look, part), knifeMaterial());
+      const mesh = new Mesh(knifePartGeometry(look, part), handKnifeMaterial());
       const parent: Object3D = part.joint ? hingeFor(part.joint) : this.model;
       parent.add(mesh);
     }

@@ -161,6 +161,18 @@ export function knifeMaterial(): MeshStandardMaterial {
   }));
 }
 
+let handMaterial: MeshStandardMaterial | undefined;
+
+/**
+ * The knife in the player's own hand: the same steel, but a material of its own. The view model is
+ * drawn in its own scene with its own lights; sharing one material with the instanced knives in the
+ * kitchen made three.js switch its program back and forth, re-deriving its shader parameters twice
+ * a frame (megabytes of garbage a second).
+ */
+export function handKnifeMaterial(): MeshStandardMaterial {
+  return (handMaterial ??= knifeMaterial().clone());
+}
+
 /** Where a hand holds a knife, in its model space. */
 export function knifeGrip(skin: KnifeSkin): V2 {
   return knifeModel(skin).grip;

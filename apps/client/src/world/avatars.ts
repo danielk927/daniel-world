@@ -405,7 +405,10 @@ export class Avatars {
         if (inHand) {
           const tilt = throwT >= 0 ? KNIFE_TILT + Math.min(1, throwT / RELEASE) * 1.4 : KNIFE_TILT;
           // The grip in the hand: the knife turned by the tilt about it.
-          const [gz, gy] = knifeGrip(avatar.look.skin);
+          // Indexed, not destructured: destructuring can allocate an iterator per cook per frame.
+          const grip = knifeGrip(avatar.look.skin);
+          const gz = grip[0];
+          const gy = grip[1];
           const c = Math.cos(tilt);
           const sn = Math.sin(tilt);
           this.setPart(hx, hy - (gy * c - gz * sn), hz - (gy * sn + gz * c), tilt, 0, 0);
