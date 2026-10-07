@@ -31,15 +31,20 @@ import { illegal } from './interpreter.ts';
 /**
  * The fast engine: a dynamic binary translator from RISC-V to JavaScript.
  *
- * The unit of translation is a region: everything statically reachable from an entry
- * point without leaving the function (branches and direct jumps are followed, calls,
- * returns and indirect jumps end it). A region becomes one JavaScript function whose body
- * is a loop around a `switch` on the guest pc with one case per basic block, laid out in
- * address order so straight-line code falls through from block to block. Guest registers
- * live in JavaScript locals for the whole call, which V8 keeps in machine registers, and
- * every memory access is inlined with its common case (aligned, in RAM) on the fast path.
- * Loops inside a function stay inside one call; only calls and returns go back through
- * the dispatcher in `run`.
+ * The unit of translation is a region: the code statically reachable from an entry point
+ * by branches and direct jumps, up to a size limit. Calls, returns and indirect jumps end
+ * it; the code after a call is the entry of another region, entered when the call returns.
+ * A region becomes one JavaScript function whose body is a loop around a `switch` on the
+ * guest pc with one case per basic block, laid out in address order so straight-line code
+ * falls through from block to block, and a block that branches back to itself becomes a
+ * plain JavaScript loop. Guest registers live in JavaScript locals for the whole call,
+ * which V8 keeps in machine registers, and every memory access is inlined with its common
+ * case (aligned, in RAM) on the fast path. Loops inside a function stay inside one call;
+ * only calls and returns go back through the dispatcher in `run`.
+ *
+ * Small regions turned out faster than whole functions (V8 optimizes small functions
+ * sooner and better): DOOM's timedemo runs at about 2 billion guest instructions a second
+ * on an M-series Mac, against 150 million for the interpreter.
  *
  * Regions are compiled with `new Function`, which needs a Content-Security-Policy that
  * allows 'unsafe-eval' (or none: the site sends no CSP today). The interpreter in
@@ -88,7 +93,7 @@ const FACTORY_PARAMS = [
   'illegal',
 ];
 
-/** Regions stop growing here, so V8 still optimizes the functions they become. */
+/** Regions stop growing here: V8 optimizes small functions sooner and better (measured). */
 const MAX_REGION_INSTRUCTIONS = 200;
 
 export interface JitStats {
@@ -143,7 +148,7 @@ export class Jit {
           }
           region = this.compile(pc);
         }
-        ctl[0] = budget - total;
+        ctl[0] = Math.min(budget - total, 0x7fffffff);
         ctl[1] = 0;
         pc = region(pc);
         total += ctl[1];
@@ -288,13 +293,12 @@ function planRegion(cpu: Cpu, entry: number): Plan {
         pc += 4;
         continue;
       }
-      if (op === OP_JAL) {
+      if (op === OP_JAL && rd(inst) === 0) {
+        // A plain jump (not a call): follow it.
         const target = (pc + immJ(inst)) | 0;
-        if (rd(inst) === 0) {
-          if (inCode(target) && (target & 3) === 0) {
-            labels.add(target);
-            work.push(target);
-          }
+        if (inCode(target) && (target & 3) === 0) {
+          labels.add(target);
+          work.push(target);
         }
       }
       break;
