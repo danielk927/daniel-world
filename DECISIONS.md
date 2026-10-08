@@ -455,3 +455,19 @@ Judgment calls made during the unattended build, with reasons.
   `snapRefreshInterval` now knows 30 Hz, and 48 and 50 Hz, which a MacBook's display can be set to; nothing a page does lifts the cap itself.
 - **The refresh only ever speeds up mid-session.** A window of frames with more than two quicker than the refresh shows a faster one (the laptop was plugged in, or the window moved to a faster screen), and the governor judges against that from then on.
   A slower cadence cannot be told from a GPU falling behind, so a cap that starts mid-session still steps quality down; the next load measures the cap and climbs back.
+
+### Spammable inspect (2026-10-08)
+
+- **Every press of I starts the inspect over**, as in CS2 and Valorant: a press mid-inspect plays it again from the start instead of being ignored.
+  Holding I down does not keep restarting it, because the keyboard's repeats of a held key are not presses (`Input` ignores them).
+- **I inspects out of the knife's draw the moment the knife is in the hand**, cutting the rest of the draw short, as CS2 lets you inspect during the deploy.
+  A throw still waits until the knife is all the way up (0.34 s into a switch), so an inspect is no way to throw sooner.
+  Only waiting for the knife to be up was tried first, and it dropped a press made just as a cook came into the world or drew the knife, which E2E caught.
+  A press does nothing mid-throw, with the bare hand out, while the knife is on its way down for a switch, or out of view.
+- **A cut keeps the arm's place and its speed.** Whatever is cut short (an inspect, the draw's flourish, the idle) carries on at the speed it was going, dying away, while what follows blends in with a smoothstep.
+  The old blend froze the arm and eased out of it in 0.1 s, so cutting an inspect mid-spin moved the knife's tip up to 30 cm in a frame, 3 to 24 times as hard a jolt as the knife's own inspect ever gives it.
+  Now a restart, even with I pressed every frame, jolts the knife at most about 1.6 times as hard as its inspect does (`viewmodel.test.ts` checks every knife).
+- **An inspect blends in over 0.3 s, a throw or a switch over 0.1 s**, so a thrown knife still leaves the hand from where the throw puts it.
+- **The knife's turns unwind the shorter way to where the inspect is headed once blended in**, not to its first frame, chosen once as the cut is made so the way round cannot flip partway.
+  A karambit already hanging claw up over its ring is not spun a whole turn round to get back there.
+- The inspect is not networked, and other cooks never saw it, so nothing changed for them.

@@ -58,7 +58,7 @@ export const CHANNELS = [
 ] as const;
 export type Channel = (typeof CHANNELS)[number];
 /** Channels that turn something, which wrap: a whole turn is the same as none. */
-const TURNS: readonly Channel[] = ['spin', 'flip', 'a', 'b'];
+export const TURNS: readonly Channel[] = ['spin', 'flip', 'a', 'b'];
 /** The first channel that moves the knife rather than the arm. */
 const KNIFE_CHANNELS = CHANNELS.indexOf('spin');
 
