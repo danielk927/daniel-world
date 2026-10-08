@@ -17,6 +17,8 @@ export interface WorldDebugState {
   readonly armed: boolean;
   /** Taking a long look at the knife (I). */
   readonly inspecting: boolean;
+  /** How far into its inspect the knife is, in seconds, or null if it is not being inspected. */
+  readonly inspectTime: number | null;
   /** Mid-punch with the bare hand. */
   readonly punching: boolean;
   /** The kitchen computer: its machine's state, and how many DOOM frames it has shown. */
@@ -94,6 +96,9 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     },
     get inspecting() {
       return world.viewmodel.inspecting;
+    },
+    get inspectTime() {
+      return world.viewmodel.inspectTime;
     },
     get punching() {
       return world.viewmodel.punching;

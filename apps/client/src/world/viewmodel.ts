@@ -39,10 +39,12 @@ import {
   type Placement,
 } from './hand.ts';
 import {
+  CHANNELS,
   LOWERED,
   SPENT,
   SWITCH,
   THROW,
+  TURNS,
   clip,
   easeInCubic,
   easeInOutCubic,
@@ -73,11 +75,23 @@ export { SWITCH, THROW, type ArmPose };
 export const INSPECT = knifeMoves('kitchen').inspect.duration;
 /** Punch timeline, in seconds from the press: a short draw back, the jab, and back to rest. */
 export const PUNCH = { windUp: 0.05, hit: 0.13, recover: 0.42 } as const;
-/** An inspect, punch or flourish cut short blends into what follows over this long. */
+/**
+ * An inspect, punch, flourish or idle cut short by a throw or a switch blends into it over this
+ * long: done before the knife leaves the hand.
+ */
 const INTERRUPT_BLEND = 0.1;
+/**
+ * An inspect blends in over this long out of whatever it cuts short, another inspect included:
+ * long enough that pressing I over and over never jolts the knife much harder than an inspect
+ * itself does, short enough that every press visibly starts it over.
+ */
+const INSPECT_BLEND = 0.3;
+/** How quickly the motion a cut carries on with dies away, per second. */
+const CARRY = 10;
 
 const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
 const lerp = (a: number, b: number, k: number): number => a + (b - a) * k;
+const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 /** The shorter way from `a` to `b`, for angles where a whole turn is the same as none. */
 const turn = (a: number, b: number): number => {
   const d = a - b;
@@ -110,22 +124,48 @@ function still(out: ArmPose): void {
   out.hang = 0;
 }
 
-/** Move `to` back toward `from`, by less as `t` runs from 0 to 1. */
-function blend(from: ArmPose, to: ArmPose, t: number): void {
-  const k = 1 - easeOutCubic(clamp01(t));
-  to.x += (from.x - to.x) * k;
-  to.y += (from.y - to.y) * k;
-  to.z += (from.z - to.z) * k;
-  to.rx += (from.rx - to.rx) * k;
-  to.ry += (from.ry - to.ry) * k;
-  to.rz += (from.rz - to.rz) * k;
-  // A whole turn looks the same as none, so unwind the shorter way round.
-  to.spin += turn(from.spin, to.spin) * k;
-  to.flip += turn(from.flip, to.flip) * k;
-  to.a += turn(from.a, to.a) * k;
-  to.b += turn(from.b, to.b) * k;
-  to.hang += (from.hang - to.hang) * k;
+/**
+ * Blend `to` in, `t` seconds into a cut that lasts `duration`, out of where the arm was when cut
+ * (`from`) carried on at the speed it was going (`speed`), dying away. The arm keeps its place and
+ * its speed through the cut, so however often cuts come, it never jumps or jolts.
+ */
+function blend(from: ArmPose, speed: ArmPose, to: ArmPose, t: number, duration: number): void {
+  const k = 1 - smoothstep(clamp01(t / duration));
+  const carried = (1 - Math.exp(-CARRY * t)) / CARRY;
+  for (let i = 0; i < CHANNELS.length; i++) {
+    const c = CHANNELS[i]!;
+    to[c] += (from[c] + speed[c] * carried - to[c]) * k;
+  }
 }
+
+/**
+ * Turn `from`'s angles by whole turns, which look the same, to within half a turn of `aim`, where
+ * the cut is headed once blended: the knife goes the shorter way there, and is not spun a whole
+ * turn round to reach a pose it is already in. Chosen once, as the cut is made, so the way round
+ * cannot flip partway.
+ */
+function unwind(from: ArmPose, aim: Readonly<ArmPose>): void {
+  for (let i = 0; i < TURNS.length; i++) {
+    const c = TURNS[i]!;
+    from[c] = aim[c] + turn(from[c], aim[c]);
+  }
+}
+
+/** The arm at rest, the knife not turned: where a throw or a switch has the knife's turns. */
+const AT_REST: Readonly<ArmPose> = {
+  x: 0,
+  y: 0,
+  z: 0,
+  rx: 0,
+  ry: 0,
+  rz: 0,
+  knife: true,
+  spin: 0,
+  flip: 0,
+  a: 0,
+  b: 0,
+  hang: 0,
+};
 
 const KITCHEN = knifeMoves('kitchen');
 
@@ -471,6 +511,10 @@ export class Viewmodel {
   private sinceInspect = Infinity;
   private sincePunch = Infinity;
   private sinceInterrupt = Infinity;
+  /** How long the blend out of the last cut lasts. */
+  private interruptBlend = INTERRUPT_BLEND;
+  /** The draw's flourish was cut short: the arm stops playing it, though the knife is up no sooner. */
+  private drawCut = false;
   /** How long the knife has rested in hand with nothing going on: the idle plays on this. */
   private idleTime = 0;
   private time = 0;
@@ -500,8 +544,14 @@ export class Viewmodel {
     b: 0,
     hang: 0,
   };
-  /** Where an interrupted inspect was, blended away from over INTERRUPT_BLEND. */
+  /** The pose last frame, and how fast each of its channels is changing, per second. */
+  private readonly lastPose: ArmPose = { ...this.pose };
+  private readonly poseSpeed: ArmPose = { ...this.pose };
+  /** Where the arm was when last cut short, and how fast it was going; blended away from. */
   private readonly interrupted: ArmPose = { ...this.pose };
+  private readonly interruptedSpeed: ArmPose = { ...this.pose };
+  /** Where an inspect will be once blended in. */
+  private readonly inspectAim: ArmPose = { ...this.pose };
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
 
   constructor() {
@@ -570,7 +620,11 @@ export class Viewmodel {
     this.sinceInspect = Infinity;
     this.build(look);
     // Whatever was going on belonged to the last knife; draw this one fresh.
-    if (this.armed) this.sinceSwitch = SWITCH.lower;
+    if (this.armed) {
+      this.sinceSwitch = SWITCH.lower;
+      this.drawCut = false;
+    }
+    this.jump();
   }
 
   get look(): KnifeLook {
@@ -625,12 +679,14 @@ export class Viewmodel {
       // Back in view: whatever is held comes up fresh.
       this.sinceThrow = Infinity;
       this.sinceSwitch = SWITCH.lower;
+      this.drawCut = false;
       this.sinceInspect = Infinity;
       this.sincePunch = Infinity;
       this.sinceInterrupt = Infinity;
       this.idleTime = 0;
       this.curl = 0;
       this.holding = this.armed ? 'knife' : 'hand';
+      this.jump();
     }
     this.shown = shown;
   }
@@ -646,6 +702,7 @@ export class Viewmodel {
     this.armed = armed;
     this.sinceThrow = Infinity;
     this.sinceSwitch = 0;
+    this.drawCut = false;
   }
 
   /** Ready to throw: the knife is in hand, up, and no throw or switch is under way. */
@@ -676,14 +733,32 @@ export class Viewmodel {
     return this.sinceInspect < this.moves.inspect.duration;
   }
 
-  /** Take a long look at the knife, if it is up and nothing else is going on. */
+  /** How far into its inspect the knife is, in seconds, or null if it is not being inspected. */
+  get inspectTime(): number | null {
+    return this.inspecting ? this.sinceInspect : null;
+  }
+
+  /**
+   * Take a long look at the knife, if it is in hand: not thrown, nor put away. As in CS2, every
+   * press starts the inspect over, even mid-inspect, and it may cut the draw short the moment the
+   * knife is in the hand, though it can be thrown only once it is all the way up.
+   */
   startInspect(): boolean {
-    if (!this.shown || !this.armed || this.holding !== 'knife' || this.inspecting || !this.idle) {
-      return false;
-    }
-    this.interrupt();
+    if (!this.knifeInHand) return false;
+    this.interrupt(INSPECT_BLEND, sample(this.moves.inspect, INSPECT_BLEND, this.inspectAim));
     this.sinceInspect = 0;
     return true;
+  }
+
+  /** The knife is in the hand in view, if still coming up: not thrown, nor on its way down. */
+  private get knifeInHand(): boolean {
+    return (
+      this.shown &&
+      this.armed &&
+      this.holding === 'knife' &&
+      this.sinceSwitch >= SWITCH.lower &&
+      this.sinceThrow >= THROW.drawTo
+    );
   }
 
   /** Mid-punch. */
@@ -713,9 +788,16 @@ export class Viewmodel {
     return raised && (this.holding === 'hand' || this.sinceThrow >= THROW.drawTo);
   }
 
-  /** The knife's draw still playing out after it is up: its flourish, which anything may cut. */
+  /**
+   * The knife's draw still playing out: an inspect may cut it short as soon as the knife is in the
+   * hand, and anything once the knife is up, when what is left of it is its flourish.
+   */
   private get flourishing(): boolean {
-    return this.holding === 'knife' && this.sinceSwitch < SWITCH.lower + this.moves.draw.duration;
+    return (
+      this.holding === 'knife' &&
+      !this.drawCut &&
+      this.sinceSwitch < SWITCH.lower + this.moves.draw.duration
+    );
   }
 
   /** At rest with the knife up, playing its idle. */
@@ -729,17 +811,24 @@ export class Viewmodel {
     );
   }
 
-  /** Cut an inspect, a punch, a flourish or the idle short, blending out of wherever the arm was. */
-  private interrupt(): void {
+  /**
+   * Cut an inspect, a punch, a flourish or the idle short, blending over `duration` out of wherever
+   * the arm was, at the speed it was going, into what follows; `aim` is where that has the knife's
+   * turns once blended in.
+   */
+  private interrupt(duration = INTERRUPT_BLEND, aim: Readonly<ArmPose> = AT_REST): void {
     const flourish = this.flourishing && this.sinceSwitch >= SWITCH.lower;
     if (!this.inspecting && !this.punching && !flourish && !(this.idling && this.idleTime > 0))
       return;
     Object.assign(this.interrupted, this.pose);
+    Object.assign(this.interruptedSpeed, this.poseSpeed);
+    unwind(this.interrupted, aim);
     this.sinceInspect = Infinity;
     this.sincePunch = Infinity;
-    if (flourish) this.sinceSwitch = Infinity;
+    if (flourish) this.drawCut = true;
     this.idleTime = 0;
     this.sinceInterrupt = 0;
+    this.interruptBlend = duration;
   }
 
   /** The knife's middle in the world right now, where a knife leaving the hand starts from. */
@@ -797,7 +886,33 @@ export class Viewmodel {
       ((walking ? Math.min(1.4, speed / 5) : 0) - this.bobAmount) * Math.min(1, dt * 8);
     if (walking) this.bobPhase += dt * (4.5 + speed * 0.9);
     this.air += ((grounded ? 0 : 1) - this.air) * Math.min(1, dt * 10);
+    Object.assign(this.lastPose, this.pose);
     this.apply();
+    this.trackSpeed(dt);
+  }
+
+  /**
+   * The arm was put somewhere new on purpose: pose it there at once, and still, so that a cut
+   * before the next frame starts from where it now is, and carries no speed from where it was.
+   */
+  private jump(): void {
+    // Put there at once: no time passes, so nothing that eases (the fingers' grip) moves on.
+    this.frameDt = 0;
+    this.apply();
+    for (let i = 0; i < CHANNELS.length; i++) this.poseSpeed[CHANNELS[i]!] = 0;
+  }
+
+  /** How fast the pose is changing, for a cut to carry on with. */
+  private trackSpeed(dt: number): void {
+    if (dt <= 0) return;
+    for (let i = 0; i < CHANNELS.length; i++) {
+      const c = CHANNELS[i]!;
+      // A whole turn looks the same as none, and a clip unwinds its turns as it ends.
+      const d = TURNS.includes(c)
+        ? turn(this.pose[c], this.lastPose[c])
+        : this.pose[c] - this.lastPose[c];
+      this.poseSpeed[c] = d / dt;
+    }
   }
 
   /** Draw the arm over the world. */
@@ -826,8 +941,15 @@ export class Viewmodel {
   private apply(): void {
     const pose = this.pose;
     this.poseNow(pose);
-    if (this.sinceInterrupt < INTERRUPT_BLEND)
-      blend(this.interrupted, pose, this.sinceInterrupt / INTERRUPT_BLEND);
+    if (this.sinceInterrupt < this.interruptBlend) {
+      blend(
+        this.interrupted,
+        this.interruptedSpeed,
+        pose,
+        this.sinceInterrupt,
+        this.interruptBlend,
+      );
+    }
     const knife = this.holding === 'knife' && pose.knife;
     this.knifeHolder.visible = knife;
     this.gripping = this.holding === 'knife';

@@ -28,6 +28,7 @@ export function world(page: Page): Promise<WorldDebugState> {
       view: w.view,
       armed: w.armed,
       inspecting: w.inspecting,
+      inspectTime: w.inspectTime,
       punching: w.punching,
       computer: w.computer,
       knockedOut: w.knockedOut,

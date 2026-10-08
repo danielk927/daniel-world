@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { knifeMoves } from '../apps/client/src/world/knifeMoves.ts';
 import {
   enterWorld,
   expectWorld,
@@ -113,6 +114,38 @@ test('I inspects the knife, a throw cuts it short, and the fist punches instead'
   await page.keyboard.press('KeyQ');
   await expectWorld(page, (w) => w.armed, 'Q draws the knife again');
   await expect(knife).toHaveClass(/is-active/);
+  await page.context().close();
+});
+
+test('every press of I starts the inspect over, but holding I down does not', async ({
+  browser,
+}) => {
+  const page = await enterWorld(browser, { name: 'Twirler', online: false });
+  await page.keyboard.press('KeyI');
+  const first = await expectWorld(page, (w) => (w.inspectTime ?? 0) > 1, 'the inspect plays on');
+  await page.keyboard.press('KeyI');
+  await expectWorld(
+    page,
+    (w) => w.inspectTime !== null && w.inspectTime < first.inspectTime!,
+    'a second press starts it over',
+  );
+  // Past where the first would have ended, the second plays on.
+  const inspect = knifeMoves('kitchen').inspect.duration;
+  await expectWorld(
+    page,
+    (w) => (w.inspectTime ?? 0) > inspect - first.inspectTime! + 0.3,
+    'the second inspect plays past where the first would have ended',
+  );
+  await expectWorld(page, (w) => !w.inspecting, 'the second inspect ends');
+
+  // Held down, the key repeats, and that is not pressing it again. A press starts the inspect over
+  // as it is handled, so had a repeat done so, it would read 0 straight after; a frame may not
+  // have passed since, so it need not have moved on either.
+  await page.keyboard.down('KeyI');
+  const held = await expectWorld(page, (w) => (w.inspectTime ?? 0) > 0.5, 'holding I inspects');
+  for (let i = 0; i < 5; i++) await page.keyboard.down('KeyI');
+  expect((await world(page)).inspectTime).toBeGreaterThanOrEqual(held.inspectTime!);
+  await page.keyboard.up('KeyI');
   await page.context().close();
 });
 
