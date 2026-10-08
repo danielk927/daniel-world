@@ -1,0 +1,37 @@
+/* ---------- Toasts ---------- */
+
+.toasts {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.toast {
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-strong);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  font-weight: 500;
+  animation: toast-in 0.25s ease both;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.toast.is-leaving {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}

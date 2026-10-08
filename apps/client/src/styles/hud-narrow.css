@@ -1,0 +1,19 @@
+/* Below this the controls hint would run into the loadout and minimap; the menu lists them too. */
+@media (max-width: 860px) {
+  .hint {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing {
+    background: rgba(10, 14, 36, 0.35);
+  }
+
+  .landing-controls,
+  .hint,
+  .hud-players,
+  .hud-corner {
+    display: none;
+  }
+}

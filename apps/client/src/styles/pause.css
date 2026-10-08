@@ -1,0 +1,600 @@
+/* ---------- Pause menu ---------- */
+
+.pause {
+  background: rgba(16, 22, 52, 0.55);
+  animation: fade-in 0.2s ease both;
+}
+
+.pause-card {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  padding: 26px 28px 22px;
+  overflow: auto;
+  animation: card-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+.pause-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+}
+
+.pause-card .card-title {
+  margin: 0;
+  font-size: 32px;
+}
+
+.pause-status {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-align: right;
+}
+
+.pause-note {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--warn);
+}
+
+/* Tabs: small capitals on a hairline, the selected one underlined in ivory. */
+.tabs {
+  display: flex;
+  gap: 26px;
+  border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 18px;
+}
+
+.tab {
+  position: relative;
+  padding: 0 0 11px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.tab:hover {
+  color: var(--ink-muted);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--ink);
+}
+
+.tab[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--ivory);
+}
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+/* The panels share one cell, so the card is as tall as the tallest and keeps its size between tabs. */
+.pause-panels {
+  display: grid;
+}
+
+.pause-panels > .pause-panel {
+  grid-area: 1 / 1;
+}
+
+.pause-panels > .pause-panel[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+
+.settings-list {
+  display: grid;
+  align-content: start;
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 240px);
+  align-items: center;
+  column-gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(246, 243, 234, 0.08);
+}
+
+.setting:last-child {
+  border-bottom: 0;
+}
+
+.setting-label {
+  font-size: 14.5px;
+  color: var(--ink);
+}
+
+.setting-control {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.setting-control .slider-row {
+  width: 100%;
+}
+
+.setting-help,
+.setting-help-row {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.setting-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setting-help-row .setting-help {
+  margin: 0;
+}
+
+/* A switch: a hairline track with a square thumb, ivory when on. */
+.switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--ivory);
+  border-color: var(--ivory);
+}
+
+.switch[aria-checked='true'] .switch-thumb {
+  transform: translateX(18px);
+  background: var(--navy-deep);
+}
+
+.switch:focus-visible,
+.segment:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+}
+
+.segment {
+  min-width: 64px;
+  padding: 6px 12px;
+  border: 0;
+  border-left: 1px solid var(--panel-border);
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.segment:first-child {
+  border-left: 0;
+}
+
+.segment:hover {
+  color: var(--ink);
+}
+
+.segment[aria-checked='true'] {
+  background: var(--ivory);
+  color: var(--navy-deep);
+}
+
+.button-small {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 11.5px;
+}
+
+/* The Party tab: where you are, then a code to start or join a party with. */
+.party {
+  display: grid;
+  align-content: start;
+}
+
+.party-section {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 18px;
+}
+
+.party-section + .party-section {
+  padding-top: 16px;
+  border-top: 1px solid rgba(246, 243, 234, 0.08);
+}
+
+.party-heading {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.party-where-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+}
+
+.party-where {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.party-where-row .button {
+  flex: none;
+}
+
+.party-invite {
+  display: grid;
+  gap: 8px;
+}
+
+.party-invite-row {
+  display: flex;
+  gap: 8px;
+}
+
+.party-link {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  font-size: 14px;
+  color: var(--ink-muted);
+  text-overflow: ellipsis;
+}
+
+.party-copy {
+  flex: none;
+  min-width: 128px;
+}
+
+.party-line {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
+.party-line[data-tone='error'] {
+  color: var(--danger);
+}
+
+.party-line[data-tone='warn'] {
+  color: var(--warn);
+}
+
+.party-line[data-tone='ok'] {
+  color: var(--ok);
+}
+
+.party-form .field {
+  gap: 8px;
+}
+
+.party-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.party-actions .button {
+  min-width: 132px;
+}
+
+/* The Knives tab: a live look at the chosen knife beside its finishes, every knife in a grid below. */
+.knives {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.knives-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 196px;
+  gap: 16px;
+}
+
+.knife-preview {
+  position: relative;
+  min-height: 168px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--navy-deep);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.knife-preview:active {
+  cursor: grabbing;
+}
+
+.knife-preview canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.knives-details {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  min-width: 0;
+}
+
+.knives-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.knives-finish {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.finish-list {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.finish {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.finish:hover {
+  color: var(--ink);
+}
+
+.finish[aria-checked='true'] {
+  border-color: var(--panel-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.finish-swatch {
+  flex: none;
+  width: 44px;
+  height: 12px;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px rgba(246, 243, 234, 0.22);
+}
+
+.knives-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.knives-equip {
+  width: 100%;
+}
+
+.knives-status {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ok);
+}
+
+.knives-status:empty {
+  display: none;
+}
+
+.knife-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+
+.knife-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 9px 8px 7px;
+  border: 1px solid rgba(246, 243, 234, 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  font: inherit;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.knife-tile svg {
+  display: block;
+  width: 100%;
+  height: 20px;
+  fill: currentColor;
+}
+
+.knife-tile-name {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.knife-tile:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink-muted);
+}
+
+.knife-tile[aria-checked='true'] {
+  border-color: var(--ivory);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+}
+
+/* The knife carried now: a small ivory mark in the corner. */
+.knife-tile.is-equipped::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ivory);
+}
+
+.knife-tile:focus-visible,
+.finish:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+@media (max-width: 600px) {
+  .knives-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knife-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Four tabs across a phone: closer together, in smaller capitals. */
+@media (max-width: 480px) {
+  .tabs {
+    gap: 14px;
+  }
+
+  .tab {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+}
+
+@media (max-width: 400px) {
+  .knife-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.pause-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 18px;
+  margin-top: 6px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.pause-footer .button {
+  min-width: 132px;
+}
+
+.pause-portfolio {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.hud-fps {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}

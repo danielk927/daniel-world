@@ -1,0 +1,116 @@
+/* ---------- Knocked out ---------- */
+
+/* A navy veil over the fallen view, and who did it. Above the HUD, below menus and panels. */
+.knockout {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: rgba(22, 30, 69, 0);
+  transition: background-color 0.6s ease 0.25s;
+}
+
+.knockout[hidden] {
+  display: none;
+}
+
+.knockout.is-shown {
+  background: rgba(22, 30, 69, 0.5);
+}
+
+/* A beat after the hit: the flash and the fall land first, then the card. */
+.knockout-card {
+  display: grid;
+  justify-items: center;
+  min-width: 300px;
+  padding: 26px 44px 22px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
+.knockout.is-shown .knockout-card {
+  animation: knockout-card-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s forwards;
+}
+
+@keyframes knockout-card-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.knockout-label {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.knockout-name {
+  margin: 6px 0 18px;
+  padding-bottom: 6px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--ink);
+  border-bottom: 2px solid var(--player-color, var(--ivory));
+}
+
+.knockout-bar {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.knockout-bar-fill {
+  height: 100%;
+  background: var(--ivory);
+  transform-origin: left;
+}
+
+.knockout.is-shown .knockout-bar-fill {
+  animation: knockout-drain linear forwards;
+}
+
+@keyframes knockout-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.knockout-countdown {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.knockout-hint {
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+/* While down, the world drains of color behind the card. */
+.world-canvas {
+  transition: filter 0.6s ease;
+}
+
+.world-canvas.is-dimmed {
+  filter: saturate(0.25) brightness(0.8);
+}

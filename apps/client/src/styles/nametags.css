@@ -1,0 +1,43 @@
+/* ---------- Name tags ---------- */
+
+.nametag {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.nametag-name {
+  padding: 3px 10px 3px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(22, 30, 69, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nametag-name::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--player-color);
+}
+
+.nametag-bubble {
+  max-width: 220px;
+  padding: 7px 12px;
+  border-radius: 14px;
+  background: rgba(255, 250, 244, 0.95);
+  color: var(--navy-deep);
+  font-size: 13.5px;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+  box-shadow: 0 6px 18px rgba(30, 10, 40, 0.25);
+  animation: fade-in 0.2s ease both;
+}
