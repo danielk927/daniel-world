@@ -15,10 +15,12 @@ npm run typecheck            # tsc in every workspace + root (e2e, scripts, conf
 npm test                     # vitest (all workspaces)
 npx playwright install chromium
 npm run e2e                  # playwright, builds client in test mode, spawns its own server on :3101
+                             # (E2E_SERVER_PORT / E2E_CLIENT_PORT move it, to run two suites at once)
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
 npm run bots -- --count 15   # simulated players for load testing
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
-node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU)
+node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU;
+                             # WORLD_CLIENT_PORT / WORLD_SERVER_PORT move it off :5173 / :3001)
 node scripts/perf.ts         # 16-player perf report (needs the dev client on :5173)
 node scripts/computer-bench.ts  # kitchen computer: DOOM timedemo, guest MIPS (--engine jit|interpreter)
 firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install llvm lld`)

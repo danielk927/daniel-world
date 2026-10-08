@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test';
-import { E2E_CLIENT_URL, E2E_SERVER_URL } from './e2e/ports.ts';
+import { E2E_CLIENT_PORT, E2E_CLIENT_URL, E2E_SERVER_URL } from './e2e/ports.ts';
 
 export default defineConfig({
   testDir: 'e2e',
@@ -21,7 +21,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run build:test -w @world/client && npm run preview:test -w @world/client',
+    command: `npm run build:test -w @world/client && npm run preview:test -w @world/client -- --port ${E2E_CLIENT_PORT}`,
     env: { VITE_SERVER_URL: E2E_SERVER_URL },
     url: E2E_CLIENT_URL,
     reuseExistingServer: false,

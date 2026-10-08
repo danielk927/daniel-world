@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
     "build:test": "vite build --mode test --outDir dist-test",
-    "preview:test": "vite preview --outDir dist-test --port 5174 --host 127.0.0.1"
+    "preview:test": "vite preview --outDir dist-test --host 127.0.0.1"
   },
   "dependencies": {
     "@fontsource/eb-garamond": "^5.3.0",

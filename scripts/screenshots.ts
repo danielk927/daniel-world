@@ -6,6 +6,7 @@
  * Starts whatever is missing (Vite dev client on :5173, room server on :3001) plus a few bots so
  * the world has people in it, then drives a real (GPU-backed, headless) Chromium like a visitor.
  * The hour is pinned to evening service (8 p.m.), so the pictures do not depend on when they are taken.
+ * WORLD_CLIENT_PORT and WORLD_SERVER_PORT move both off their usual ports, to run beside another copy.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
@@ -16,7 +17,10 @@ import { startServer } from '../apps/server/src/server.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const outDir = resolve(root, 'docs/screenshots');
-const clientUrl = 'http://localhost:5173';
+const clientPort = Number(process.env.WORLD_CLIENT_PORT ?? 5173);
+const serverPort = Number(process.env.WORLD_SERVER_PORT ?? DEFAULT_SERVER_PORT);
+const clientUrl = `http://localhost:${clientPort}`;
+const serverUrl = `ws://localhost:${serverPort}`;
 const children: ChildProcess[] = [];
 
 async function reachable(url: string): Promise<boolean> {
@@ -36,8 +40,12 @@ async function waitFor(url: string, timeoutMs: number): Promise<void> {
   }
 }
 
-function run(command: string, args: string[]): ChildProcess {
-  const child = spawn(command, args, { cwd: root, stdio: 'ignore' });
+function run(command: string, args: string[], env: Record<string, string> = {}): ChildProcess {
+  const child = spawn(command, args, {
+    cwd: root,
+    stdio: 'ignore',
+    env: { ...process.env, ...env },
+  });
   children.push(child);
   return child;
 }
@@ -90,13 +98,15 @@ async function walkUntil(
 async function main(): Promise<void> {
   await mkdir(outDir, { recursive: true });
   if (!(await reachable(clientUrl))) {
-    run('npm', ['run', 'dev', '-w', '@world/client']);
+    run('npm', ['run', 'dev', '-w', '@world/client', '--', '--port', String(clientPort)], {
+      VITE_SERVER_URL: serverUrl,
+    });
     await waitFor(clientUrl, 30_000);
   }
-  const ownServer = (await reachable(`http://localhost:${DEFAULT_SERVER_PORT}/health`))
+  const ownServer = (await reachable(`http://localhost:${serverPort}/health`))
     ? null
-    : await startServer({ port: DEFAULT_SERVER_PORT });
-  run('node', ['scripts/bots.ts', '--count', '6', '--chat']);
+    : await startServer({ port: serverPort });
+  run('node', ['scripts/bots.ts', '--count', '6', '--chat', '--url', serverUrl]);
 
   const browser = await chromium.launch({
     args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'],
