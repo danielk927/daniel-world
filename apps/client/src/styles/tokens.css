@@ -1,40 +1,65 @@
 /* Self-hosted fonts, bundled at build time: nothing is fetched from a font service. */
-@import '@fontsource/eb-garamond/latin-600.css';
-@import '@fontsource/jost/latin-400.css';
-@import '@fontsource/jost/latin-500.css';
-@import '@fontsource/jost/latin-600.css';
+@import '@fontsource/gabarito/latin-700.css';
+@import '@fontsource/rubik/latin-400.css';
+@import '@fontsource/rubik/latin-500.css';
+@import '@fontsource/rubik/latin-600.css';
+@import '@fontsource/rubik/latin-700.css';
 
 /*
- * The house style: French Laundry navy, like the aprons, with ivory type. Solid colors only (no
- * gradients or glows), hairline borders, nearly square corners.
- * Two typefaces only: EB Garamond for headings, Jost for everything else (labels, body, numbers),
- * with small capitals letterspaced like a printed menu. Numbers use tabular figures, not a mono.
+ * The house style (docs/ui-revamp.md). No boxes: reading surfaces sit on a side of the screen
+ * darkened like the blue hour outside, and words in the world have nothing behind or around them
+ * (no outlines, no glows). Gabarito for titles and the main action, Rubik for everything else.
+ * One accent, lamplight brass, for what is current or can be acted on, marked by a short rounded
+ * bar under it. Keys are rings. The house navy is the dark everything sits in, never a panel fill.
+ * The fonts' latin subset has no arrows: draw them, do not type them.
  */
 :root {
-  --font-display: 'EB Garamond', Garamond, 'Times New Roman', serif;
-  --font-body: 'Jost', 'Futura', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Gabarito', 'Rubik', system-ui, sans-serif;
+  --font-body: 'Rubik', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --navy: #1f2a5a;
-  --navy-deep: #161e45;
-  --navy-light: #2b3870;
-  --ivory: #f6f3ea;
+  --night-rgb: 13 16 36;
+  --night: rgb(var(--night-rgb));
+  --ivory: #f2ead8;
+  --brass: #e0ad62;
 
   --ink: var(--ivory);
-  --ink-muted: #cfd3e2;
-  --ink-faint: #949cbb;
-  --panel: rgba(31, 42, 90, 0.96);
-  --panel-strong: var(--navy-deep);
-  --panel-border: rgba(246, 243, 234, 0.22);
-  --accent: var(--ivory);
-  --accent-strong: #ffffff;
-  --accent-ink: var(--navy-deep);
-  --danger: #ff9a8f;
+  --ink-muted: rgb(242 234 216 / 0.74);
+  --ink-faint: rgb(242 234 216 / 0.5);
+  --ink-hair: rgb(242 234 216 / 0.2);
+  --accent: var(--brass);
+  --danger: #ff8f80;
   --ok: #8fd9a8;
   --warn: #f1d58a;
 
+  /* The dark sides reading surfaces sit on, and the even dim behind the landing. */
+  --dark-from-left: linear-gradient(
+    270deg,
+    rgb(var(--night-rgb) / 0) 10%,
+    rgb(var(--night-rgb) / 0.84) 33%,
+    rgb(var(--night-rgb) / 0.95) 52%
+  );
+  --dark-from-right: linear-gradient(
+    90deg,
+    rgb(var(--night-rgb) / 0) 26%,
+    rgb(var(--night-rgb) / 0.8) 46%,
+    rgb(var(--night-rgb) / 0.94) 60%
+  );
+  --dim: rgb(var(--night-rgb) / 0.62);
+
+  --bar: 4px;
+  --focus: 0 0 0 2px var(--brass);
+
+  /* The old navy names, until every surface has moved off them. */
+  --navy: #1f2a5a;
+  --navy-deep: #161e45;
+  --navy-light: #2b3870;
+  --panel: rgba(31, 42, 90, 0.96);
+  --panel-strong: var(--navy-deep);
+  --panel-border: rgba(246, 243, 234, 0.22);
+  --accent-strong: #ffffff;
+  --accent-ink: var(--navy-deep);
   --radius-sm: 2px;
   --radius: 2px;
   --radius-lg: 3px;
   --shadow: 0 10px 30px rgba(10, 14, 36, 0.28);
-  --focus: 0 0 0 2px var(--navy-deep), 0 0 0 3px var(--ivory);
 }

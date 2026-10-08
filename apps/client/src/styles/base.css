@@ -9,7 +9,7 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--navy-deep);
+  background: var(--night);
   color: var(--ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
@@ -31,7 +31,7 @@ body {
 #app {
   position: fixed;
   inset: 0;
-  background: var(--navy-deep);
+  background: var(--night);
 }
 
 .world-canvas {
@@ -59,17 +59,20 @@ body {
   box-shadow: var(--focus);
 }
 
+/* Keys are rings: a circle round one letter, a capsule round a word. */
 kbd {
-  display: inline-block;
-  min-width: 1.6em;
-  padding: 0.1em 0.45em;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-bottom-width: 2px;
-  background: rgba(255, 255, 255, 0.1);
-  font-family: inherit;
-  font-weight: 500;
-  font-size: 0.8em;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1.5px solid var(--ink-faint);
+  border-radius: 13px;
+  background: rgb(var(--night-rgb) / 0.55);
+  font: 600 12px/1 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--ink);
+  vertical-align: middle;
 }
