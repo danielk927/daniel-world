@@ -86,7 +86,13 @@ test('I inspects the knife, a throw cuts it short, and the fist punches instead'
   await expect(hand).not.toHaveClass(/is-active/);
 
   await page.keyboard.press('KeyI');
-  await expectWorld(page, (w) => w.inspecting, 'the knife is being inspected');
+  // I is taken while the knife is still coming up into view, but a throw waits until it is up
+  // (0.22 s at most after the inspect starts), so click only once it is.
+  await expectWorld(
+    page,
+    (w) => w.inspecting && (w.inspectTime ?? 0) > 0.3,
+    'the knife is up and being inspected',
+  );
   await throwKnife(page);
   await expectWorld(
     page,
