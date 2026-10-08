@@ -448,3 +448,10 @@ Judgment calls made during the unattended build, with reasons.
 - **Everyone sees each cook's knife**: in their hand, in flight, and stuck in the walls, for latecomers too. The look travels with the visitor's prefs (as the Chef Skinner switch does) and on each thrown and stuck knife.
   Unknown knives or finishes fall back to the chef's knife and the knife's default finish everywhere (`knifeLook`), so a newer client can never break an older screen. Knives are drawn in one instanced batch per look.
 - This changed the protocol (optional look fields on prefs and knives), within version 7.
+
+### Browser frame caps (2026-10-07)
+
+- **A browser holding pages to 30 fps is judged as a 30 Hz display.** On a low battery Chrome's Energy Saver caps every page at 30 fps (an empty page too), and the governor snapped that measured cadence to 60 Hz, called every frame behind, and dropped the high tier to its cheapest level, then remembered it, without winning a single frame.
+  `snapRefreshInterval` now knows 30 Hz, and 48 and 50 Hz, which a MacBook's display can be set to; nothing a page does lifts the cap itself.
+- **The refresh only ever speeds up mid-session.** A window of frames with more than two quicker than the refresh shows a faster one (the laptop was plugged in, or the window moved to a faster screen), and the governor judges against that from then on.
+  A slower cadence cannot be told from a GPU falling behind, so a cap that starts mid-session still steps quality down; the next load measures the cap and climbs back.

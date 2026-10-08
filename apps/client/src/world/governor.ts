@@ -42,7 +42,11 @@ const UPGRADE_AFTER_MS = 25_000;
 /** Longer than this, the tab was hidden or the page stalled; not a rendering problem. */
 const PAUSE_MS = 250;
 
-const STANDARD_RATES = [60, 75, 90, 100, 120, 144, 165, 240];
+/**
+ * 30 is not a display but a browser holding pages to it (Chrome's Energy Saver does, on a low
+ * battery); 48 and 50 are rates a MacBook's display can be set to.
+ */
+const STANDARD_RATES = [30, 48, 50, 60, 75, 90, 100, 120, 144, 165, 240];
 
 /**
  * The display's refresh interval from the shortest frame interval seen while rendering nothing,
@@ -50,7 +54,7 @@ const STANDARD_RATES = [60, 75, 90, 100, 120, 144, 165, 240];
  */
 export function snapRefreshInterval(shortestMs: number): number {
   const hz = 1000 / shortestMs;
-  if (!Number.isFinite(hz) || hz < 30) return 1000 / 60;
+  if (!Number.isFinite(hz) || hz < 24) return 1000 / 60;
   let best = STANDARD_RATES[0]!;
   for (const rate of STANDARD_RATES) if (Math.abs(rate - hz) < Math.abs(best - hz)) best = rate;
   return 1000 / best;
@@ -58,7 +62,7 @@ export function snapRefreshInterval(shortestMs: number): number {
 
 export class QualityGovernor {
   level: number;
-  private readonly refreshMs: number;
+  private refreshMs: number;
   private readonly window = new Float32Array(WINDOW);
   private readonly sorted = new Float32Array(WINDOW);
   private filled = 0;
@@ -88,6 +92,17 @@ export class QualityGovernor {
     }
     this.sorted.set(this.window);
     this.sorted.sort();
+    // Frames cannot come faster than the display refreshes, so a window with more than a few of
+    // them quicker than the refresh measured while loading shows a faster one: the browser stopped
+    // capping the frame rate (the laptop was plugged in), or the window moved to a faster screen.
+    // A slower cadence cannot be told from a GPU falling behind, so the refresh only ever speeds up.
+    const quick = this.sorted[TRIM]!;
+    const shown = quick < this.refreshMs * 0.8 ? snapRefreshInterval(quick) : this.refreshMs;
+    if (shown < this.refreshMs) {
+      this.refreshMs = shown;
+      // Easy against the old refresh says nothing about the new one.
+      this.easyMs = 0;
+    }
     let sum = 0;
     for (let i = 0; i < WINDOW - TRIM; i++) sum += this.sorted[i]!;
     const typical = sum / (WINDOW - TRIM);
