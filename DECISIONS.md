@@ -488,3 +488,8 @@ Judgment calls made during the unattended build, with reasons.
 - **The knife's turns unwind the shorter way to where the inspect is headed once blended in**, not to its first frame, chosen once as the cut is made so the way round cannot flip partway.
   A karambit already hanging claw up over its ring is not spun a whole turn round to get back there.
 - The inspect is not networked, and other cooks never saw it, so nothing changed for them.
+
+### Switching back mid-switch (2026-10-08)
+
+- **Pressing Q again before a switch is done picks up from the arm's height.** Every switch started from the top, so pressing Q twice within a tenth of a second snapped the arm back up from partway down, and a press while the bare hand was coming up snapped it.
+  Now, on the way down, what is in hand comes back up from where it is; on the way up, it goes back down from there (`switchFrom` inverts the lowering and raising curves), and the cut's blend smooths what is left, the raise's overshoot above rest included.

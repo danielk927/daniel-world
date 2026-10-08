@@ -228,6 +228,25 @@ export function switchPose(t: number, out: ArmPose): ArmPose {
   return out;
 }
 
+/**
+ * Where a switch starts, `since` seconds into the last one: from the start once that one is done,
+ * but from the arm's height now if it is still under way, so switching back never jumps the arm. On
+ * the way down, what is in hand comes back up from there; on the way up, it goes back down.
+ */
+export function switchFrom(since: number): number {
+  if (since >= SWITCH.raise) return 0;
+  const raising = SWITCH.raise - SWITCH.lower;
+  if (since < SWITCH.lower) {
+    // Lowered by easeInCubic; find where the raise, 1 - easeOutBack, is first that low.
+    const lowered = easeInCubic(since / SWITCH.lower);
+    let k = 0;
+    while (k < 1 && 1 - easeOutBack(k) > lowered) k += 1 / 512;
+    return SWITCH.lower + Math.min(1, k) * raising;
+  }
+  const lowered = Math.max(0, 1 - easeOutBack((since - SWITCH.lower) / raising));
+  return SWITCH.lower * Math.cbrt(lowered);
+}
+
 /** The bare hand's jab: drawn back a touch, then straight out toward the crosshair and home. */
 const PUNCH_CLIP = clip([
   { t: 0 },
@@ -698,10 +717,12 @@ export class Viewmodel {
   /** Hold the knife (true) or the bare hand (false). Switching plays the lower-and-raise. */
   setArmed(armed: boolean): void {
     if (armed === this.armed) return;
-    this.interrupt();
+    // Switching back mid-switch picks up from the arm's height (switchFrom); the blend smooths the
+    // rest, the raise's overshoot above rest included.
+    this.interrupt(INTERRUPT_BLEND, AT_REST, this.sinceSwitch < SWITCH.raise);
     this.armed = armed;
     this.sinceThrow = Infinity;
-    this.sinceSwitch = 0;
+    this.sinceSwitch = switchFrom(this.sinceSwitch);
     this.drawCut = false;
   }
 
@@ -816,10 +837,14 @@ export class Viewmodel {
    * the arm was, at the speed it was going, into what follows; `aim` is where that has the knife's
    * turns once blended in.
    */
-  private interrupt(duration = INTERRUPT_BLEND, aim: Readonly<ArmPose> = AT_REST): void {
+  private interrupt(
+    duration = INTERRUPT_BLEND,
+    aim: Readonly<ArmPose> = AT_REST,
+    always = false,
+  ): void {
     const flourish = this.flourishing && this.sinceSwitch >= SWITCH.lower;
-    if (!this.inspecting && !this.punching && !flourish && !(this.idling && this.idleTime > 0))
-      return;
+    const busy = this.inspecting || this.punching || flourish || (this.idling && this.idleTime > 0);
+    if (!busy && !always) return;
     Object.assign(this.interrupted, this.pose);
     Object.assign(this.interruptedSpeed, this.poseSpeed);
     unwind(this.interrupted, aim);

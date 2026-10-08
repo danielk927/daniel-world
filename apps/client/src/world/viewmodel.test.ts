@@ -266,6 +266,23 @@ describe('the view model', () => {
     expect(vm.handCurl).toBeLessThan(0.05);
   });
 
+  it('switches back partway through a switch from where the arm is, without a jump', () => {
+    // Partway down with the knife, then partway up with the bare hand.
+    for (const at of [0.03, 0.06, 0.1, 0.16, 0.22, 0.3]) {
+      const vm = ready();
+      const arm = (vm as unknown as { arm: { position: { y: number } } }).arm;
+      vm.setArmed(false);
+      step(vm, at);
+      const before = arm.position.y;
+      vm.setArmed(true);
+      // A millisecond later the arm is where it was, give or take that millisecond's motion.
+      vm.update(0.001, camera as never, 0, 0, 0, true);
+      expect(Math.abs(arm.position.y - before)).toBeLessThan(0.015);
+      step(vm, 1);
+      expect(vm.canThrow).toBe(true);
+    }
+  });
+
   it('stops a punch to switch to the knife', () => {
     const vm = ready();
     vm.setArmed(false);
