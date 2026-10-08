@@ -74,6 +74,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   `outside.test.ts` raycasts every pane and skylight; keep it passing when moving the land, the sky or the windows, or a visitor will see an edge.
 - The light follows the visitor's local time (`world/timeOfDay.ts`): looks at hours of the day, blended between, repainted every quarter hour.
   `?time=20:00` pins the hour; screenshots use it, and so should anyone judging a lighting change (the evening look is the reference).
+- The hand on screen is solved, not keyed: `world/hand.ts` wraps it round each knife's handle (`knifeHand` in `world/viewmodel.ts`), so a new knife needs no hand work; `viewmodelHand.test.ts` checks every knife's grip, ring and wrist in the scene as drawn.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 
 <!-- BEGIN AWS Agent Toolkit rules -->

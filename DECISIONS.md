@@ -455,3 +455,20 @@ Judgment calls made during the unattended build, with reasons.
   `snapRefreshInterval` now knows 30 Hz, and 48 and 50 Hz, which a MacBook's display can be set to; nothing a page does lifts the cap itself.
 - **The refresh only ever speeds up mid-session.** A window of frames with more than two quicker than the refresh shows a faster one (the laptop was plugged in, or the window moved to a faster screen), and the governor judges against that from then on.
   A slower cadence cannot be told from a GPU falling behind, so a cap that starts mid-session still steps quality down; the next load measures the cap and climbs back.
+
+### The hand on screen (2026-10-08)
+
+- **The hand is a skinned mesh, not boxes.** The fist was one rounded box with a box for a thumb, so a karambit spun round a block, its ring in the air beside it.
+  Now it is a palm, four fingers of three phalanges and a thumb, faceted from convex hulls like the kitchen, in one skinned mesh of 20 bones: one draw call, one fewer than the box fist and its thumb.
+- **Grips are solved from each knife's handle, not keyed.** `knifeHand` measures the handle where it is held (its side outline, so a long slab with no vertices in its middle still has a section) and wraps the fingers round it: each finger is a polygon round a circle, every phalanx touching the handle, its proximal phalanx the tangent from the knuckle and each joint turning by twice the angle of its equal tangents.
+  The handle crosses the palm on a slant, from the heel of the hand to the root of the index finger, in the crease at the root of the fingers, as a real power grip holds it; so a knife leans out of the fist toward the fingers and the wrist bends little to aim it.
+  A new knife needs no hand work: `viewmodelHand.test.ts` checks every knife's grip in the scene as drawn.
+- **The ring and little fingers' metacarpals cup**, up to 13° and 24°, as a fist rounds on that side: without it the little finger, short and set back, could not reach a slanted handle.
+  The palm's skin is shared between the wrist and the little finger's metacarpal there, so it cups with it.
+- **The thumb is solved too**: a few thousand evaluations of the hand nudge its five angles until it lies over the index and middle fingers, out of them and out of the handle. It rests beside the index finger on the open hand the same way.
+- **The karambit's ring threads the index finger.** The ring is in line with the handle, at its end, so the index finger cannot wrap the handle; it goes through the ring instead, bent at the knuckle to aim through it, and the other three wrap the handle.
+  So the ring sets how far the index finger curls, and the hand turns about the handle whichever way bends the wrist least, of those that bring the ring within the finger's reach with its hole lined up with the finger. The knife spins round the finger, as in CS2.
+  A first try turned the whole hand to put the ring on the finger where it wraps the handle, which bent the wrist 66 to 92°.
+- **A talon or skeleton hangs by its ring from the index finger when spun**, turned so the ring's hole lines up with the finger, instead of from the middle of the fist.
+- **The fingers let go of the handle while the knife spins out of it or hangs**, opening partway from their grip, and close on it again once it settles; a ring keeps the index finger round it.
+- **The forearm turns halfway toward the hand**, as the elbow moves to suit a grip, leaving half the turn to the wrist: under 25° for every knife.

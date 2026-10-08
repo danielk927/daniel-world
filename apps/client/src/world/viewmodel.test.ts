@@ -156,7 +156,7 @@ describe('the view model', () => {
 
   it('curls the hand into a fist to punch and opens it again gradually, never in one frame', () => {
     const vm = ready();
-    const parts = vm as unknown as { fist: Object3D; open: Object3D };
+    const hand = vm as unknown as { gripping: boolean };
     vm.setArmed(false);
     step(vm, 1);
     expect(vm.handCurl).toBe(0);
@@ -166,9 +166,8 @@ describe('the view model', () => {
     let previous = vm.handCurl;
     for (let i = 0; i < 60; i++) {
       step(vm, 1 / 60);
-      // The same hand all along: the knife's fist never stands in for it.
-      expect(parts.open.visible).toBe(true);
-      expect(parts.fist.visible).toBe(false);
+      // The bare hand all along: it never takes up the knife's grip.
+      expect(hand.gripping).toBe(false);
       most = Math.max(most, vm.handCurl);
       if (i > 6) worst = Math.max(worst, Math.abs(vm.handCurl - previous));
       previous = vm.handCurl;
