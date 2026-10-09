@@ -14,6 +14,7 @@ import {
   sanitizeChat,
   sanitizeName,
   type ClientMessage,
+  type Prefs,
   type ServerMessage,
 } from '@world/shared';
 import { StrikeCounter, TokenBucket } from './rateLimit.ts';
@@ -79,6 +80,15 @@ export const MESSAGE_BURST = 6 * TICK_RATE;
  */
 export const MESSAGES_PER_SECOND = 1.1 * TICK_RATE;
 
+/**
+ * Changes of prefs a visitor may make at once, and per second after that, before the room hears of
+ * them only so often. Each is passed on to everyone in the room, so a flood of them would multiply
+ * across every socket; past the limit the newest waits its turn, replacing any before it, so the
+ * room always ends up with the visitor's last choice and a few quick changes of mind pass at once.
+ */
+export const PREFS_BURST = 8;
+export const PREFS_PER_SECOND = 2;
+
 /** A client that is this far behind on reading snapshots is dropped instead of buffered forever. */
 export const MAX_BUFFERED_BYTES = 256 * 1024;
 /** After asking a socket to close, stop waiting for its handshake after this long. */
@@ -94,6 +104,11 @@ interface Connection {
   player: RoomPlayer | null;
   readonly messages: TokenBucket;
   readonly chat: TokenBucket;
+  /** Changes of prefs passed on to the room; any more in between are folded into the next. */
+  readonly prefs: TokenBucket;
+  /** The newest change of prefs not yet passed on, and when it will be. */
+  pendingPrefs: Prefs | null;
+  prefsTimer: NodeJS.Timeout | null;
   readonly strikes: StrikeCounter;
 }
 
@@ -296,6 +311,22 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     };
   };
 
+  /** Tell the room of the connection's newest prefs now, or as soon as their bucket allows. */
+  const passOnPrefs = (conn: Connection): void => {
+    conn.prefsTimer = null;
+    const { room, player, pendingPrefs } = conn;
+    if (conn.closing || !room || !player || !pendingPrefs) return;
+    const wait = conn.prefs.wait();
+    if (wait > 0) {
+      conn.prefsTimer = setTimeout(() => passOnPrefs(conn), wait);
+      conn.prefsTimer.unref();
+      return;
+    }
+    conn.prefs.take();
+    conn.pendingPrefs = null;
+    room.setPrefs(player, pendingPrefs);
+  };
+
   const handleMessage = (conn: Connection, message: ClientMessage): void => {
     if (message.t === 'hello') {
       handleHello(conn, message);
@@ -315,7 +346,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
         }
         break;
       case 'prefs':
-        room.setPrefs(player, message.prefs);
+        conn.pendingPrefs = message.prefs;
+        // Already waiting its turn: this one takes the place of the last.
+        if (!conn.prefsTimer) passOnPrefs(conn);
         break;
       case 'chat': {
         if (!conn.chat.take()) return;
@@ -365,6 +398,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       player: null,
       messages: new TokenBucket(MESSAGE_BURST, MESSAGES_PER_SECOND),
       chat: new TokenBucket(4, 0.5),
+      prefs: new TokenBucket(PREFS_BURST, PREFS_PER_SECOND),
+      pendingPrefs: null,
+      prefsTimer: null,
       strikes: new StrikeCounter(40, 10),
     };
     connections.add(conn);
@@ -399,6 +435,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     });
     ws.on('close', () => {
       clearTimeout(helloTimer);
+      if (conn.prefsTimer) clearTimeout(conn.prefsTimer);
       connections.delete(conn);
       const count = (perIp.get(ip) ?? 1) - 1;
       if (count <= 0) perIp.delete(ip);

@@ -235,6 +235,29 @@ describe('room server', () => {
     await a.waitForMessage('chat');
   });
 
+  it('tells the room of a few changes of prefs at once, and of a flood only now and then', async () => {
+    const a = client();
+    const b = client();
+    const welcome = await a.join('Picky', 'tasting');
+    await b.join('Watcher', 'tasting');
+    const fromA = () => b.messages.filter((m) => m.t === 'prefs' && m.id === welcome.id);
+    // A few changes of mind, as a visitor makes them: each passed on at once.
+    for (let i = 0; i < 4; i++) a.send({ t: 'prefs', prefs: { chef: i % 2 === 1 } });
+    await b.waitFor(() => fromA().length === 4);
+    // Flicking through settings as fast as messages go: far fewer reach everyone else...
+    for (let i = 0; i < 60; i++) a.send({ t: 'prefs', prefs: { chef: i % 2 === 1 } });
+    a.send({ t: 'prefs', prefs: { chef: false, skin: 'karambit' } });
+    // Reaches the watcher after everything the room passed on before it.
+    a.send({ t: 'chat', text: 'done' });
+    await b.waitForMessage('chat');
+    expect(fromA().length).toBeLessThan(4 + 20);
+    // ...but the last word always does, and nobody is cut off for it.
+    const last = { t: 'prefs', id: welcome.id, prefs: { chef: false, skin: 'karambit' } };
+    await b.waitFor(() => JSON.stringify(fromA().at(-1)) === JSON.stringify(last), 3000);
+    expect(server.rooms.get('tasting')!.players.get(welcome.id)!.prefs).toEqual(last.prefs);
+    expect(a.closeCode).toBeNull();
+  });
+
   it('keeps private rooms isolated', async () => {
     const a = client();
     const b = client();
