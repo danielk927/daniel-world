@@ -193,6 +193,25 @@ describe('WorldStack', () => {
     );
   });
 
+  it('lets the instance read its own server bundle and nothing else in the assets bucket', () => {
+    type Policy = {
+      Properties: {
+        Roles: unknown;
+        PolicyDocument: { Statement: { Action: unknown; Resource: unknown }[] };
+      };
+    };
+    const policies = Object.values(template.findResources('AWS::IAM::Policy')) as Policy[];
+    const policy = policies.find((p) => JSON.stringify(p.Properties.Roles).includes('ServerRole'))!;
+    const s3 = policy.Properties.PolicyDocument.Statement.filter((s) =>
+      [s.Action].flat().some((action) => String(action).startsWith('s3:')),
+    );
+    expect(s3).toHaveLength(1);
+    expect(s3[0]!.Action).toBe('s3:GetObject');
+    expect(render(s3[0]!.Resource)).toMatch(
+      /^arn:\{Ref AWS::Partition\}:s3:::cdk-hnb659fds-assets-123456789012-us-east-1\/[0-9a-f]{64}\.zip$/,
+    );
+  });
+
   it('self-heals: recover on host failure, reboot on instance failure', () => {
     const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm')).map((alarm) =>
       JSON.stringify(alarm),

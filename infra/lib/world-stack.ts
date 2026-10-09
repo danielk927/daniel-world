@@ -121,7 +121,13 @@ export class WorldStack extends Stack {
 
     // The server bundle travels as a CDK asset; a new bundle means a new instance (immutable deploys).
     const serverBundle = new Asset(this, 'ServerBundle', { path: props.serverDir });
-    serverBundle.grantRead(role);
+    // Only this bundle, not the whole CDK assets bucket (every asset of every stack in the account).
+    role.addToPolicy(
+      new PolicyStatement({
+        actions: ['s3:GetObject'],
+        resources: [serverBundle.bucket.arnForObjects(serverBundle.s3ObjectKey)],
+      }),
+    );
 
     const userData = UserData.forLinux();
     userData.addCommands(
