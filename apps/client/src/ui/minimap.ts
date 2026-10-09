@@ -176,6 +176,7 @@ function strokeLines(
   ctx.stroke();
 }
 
+/** Footprints as outlines, on whole device pixels the same way. */
 function strokeFootprints(
   ctx: CanvasRenderingContext2D,
   footprints: readonly Footprint[],
@@ -204,7 +205,7 @@ function drawPlan(ctx: CanvasRenderingContext2D, plan: Plan, view: MapView, dpr:
   ctx.lineCap = 'butt';
   ctx.strokeStyle = DOOR;
   strokeLines(ctx, plan.doors, view, dpr, 0.67);
-  // Square ends close the corners, and stop the walls just short into each doorway.
+  // Square ends close the corners where two walls meet.
   ctx.lineCap = 'square';
   ctx.strokeStyle = WALL;
   strokeLines(ctx, plan.walls, view, dpr, 1);
