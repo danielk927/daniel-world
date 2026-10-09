@@ -6,7 +6,7 @@
  * is the section, the entries read like a resume, and only the text scrolls.
  */
 .panel {
-  /* From the column to the right edge of the screen, kept clear for the scrollbar's air. */
+  /* Room between the column and the right edge of the screen. */
   --panel-edge: clamp(28px, 6.9vw, 120px);
   /* From the top of the screen to the title, and the title's size. */
   --panel-top: clamp(28px, 11.7vh, 118px);
@@ -177,7 +177,11 @@
 .lore-photo {
   margin: 0 0 6px;
   aspect-ratio: 16 / 9;
-  /* Under a two-line name the photo gives way first, cropped wider, so the text still shows. */
+  /*
+   * Under a two-line name the photo gives way first, cropped wider, so the text still shows. The
+   * ratio would narrow the frame to keep its shape; the full width wins instead.
+   */
+  min-width: 100%;
   max-height: 34vh;
   overflow: hidden;
   border-radius: 2px;
