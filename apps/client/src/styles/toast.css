@@ -1,23 +1,23 @@
 /* ---------- Toasts ---------- */
 
+/* A short notice, one plain line at the top of the screen, over the dark of the hood. */
 .toasts {
   position: absolute;
-  top: 18px;
+  top: var(--hud-edge);
   left: 50%;
   transform: translateX(-50%);
   display: grid;
   justify-items: center;
   gap: 8px;
+  width: max-content;
+  max-width: 40vw;
 }
 
 .toast {
-  padding: 9px 16px;
-  border-radius: var(--radius-sm);
-  background: var(--panel-strong);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow);
-  font-size: 14px;
-  font-weight: 500;
+  font: 600 15px/1.35 var(--font-body);
+  color: var(--ink);
+  text-align: center;
+  text-wrap: balance;
   animation: toast-in 0.25s ease both;
   transition:
     opacity 0.4s ease,

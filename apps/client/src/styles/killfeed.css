@@ -1,29 +1,20 @@
 /* ---------- Kill feed ---------- */
 
+/* Plain lines under the players: each name in its cook's color, the knife between them. */
 .kill-feed {
   display: grid;
   justify-items: end;
-  gap: 6px;
+  gap: 8px;
 }
 
 .kill {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 6px 11px;
-  border-radius: var(--radius);
-  background: rgba(22, 30, 69, 0.85);
-  border: 1px solid var(--panel-border);
-  font-size: 13px;
-  font-weight: 600;
+  gap: 10px;
+  font: 700 15px/1.3 var(--font-body);
+  color: var(--ink);
   animation: kill-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   transition: opacity 0.5s ease;
-}
-
-.kill.is-self {
-  background: var(--ivory);
-  border-color: var(--ivory);
-  color: var(--navy-deep);
 }
 
 .kill.is-leaving {
@@ -31,14 +22,13 @@
 }
 
 .kill-name {
-  border-bottom: 2px solid var(--player-color, transparent);
-  line-height: 1.25;
+  color: var(--player-color, var(--ink));
 }
 
 .kill-icon {
   display: inline-flex;
-  width: 26px;
-  opacity: 0.85;
+  width: 28px;
+  color: var(--ink);
 }
 
 .kill-icon svg {
@@ -47,11 +37,12 @@
 }
 
 .kill-icon .loadout-rivet {
-  fill: rgba(22, 30, 69, 0.85);
+  fill: var(--night);
 }
 
-.kill.is-self .kill-icon .loadout-rivet {
-  fill: var(--ivory);
+/* A line this player is in: the knife turns brass, as everything that is you does. */
+.kill.is-self .kill-icon {
+  color: var(--accent);
 }
 
 @keyframes kill-in {
