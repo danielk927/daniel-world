@@ -554,3 +554,10 @@ Judgment calls made during the unattended build, with reasons.
   An E2E test throws knives at one spot with a watcher in the room: they scatter within the spread, and each sticks where both screens flew it (a few micrometers off in the kitchen, against the 1 cm the test allows).
   With the thrower's screen seeding from the wrong id, the same test fails, its knives jumping up to 27 cm.
 - This changed the shared simulation, so the protocol is version 8.
+
+### A heat lamp over every plate (2026-10-09)
+
+- **Each of the five dishes on the pass has its own heat lamp light.** Five lamps were drawn over the pass, but only three lit it, at the ends and the middle, so the beetroot and the ricotta toast sat grey between two amber pools.
+  `lighting.test.ts` now checks every dish sits inside the bright core of a heat lamp's cone.
+- **The cones narrowed from 0.5 to 0.35 radians**, the spread of the beams drawn under the lamps, so five lamps 1.5 m apart still make five pools on the pass, each round its plate, rather than one orange strip.
+- Two more spot lights cost nothing measurable on the high tier: 60 fps with 16 players at device pixel ratio 1, governor level 0, the same 76 draw calls.
