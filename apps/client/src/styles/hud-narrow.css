@@ -1,5 +1,9 @@
 /* A smaller controls hint where the full one would crowd the chat and the bottom right corner. */
 @media (max-width: 1360px) {
+  :root {
+    --hint-reach: 288px;
+  }
+
   .hint {
     gap: 18px;
     font-size: 14px;
@@ -14,6 +18,10 @@
 @media (max-width: 1080px) {
   .hint {
     display: none;
+  }
+
+  .chat {
+    width: min(360px, calc(100vw - 2 * var(--hud-edge)));
   }
 }
 

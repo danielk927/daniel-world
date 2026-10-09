@@ -10,7 +10,7 @@ export interface ChatHandlers {
   onClose(): void;
 }
 
-/** Chat log in the bottom-left corner and the input that Enter opens. Plain text only. */
+/** Chat log in the bottom-left corner and the line to write on that Enter opens. Plain text only. */
 export class Chat {
   readonly element: HTMLElement;
   private readonly log = el('ol', {
@@ -29,7 +29,7 @@ export class Chat {
   constructor(parent: HTMLElement, handlers: ChatHandlers) {
     this.handlers = handlers;
     this.input = el('input', {
-      class: 'chat-input',
+      class: 'input chat-input',
       attrs: {
         type: 'text',
         maxlength: String(CHAT_MAX_LENGTH),
