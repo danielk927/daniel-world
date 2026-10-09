@@ -7,8 +7,9 @@ import truffleCroissantPhoto from './assets/dishes/truffle-croissant.webp';
 
 /**
  * Every piece of personal content on the site lives here, taken from Daniel's resume.
- * The 3D kitchen (`stations` and `dishes`) and the static portfolio page (`lore`) both render from
- * this file and share the same items, so a change to a role or a project shows up in both.
+ * The 3D kitchen (`stations` and `dishes`) and the plain portfolio page (`lore`, and the dishes)
+ * both render from this file and share the same items, so a change to a role or a project shows up
+ * in both.
  *
  * The few places that still want Daniel's own words are marked TODO(daniel).
  * Never publish the graduation date or the phone number here.
@@ -29,7 +30,7 @@ export interface LoreItem {
   /** Bullet points, as on a resume. */
   readonly points?: readonly string[];
   readonly href?: string;
-  /** The tech stack, shown as tags. */
+  /** The tech stack, shown as one line of small words split by dots. */
   readonly tags?: readonly string[];
 }
 
@@ -39,22 +40,25 @@ export interface LoreImage {
   readonly alt: string;
 }
 
-export interface LoreEntry {
+/** A section of the resume, as the portfolio page has it. */
+export interface LoreSection {
   readonly id: string;
-  /** Heading of the info panel and of the portfolio section, and the station's label in the world. */
+  /** The heading: of a portfolio section, of a station's panel and its label in the kitchen, or a dish. */
   readonly title: string;
-  /** One line shown above the title. At a station it names the station. */
-  readonly kicker: string;
-  /** The station that serves this entry, by its French name: the small line on its label. */
-  readonly station?: string;
-  /** Accent color of the label and panel, as a CSS hex color. */
-  readonly color: string;
   /** A photo shown above the text. */
   readonly image?: LoreImage;
   readonly paragraphs?: readonly string[];
   readonly items?: readonly LoreItem[];
   readonly tags?: readonly string[];
   readonly links?: readonly LoreLink[];
+}
+
+/** What a station or a dish in the kitchen says when it is opened. */
+export interface LoreEntry extends LoreSection {
+  /** The color of the small light on it while it is under the crosshair, as a CSS hex color. */
+  readonly color: string;
+  /** Where a dish is from, the restaurant and its city: the line under its name. */
+  readonly place?: string;
 }
 
 /** How to reach Daniel. Never the phone number. */
@@ -67,9 +71,6 @@ const links: readonly LoreLink[] = [
 export const site = {
   name: 'Doyoon (Daniel) Kim',
   headline: 'CS + Statistics @ UChicago',
-  worldName: "Daniel's World",
-  tagline:
-    'I study computer science and statistics at UChicago and build everything from CUDA kernels to rehab games. Come cook with me.',
   intro: 'This is the plain version of my site: everything in the 3D kitchen, none of the walking.',
   links,
 } as const;
@@ -224,55 +225,41 @@ const interests = {
 // ---------- The portfolio page ----------
 
 /** The sections of the portfolio page, in order: a resume, then how the kitchen works. */
-export const lore: readonly LoreEntry[] = [
+export const lore: readonly LoreSection[] = [
   {
     id: 'about',
     title: 'About',
-    kicker: 'Who I am',
-    color: '#ffb86b',
     paragraphs: aboutParagraphs,
   },
   {
     id: 'experience',
     title: 'Experience',
-    kicker: 'Where I have worked',
-    color: '#e8a25c',
     items: [anto],
   },
   {
     id: 'projects',
     title: 'Projects',
-    kicker: 'Things I have built',
-    color: '#e07a5f',
     items: [inferenceEngine, generativeOmics, sync, bridge, thisKitchen],
   },
   {
     id: 'research',
     title: 'Research',
-    kicker: 'Labs and papers',
-    color: '#7ec8e3',
     items: [uclaLab, readingProgram],
   },
-  { id: 'skills', title: 'Skills', kicker: 'Tools of the trade', color: '#9fd8ef', items: skills },
+  { id: 'skills', title: 'Skills', items: skills },
   {
     id: 'education',
     title: 'Education',
-    kicker: 'Where I study',
-    color: '#a9b8ff',
     items: education,
   },
   {
     id: 'interests',
     title: 'Interests',
-    kicker: 'Away from the keyboard',
-    color: '#f4a6c6',
     ...interests,
   },
   {
     id: 'contact',
     title: 'Contact',
-    kicker: 'Say hello',
-    color: '#ff8fa3',
     paragraphs: [
       'Email is the best way to reach me. I am happy to talk about anything in this kitchen.',
     ],
@@ -281,8 +268,6 @@ export const lore: readonly LoreEntry[] = [
   {
     id: 'guest-notes',
     title: 'Kitchen notes',
-    kicker: 'How this place works',
-    color: '#6bc7ff',
     paragraphs: [
       'Everyone visiting right now is in the kitchen with you. WASD walks, the mouse looks around, Space jumps and Shift sprints.',
       'E opens the station you are looking at. A left click throws a knife; Q swaps it for your bare hand, which punches instead, and I inspects it.',
@@ -297,14 +282,14 @@ export type DishContent = Readonly<Record<DishId, LoreEntry>>;
 
 /**
  * What each plate on the pass says when it is clicked: Daniel's five favorite dishes, with his own
- * photos of them. The kicker names the restaurant.
+ * photos of them and where each is from.
  * TODO(daniel): add a line of your own to any of them, for example when you ate it and with whom.
  */
 export const dishes: DishContent = {
   'char-siu': {
     id: 'char-siu',
     title: 'Char siu',
-    kicker: 'Kamcentre Roast Goose, Hong Kong',
+    place: 'Kamcentre Roast Goose, Hong Kong',
     color: '#c0533a',
     image: {
       src: charSiuPhoto,
@@ -318,7 +303,7 @@ export const dishes: DishContent = {
   beetroot: {
     id: 'beetroot',
     title: 'Glazed beetroot and La Tur',
-    kicker: 'The Four Horsemen, Brooklyn',
+    place: 'The Four Horsemen, Brooklyn',
     color: '#b8325a',
     image: {
       src: beetrootPhoto,
@@ -332,7 +317,7 @@ export const dishes: DishContent = {
   roti: {
     id: 'roti',
     title: 'Roti and dips',
-    kicker: 'Kabawa, New York',
+    place: 'Kabawa, New York',
     color: '#d98a3a',
     image: {
       src: rotiPhoto,
@@ -346,7 +331,7 @@ export const dishes: DishContent = {
   'ricotta-toast': {
     id: 'ricotta-toast',
     title: 'Ricotta toast',
-    kicker: 'Theodora, Brooklyn',
+    place: 'Theodora, Brooklyn',
     color: '#c9a04a',
     image: {
       src: ricottaToastPhoto,
@@ -360,7 +345,7 @@ export const dishes: DishContent = {
   'truffle-croissant': {
     id: 'truffle-croissant',
     title: 'Black truffle croissant',
-    kicker: 'Kasama, Chicago',
+    place: 'Kasama, Chicago',
     color: '#8a6a3a',
     image: {
       src: truffleCroissantPhoto,
@@ -376,26 +361,15 @@ export const dishes: DishContent = {
 export type StationContent = Readonly<Record<StationId, LoreEntry>>;
 
 /**
- * A section as a station serves it. The title says what it holds; the kicker and the label name
- * the station, so a visitor can tell what is where before opening anything.
- */
-function station(
-  id: StationId,
-  name: string,
-  work: string,
-  entry: Omit<LoreEntry, 'id' | 'kicker' | 'station'>,
-): LoreEntry {
-  return { ...entry, id, station: name, kicker: `${name} · ${work}` };
-}
-
-/**
  * What each station's panel says when it is opened in the kitchen. Each station of the brigade
  * serves the part of the resume that suits its work: the pass, the first thing a visitor sees,
  * introduces Daniel; the saucier, the senior station, holds his experience; the plonge, where every
  * cook starts and by the door to the dining room, holds his education and how to reach him.
  */
 export const stations: StationContent = {
-  passe: station('passe', 'Le passe', 'the pass', {
+  // Le passe, the pass.
+  passe: {
+    id: 'passe',
     title: 'About me',
     color: '#ffb86b',
     paragraphs: [
@@ -403,41 +377,55 @@ export const stations: StationContent = {
       'Tonight the pass holds my five favorite dishes of all time, each one from a meal I actually ate.',
     ],
     // The dishes by their own names and restaurants, so the list and their panels say the same.
-    items: Object.values(dishes).map((dish) => ({ title: dish.title, meta: dish.kicker })),
-  }),
-  saucier: station('saucier', 'Saucier', 'sauces', {
+    items: Object.values(dishes).map((dish) => ({ title: dish.title, meta: dish.place })),
+  },
+  // Saucier, sauces.
+  saucier: {
+    id: 'saucier',
     title: 'Experience',
     color: '#e8a25c',
     items: [anto],
-  }),
-  poissonnier: station('poissonnier', 'Poissonnier', 'fish', {
+  },
+  // Poissonnier, fish.
+  poissonnier: {
+    id: 'poissonnier',
     title: 'Research',
     color: '#7ec8e3',
     items: [uclaLab, readingProgram],
-  }),
-  rotisseur: station('rotisseur', 'Rôtisseur', 'roasts', {
+  },
+  // Rôtisseur, roasts.
+  rotisseur: {
+    id: 'rotisseur',
     title: 'Systems and ML',
     color: '#e07a5f',
     paragraphs: ['Projects in systems and machine learning, both still cooking.'],
     items: [inferenceEngine, generativeOmics],
-  }),
-  entremetier: station('entremetier', 'Entremetier', 'vegetables', {
+  },
+  // Entremetier, vegetables.
+  entremetier: {
+    id: 'entremetier',
     title: 'Products',
     color: '#8fd18a',
     paragraphs: ['Projects built for people to use, from a hackathon weekend to NGO pilots.'],
     items: [sync, bridge, thisKitchen],
-  }),
-  'garde-manger': station('garde-manger', 'Garde manger', 'the cold kitchen', {
+  },
+  // Garde manger, the cold kitchen.
+  'garde-manger': {
+    id: 'garde-manger',
     title: 'Skills',
     color: '#9fd8ef',
     items: skills,
-  }),
-  patisserie: station('patisserie', 'Pâtisserie', 'pastry', {
+  },
+  // Pâtisserie, pastry.
+  patisserie: {
+    id: 'patisserie',
     title: 'Interests',
     color: '#f4a6c6',
     ...interests,
-  }),
-  plonge: station('plonge', 'Plonge', 'the dish pit', {
+  },
+  // Plonge, the dish pit.
+  plonge: {
+    id: 'plonge',
     title: 'Education and contact',
     color: '#a9b8ff',
     paragraphs: [
@@ -445,5 +433,5 @@ export const stations: StationContent = {
     ],
     items: education,
     links,
-  }),
+  },
 };

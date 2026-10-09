@@ -1,4 +1,4 @@
-import type { LoreEntry, LoreItem } from '../content.ts';
+import type { LoreItem, LoreSection } from '../content.ts';
 import { h, type Markup } from './markup.ts';
 
 function isExternal(href: string): boolean {
@@ -46,7 +46,7 @@ function renderItem(item: LoreItem): Markup {
  * The body of a lore entry, shared by the station panel and the portfolio page. Its links (Email,
  * GitHub...) are text links, as the house style has them.
  */
-export function renderLoreBody(entry: LoreEntry): Markup {
+export function renderLoreBody(entry: LoreSection): Markup {
   return h('div', { class: 'lore-body' }, [
     entry.image
       ? h('figure', { class: 'lore-photo' }, [

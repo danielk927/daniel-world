@@ -37,7 +37,7 @@ The mockups are static HTML over real frames of the kitchen at 8 p.m.; build to 
    Say what a thing is or does, in as few words as it takes.
 9. **No French station names in the game.**
    Labels, panels and prompts name the resume section only (Experience, Products, Systems and ML...).
-   The `station` and `kicker` fields in `content.ts` stay for the portfolio page.
+   The French names are only the stations' ids, with a comment by each in `content.ts`; the portfolio page names the sections too.
 
 ## Tokens and parts
 

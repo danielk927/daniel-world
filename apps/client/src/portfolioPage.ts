@@ -48,7 +48,7 @@ function renderDishes(): Markup {
           : null,
         h('div', { class: 'pf-dish-text' }, [
           h('h3', { class: 'lore-item-title', text: dish.title }),
-          h('p', { class: 'lore-item-subtitle', text: dish.kicker }),
+          dish.place ? h('p', { class: 'lore-item-subtitle', text: dish.place }) : null,
           ...(dish.paragraphs ?? []).map((p) => h('p', { class: 'lore-paragraph', text: p })),
         ]),
       ]),
