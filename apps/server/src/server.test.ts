@@ -26,14 +26,22 @@ import {
 
 type Message<T extends ServerMessage['t']> = Extract<ServerMessage, { t: T }>;
 
+interface ClientOptions {
+  autoPong?: boolean;
+  headers?: Record<string, string>;
+}
+
 class TestClient {
   readonly ws: WebSocket;
   readonly messages: ServerMessage[] = [];
   closeCode: number | null = null;
   private waiters: (() => void)[] = [];
 
-  constructor(port: number, options: { autoPong?: boolean } = {}) {
-    this.ws = new WebSocket(`ws://127.0.0.1:${port}`, { autoPong: options.autoPong ?? true });
+  constructor(port: number, options: ClientOptions = {}) {
+    this.ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+      autoPong: options.autoPong ?? true,
+      ...(options.headers ? { headers: options.headers } : {}),
+    });
     this.ws.on('message', (data: Buffer) => {
       const message = parseServerMessage(data.toString());
       if (message) this.messages.push(message);
@@ -119,7 +127,7 @@ class TestClient {
 let server: WorldServer;
 const clients: TestClient[] = [];
 
-function client(options?: { autoPong?: boolean }): TestClient {
+function client(options?: ClientOptions): TestClient {
   const c = new TestClient(server.port, options);
   clients.push(c);
   return c;
@@ -330,6 +338,27 @@ describe('room server', () => {
     await client().join('Two');
     const third = client();
     expect(await third.waitForClose()).toBe(CLOSE_TRY_AGAIN_LATER);
+  });
+
+  it('behind CloudFront, counts the address it saw, not one a visitor wrote in', async () => {
+    await server.close();
+    server = await startServer({
+      port: 0,
+      host: '127.0.0.1',
+      trustProxy: true,
+      maxConnectionsPerIp: 1,
+    });
+    // CloudFront appends the address it got the request from to whatever the visitor sent.
+    const via = (sent: string, seen: string) => ({
+      headers: { 'x-forwarded-for': sent ? `${sent}, ${seen}` : seen },
+    });
+    await client(via('', '198.51.100.7')).join('One');
+    const spoofed = client(via('203.0.113.1', '198.51.100.7'));
+    expect(await spoofed.waitForClose()).toBe(CLOSE_TRY_AGAIN_LATER);
+    const another = client(via('203.0.113.2, 203.0.113.3', '198.51.100.7'));
+    expect(await another.waitForClose()).toBe(CLOSE_TRY_AGAIN_LATER);
+    // Somebody else really is somebody else, whatever they wrote in.
+    expect((await client(via('198.51.100.7', '198.51.100.8')).join('Two')).room).toBe('lobby');
   });
 
   it('survives a socket it turned away sending a frame over the size limit', async () => {

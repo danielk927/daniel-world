@@ -31,7 +31,10 @@ export interface ServerOptions {
   maxConnectionsPerIp?: number;
   /** If set, only pages served from these origins may connect (e.g. `https://example.com`). */
   allowedOrigins?: readonly string[];
-  /** Behind a reverse proxy (Fly.io, Railway), take the client IP from `x-forwarded-for`. */
+  /**
+   * Behind exactly one reverse proxy (CloudFront), which alone can reach the server and appends the
+   * address it got each request from to `x-forwarded-for`: take the client's address from there.
+   */
   trustProxy?: boolean;
   /** Path prefix in front of the HTTP routes, e.g. `/ws` when a CDN routes `/ws*` here. */
   basePath?: string;
@@ -107,6 +110,20 @@ function rawToString(data: RawData): string {
   if (Buffer.isBuffer(data)) return data.toString('utf8');
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
   return Buffer.from(data).toString('utf8');
+}
+
+/**
+ * Where a socket comes from, for capping connections per address. Behind the proxy that is the last
+ * entry of `x-forwarded-for`: CloudFront appends the address it got the request from to whatever
+ * the visitor sent, so every entry before it is the visitor's to write. (Node joins a repeated
+ * header into one, so a visitor sending two changes nothing.)
+ */
+function clientAddress(req: IncomingMessage, trustProxy: boolean): string {
+  const direct = req.socket.remoteAddress ?? 'unknown';
+  if (!trustProxy) return direct;
+  const forwarded = req.headers['x-forwarded-for'];
+  const last = typeof forwarded === 'string' ? forwarded.split(',').at(-1)?.trim() : undefined;
+  return last || direct;
 }
 
 function clampSpawn(spawn: { x: number; z: number; yaw: number }): {
@@ -327,11 +344,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     // malformed frame) even while it closes, and an error event nobody listens for is thrown, which
     // would take the whole server down. A close event follows, which does any cleanup.
     ws.on('error', () => {});
-    const forwarded = options.trustProxy ? req.headers['x-forwarded-for'] : undefined;
-    const ip =
-      (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ??
-      req.socket.remoteAddress ??
-      'unknown';
+    const ip = clientAddress(req, options.trustProxy ?? false);
     const origin = req.headers.origin;
     if (options.allowedOrigins && (!origin || !options.allowedOrigins.includes(origin))) {
       turnAway(ws, CLOSE_FLOOD, 'origin not allowed');
