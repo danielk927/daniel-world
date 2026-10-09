@@ -418,8 +418,8 @@ export class Room {
       if (on) this.hitCooler(event.from, { ...on, by: 'knife' }, { id, at: event.at });
       return;
     }
-    const victim = this.players.get(event.to);
-    if (!victim || victim.deadUntil !== null) return;
+    // One of this tick's candidates, standing: a knife hits nobody another knife hit this tick.
+    const victim = this.players.get(event.to)!;
     victim.deadUntil = this.tick + DEATH_TICKS;
     this.broadcast({ t: 'kill', knife: event.knife, from: event.from, to: event.to, at: event.at });
     this.onKnockout?.(event.from, event.to);
