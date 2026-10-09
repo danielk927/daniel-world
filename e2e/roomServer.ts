@@ -83,7 +83,9 @@ export function startRoomServer(port = E2E_SERVER_PORT): Promise<RoomServer> {
       done(code);
     });
   });
-  // Anything it prints, a crash above all, goes in the log too.
+  // Anything it prints, a crash above all, goes in the log too, as does a message it can no longer
+  // take (its channel closes as it exits), rather than an error nobody listens for.
+  child.on('error', (error) => log.push(`room server process: ${String(error)}`));
   for (const stream of [child.stdout, child.stderr]) {
     stream?.setEncoding('utf8');
     stream?.on('data', (text: string) => log.push(...text.trimEnd().split('\n')));
