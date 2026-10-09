@@ -52,7 +52,7 @@ async function boot(): Promise<void> {
     );
   }
 
-  loading.setText('Firing up the stoves…');
+  loading.setText('Building the kitchen…');
   loading.setProgress(0.15);
   // Let the loading screen paint before the heavy synchronous scene build.
   await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
@@ -67,7 +67,7 @@ async function boot(): Promise<void> {
   const settings = Settings.load();
   const quality = pickQuality(webgl, settings.values.quality);
   const world = new WorldScene(canvas, stations, dishes, quality);
-  loading.setText('Lighting the lamps…');
+  loading.setText('Compiling shaders…');
   loading.setProgress(0.6);
   await world.compile();
   world.startGovernor(await refresh);

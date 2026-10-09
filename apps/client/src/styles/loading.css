@@ -1,5 +1,9 @@
 /* ---------- Loading ---------- */
 
+/*
+ * Before the world is ready: the name as the landing sets it, and under it the landing's bar as an
+ * empty track filling with brass, so the bar is whole by the time the landing takes over.
+ */
 .loading {
   position: absolute;
   inset: 0;
@@ -7,8 +11,9 @@
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 0;
-  background: var(--navy-deep);
+  padding: 24px;
+  background: var(--night);
+  text-align: center;
   transition: opacity 0.7s ease;
 }
 
@@ -17,55 +22,36 @@
   pointer-events: none;
 }
 
-.loading-mark {
-  width: 22px;
-  height: 34px;
-  margin-bottom: 26px;
-  background: var(--ivory);
-  clip-path: polygon(50% 0, 100% 45%, 50% 100%, 0 45%);
-  animation: float 2.4s ease-in-out infinite;
-}
-
-.loading-eyebrow {
-  margin: 0 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
 .loading-title {
-  margin: 0 0 30px;
-  font-family: var(--font-display);
-  font-size: 46px;
-  font-weight: 600;
-  line-height: 1;
+  margin: 0;
+  font: 700 clamp(34px, min(calc((100vw - 48px) / 9), 10.2vh), 92px) / 1.02 var(--font-display);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
   color: var(--ink);
 }
 
-.loading-text {
-  margin: 14px 0 0;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
 .loading-bar {
-  width: 220px;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.16);
+  width: 140px;
+  height: var(--bar);
+  margin: clamp(14px, 2.6vh, 24px) 0 clamp(14px, 2.8vh, 25px);
+  border-radius: calc(var(--bar) / 2);
+  background: var(--ink-hair);
   overflow: hidden;
 }
 
 .loading-bar-fill {
   height: 100%;
+  border-radius: inherit;
   background: var(--accent);
   transform-origin: left;
   transform: scaleX(0.05);
   transition: transform 0.5s ease;
+}
+
+.loading-text {
+  margin: 0;
+  font: 400 16px/1.3 var(--font-body);
+  color: var(--ink-muted);
 }
 
 .noscript {
@@ -80,14 +66,4 @@
 
 .noscript a {
   color: var(--accent);
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(-4px);
-  }
-  50% {
-    transform: translateY(4px);
-  }
 }
