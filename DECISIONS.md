@@ -618,3 +618,9 @@ Judgment calls made during the unattended build, with reasons.
   Its position needs no bound, being clamped to the play area, and the other open numbers (an input's view tick, ping ids) are clamped or only echoed back.
 - **The lobby's room over HTTP is 15 visitors with Chef Skinner** (16 without him), since he takes one of its places; the landing reads only the count.
 - None of this changes what an honest client sends or reads, so the protocol stays at version 8.
+
+### A late heartbeat judges nobody (2026-10-09)
+
+- **When the server's heartbeat comes late, the process itself was held up, and it only pings.** Node runs timers before it reads sockets, so after a pause of a few heartbeats (a long garbage collection, a busy host) the overdue beat found every pong that came meanwhile still unread, and dropped clients that had answered in time.
+  `server.test.ts` holds the process for 700 ms while a pong is on its way, and the connection stays; one that stops answering is still dropped at the next beat on time.
+- Found chasing an E2E run on a heavily loaded machine that went "Offline, playing solo" mid-test with nothing in the room's log; a stalled test process, which runs the room server in-process, fits it, though that one run could not be reproduced.

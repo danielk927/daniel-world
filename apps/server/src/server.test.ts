@@ -454,6 +454,21 @@ describe('room server', () => {
     await a.waitForMessage('leave', (m) => m.id === welcomeB.id);
   });
 
+  it('keeps a connection that answered in time while the server itself was stalled', async () => {
+    const a = client();
+    await a.join('Patient');
+    // Its pong is on its way when the process stops for a few heartbeats, as in a long GC pause
+    // or on a busy host: the pong waits unread while the heartbeat falls behind.
+    a.ws.once('ping', () => {
+      const until = Date.now() + 700;
+      while (Date.now() < until) {
+        // The whole process, server included, waits.
+      }
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(a.ws.readyState).toBe(WebSocket.OPEN);
+  });
+
   it('serves the lobby player count over HTTP', async () => {
     await client().join('Alice');
     await client().join('Bob');

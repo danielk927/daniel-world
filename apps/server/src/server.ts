@@ -445,10 +445,16 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     });
   });
 
-  // Drop connections that stopped answering pings (closed laptop lids, dead networks).
+  // Drop connections that stopped answering pings (closed laptop lids, dead networks). A beat that
+  // comes late means this process itself was held up (a long GC pause, a busy host), and the pongs
+  // that came meanwhile are still unread, since timers run before sockets are read: it only pings.
+  let lastBeat = performance.now();
   const heartbeat = setInterval(() => {
+    const now = performance.now();
+    const late = now - lastBeat > heartbeatMs * 1.5;
+    lastBeat = now;
     for (const conn of connections) {
-      if (!conn.alive) {
+      if (!conn.alive && !late) {
         conn.ws.terminate();
         continue;
       }
