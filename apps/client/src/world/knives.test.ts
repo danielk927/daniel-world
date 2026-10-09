@@ -1,3 +1,4 @@
+import { InstancedMesh, Matrix4 } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   KNIFE_MAX_STUCK,
@@ -108,6 +109,25 @@ describe('Knives', () => {
     run(knives, 0.15);
     expect(knives.flyingCount).toBe(0);
     expect(knives.stuckCount).toBe(0);
+  });
+
+  it('moves the knives in the walk-in door as soon as the door moves, not a frame later', () => {
+    const knives = new Knives();
+    knives.reset([stuckAt(1)]);
+    const motion = new Matrix4();
+    knives.setCarrier({ carries: () => true, motion });
+    knives.update(0, []);
+    const mesh = knives.group.children.find(
+      (c): c is InstancedMesh => c instanceof InstancedMesh && c.count > 0,
+    )!;
+    const before = new Matrix4();
+    mesh.getMatrixAt(0, before);
+    // The door swings after the knives are drawn in a frame, and says so.
+    motion.makeTranslation(0.5, 0, 0);
+    knives.carrierMoved();
+    const after = new Matrix4();
+    mesh.getMatrixAt(0, after);
+    expect(after.elements[12] - before.elements[12]).toBeCloseTo(0.5, 6);
   });
 
   it('keeps only the newest stuck knives', () => {

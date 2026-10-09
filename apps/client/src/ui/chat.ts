@@ -72,6 +72,11 @@ export class Chat {
     return !this.form.hidden;
   }
 
+  /** Lines or the field show; a closed chat fades out after a while but keeps its lines. */
+  get showing(): boolean {
+    return this.isOpen || this.element.classList.contains('is-active');
+  }
+
   show(): void {
     this.element.hidden = false;
   }

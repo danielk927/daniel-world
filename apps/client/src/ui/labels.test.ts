@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { declutterLabels, type LabelBox } from './labels.ts';
+import { clearOfInterface, declutterLabels, type LabelBox } from './labels.ts';
 
 function box(x: number, y: number, distance: number, options: Partial<LabelBox> = {}): LabelBox {
   return {
@@ -94,5 +94,42 @@ describe('declutterLabels', () => {
 
   it('skips labels that are already hidden', () => {
     expect(run([box(100, 100, 2, { opacity: 0 }), box(110, 100, 5)])).toEqual([0, 1]);
+  });
+});
+
+describe('clearOfInterface', () => {
+  // The player list in the top right corner of a 1440 by 900 window.
+  const players = { left: 1240, top: 36, right: 1404, bottom: 92 };
+
+  function clear(labels: LabelBox[], boxes = [players]): number[] {
+    clearOfInterface(labels, boxes);
+    return labels.map((l) => l.opacity);
+  }
+
+  it('hides a label that would print over the interface, and leaves one clear of it alone', () => {
+    // Bottom-center anchors: the first label's words reach up into the list, the second's do not.
+    expect(clear([box(1300, 100, 6), box(1300, 140, 6)])).toEqual([0, 1]);
+  });
+
+  it('hides name tags and the pinned label too: words over words can be read as neither', () => {
+    const tag = box(1200, 80, 4, { declutter: 'hold' });
+    const pinned = box(1380, 120, 3, { pinned: true });
+    expect(clear([tag, pinned])).toEqual([0, 0]);
+  });
+
+  it("counts a label's leader, down to its pin", () => {
+    // The words sit just left of the list; the leader drops straight down beside them.
+    expect(clear([box(1180, 30, 6, { drop: 50 })])).toEqual([1]);
+    expect(clear([box(1250, 30, 6, { width: 20, drop: 50 })])).toEqual([0]);
+  });
+
+  it('keeps a few pixels between a label and the interface', () => {
+    // Its right edge (1235) is 5 px from the list: closer than the gap labels keep from each other.
+    expect(clear([box(1185, 80, 6)])).toEqual([0]);
+    expect(clear([box(1175, 80, 6)])).toEqual([1]);
+  });
+
+  it('ignores parts of the interface that take no room, as hidden ones do', () => {
+    expect(clear([box(1300, 100, 6)], [{ left: 0, top: 0, right: 0, bottom: 0 }])).toEqual([1]);
   });
 });

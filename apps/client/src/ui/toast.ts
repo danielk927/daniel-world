@@ -2,7 +2,7 @@ import { el } from './dom.ts';
 
 /** Short-lived notices at the top of the screen. */
 export class Toasts {
-  private readonly element: HTMLElement;
+  readonly element: HTMLElement;
 
   constructor(parent: HTMLElement) {
     this.element = el('div', { class: 'toasts', attrs: { role: 'status', 'aria-live': 'polite' } });
