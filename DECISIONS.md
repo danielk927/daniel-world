@@ -568,3 +568,8 @@ Judgment calls made during the unattended build, with reasons.
   Words over words can be read as neither, and the house style puts nothing behind words to set them apart; looking along the pass, "Products" and "Experience" printed over the party's name, and "Research" over the player list.
 - **Even the pinned label gives way.** The prompt under the crosshair is not kept clear, since it names the very station whose label is pinned above it.
 - **The interface's boxes are measured only when they change size** (a `ResizeObserver`) or the window does, never in a frame; a part that is faded out or covered keeps its size, so each part says whether it shows, from its classes.
+
+### The portfolio is the way in on a phone (2026-10-09)
+
+- **On a touch-only device the landing's main action is "View the portfolio"**, in the title face with the brass bar, and "Enter the kitchen" steps down to a quiet button under the name, still there for a tablet with a keyboard.
+  The landing already said the portfolio was the better way in on a phone, yet kept the kitchen, which has no touch controls, as the one main action; the quiet row's own portfolio link goes, as it would only repeat it.

@@ -52,6 +52,12 @@ export class Landing {
   private readonly form: HTMLFormElement;
   private readonly enterButton: HTMLButtonElement;
   private readonly row: HTMLElement;
+  /** The plain portfolio, in the quiet row. */
+  private readonly portfolioLink = el('a', {
+    class: 'landing-link',
+    text: 'Plain portfolio',
+    attrs: { href: '/portfolio.html' },
+  });
   /** What Enter (the key) does when the landing shows: the way in, or the portfolio without WebGL. */
   private mainAction: HTMLElement;
   private readonly count = el('p', { class: 'landing-count', attrs: { 'aria-live': 'polite' } });
@@ -153,11 +159,7 @@ export class Landing {
     this.row = el('div', { class: 'landing-row' }, [
       this.count,
       this.partyToggle,
-      el('a', {
-        class: 'landing-link',
-        text: 'Plain portfolio',
-        attrs: { href: '/portfolio.html' },
-      }),
+      this.portfolioLink,
     ]);
 
     this.element = el(
@@ -245,6 +247,23 @@ export class Landing {
   setNotice(message: string): void {
     this.notice.textContent = message;
     this.notice.hidden = message === '';
+  }
+
+  /**
+   * A phone or tablet: the world wants a keyboard and mouse, so the portfolio becomes the way in,
+   * and the kitchen a quiet second choice for a tablet with a keyboard.
+   */
+  suggestPortfolio(message: string): void {
+    this.setNotice(message);
+    const portfolio = el('a', {
+      class: 'button button-primary button-large landing-portfolio',
+      text: 'View the portfolio',
+      attrs: { href: '/portfolio.html' },
+    });
+    this.form.before(portfolio);
+    this.enterButton.classList.remove('button-primary', 'button-large');
+    this.portfolioLink.hidden = true;
+    this.mainAction = portfolio;
   }
 
   /** No WebGL: the world cannot run, so the portfolio becomes the way in. */

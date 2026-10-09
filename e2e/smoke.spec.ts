@@ -18,6 +18,29 @@ test('landing screen loads over the 3D world', async ({ page }) => {
   await expect(page.getByLabel('Private party')).toBeFocused();
 });
 
+test('on a phone the portfolio is the way in, and the kitchen a quiet second choice', async ({
+  browser,
+}) => {
+  const phone = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await phone.newPage();
+  await page.goto('/');
+  const portfolio = page.getByRole('link', { name: 'View the portfolio' });
+  await expect(portfolio).toBeVisible({ timeout: 30_000 });
+  await expect(portfolio).toHaveAttribute('href', '/portfolio.html');
+  await expect(portfolio).toBeFocused();
+  // Still there for a tablet with a keyboard, but no longer the main action.
+  const enter = page.getByRole('button', { name: 'Enter the kitchen' });
+  await expect(enter).toBeVisible();
+  await expect(enter).not.toHaveClass(/button-primary/);
+  // The quiet row's own link would only repeat it.
+  await expect(page.getByRole('link', { name: 'Plain portfolio' })).toBeHidden();
+  await phone.close();
+});
+
 test('an invite link opens the private party with its code in', async ({ page }) => {
   await page.goto('/?room=friday-service');
   await expect(page.getByRole('button', { name: 'Private party' })).toHaveAttribute(

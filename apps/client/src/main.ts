@@ -47,7 +47,7 @@ async function boot(): Promise<void> {
     return;
   }
   if (isTouchOnly()) {
-    landing.setNotice(
+    landing.suggestPortfolio(
       'The world is made for a keyboard and mouse. On a phone or tablet, the portfolio page is the better way in.',
     );
   }
