@@ -111,10 +111,12 @@
   color: var(--ink);
 }
 
-/* The bar under the word chosen from a few: the open tab, Off or On, a graphics tier. */
+/* The bar under the word chosen from a few: the open tab, Off or On, a tier, a finish, a knife. */
 .pause-tab::after,
 .switch-word::after,
-.choice::after {
+.choice::after,
+.finish-name::after,
+.knife-option-name::after {
   content: '';
   position: absolute;
   left: 0;
@@ -135,7 +137,9 @@
 /* Focus is a brass ring with room round the word, as on buttons. */
 .pause-tab:focus-visible,
 .switch:focus-visible,
-.choice:focus-visible {
+.choice:focus-visible,
+.finish:focus-visible,
+.knife-option:focus-visible {
   box-shadow: none;
   outline: 2px solid var(--accent);
   outline-offset: 4px;
@@ -466,26 +470,24 @@
   margin-top: 10px;
 }
 
-/* The Knives tab: a live look at the chosen knife beside its finishes, every knife in a grid below. */
+/* The Knives tab: a live look at the chosen knife beside its finishes, every knife below. */
 .knives {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 22px;
+  padding-top: 16px;
 }
 
 .knives-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 196px;
-  gap: 16px;
+  gap: 20px;
 }
 
+/* The knife on its own in the dark, turning to the light: no frame round it. */
 .knife-preview {
   position: relative;
-  min-height: 168px;
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-  background: var(--navy-deep);
-  overflow: hidden;
+  min-height: 156px;
   cursor: grab;
   touch-action: pan-y;
 }
@@ -504,174 +506,147 @@
 
 .knives-details {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  align-content: start;
   gap: 10px;
   min-width: 0;
 }
 
 .knives-name {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.knives-finish {
-  margin: 4px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.finish-list {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-}
-
-.finish {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 30px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: none;
-  font: inherit;
-  font-size: 13.5px;
-  color: var(--ink-muted);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.finish:hover {
+  font: 700 26px/1.1 var(--font-display);
+  letter-spacing: -0.005em;
   color: var(--ink);
 }
 
+/* Finishes: words, each after a small ring of the finish itself. Room is kept for three, and for
+   the line Equip leaves, so the knives below stay put whichever is chosen. */
+.finish-list {
+  display: grid;
+  grid-auto-rows: 36px;
+  justify-items: start;
+  min-height: calc(3 * 36px);
+}
+
+.finish {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.finish:hover {
+  color: var(--ink-muted);
+}
+
 .finish[aria-checked='true'] {
-  border-color: var(--panel-border);
-  background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
 }
 
 .finish-swatch {
   flex: none;
-  width: 44px;
-  height: 12px;
-  border-radius: 1px;
-  box-shadow: 0 0 0 1px rgba(246, 243, 234, 0.22);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: fill;
+  box-shadow:
+    0 0 0 2px var(--night),
+    0 0 0 3.5px var(--ink-faint);
+  transition: box-shadow 0.15s ease;
 }
 
-.knives-actions {
-  display: grid;
-  gap: 6px;
+.finish[aria-checked='true'] .finish-swatch {
+  box-shadow:
+    0 0 0 2px var(--night),
+    0 0 0 3.5px var(--accent);
 }
 
-.knives-equip {
-  width: 100%;
-}
-
-.knives-status {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--ok);
-}
-
-.knives-status:empty {
-  display: none;
-}
-
-.knife-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px 8px;
-}
-
-.knife-tile {
+.finish-name {
   position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 9px 8px 7px;
-  border: 1px solid rgba(246, 243, 234, 0.12);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.04);
-  font: inherit;
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.knife-tile svg {
-  display: block;
-  width: 100%;
-  height: 20px;
-  fill: currentColor;
-}
-
-.knife-tile-name {
-  font-size: 10.5px;
-  font-weight: 600;
+  padding: 7px calc(2px - 0.14em) 9px 2px;
+  font: 600 12px/1 var(--font-body);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
-.knife-tile:hover {
-  background: rgba(255, 255, 255, 0.08);
+.finish[aria-checked='true'] .finish-name::after {
+  transform: scaleX(1);
+}
+
+.knives-actions {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+}
+
+/* Equipped says how things stand rather than offering anything: faint, but still to be read. */
+.knives-equip[aria-disabled='true'] {
+  opacity: 1;
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+.knives-status {
+  min-height: calc(2 * 1.45em);
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ok);
+}
+
+/* Every knife, by its outline and name; the one on show in ivory, the one carried with the bar. */
+.knife-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px 12px;
+}
+
+.knife-option {
+  appearance: none;
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 8px 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.knife-option svg {
+  display: block;
+  width: 100%;
+  height: 22px;
+  fill: currentColor;
+}
+
+.knife-option:hover {
   color: var(--ink-muted);
 }
 
-.knife-tile[aria-checked='true'] {
-  border-color: var(--ivory);
-  background: rgba(255, 255, 255, 0.1);
+.knife-option[aria-checked='true'] {
   color: var(--ink);
 }
 
-/* The knife carried now: a small ivory mark in the corner. */
-.knife-tile.is-equipped::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ivory);
+.knife-option-name {
+  position: relative;
+  padding: 0 calc(2px - 0.12em) 11px 2px;
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.knife-tile:focus-visible,
-.finish:focus-visible {
-  outline: none;
-  box-shadow: var(--focus);
-}
-
-@media (max-width: 600px) {
-  .knives-top {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .knife-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 400px) {
-  .knife-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.knife-option.is-equipped .knife-option-name::after {
+  transform: scaleX(1);
 }
 
 /* Resume (with the key that does it, in a brass ring), Leave, and the plain page. */
