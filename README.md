@@ -71,7 +71,7 @@ The few lines that still want Daniel's own words are marked `TODO(daniel)`.
 | `npm run typecheck`              | TypeScript in every workspace                                                 |
 | `npm test`                       | Vitest unit and integration tests                                             |
 | `npm run e2e`                    | Playwright end-to-end tests (run `npx playwright install chromium` once)      |
-| `npm run bots -- --count 15`     | Simulated players wandering the lobby                                         |
+| `npm run bots`                   | Simulated players filling the lobby but for your seat (`--count`, `--room`)   |
 | `node scripts/screenshots.ts`    | Regenerate `docs/screenshots/`                                                |
 | `node scripts/perf.ts`           | 16-player performance check (needs the dev client running)                    |
 | `node scripts/computer-bench.ts` | Kitchen computer benchmark: DOOM's timedemo, guest MIPS and frames per second |

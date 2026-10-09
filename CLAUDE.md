@@ -17,7 +17,8 @@ npx playwright install chromium
 npm run e2e                  # playwright, builds client in test mode, spawns its own server on :3101
                              # (E2E_SERVER_PORT / E2E_CLIENT_PORT move it, to run two suites at once)
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
-npm run bots -- --count 15   # simulated players for load testing
+npm run bots                 # simulated players: fill the lobby but for one seat, yours
+                             # (--count up to 15, --room <code>, --knives; Chef Skinner counts)
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
 node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU;
                              # WORLD_CLIENT_PORT / WORLD_SERVER_PORT move it off :5173 / :3001)
