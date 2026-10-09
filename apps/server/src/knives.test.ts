@@ -150,6 +150,28 @@ describe('knives', () => {
     expect(PROTECTION_TICKS).toBeGreaterThan(KNIFE_COOLDOWN_INPUTS);
   });
 
+  it('knocks a cook out once when two knives hit them on the same tick, and the other flies on', () => {
+    const { join, input, steps, received } = setup();
+    const left = join(-0.6, 5.6);
+    const right = join(0.6, 5.6);
+    const victim = join(0, 3.2);
+    // Thrown together from either side, the same distance away: they arrive on the same tick.
+    for (const thrower of [left, right]) {
+      const yaw = Math.atan2(thrower.state.x - victim.state.x, thrower.state.z - victim.state.z);
+      input(thrower, { throwKnife: true, yaw, pitch: -0.1 });
+    }
+    steps(FLIGHT);
+    const knives = received(victim.id, 'knife');
+    expect(knives.map((k) => k.from)).toEqual([left.id, right.id]);
+    const kills = received(victim.id, 'kill');
+    const stuck = received(victim.id, 'stuck');
+    expect(kills).toMatchObject([{ knife: knives[0]!.id, from: left.id, to: victim.id }]);
+    // Every knife ends somewhere: the second went on through and stuck past them.
+    expect(stuck.map((m) => m.knife.id)).toEqual([knives[1]!.id]);
+    expect(stuck[0]!.knife.z).toBeLessThan(victim.state.z);
+    expect(stuck[0]!.at).toBeGreaterThan(kills[0]!.at);
+  });
+
   it("passes a resident's knives through a cook who has turned him off, and nobody else's", () => {
     const { join, input, steps, received } = setup();
     const chef = join(0, 5.6, { resident: true });

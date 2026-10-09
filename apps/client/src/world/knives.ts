@@ -55,6 +55,8 @@ interface Flight {
 }
 
 const FORWARD = new Vector3(0, 0, -1);
+/** No one to hit. */
+const NOBODY: readonly KnifeTarget[] = [];
 
 /** Whether a knife thrown by `from` passes through `to`. */
 export type Spares = (from: number, to: number) => boolean;
@@ -223,11 +225,19 @@ export class Knives {
     return flight ? Math.max(0, at - flight.clock) : 0;
   }
 
-  /** The server's verdict on a knife: stuck somewhere, or in someone. */
+  /**
+   * The server's verdict on a knife: stuck somewhere, or in someone. A knife that stuck hit nobody
+   * on the way (the cook was protected, or another knife got to them first), so if its flight here
+   * went into a cook drawn in its way, it comes back out and flies on.
+   */
   resolve(id: number, outcome: Outcome): void {
     const flight = this.flights.find((f) => f.id === id);
     if (flight) {
       flight.outcome = outcome;
+      if (outcome.kind === 'stuck' && flight.landed?.kind === 'player') {
+        flight.landed = null;
+        flight.waited = 0;
+      }
       return;
     }
     // A knife we never saw thrown (we joined mid-flight): only where it ends up matters.
@@ -252,7 +262,8 @@ export class Knives {
 
   /**
    * Advance every flight by `dt`. `targets` are the players as drawn on this screen; a knife flies
-   * straight through anyone `spares(thrower, target)` says it does, as on the server.
+   * straight through anyone `spares(thrower, target)` says it does, as on the server, and through
+   * everyone once the server says it stuck in the kitchen.
    */
   update(dt: number, targets: readonly KnifeTarget[], spares?: Spares): void {
     for (let i = 0; i < this.flights.length; i++) {
@@ -263,7 +274,11 @@ export class Knives {
         f.landed = flyKnife(
           f.state,
           Math.min(f.clock, KNIFE_MAX_FLIGHT_SECONDS) - f.state.t,
-          spares ? this.hittable(targets, f.from, spares) : targets,
+          f.outcome?.kind === 'stuck'
+            ? NOBODY
+            : spares
+              ? this.hittable(targets, f.from, spares)
+              : targets,
           f.from,
           this.coolerOpen,
         );

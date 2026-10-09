@@ -14,6 +14,7 @@ import {
   sanitizeChat,
   sanitizeName,
   type ClientMessage,
+  type Prefs,
   type ServerMessage,
 } from '@world/shared';
 import { StrikeCounter, TokenBucket } from './rateLimit.ts';
@@ -31,7 +32,10 @@ export interface ServerOptions {
   maxConnectionsPerIp?: number;
   /** If set, only pages served from these origins may connect (e.g. `https://example.com`). */
   allowedOrigins?: readonly string[];
-  /** Behind a reverse proxy (Fly.io, Railway), take the client IP from `x-forwarded-for`. */
+  /**
+   * Behind exactly one reverse proxy (CloudFront), which alone can reach the server and appends the
+   * address it got each request from to `x-forwarded-for`: take the client's address from there.
+   */
   trustProxy?: boolean;
   /** Path prefix in front of the HTTP routes, e.g. `/ws` when a CDN routes `/ws*` here. */
   basePath?: string;
@@ -56,7 +60,34 @@ export const CLOSE_BAD_HELLO = 4002;
 export const CLOSE_HELLO_TIMEOUT = 4003;
 export const CLOSE_ROOM_TAKEN = 4004;
 export const CLOSE_NO_ROOM = 4005;
+/** An input that is not the one after the last: only a modified client sends one. */
+export const CLOSE_OUT_OF_SEQUENCE = 4006;
 export const CLOSE_TRY_AGAIN_LATER = 1013;
+
+/**
+ * Messages a socket may send at once. A client sends an input every tick, a ping a second, and chat
+ * or prefs now and then. A connection that stalls delivers everything it sent meanwhile at once when
+ * it recovers, and a client waits up to 5 s on a silent server before it reconnects, so 6 s of
+ * inputs must pass at once: inputs are numbered one after another, and losing one to this limit
+ * would end the connection (`CLOSE_OUT_OF_SEQUENCE`).
+ */
+export const MESSAGE_BURST = 6 * TICK_RATE;
+/**
+ * Messages a socket may send per second, sustained: a little over the one input a tick a client
+ * sends, so one sending inputs faster than there are ticks, to count its cooldowns down sooner,
+ * gains next to nothing (the room still simulates one a tick), and is cut off once its burst is
+ * spent.
+ */
+export const MESSAGES_PER_SECOND = 1.1 * TICK_RATE;
+
+/**
+ * Changes of prefs a visitor may make at once, and per second after that, before the room hears of
+ * them only so often. Each is passed on to everyone in the room, so a flood of them would multiply
+ * across every socket; past the limit the newest waits its turn, replacing any before it, so the
+ * room always ends up with the visitor's last choice and a few quick changes of mind pass at once.
+ */
+export const PREFS_BURST = 8;
+export const PREFS_PER_SECOND = 2;
 
 /** A client that is this far behind on reading snapshots is dropped instead of buffered forever. */
 export const MAX_BUFFERED_BYTES = 256 * 1024;
@@ -73,6 +104,12 @@ interface Connection {
   player: RoomPlayer | null;
   readonly messages: TokenBucket;
   readonly chat: TokenBucket;
+  /** Changes of prefs passed on to the room; any more in between are folded into the next. */
+  readonly prefs: TokenBucket;
+  /** The newest change of prefs not yet passed on. */
+  pendingPrefs: Prefs | null;
+  /** Set while `pendingPrefs` waits for the bucket. */
+  prefsTimer: NodeJS.Timeout | null;
   readonly strikes: StrikeCounter;
 }
 
@@ -89,6 +126,20 @@ function rawToString(data: RawData): string {
   if (Buffer.isBuffer(data)) return data.toString('utf8');
   if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
   return Buffer.from(data).toString('utf8');
+}
+
+/**
+ * Where a socket comes from, for capping connections per address. Behind the proxy that is the last
+ * entry of `x-forwarded-for`: CloudFront appends the address it got the request from to whatever
+ * the visitor sent, so every entry before it is the visitor's to write. (Node joins a repeated
+ * header into one, so a visitor sending two changes nothing.)
+ */
+function clientAddress(req: IncomingMessage, trustProxy: boolean): string {
+  const direct = req.socket.remoteAddress ?? 'unknown';
+  if (!trustProxy) return direct;
+  const forwarded = req.headers['x-forwarded-for'];
+  const last = typeof forwarded === 'string' ? forwarded.split(',').at(-1)?.trim() : undefined;
+  return last || direct;
 }
 
 function clampSpawn(spawn: { x: number; z: number; yaw: number }): {
@@ -152,9 +203,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       }
       sendJson(res, 200, {
         room: code,
-        // Visitors only: Chef Skinner is always in, so he is not news.
+        // Visitors only: Chef Skinner is always in, so he is not news, but he takes a place.
         players: rooms.get(code)?.visitors ?? 0,
-        max: MAX_PLAYERS_PER_ROOM,
+        max: MAX_PLAYERS_PER_ROOM - (options.chef ? 1 : 0),
       });
       return;
     }
@@ -261,6 +312,22 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     };
   };
 
+  /** Tell the room of the connection's newest prefs now, or as soon as their bucket allows. */
+  const passOnPrefs = (conn: Connection): void => {
+    conn.prefsTimer = null;
+    const { room, player, pendingPrefs } = conn;
+    if (conn.closing || !room || !player || !pendingPrefs) return;
+    const wait = conn.prefs.wait();
+    if (wait > 0) {
+      conn.prefsTimer = setTimeout(() => passOnPrefs(conn), wait);
+      conn.prefsTimer.unref();
+      return;
+    }
+    conn.prefs.take();
+    conn.pendingPrefs = null;
+    room.setPrefs(player, pendingPrefs);
+  };
+
   const handleMessage = (conn: Connection, message: ClientMessage): void => {
     if (message.t === 'hello') {
       handleHello(conn, message);
@@ -274,10 +341,15 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     if (!room || !player) return;
     switch (message.t) {
       case 'input':
-        room.enqueueInput(player, message);
+        if (!room.enqueueInput(player, message)) {
+          log(`disconnecting #${player.id}: input ${message.seq} after ${player.received}`);
+          drop(conn, CLOSE_OUT_OF_SEQUENCE, 'input out of sequence');
+        }
         break;
       case 'prefs':
-        room.setPrefs(player, message.prefs);
+        conn.pendingPrefs = message.prefs;
+        // Already waiting its turn: this one takes the place of the last.
+        if (!conn.prefsTimer) passOnPrefs(conn);
         break;
       case 'chat': {
         if (!conn.chat.take()) return;
@@ -292,19 +364,28 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
   const maxPerIp = options.maxConnectionsPerIp ?? 20;
   const perIp = new Map<string, number>();
 
+  /**
+   * Turn a socket away before it is a connection: say why, and stop waiting for its handshake after
+   * the grace period, so sockets refused for being too many cannot pile up while they close.
+   */
+  const turnAway = (ws: WebSocket, code: number, reason: string): void => {
+    ws.close(code, reason);
+    setTimeout(() => ws.terminate(), CLOSE_GRACE_MS).unref();
+  };
+
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-    const forwarded = options.trustProxy ? req.headers['x-forwarded-for'] : undefined;
-    const ip =
-      (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ??
-      req.socket.remoteAddress ??
-      'unknown';
+    // First, before anything can turn the socket away: a socket emits errors (an oversized or
+    // malformed frame) even while it closes, and an error event nobody listens for is thrown, which
+    // would take the whole server down. A close event follows, which does any cleanup.
+    ws.on('error', () => {});
+    const ip = clientAddress(req, options.trustProxy ?? false);
     const origin = req.headers.origin;
     if (options.allowedOrigins && (!origin || !options.allowedOrigins.includes(origin))) {
-      ws.close(CLOSE_FLOOD, 'origin not allowed');
+      turnAway(ws, CLOSE_FLOOD, 'origin not allowed');
       return;
     }
     if (connections.size >= maxConnections || (perIp.get(ip) ?? 0) >= maxPerIp) {
-      ws.close(CLOSE_TRY_AGAIN_LATER, 'too many connections');
+      turnAway(ws, CLOSE_TRY_AGAIN_LATER, 'too many connections');
       return;
     }
     perIp.set(ip, (perIp.get(ip) ?? 0) + 1);
@@ -316,10 +397,11 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       closing: false,
       room: null,
       player: null,
-      // ~21 messages per second is normal (20 inputs + pings); allow bursts well above that.
-      // One input every tick, plus pings, chat and emotes on top.
-      messages: new TokenBucket(2 * TICK_RATE, TICK_RATE * 1.5),
+      messages: new TokenBucket(MESSAGE_BURST, MESSAGES_PER_SECOND),
       chat: new TokenBucket(4, 0.5),
+      prefs: new TokenBucket(PREFS_BURST, PREFS_PER_SECOND),
+      pendingPrefs: null,
+      prefsTimer: null,
       strikes: new StrikeCounter(40, 10),
     };
     connections.add(conn);
@@ -354,20 +436,25 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     });
     ws.on('close', () => {
       clearTimeout(helloTimer);
+      if (conn.prefsTimer) clearTimeout(conn.prefsTimer);
       connections.delete(conn);
       const count = (perIp.get(ip) ?? 1) - 1;
       if (count <= 0) perIp.delete(ip);
       else perIp.set(ip, count);
       leave(conn);
     });
-    // Errors (e.g. oversized frames) are followed by a close event, which does the cleanup.
-    ws.on('error', () => {});
   });
 
-  // Drop connections that stopped answering pings (closed laptop lids, dead networks).
+  // Drop connections that stopped answering pings (closed laptop lids, dead networks). A beat that
+  // comes late means this process itself was held up (a long GC pause, a busy host), and the pongs
+  // that came meanwhile are still unread, since timers run before sockets are read: it only pings.
+  let lastBeat = performance.now();
   const heartbeat = setInterval(() => {
+    const now = performance.now();
+    const late = now - lastBeat > heartbeatMs * 1.5;
+    lastBeat = now;
     for (const conn of connections) {
-      if (!conn.alive) {
+      if (!conn.alive && !late) {
         conn.ws.terminate();
         continue;
       }

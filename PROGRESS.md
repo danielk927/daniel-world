@@ -81,6 +81,13 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Protocol version 8; the AWS room server needs `npm run deploy:aws` for multiplayer to match the client.
 - Lint, typecheck, 889 unit tests, 28 E2E tests and the build pass.
 
+### The room server after review (2026-10-09)
+
+- Seven findings from a review of the room server, each reproduced by a failing test first: a turned-away socket's oversized frame crashed the server; inputs numbered out of turn skipped every cooldown and picked the knife's spread; the first `X-Forwarded-For` entry let anyone past the per-address cap behind CloudFront; a second knife into a cook on the same tick vanished; prefs changes went to everyone unlimited; a spawn hint's turn was unbounded; and the lobby's HTTP maximum counted Chef Skinner's place.
+- Found on the way: a connection that stalled for 3 s was kicked as a flooder when its inputs arrived together; the message limit now takes 6 s of them at once.
+- Still protocol version 8.
+- Lint, typecheck, 916 unit tests, 29 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash
