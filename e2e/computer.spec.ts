@@ -66,6 +66,21 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   await page.keyboard.press('Escape');
   await expectWorld(page, (w) => w.mode === 'playing', 'stepped away again');
 
+  // Away to another window with a key held, so its release never comes: DOOM lets go of it, and the
+  // cook steps away, as when the browser takes back the mouse.
+  await expect(prompt).toHaveText('Press E to play DOOM');
+  await page.keyboard.press('KeyE');
+  await expectWorld(page, (w) => w.computer.state === 'running', 'seated, DOOM running');
+  await page.keyboard.down('ArrowUp');
+  await expectWorld(page, (w) => w.computer.keys === 1, 'the marine walks');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expectWorld(
+    page,
+    (w) => w.mode === 'playing' && w.computer.state === 'paused' && w.computer.keys === 0,
+    'stepped away, nothing held',
+  );
+  await page.keyboard.up('ArrowUp');
+
   // Facing the desk (west), backing away walks east.
   await walkUntil(page, 'KeyS', (p) => p.x > -5.5);
   await page.context().close();

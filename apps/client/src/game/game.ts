@@ -225,6 +225,10 @@ export class Game {
     document.addEventListener('mousemove', this.onComputerMouseMove);
     canvas.addEventListener('mousedown', this.onComputerMouseButton);
     window.addEventListener('mouseup', this.onComputerMouseButton);
+    window.addEventListener('blur', this.leaveComputerWithWindow);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.leaveComputerWithWindow();
+    });
 
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKey = (code) => this.onKey(code);
@@ -842,6 +846,15 @@ export class Game {
     this.showLabels();
     this.showArm();
   }
+
+  /**
+   * Away to another window or tab while at the computer: the keys held in DOOM would stay held,
+   * their release going elsewhere, and the next press of one would be taken for a repeat. So the
+   * cook steps away, as when the browser takes back a held mouse, which DOOM's keys go with.
+   */
+  private readonly leaveComputerWithWindow = (): void => {
+    if (this.mode === 'computer') this.leaveComputer();
+  };
 
   /** At the computer, with the mouse held, its motion turns the marine. */
   private readonly onComputerMouseMove = (event: MouseEvent): void => {
