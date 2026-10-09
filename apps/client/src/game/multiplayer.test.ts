@@ -117,6 +117,38 @@ describe('Multiplayer', () => {
     mp.close();
   });
 
+  it("says which moment it saw the room at only once this connection's snapshots set the clock", () => {
+    const { deps } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    const inputs = () => latestSocket().sent.filter((m) => m.t === 'input');
+    const send = (): void => mp.sendInput(deps.player.tick(0, 0, 0, true));
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    send();
+    expect(inputs().at(-1)).not.toHaveProperty('view');
+    latestSocket().receive({ t: 'snap', tick: 500, players: [welcome('lobby').self] });
+    mp.update(performance.now(), 1 / 60);
+    send();
+    expect(inputs().at(-1)).toHaveProperty('view');
+
+    // A reconnect: the old session's moment is meaningless to the new one.
+    latestSocket().close();
+    vi.runOnlyPendingTimers();
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    send();
+    expect(inputs().at(-1)).not.toHaveProperty('view');
+    mp.close();
+
+    // Nor does it follow the cook into the next room.
+    const next = new Multiplayer({ ...deps, room: 'friday' });
+    latestSocket().open();
+    latestSocket().receive(welcome('friday'));
+    next.sendInput(deps.player.tick(0, 0, 0, true));
+    expect(inputs().at(-1)).not.toHaveProperty('view');
+    next.close();
+  });
+
   it('keeps a cook turned away by a full room on a reconnect, solo, saying why once', () => {
     const { deps, addSystem } = setup('lobby');
     const mp = new Multiplayer(deps);

@@ -207,8 +207,9 @@ export class Multiplayer {
   /** Called once per simulation tick with the input that was just predicted. */
   sendInput(input: InputMessage): void {
     // Which moment of the world we were drawing other players at, so the server can check our
-    // knives against what we saw. Unknown until the first snapshot sets the clock.
-    if (this.hasClock) input.view = Math.max(0, this.renderTime / TICK_MS);
+    // knives against what we saw. Unknown until this connection's first snapshot sets the clock;
+    // the input object is reused, so say so, or it carries the last session's moment.
+    input.view = this.hasClock ? Math.max(0, this.renderTime / TICK_MS) : undefined;
     this.connection.send(input);
   }
 
