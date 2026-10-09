@@ -431,3 +431,176 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Paper ---------- */
+
+/*
+ * Printed, it is a resume: dark ink on white, the bar and the dashes in a deeper brass, nothing
+ * that only works on a screen, and where every link goes written after it.
+ */
+@media print {
+  @page {
+    margin: 16mm 18mm;
+  }
+
+  :root {
+    --ink: #15172a;
+    --ink-muted: #45475a;
+    --ink-faint: #696b7a;
+    --ink-hair: #b8b9c4;
+    --accent: #b07a2c;
+  }
+
+  html {
+    background: none;
+    color-scheme: light;
+    /* The bars, dashes and dots are backgrounds, which print only when asked for. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+
+  .pf {
+    display: block;
+    width: auto;
+    padding: 0;
+  }
+
+  .pf-nav,
+  .pf-world {
+    display: none !important;
+  }
+
+  .pf-name {
+    font-size: 30pt;
+  }
+
+  .pf-header .bar {
+    margin-top: 10pt;
+  }
+
+  .pf-headline {
+    margin-top: 10pt;
+    font-size: 13pt;
+  }
+
+  .pf-intro {
+    display: none;
+  }
+
+  .pf-actions {
+    margin-top: 8pt;
+  }
+
+  .pf-main {
+    gap: 22pt;
+    margin-top: 26pt;
+  }
+
+  .pf-section-title {
+    font-size: 18pt;
+    break-after: avoid;
+  }
+
+  .pf-section .bar {
+    width: 36px;
+    height: 3px;
+    margin-top: 6pt;
+    break-after: avoid;
+  }
+
+  .lore-body {
+    gap: 10pt;
+    margin-top: 12pt;
+  }
+
+  .lore-items {
+    gap: 14pt;
+  }
+
+  .lore-item,
+  .pf-dish {
+    break-inside: avoid;
+  }
+
+  .lore-item-title {
+    font-size: 12pt;
+  }
+
+  .lore-item-subtitle {
+    font-size: 10.5pt;
+  }
+
+  .lore-item-points,
+  .lore-item-desc {
+    margin-top: 6pt;
+  }
+
+  .lore-item-points {
+    gap: 3pt;
+  }
+
+  .lore-item-points li::before {
+    top: calc(0.75em - 1px);
+  }
+
+  .tag-list {
+    margin-top: 6pt;
+  }
+
+  .tag {
+    font-size: 8pt;
+  }
+
+  .pf-dishes {
+    gap: 14pt;
+  }
+
+  .pf-dish {
+    grid-template-columns: 30mm minmax(0, 1fr);
+    gap: 14pt;
+  }
+
+  .pf-dish-photo {
+    aspect-ratio: 3 / 4;
+  }
+
+  /* Links as plain words, each followed by where it goes. */
+  .lore-item-link {
+    text-decoration: none;
+  }
+
+  .button {
+    display: inline;
+    min-height: 0;
+    padding: 0;
+    color: var(--ink);
+    font: 500 10.5pt/1.5 var(--font-body);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  a[data-print]::after,
+  .button[data-print]::after {
+    content: ' ' attr(data-print);
+    position: static;
+    display: inline;
+    height: auto;
+    background: none;
+    transform: none;
+    font-weight: 400;
+    font-size: 9.5pt;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-muted);
+  }
+
+  .pf-footer {
+    margin-top: 26pt;
+    font-size: 9pt;
+  }
+}

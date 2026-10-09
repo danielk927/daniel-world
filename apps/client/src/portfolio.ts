@@ -116,6 +116,13 @@ function followReading(
   update();
 }
 
+/** On paper a link is only its words, so the print styles show where each one goes. */
+function labelForPrint(root: HTMLElement): void {
+  for (const a of root.querySelectorAll<HTMLAnchorElement>('a[href^="http"], a[href^="mailto:"]')) {
+    a.dataset.print = a.href.replace(/^mailto:|^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  }
+}
+
 function render(): void {
   const root = document.getElementById('portfolio')!;
   document.title = `${site.name} - Portfolio`;
@@ -129,7 +136,7 @@ function render(): void {
     el('p', { class: 'pf-intro', text: site.intro }),
     el('div', { class: 'pf-actions' }, [
       el('a', {
-        class: 'button button-primary',
+        class: 'button button-primary pf-world',
         text: 'Enter the 3D kitchen',
         attrs: { href: '/' },
       }),
@@ -165,10 +172,11 @@ function render(): void {
 
   const footer = el('footer', { class: 'pf-footer' }, [
     el('p', { text: `© ${new Date().getFullYear()} ${site.name}` }),
-    el('a', { class: 'text-link', text: 'Enter the 3D kitchen', attrs: { href: '/' } }),
+    el('a', { class: 'text-link pf-world', text: 'Enter the 3D kitchen', attrs: { href: '/' } }),
   ]);
 
   root.replaceChildren(header, nav, el('main', { class: 'pf-main' }, sectionElements), footer);
+  labelForPrint(root);
   followReading(links, sectionElements);
 }
 
