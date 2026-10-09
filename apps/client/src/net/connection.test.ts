@@ -10,6 +10,9 @@ const options = {
   prefs: { chef: true },
 };
 
+/** How often the connection pings, as connection.ts has it. */
+const PING_MS = 1000;
+
 const quiet: ConnectionHandlers = {
   onStatus: () => {},
   onWelcome: () => {},
@@ -237,6 +240,36 @@ describe('Connection', () => {
     expect(onMessage).not.toHaveBeenCalled();
     connection.close();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('judges no silence on a ping that comes late because this page was held up', () => {
+    // The page's own clock, apart from the timers: a timer can run late, but not early.
+    let clock = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const connection = new Connection({ ...options, handlers: quiet });
+    const socket = latest();
+    socket.open();
+    socket.receive(welcome('friday'));
+    const tick = (ms: number): void => {
+      clock += ms;
+      vi.advanceTimersByTime(PING_MS);
+    };
+    tick(PING_MS);
+    // A long frame, a hidden tab: five seconds pass before the ping's timer runs, and the messages
+    // that came meanwhile are queued behind it, still unread.
+    tick(5000);
+    expect(connection.status).toBe('online');
+    socket.receive({ t: 'pong', id: 0 });
+    tick(PING_MS);
+    expect(connection.status).toBe('online');
+
+    // Silence for real, from here: still found within the same few seconds.
+    for (let i = 0; i < 3; i++) tick(PING_MS);
+    expect(connection.status).toBe('online');
+    tick(PING_MS);
+    expect(connection.status).toBe('offline');
+    expect(socket.closed).toBe(true);
+    connection.close();
   });
 
   it('gives up on a server that never welcomes it without waiting on the socket either', () => {

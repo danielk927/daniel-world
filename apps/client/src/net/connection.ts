@@ -50,6 +50,8 @@ const WELCOME_TIMEOUT_MS = 10_000;
 const PING_INTERVAL_MS = 1000;
 /** Snapshots arrive 20 times a second; this much silence means the connection is dead. */
 const SILENCE_TIMEOUT_MS = 4000;
+/** A ping's timer this much later than its interval means this page was held up, not the network. */
+const STALL_MS = 1000;
 
 /**
  * One logical connection to a room. Handles the hello handshake, validates every incoming message,
@@ -85,6 +87,8 @@ export class Connection {
   private pingTimer = 0;
   private pingId = 0;
   private lastMessageAt = 0;
+  /** When the ping timer last ran, to tell a timer held up by this page from silence. */
+  private lastPingAt = 0;
   private readonly pingSentAt = new Map<number, number>();
   private prefs: Readonly<Prefs>;
   /** The prefs the server has, or will have once it reads our hello. */
@@ -261,14 +265,22 @@ export class Connection {
     window.clearInterval(this.pingTimer);
     this.pingSentAt.clear();
     this.lastMessageAt = performance.now();
+    this.lastPingAt = this.lastMessageAt;
     this.pingTimer = window.setInterval(() => {
+      const now = performance.now();
+      // Late: this page itself was held up (a long frame, a hidden tab, a collection), and what the
+      // server sent meanwhile may still be queued behind this timer, unread. Judge nothing on this
+      // run; the silence starts over, to be judged on time.
+      const late = now - this.lastPingAt > PING_INTERVAL_MS + STALL_MS;
+      this.lastPingAt = now;
+      if (late) this.lastMessageAt = now;
       // A socket can stay "open" long after the network is gone (sleep, NAT timeout).
-      if (performance.now() - this.lastMessageAt > SILENCE_TIMEOUT_MS) {
+      else if (now - this.lastMessageAt > SILENCE_TIMEOUT_MS) {
         if (this.ws) this.lose(this.ws);
         return;
       }
       const id = this.pingId++;
-      this.pingSentAt.set(id, performance.now());
+      this.pingSentAt.set(id, now);
       // Forget pings that were never answered so the map cannot grow.
       if (this.pingSentAt.size > 10) this.pingSentAt.delete(this.pingSentAt.keys().next().value!);
       this.send({ t: 'ping', id });
