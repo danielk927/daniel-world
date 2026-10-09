@@ -925,8 +925,6 @@ export class Game {
     this.hoveredIndex = index;
     this.world.stations.setHovered(index);
     const entry = this.world.stations.hoveredEntry;
-    this.hud.setPrompt(
-      computer ? 'Press E to play DOOM' : entry ? `Press E to open ${entry.title}` : null,
-    );
+    this.hud.setPrompt(computer ? 'Play DOOM' : entry ? `Open ${entry.title}` : null);
   }
 }

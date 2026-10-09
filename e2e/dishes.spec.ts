@@ -6,7 +6,7 @@ test('each dish on the pass opens its own panel, with its photo', async ({ brows
   await waitUntilStill(page);
   // The roti sits on the pass straight ahead of the spawn, below eye level. Without pointer lock the
   // game picks under the cursor, so lower it from the middle of the screen until it finds the plate.
-  const prompt = page.locator('.prompt');
+  const prompt = page.locator('.prompt-sentence');
   let y = 270;
   for (; y < 540; y += 6) {
     await page.mouse.move(480, y);

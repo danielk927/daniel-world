@@ -14,6 +14,7 @@
   visibility: hidden;
 }
 
+/* A small dot, with a hairline of the night round it so it holds on the white walls. */
 .crosshair {
   position: absolute;
   top: 50%;
@@ -22,29 +23,24 @@
   height: 6px;
   margin: -3px 0 0 -3px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 1.5px rgba(10, 14, 36, 0.35);
+  background: var(--ink);
+  box-shadow: 0 0 0 1px rgb(var(--night-rgb) / 0.35);
   transition:
     transform 0.15s ease,
     background-color 0.15s ease;
 }
 
 .crosshair.is-active {
-  transform: scale(1.8);
+  transform: scale(1.7);
   background: var(--accent);
 }
 
+/* What E does here: the key's ring and the action, under the crosshair. */
 .prompt {
   position: absolute;
   top: calc(50% + 22px);
   left: 50%;
   transform: translate(-50%, 4px);
-  padding: 7px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  font-size: 14px;
-  font-weight: 600;
   opacity: 0;
   transition:
     opacity 0.15s ease,
@@ -57,17 +53,26 @@
   transform: translate(-50%, 0);
 }
 
+.prompt-cue {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompt-action {
+  font: 500 18px/1 var(--font-body);
+  color: var(--ink);
+}
+
 .look-cue {
   position: absolute;
-  top: calc(50% + 22px);
+  top: calc(50% + 26px);
   left: 50%;
   transform: translate(-50%, 4px);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
+  font: 600 12px/1 var(--font-body);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ivory);
-  text-shadow: 0 1px 6px rgba(10, 14, 36, 0.8);
+  color: var(--ink);
   opacity: 0;
   pointer-events: none;
   transition:
@@ -76,12 +81,12 @@
   white-space: nowrap;
 }
 
-/* Out of the way of the station prompt, which takes the same spot. */
 .look-cue.is-visible {
-  opacity: 0.85;
+  opacity: 1;
   transform: translate(-50%, 0);
 }
 
+/* Out of the way of the station prompt, which takes the same spot. */
 .prompt.is-visible ~ .look-cue {
   opacity: 0;
 }

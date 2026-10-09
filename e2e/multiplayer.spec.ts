@@ -137,7 +137,7 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
   await waitUntilStill(page);
   await page.mouse.move(480, 270);
-  await expect(page.locator('.prompt')).toHaveText('Press E to open Products');
+  await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Products');
 
   // Record when the game asks for pointer lock. Chrome on macOS releases the lock as Esc comes
   // back up, so a lock taken back during the Esc that closed the panel is lost at once, and losing

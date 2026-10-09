@@ -20,11 +20,25 @@ export function listedPlayers(total: number): number {
   return total <= MAX_PLAYER_ROWS ? total : MAX_PLAYER_ROWS - 1;
 }
 
+/** The prompt read out in full: "Open Products" becomes "Press E to open Products". */
+export function promptSentence(action: string): string {
+  return `Press E to ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
+}
+
 /** Always-on in-world overlay: crosshair, prompt, room and connection, player list, controls hint. */
 export class Hud {
   readonly element: HTMLElement;
   private readonly crosshair = el('div', { class: 'crosshair' });
-  private readonly prompt = el('div', { class: 'prompt', attrs: { 'aria-live': 'polite' } });
+  /** The prompt in full, for screen readers (and tests); on screen it is the E ring and the action. */
+  private readonly promptText = el('span', { class: 'prompt-sentence visually-hidden' });
+  private readonly promptAction = el('span', { class: 'prompt-action' });
+  private readonly prompt = el('div', { class: 'prompt', attrs: { 'aria-live': 'polite' } }, [
+    this.promptText,
+    el('span', { class: 'prompt-cue', attrs: { 'aria-hidden': 'true' } }, [
+      el('kbd', { text: 'E' }),
+      this.promptAction,
+    ]),
+  ]);
   /** While the mouse is free in play: how to get it back for looking around. */
   private readonly lookCue = el('div', { class: 'look-cue', text: 'Click to look around' });
   private lookCueShown = false;
@@ -82,7 +96,7 @@ export class Hud {
   /** Under the player list, top right: where the kill feed goes. */
   readonly feedSlot = el('div', { class: 'hud-feed' });
   private hintTimer = 0;
-  private promptText = '';
+  private promptShown = '';
   private playersKey = '';
 
   constructor(parent: HTMLElement) {
@@ -212,12 +226,16 @@ export class Hud {
     this.playerList.replaceChildren(...rows);
   }
 
-  /** Text under the crosshair when an object can be clicked, or null to clear it. */
-  setPrompt(text: string | null): void {
-    const next = text ?? '';
-    if (next === this.promptText) return;
-    this.promptText = next;
-    this.prompt.textContent = next;
+  /**
+   * What E does at the object under the crosshair, as a verb phrase in sentence case ("Open
+   * Products", "Play DOOM"), or null to clear it.
+   */
+  setPrompt(action: string | null): void {
+    const next = action ?? '';
+    if (next === this.promptShown) return;
+    this.promptShown = next;
+    this.promptText.textContent = next && promptSentence(next);
+    this.promptAction.textContent = next;
     this.prompt.classList.toggle('is-visible', next !== '');
     this.crosshair.classList.toggle('is-active', next !== '');
   }
