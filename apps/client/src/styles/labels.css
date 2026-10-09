@@ -16,38 +16,65 @@
   white-space: nowrap;
 }
 
+/*
+ * A station's label: only the section it holds, in the title face, with a thin leader and a small
+ * pin down to the station. Nothing behind or around the words; the weight and the size carry them.
+ * The label layer sets `--leader`, the way from the words down to the station, and `--leader-alpha`,
+ * which fades the leader out close to the station, where it would cut across the view.
+ */
+.lore-label {
+  --leader: 0px;
+  --leader-alpha: 0;
+  /* Air between the words and the line, and between the line and the pin. */
+  --under-words: 8px;
+  --over-pin: 4px;
+  --pin: 7px;
+  color: var(--ink);
+  transition: color 160ms ease;
+}
+
 .lore-label span {
-  display: inline-block;
-  text-align: center;
-  transition:
-    background-color 160ms ease,
-    color 160ms ease;
-  padding: 5px 12px;
-  border-radius: var(--radius-sm);
-  background: rgba(22, 30, 69, 0.85);
-  border: 1px solid color-mix(in srgb, var(--ivory) 60%, transparent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* The station's own name, small, above what it holds. */
-.lore-label-station {
   display: block;
-  margin-bottom: 1px;
   font-family: var(--font-display);
-  font-size: 13px;
-  font-style: italic;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
-  text-transform: none;
-  color: color-mix(in srgb, currentColor 72%, transparent);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.005em;
 }
 
-.lore-label.is-hovered span {
-  background: var(--ivory);
-  color: var(--navy-deep);
+/* The station's French name stays on the portfolio page. */
+.lore-label-station {
+  display: none;
+}
+
+.lore-label::before,
+.lore-label::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  background: currentColor;
+  opacity: var(--leader-alpha);
+}
+
+/* The leader: from just under the words to just over the pin, gone when there is no room. */
+.lore-label::before {
+  top: calc(100% + var(--under-words));
+  width: 1.5px;
+  height: max(0px, var(--leader) - var(--under-words) - var(--over-pin) - var(--pin) / 2);
+  margin-left: -0.75px;
+  border-radius: 1px;
+}
+
+/* The pin, on the station itself. */
+.lore-label::after {
+  top: calc(100% + var(--leader) - var(--pin) / 2);
+  width: var(--pin);
+  height: var(--pin);
+  margin-left: calc(var(--pin) / -2);
+  border-radius: 50%;
+}
+
+/* The station under the crosshair: what can be opened is brass. */
+.lore-label.is-hovered {
+  color: var(--accent);
 }
