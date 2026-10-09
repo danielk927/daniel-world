@@ -37,6 +37,11 @@ describe('parseClientMessage', () => {
     ['huge chat', JSON.stringify({ t: 'chat', text: 'x'.repeat(501) })],
     ['an emote, which no longer exists', '{"t":"emote","emote":"wave"}'],
     ['an unknown room intent', '{"t":"hello","v":1,"name":"Otter","room":"x","intent":"take"}'],
+    [
+      'a spawn hint turned past any real turn',
+      '{"t":"hello","v":1,"name":"O","room":"x","spawn":{"x":0,"z":0,"yaw":1.7e308}}',
+    ],
+    ['an input turned past any real turn', '{"t":"input","seq":1,"keys":0,"yaw":-2e6,"pitch":0}'],
     ['array', '[1,2,3]'],
     ['null', 'null'],
   ])('rejects %s', (_label, raw) => {

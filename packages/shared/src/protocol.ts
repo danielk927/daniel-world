@@ -12,6 +12,11 @@ import { COOLER_DOOR } from './world.ts';
 
 const finite = z.number().refine(Number.isFinite, 'must be finite');
 const playerId = z.number().int().nonnegative();
+/**
+ * Which way a cook faces, as a client sends it: not wrapped, so it can run well past a turn, but
+ * never this far (a million radians), where wrapping it would lose every digit that matters.
+ */
+const turn = finite.min(-1e6).max(1e6);
 
 /**
  * A knife's look, as optional fields: absent is the chef's knife as it comes, and a knife or finish
@@ -63,7 +68,7 @@ export const helloSchema = z.object({
   name: z.string().max(64),
   room: z.string().max(64),
   /** Where the player was before a reconnect. The server clamps it to the play area. */
-  spawn: z.object({ x: finite, z: finite, yaw: finite }).optional(),
+  spawn: z.object({ x: finite, z: finite, yaw: turn }).optional(),
   /** Absent means DEFAULT_PREFS. */
   prefs: prefsSchema.optional(),
   /**
@@ -83,7 +88,7 @@ export const inputSchema = z.object({
     .nonnegative()
     .max(2 ** 31),
   keys: z.number().int().min(0).max(ALL_KEYS),
-  yaw: finite.min(-1e6).max(1e6),
+  yaw: turn,
   pitch: finite.min(-MAX_PITCH - 0.01).max(MAX_PITCH + 0.01),
   /**
    * The server tick (fractional) other players were drawn at when this input was made. Lets the

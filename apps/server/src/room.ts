@@ -75,6 +75,8 @@ export interface RoomPlayer {
   idleTicks: number;
   /** Highest input sequence applied so far, -1 before the first. */
   lastSeq: number;
+  /** Sequence number of the newest input received (applied, queued or dropped), -1 before any. */
+  received: number;
   /** Tick at which a knocked-out player gets back up, or null while they are standing. */
   deadUntil: number | null;
   /** Knives pass through a freshly respawned player until this tick. */
@@ -178,6 +180,7 @@ export class Room {
       credit: 1,
       idleTicks: 0,
       lastSeq: -1,
+      received: -1,
       deadUntil: null,
       protectedUntil: 0,
       lastThrowSeq: -Infinity,
@@ -258,11 +261,16 @@ export class Room {
     };
   }
 
-  /** Queue an input for the next ticks. Stale or duplicate sequence numbers are ignored. */
-  enqueueInput(player: RoomPlayer, input: QueuedInput): void {
-    const newest =
-      player.queue.length > 0 ? player.queue[player.queue.length - 1]!.seq : player.lastSeq;
-    if (input.seq <= newest) return;
+  /**
+   * Queue an input for the next ticks. A player's inputs come numbered one after another, as a
+   * client numbers every tick it sends; the first may be any number, since a client counts on
+   * through playing solo and reconnecting. Any other number is refused (false), queueing nothing:
+   * the cooldowns and the knife's spread go by these numbers, and only a modified client skips
+   * ahead (to throw every input, or pick its spread) or goes back.
+   */
+  enqueueInput(player: RoomPlayer, input: QueuedInput): boolean {
+    if (player.received >= 0 && input.seq !== player.received + 1) return false;
+    player.received = input.seq;
     player.queue.push({
       seq: input.seq,
       keys: input.keys,
@@ -272,6 +280,7 @@ export class Room {
     });
     // Keep latency bounded: drop the oldest. The client's reconciliation absorbs the difference.
     while (player.queue.length > MAX_QUEUED_INPUTS) player.queue.shift();
+    return true;
   }
 
   /** Simulate one tick, and broadcast the resulting snapshot on every SNAPSHOT_EVERY_TICKS. */
@@ -322,6 +331,7 @@ export class Room {
     );
     player.lastSeq = input.seq;
     player.armed = (input.keys & Keys.Armed) !== 0;
+    // Counted in inputs, which `enqueueInput` keeps numbered one after another.
     const cooledDown = input.seq - player.lastThrowSeq >= KNIFE_COOLDOWN_INPUTS;
     // Only a knife in hand can be thrown.
     if (!dead && player.armed && input.keys & Keys.Throw && cooledDown) {
@@ -353,9 +363,7 @@ export class Room {
       return;
     }
     for (const player of this.players.values()) {
-      const newest =
-        player.queue.length > 0 ? player.queue[player.queue.length - 1]!.seq : player.lastSeq;
-      player.coolerFrom = Math.max(0, newest + COOLER_OPEN_DELAY_INPUTS);
+      player.coolerFrom = Math.max(0, player.received + COOLER_OPEN_DELAY_INPUTS);
       player.send(encode({ ...message, openFrom: player.coolerFrom }));
     }
   }
@@ -410,8 +418,8 @@ export class Room {
       if (on) this.hitCooler(event.from, { ...on, by: 'knife' }, { id, at: event.at });
       return;
     }
-    const victim = this.players.get(event.to);
-    if (!victim || victim.deadUntil !== null) return;
+    // One of this tick's candidates, standing: a knife hits nobody another knife hit this tick.
+    const victim = this.players.get(event.to)!;
     victim.deadUntil = this.tick + DEATH_TICKS;
     this.broadcast({ t: 'kill', knife: event.knife, from: event.from, to: event.to, at: event.at });
     this.onKnockout?.(event.from, event.to);
