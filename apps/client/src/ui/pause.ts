@@ -459,7 +459,8 @@ export class PauseMenu {
     if (!this.element.hidden) return;
     this.element.hidden = false;
     this.releaseFocus = trapFocus(this.element);
-    this.resumeButton.focus({ preventScroll: true });
+    // Focus waits on Resume for Enter; its ring shows once the keyboard moves it.
+    this.resumeButton.focus({ preventScroll: true, focusVisible: false });
     this.syncKnives();
     this.syncFps();
   }

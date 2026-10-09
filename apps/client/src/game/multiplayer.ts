@@ -570,7 +570,8 @@ export class Multiplayer {
       lastZ: 0,
       hasPose: false,
       server: { x: 0, y: 0, z: 0 },
-      label: anchor ? this.deps.labels.add(tag, anchor, 0, 40) : null,
+      // A tag gives way to a nearer one, so two cooks side by side never print over each other.
+      label: anchor ? this.deps.labels.add(tag, anchor, 0, 40, 'yield') : null,
       tag,
       bubble,
       bubbleTimer: 0,

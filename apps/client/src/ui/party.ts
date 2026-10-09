@@ -164,7 +164,7 @@ export class PartyPanel {
           el('div', { class: 'party-heading-row' }, [
             el('h3', {
               class: 'party-heading',
-              text: 'Now cooking in',
+              text: 'You are in',
               attrs: { id: 'party-where-heading' },
             }),
             this.lobbyButton,

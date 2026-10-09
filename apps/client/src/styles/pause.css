@@ -857,3 +857,8 @@
   letter-spacing: 0.06em;
   color: var(--ink-faint);
 }
+
+/* The room and the chat sit where the menu's dark side does, and the menu names the room itself. */
+.ui:has(> .pause:not([hidden])) :is(.hud-room, .chat) {
+  visibility: hidden;
+}
