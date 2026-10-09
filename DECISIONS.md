@@ -573,3 +573,10 @@ Judgment calls made during the unattended build, with reasons.
 
 - **On a touch-only device the landing's main action is "View the portfolio"**, in the title face with the brass bar, and "Enter the kitchen" steps down to a quiet button under the name, still there for a tablet with a keyboard.
   The landing already said the portfolio was the better way in on a phone, yet kept the kitchen, which has no touch controls, as the one main action; the quiet row's own portfolio link goes, as it would only repeat it.
+
+### The governor counts what a screen can show (2026-10-09)
+
+- **Levels that draw the same on a screen count as one.** On a 1x screen the first two levels draw alike, and the next three, since a resolution above the screen's own is capped to it; each of those steps still waited out a second and a half of falling behind, so ambient occlusion went about 6 s later than it needed to, all of it queued frames.
+  The governor now steps between levels that look different on the screen at hand, always lands on the best of its kind, and never climbs back to one that draws like a level that fell behind.
+- **The screen's ratio is followed, not taken once.** Browser zoom and moving the window to a screen of another ratio change it; the canvas used to keep the old one (blurry on a retina screen, or four times the pixels after leaving one, which stepped quality down and saved that). Now every resize applies it, a media query catches a move that does not resize the window, and the governor judges afresh there.
+- **The string lights' shader compiles while loading**, by showing the bulbs for the compile: shown only toward dusk, a visitor arriving by day compiled it mid-play when they came on.

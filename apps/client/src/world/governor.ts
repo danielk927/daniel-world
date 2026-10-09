@@ -13,7 +13,10 @@ export interface RenderLevel {
   readonly ambientOcclusion: boolean;
 }
 
-/** Best first. A retina screen pays for every step; a 1x screen skips the resolution steps. */
+/**
+ * Best first. A retina screen pays for every step; a 1x screen skips the resolution steps, as
+ * levels that draw the same on a screen count as one (see `drawsSame`).
+ */
 export const RENDER_LEVELS: readonly RenderLevel[] = [
   { pixelRatio: 2, msaa: 4, ambientOcclusion: true },
   { pixelRatio: 1.5, msaa: 4, ambientOcclusion: true },
@@ -60,9 +63,20 @@ export function snapRefreshInterval(shortestMs: number): number {
   return 1000 / best;
 }
 
+/** Whether two levels draw the same on a screen of `deviceRatio`, which caps their resolution. */
+function drawsSame(a: RenderLevel, b: RenderLevel, deviceRatio: number): boolean {
+  return (
+    Math.min(deviceRatio, a.pixelRatio) === Math.min(deviceRatio, b.pixelRatio) &&
+    a.msaa === b.msaa &&
+    a.ambientOcclusion === b.ambientOcclusion
+  );
+}
+
 export class QualityGovernor {
+  /** Always the best of the levels that draw the same on this screen. */
   level: number;
   private refreshMs: number;
+  private deviceRatio: number;
   private readonly window = new Float32Array(WINDOW);
   private readonly sorted = new Float32Array(WINDOW);
   private filled = 0;
@@ -75,9 +89,26 @@ export class QualityGovernor {
   /** Just tried a level up: one window behind is enough to step straight back. */
   private trial = false;
 
-  constructor(refreshMs: number, startLevel: number) {
+  /** `deviceRatio` is the screen's, `window.devicePixelRatio`. */
+  constructor(refreshMs: number, startLevel: number, deviceRatio = 2) {
     this.refreshMs = refreshMs;
-    this.level = Math.max(0, Math.min(RENDER_LEVELS.length - 1, startLevel));
+    this.deviceRatio = deviceRatio;
+    this.level = this.best(Math.max(0, Math.min(RENDER_LEVELS.length - 1, startLevel)));
+  }
+
+  /**
+   * The window moved to another screen, or the browser zoomed: levels that drew differently may draw
+   * the same now, and the other way round, so what fell behind is judged afresh. Returns the new
+   * level when it changes, otherwise null.
+   */
+  setDeviceRatio(deviceRatio: number): number | null {
+    if (deviceRatio === this.deviceRatio) return null;
+    this.deviceRatio = deviceRatio;
+    this.tooHeavy = -1;
+    const level = this.best(this.level);
+    if (level === this.level) return null;
+    this.level = level;
+    return level;
   }
 
   /** Feed one frame's interval. Returns the new level when it changes, otherwise null. */
@@ -113,19 +144,44 @@ export class QualityGovernor {
       this.behindWindows = 0;
       this.trial = false;
       this.tooHeavy = Math.max(this.tooHeavy, this.level);
-      return this.change(this.level + 1);
+      return this.change(this.cheaper(this.level));
     }
     this.behindWindows = 0;
     if (typical <= this.refreshMs * EASY) this.easyMs += typical * WINDOW;
     else this.easyMs = 0;
     // A level up has held long enough to count.
     if (this.trial && this.easyMs > 3000) this.trial = false;
-    if (this.easyMs >= UPGRADE_AFTER_MS && this.level - 1 > this.tooHeavy) {
+    const better = this.level > 0 ? this.best(this.level - 1) : this.level;
+    if (this.easyMs >= UPGRADE_AFTER_MS && better < this.level && better > this.tooHeavy) {
       this.easyMs = 0;
       this.trial = true;
-      return this.change(this.level - 1);
+      return this.change(better);
     }
     return null;
+  }
+
+  /** The best level that draws the same as `level` on this screen. */
+  private best(level: number): number {
+    let best = level;
+    while (
+      best > 0 &&
+      drawsSame(RENDER_LEVELS[best - 1]!, RENDER_LEVELS[level]!, this.deviceRatio)
+    ) {
+      best--;
+    }
+    return best;
+  }
+
+  /** The next level down that draws any differently on this screen, or the cheapest. */
+  private cheaper(level: number): number {
+    let next = level + 1;
+    while (
+      next < RENDER_LEVELS.length - 1 &&
+      drawsSame(RENDER_LEVELS[next]!, RENDER_LEVELS[level]!, this.deviceRatio)
+    ) {
+      next++;
+    }
+    return next;
   }
 
   private change(level: number): number | null {

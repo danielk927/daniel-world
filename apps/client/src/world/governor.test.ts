@@ -79,6 +79,33 @@ describe('the render quality governor', () => {
 });
 
 describe('the display refresh probe', () => {
+  it('on a 1x screen skips the steps that would only lower a resolution it does not have', () => {
+    // At ratio 1 the first two levels draw the same, then the next three, then the last.
+    const governor = new QualityGovernor(1000 / 60, 0, 1);
+    const changes = run(governor, 1000 / 40, 400);
+    expect(changes).toEqual([2, RENDER_LEVELS.length - 1]);
+  });
+
+  it('starts a remembered level at the best level that draws the same on this screen', () => {
+    expect(new QualityGovernor(1000 / 60, 4, 1).level).toBe(2);
+    expect(new QualityGovernor(1000 / 60, 4, 2).level).toBe(4);
+  });
+
+  it('never climbs back to a level that draws like one that fell behind', () => {
+    const governor = new QualityGovernor(1000 / 60, 2, 1);
+    // Behind at 2: down to the last level, then easy for long enough to try going up.
+    expect(run(governor, 1000 / 40, 120)).toEqual([RENDER_LEVELS.length - 1]);
+    expect(run(governor, 1000 / 60, 60 * 120)).toEqual([]);
+    expect(governor.level).toBe(RENDER_LEVELS.length - 1);
+  });
+
+  it('judges afresh on another screen, from the best level that draws the same there', () => {
+    const governor = new QualityGovernor(1000 / 60, 1, 2);
+    expect(governor.setDeviceRatio(1)).toBe(0);
+    expect(governor.level).toBe(0);
+    expect(governor.setDeviceRatio(2)).toBeNull();
+  });
+
   it('snaps the shortest frame interval to a standard refresh rate', () => {
     expect(snapRefreshInterval(16.4)).toBeCloseTo(1000 / 60, 5);
     expect(snapRefreshInterval(8.2)).toBeCloseTo(1000 / 120, 5);
