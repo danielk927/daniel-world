@@ -14,7 +14,7 @@ import {
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
 export interface ConnectionHandlers {
-  onStatus(status: ConnectionStatus, retryInMs: number | null): void;
+  onStatus(status: ConnectionStatus): void;
   onWelcome(welcome: WelcomeMessage): void;
   onMessage(message: ServerMessage): void;
   /**
@@ -154,9 +154,9 @@ export class Connection {
     ws?.close(1000, 'bye');
   }
 
-  private setStatus(status: ConnectionStatus, retryInMs: number | null = null): void {
+  private setStatus(status: ConnectionStatus): void {
     this.status = status;
-    this.handlers.onStatus(status, retryInMs);
+    this.handlers.onStatus(status);
   }
 
   private clearTimers(): void {
@@ -296,7 +296,7 @@ export class Connection {
     this.attempt++;
     // Armed before saying so: whoever hears "offline" may close the connection, clearing it.
     this.retryTimer = window.setTimeout(() => this.open(), delay);
-    this.setStatus('offline', delay);
+    this.setStatus('offline');
   }
 }
 

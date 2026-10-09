@@ -124,9 +124,9 @@ describe('Connection', () => {
     // A moment later it fails as a refused socket would, and tries again.
     await Promise.resolve();
     expect(connection.status).toBe('offline');
-    expect(onStatus.mock.lastCall?.[0]).toBe('offline');
+    expect(onStatus).toHaveBeenLastCalledWith('offline');
     vi.runOnlyPendingTimers();
-    expect(onStatus.mock.lastCall?.[0]).toBe('connecting');
+    expect(onStatus).toHaveBeenLastCalledWith('connecting');
     await Promise.resolve();
     expect(connection.status).toBe('offline');
     connection.close();
@@ -220,7 +220,7 @@ describe('Connection', () => {
     expect(connection.status).toBe('offline');
     expect(connection.isOnline).toBe(false);
     expect(connection.rtt).toBeNull();
-    expect(onStatus.mock.lastCall?.[0]).toBe('offline');
+    expect(onStatus).toHaveBeenLastCalledWith('offline');
     // Nothing more is sent on it.
     const sent = lost.sent.length;
     connection.send({ t: 'chat', text: 'anyone?' });
