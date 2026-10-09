@@ -1,6 +1,15 @@
 import { WebSocketServer } from 'ws';
 import { CLOSE_BAD_HELLO } from '../apps/server/src/server.ts';
-import { enterWorld, expect, expectWorld, startRoomServer, test, walkUntil } from './helpers.ts';
+import {
+  enterWorld,
+  expect,
+  expectWorld,
+  startRoomServer,
+  test,
+  waitForFrames,
+  walkUntil,
+  world,
+} from './helpers.ts';
 import { E2E_SERVER_PORT } from './ports.ts';
 
 test('with the server stopped the world still loads in single-player mode', async ({ browser }) => {
@@ -43,8 +52,10 @@ test('a room server on another protocol version still lets visitors in, solo', a
 }) => {
   // A server from an older or newer deploy: it turns down every hello as the real one does.
   const outdated = new WebSocketServer({ port: E2E_SERVER_PORT, host: '127.0.0.1' });
+  let hellos = 0;
   outdated.on('connection', (socket) => {
     socket.on('message', () => {
+      hellos++;
       const error = { t: 'error', code: 'version', message: 'Please reload the page to update.' };
       socket.send(JSON.stringify(error));
       socket.close(CLOSE_BAD_HELLO, 'version');
@@ -54,9 +65,11 @@ test('a room server on another protocol version still lets visitors in, solo', a
   try {
     await expectWorld(page, (w) => w.connection === 'offline', 'should be offline');
     await expect(page.locator('.hud-status')).toHaveText('Solo · updating');
-    // Still in the kitchen, not sent back to the landing screen.
-    await page.waitForTimeout(1500);
-    await expectWorld(page, (w) => w.mode === 'playing', 'should still be playing');
+    // Still in the kitchen, not sent back to the landing screen, even once turned away again: a
+    // third hello means the page has heard the second refusal and tried once more.
+    await expect.poll(() => hellos, { timeout: 15_000 }).toBeGreaterThanOrEqual(3);
+    await waitForFrames(page, 10);
+    expect((await world(page)).mode).toBe('playing');
 
     // Once the server is redeployed on the same version, the client joins on its own.
     await new Promise<void>((resolve) => outdated.close(() => resolve()));

@@ -14,6 +14,7 @@ import {
   startRoomServer,
   test,
   turnTo,
+  waitForFrames,
   waitUntilStill,
   world,
 } from './helpers.ts';
@@ -182,7 +183,7 @@ test('I inspects the knife, a throw cuts it short, and the fist punches instead'
 
   // There is nothing to inspect on a bare hand.
   await page.keyboard.press('KeyI');
-  await page.waitForTimeout(300);
+  await waitForFrames(page, 10);
   expect((await world(page)).inspecting).toBe(false);
 
   await page.keyboard.press('KeyQ');

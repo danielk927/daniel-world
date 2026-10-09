@@ -9,8 +9,19 @@ export interface RoomView {
 }
 
 export type ServerRequest =
-  | { readonly kind: 'room'; readonly id: number; readonly code: string }
+  | {
+      readonly kind: 'room' | 'watchChef' | 'chefTargets';
+      readonly id: number;
+      readonly code: string;
+    }
   | { readonly kind: 'close' };
+
+/** Whom Chef Skinner has wound up to throw at since he was watched, by player id. */
+export interface ChefTargets {
+  readonly targets: readonly number[];
+  /** Whether he is still the one watched: a lobby that empties loses him, and a new one comes. */
+  readonly watching: boolean;
+}
 
 export type ServerEvent =
   | { readonly kind: 'ready'; readonly port: number }
@@ -31,6 +42,13 @@ export interface RoomServer {
   readonly closed: boolean;
   /** Who is in the room with this code, or null if there is no such room. */
   room(code: string): Promise<RoomView | null>;
+  /**
+   * Start writing down, every tick, whom Chef Skinner in this room winds up to throw at; false if
+   * he is not there.
+   */
+  watchChef(code: string): Promise<boolean>;
+  /** Whom he has wound up to throw at since `watchChef`, or null if he was never watched. */
+  chefTargets(code: string): Promise<ChefTargets | null>;
   close(): Promise<void>;
 }
 
@@ -71,6 +89,14 @@ export function startRoomServer(port = E2E_SERVER_PORT): Promise<RoomServer> {
     stream?.on('data', (text: string) => log.push(...text.trimEnd().split('\n')));
   }
 
+  const ask = (kind: 'room' | 'watchChef' | 'chefTargets', code: string): Promise<unknown> =>
+    new Promise((answer) => {
+      if (closed) return answer(null);
+      const id = nextId++;
+      replies.set(id, answer);
+      child.send({ kind, id, code } satisfies ServerRequest);
+    });
+
   return new Promise((resolveStart, rejectStart) => {
     const timer = setTimeout(() => {
       child.kill();
@@ -100,13 +126,9 @@ export function startRoomServer(port = E2E_SERVER_PORT): Promise<RoomServer> {
             get closed() {
               return closed;
             },
-            room: (code) =>
-              new Promise((answer) => {
-                if (closed) return answer(null);
-                const id = nextId++;
-                replies.set(id, (value) => answer(value as RoomView | null));
-                child.send({ kind: 'room', id, code } satisfies ServerRequest);
-              }),
+            room: (code) => ask('room', code) as Promise<RoomView | null>,
+            watchChef: async (code) => (await ask('watchChef', code)) === true,
+            chefTargets: (code) => ask('chefTargets', code) as Promise<ChefTargets | null>,
             close: async () => {
               if (!closed) {
                 child.send({ kind: 'close' } satisfies ServerRequest);

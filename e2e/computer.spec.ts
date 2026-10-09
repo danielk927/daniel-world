@@ -5,6 +5,7 @@ import {
   expectWorld,
   findWithCursor,
   turnTo,
+  waitForFrames,
   waitUntilStill,
   walkUntil,
   world,
@@ -35,9 +36,10 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   await expect(guide).toContainText('Open doors and flip switches');
   await expect(page.locator('.computer-hint')).toBeHidden();
 
-  // At the computer the keys play DOOM: the cook stays where they are.
+  // At the computer the keys play DOOM: the cook stays where they are, however long the game runs
+  // with the key down (half a second of its clock: a frame is at least a display refresh).
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(500);
+  await waitForFrames(page, 30);
   await page.keyboard.up('KeyW');
   expect((await world(page)).player).toEqual(running.player);
   await expect(guide).toBeHidden();

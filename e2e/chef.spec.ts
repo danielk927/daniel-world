@@ -90,6 +90,8 @@ test('a visitor who switches him off is left alone while he throws at others', a
   expect(await choice(reader)).toBe(false);
 
   // Two cooks pace the aisle; he throws at the one who has not turned him off, never the other.
+  // The server writes down whom he winds up to throw at, every tick, so never is never.
+  expect(await server.watchChef('lobby')).toBe(true);
   const pacer = await enterWorld(browser, { name: 'Pacer' });
   // A knife of his landing anywhere, or in the pacer, shows he is throwing.
   const seen = { knives: 0, pacerDown: false };
@@ -104,5 +106,10 @@ test('a visitor who switches him off is left alone while he throws at others', a
     seen.knives = Math.max(seen.knives, r.knives.stuck + r.knives.flying);
   }
   expect(seen.pacerDown || seen.knives >= 3, 'he has been throwing').toBe(true);
+  const [readerId, pacerId] = [(await world(reader)).selfId, (await world(pacer)).selfId];
+  const picked = await server.chefTargets('lobby');
+  expect(picked?.watching, 'the same Chef Skinner throughout').toBe(true);
+  expect(picked?.targets, 'he picks the pacer').toContain(pacerId);
+  expect(picked?.targets, 'and never the reader').not.toContain(readerId);
   for (const page of [reader, pacer]) await page.context().close();
 });

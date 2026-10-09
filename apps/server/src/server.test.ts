@@ -599,6 +599,7 @@ describe('Chef Skinner in the lobby', () => {
     const welcome = await a.join('Alice', 'hideout', { prefs: { chef: false } });
     a.send({ t: 'prefs', prefs: { chef: true } });
     await a.waitFor(() => server.rooms.get('hideout')!.players.get(welcome.id)!.prefs.chef);
+    expect(server.chef('hideout')).toBeUndefined();
     a.send({ t: 'chat', text: 'still here' });
     expect((await a.waitForMessage('chat')).text).toBe('still here');
   });
@@ -606,10 +607,17 @@ describe('Chef Skinner in the lobby', () => {
   it('leaves with the last visitor, and is back for the next one', async () => {
     const a = client();
     await a.join('Alice');
+    const first = server.chef('lobby');
+    expect(first?.player.name).toBe('Chef Skinner');
     a.ws.close();
     await a.waitForClose();
     await a.waitFor(() => !server.rooms.has('lobby'));
+    expect(server.chef('lobby')).toBeUndefined();
     const welcome = await client().join('Bob');
     expect(welcome.players.map((p) => p.name).sort()).toEqual(['Bob', 'Chef Skinner']);
+    expect(server.chef('lobby')).not.toBe(first);
+    expect(server.chef('lobby')?.player.id).toBe(
+      welcome.players.find((p) => p.name === 'Chef Skinner')?.id,
+    );
   });
 });

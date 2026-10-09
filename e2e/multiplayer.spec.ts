@@ -5,6 +5,7 @@ import {
   type RoomServer,
   startRoomServer,
   test,
+  waitForFrames,
   waitUntilStill,
   walkUntil,
   world,
@@ -106,11 +107,23 @@ test('a private room code isolates players', async ({ browser }) => {
   expect(yState.room).toBe('secret-base');
   expect(yState.remotePlayers.map((p) => p.name)).toEqual(['SecretOne']);
 
-  // Give the lobby a moment to (not) hear about them.
-  await lobby.waitForTimeout(500);
+  // The server keeps the party out of the lobby...
+  const inRoom = async (code: string) =>
+    (await server.room(code))?.players.map((p) => p.name).sort();
+  expect(await inRoom('lobby')).toEqual(['Chef Skinner', 'LobbyPerson']);
+  expect(await inRoom('secret-base')).toEqual(['SecretOne', 'SecretTwo']);
+  // ...and the lobby's screen has heard nothing of it. A line said in the lobby comes back after
+  // everything the server sent before it, so once it is in the chat, nothing more is on its way.
+  await lobby.keyboard.press('Enter');
+  await lobby.keyboard.type('anyone here?');
+  await lobby.keyboard.press('Enter');
+  const lobbyChat = lobby.getByRole('list', { name: 'Chat history' });
+  await expect(lobbyChat).toContainText('anyone here?');
+  await waitForFrames(lobby);
   const lobbyState = await world(lobby);
   expect(lobbyState.playerCount).toBe(2);
   expect(lobbyState.remotePlayers.map((p) => p.name)).toEqual(['Chef Skinner']);
+  await expect(lobbyChat).not.toContainText('Secret');
 
   for (const page of [lobby, x, y]) await page.context().close();
 });
@@ -162,7 +175,7 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expectWorld(page, (w) => w.mode === 'playing', 'back to playing');
-  await page.waitForTimeout(300);
+  await waitForFrames(page, 10);
   expect(await lockRequests()).toBe(0);
   await expect(paused).toBeHidden();
 
