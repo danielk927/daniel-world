@@ -1,29 +1,29 @@
 /* ---------- Minimap ---------- */
 
+/* A night disc, a touch lighter at its edge, in a faint ring; north is tabbed on top of the ring. */
 .minimap {
   position: relative;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  background: rgba(22, 30, 69, 0.85);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow);
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--night-rgb) / 0.88) 70%,
+    rgb(var(--night-rgb) / 0.72) 100%
+  );
+  box-shadow: 0 0 0 1px var(--ink-faint);
 }
 
 .minimap-canvas {
   display: block;
-  border-radius: 8px;
 }
 
 .minimap-north {
   position: absolute;
   top: -9px;
   left: 50%;
-  transform: translateX(-50%);
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--panel-strong);
-  border: 1px solid var(--panel-border);
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--ink-muted);
+  width: 20px;
+  margin-left: -10px;
+  background: var(--night);
+  font: 600 12px/18px var(--font-body);
+  text-align: center;
+  color: var(--ink);
 }
