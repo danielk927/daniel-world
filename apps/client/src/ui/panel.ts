@@ -1,5 +1,5 @@
 import { dishes, stations, type LoreEntry } from '../content.ts';
-import { el, trapFocus } from './dom.ts';
+import { el, tabStops, trapFocus } from './dom.ts';
 import { renderLoreBody } from './loreContent.ts';
 
 const stationIds: readonly string[] = Object.keys(stations);
@@ -132,8 +132,8 @@ export class InfoPanel {
    */
   private tabFromBody(event: KeyboardEvent): void {
     if (document.activeElement !== this.body) return;
-    const focusable = this.element.querySelectorAll<HTMLElement>('a[href], button');
-    const next = event.shiftKey ? focusable[focusable.length - 1] : focusable[0];
+    const focusable = tabStops(this.element);
+    const next = event.shiftKey ? focusable.at(-1) : focusable[0];
     if (!next) return;
     event.preventDefault();
     next.focus();
