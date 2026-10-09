@@ -74,6 +74,12 @@ async function boot(): Promise<void> {
   loading.setProgress(1);
 
   game = new Game(world, overlay, landing, settings, pickQuality(webgl));
+  // The E2E suite's build only: pages it is not driving draw a few times a second (see the module).
+  // An inline check, like the debug hooks', so other builds drop the chunk.
+  if (import.meta.env.MODE === 'test') {
+    const { drawOnlyWhileDriven } = await import('./testDrawing.ts');
+    drawOnlyWhileDriven(world);
+  }
   game.start();
 
   // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.
