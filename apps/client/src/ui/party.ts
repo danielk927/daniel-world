@@ -1,6 +1,7 @@
 import { DEFAULT_ROOM, MAX_PLAYERS_PER_ROOM, type RoomIntent } from '@world/shared';
 import { checkPartyCode, randomPartyCode } from '../game/party.ts';
 import { el } from './dom.ts';
+import { svg } from './icons.ts';
 
 /** Whether parties can be started or joined right now, as the connection allows. */
 export type PartyAvailability = 'online' | 'connecting' | 'offline' | 'updating';
@@ -36,6 +37,18 @@ function isMac(): boolean {
   return /Mac|iPhone|iPad/.test(navigator.userAgent);
 }
 
+/** Two arrows chasing round a circle: roll again. Drawn, as the fonts have no arrows. */
+function rollIcon(): SVGSVGElement {
+  const line = { fill: 'none', stroke: 'currentColor', 'stroke-width': '1.6' };
+  const cap = { ...line, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+  return svg('0 0 16 16', [
+    ['path', { ...cap, d: 'M13.2 6.4A5.4 5.4 0 0 0 3.3 5' }],
+    ['path', { ...cap, d: 'M3 2.6V5.3H5.7' }],
+    ['path', { ...cap, d: 'M2.8 9.6A5.4 5.4 0 0 0 12.7 11' }],
+    ['path', { ...cap, d: 'M13 13.4V10.7H10.3' }],
+  ]);
+}
+
 /**
  * The pause menu's Party tab: where you are (and, in a party, the link that brings friends), then
  * a code to start or join a party with. Moving happens in place; while it is under way, or while
@@ -55,11 +68,11 @@ export class PartyPanel {
   private readonly where = el('p', { class: 'party-where' });
   private readonly whereHelp = el('p', { class: 'party-line' });
   private readonly lobbyButton = el('button', {
-    class: 'button button-secondary button-small',
+    class: 'button',
     text: 'Back to the lobby',
     attrs: { type: 'button' },
   });
-  private readonly invite = el('div', { class: 'party-invite' });
+  private readonly invite = el('div', { class: 'field party-invite' });
   private readonly inviteInput = el('input', {
     class: 'input party-link',
     attrs: {
@@ -67,12 +80,11 @@ export class PartyPanel {
       type: 'text',
       readonly: '',
       spellcheck: 'false',
-      'aria-label': 'Invite link',
       'aria-describedby': 'party-invite-status',
     },
   });
   private readonly copyButton = el('button', {
-    class: 'button button-secondary party-copy',
+    class: 'button input-action party-copy',
     text: 'Copy link',
     attrs: { type: 'button' },
   });
@@ -98,18 +110,21 @@ export class PartyPanel {
     class: 'party-line',
     attrs: { id: 'party-code-status', 'aria-live': 'polite' },
   });
-  private readonly randomButton = el('button', {
-    class: 'icon-button input-action',
-    text: '⟳',
-    attrs: { type: 'button', 'aria-label': 'Roll a random code', title: 'Random code' },
-  });
+  private readonly randomButton = el(
+    'button',
+    {
+      class: 'icon-button input-action',
+      attrs: { type: 'button', 'aria-label': 'Roll a random code', title: 'Random code' },
+    },
+    [rollIcon()],
+  );
   private readonly startButton = el('button', {
     class: 'button button-primary',
     text: 'Start party',
     attrs: { type: 'submit' },
   });
   private readonly joinButton = el('button', {
-    class: 'button button-secondary',
+    class: 'button',
     text: 'Join party',
     attrs: { type: 'button' },
   });
@@ -137,7 +152,8 @@ export class PartyPanel {
       ],
     );
     this.invite.append(
-      el('div', { class: 'party-invite-row' }, [this.inviteInput, this.copyButton]),
+      el('label', { class: 'field-label', text: 'Invite link', attrs: { for: 'party-invite' } }),
+      el('div', { class: 'input-with-action' }, [this.inviteInput, this.copyButton]),
       this.copyStatus,
     );
     this.element = el('div', { class: 'pause-panel party' }, [
@@ -145,12 +161,15 @@ export class PartyPanel {
         'section',
         { class: 'party-section', attrs: { 'aria-labelledby': 'party-where-heading' } },
         [
-          el('h3', {
-            class: 'party-heading',
-            text: 'Now cooking in',
-            attrs: { id: 'party-where-heading' },
-          }),
-          el('div', { class: 'party-where-row' }, [this.where, this.lobbyButton]),
+          el('div', { class: 'party-heading-row' }, [
+            el('h3', {
+              class: 'party-heading',
+              text: 'Now cooking in',
+              attrs: { id: 'party-where-heading' },
+            }),
+            this.lobbyButton,
+          ]),
+          this.where,
           this.whereHelp,
           this.invite,
         ],
