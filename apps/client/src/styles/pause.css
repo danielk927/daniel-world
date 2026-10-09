@@ -700,6 +700,155 @@
   color: var(--ink);
 }
 
+/* Narrower windows: the dark reaches further across, so the rows on the right stay on it. */
+@media (max-width: 1180px) {
+  .pause {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--night-rgb) / 0.95) 0 60%,
+      rgb(var(--night-rgb) / 0.86) 82%,
+      rgb(var(--night-rgb) / 0.4) 100%
+    );
+  }
+}
+
+/* Short windows: everything a size down, so the tab still fits beside the list. */
+@media (max-height: 720px) {
+  .pause-head {
+    padding-bottom: 26px;
+  }
+
+  .pause-status {
+    margin-bottom: 12px;
+  }
+
+  .pause-title {
+    font-size: 48px;
+  }
+
+  .pause-title.is-long {
+    font-size: 36px;
+  }
+
+  .pause-bar {
+    margin-top: 12px;
+  }
+
+  .pause-tabs {
+    gap: 6px;
+  }
+
+  .pause-tab {
+    padding: 4px 0 10px;
+    font-size: 22px;
+  }
+
+  .setting {
+    padding: 10px 0;
+  }
+
+  .pause-actions {
+    row-gap: 8px;
+    padding-top: 20px;
+  }
+
+  .pause-actions .button,
+  .pause-portfolio {
+    font-size: 16px;
+  }
+}
+
+/* Phones: an even dark, the tabs across the top, the rows the full width. */
+@media (max-width: 640px) {
+  .pause {
+    background: rgb(var(--night-rgb) / 0.96);
+  }
+
+  .pause-frame {
+    --pause-side: 22px;
+    --pause-top: 26px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'tabs'
+      'panel'
+      'actions';
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    padding-bottom: 20px;
+  }
+
+  .pause-head {
+    padding-bottom: 20px;
+  }
+
+  .pause-title {
+    font-size: 40px;
+  }
+
+  .pause-title.is-long {
+    font-size: 30px;
+  }
+
+  .pause-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 20px;
+    padding-bottom: 14px;
+  }
+
+  .pause-tab {
+    padding: 4px 0 10px;
+    font-size: 19px;
+  }
+
+  .pause-panels {
+    margin-top: 0;
+    padding-top: 8px;
+  }
+
+  .setting-label,
+  .party-heading {
+    font-size: 16px;
+  }
+
+  .setting-control {
+    gap: 14px;
+  }
+
+  .pause-slider {
+    width: 118px;
+  }
+
+  .knives-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knives {
+    gap: 14px;
+  }
+
+  .knife-preview {
+    min-height: 132px;
+  }
+
+  .knife-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Resume and Leave side by side, the key ring kept for a keyboard. */
+  .pause-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 10px;
+    padding-top: 14px;
+  }
+
+  .pause-actions > .button {
+    margin-right: 14px;
+  }
+}
+
 /* The HUD's frame rate readout, in its corner. */
 .hud-fps {
   grid-column: 1 / -1;
