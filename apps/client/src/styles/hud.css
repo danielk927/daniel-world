@@ -91,30 +91,25 @@
   opacity: 0;
 }
 
+/* The controls as ring keys and words, along the bottom until they fade. */
 .hint {
   position: absolute;
-  bottom: 18px;
+  bottom: var(--hud-edge);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 9px 16px;
-  border-radius: var(--radius-sm);
-  background: rgba(22, 30, 69, 0.85);
-  border: 1px solid var(--panel-border);
-  font-size: 13px;
-  color: var(--ink-muted);
+  gap: 24px;
+  font: 500 16px/1 var(--font-body);
+  color: var(--ink);
   white-space: nowrap;
   transition: opacity 1.2s ease;
 }
 
-.hint kbd {
-  margin-left: 6px;
-}
-
-.hint kbd:first-child {
-  margin-left: 0;
+.hint-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .hint.is-faded {

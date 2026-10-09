@@ -25,6 +25,20 @@ export function promptSentence(action: string): string {
   return `Press E to ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
 }
 
+/** A row of ring keys and the words for what they do, as the controls hints show them. */
+function keyHints(
+  className: string,
+  pairs: readonly (readonly [key: string, action: string])[],
+): HTMLElement {
+  const items: (HTMLElement | string)[] = [];
+  for (const [key, action] of pairs) {
+    // The spaces between items keep the words apart for screen readers; flex layout drops them.
+    if (items.length) items.push(' ');
+    items.push(el('span', { class: 'hint-item' }, [el('kbd', { text: key }), ` ${action}`]));
+  }
+  return el('div', { class: className }, items);
+}
+
 /** Always-on in-world overlay: crosshair, prompt, room and connection, player list, controls hint. */
 export class Hud {
   readonly element: HTMLElement;
@@ -60,36 +74,23 @@ export class Hud {
   private readonly playerCount = el('p', { class: 'hud-players-count' });
   private readonly fps = el('span', { class: 'hud-fps', attrs: { hidden: '' } });
   private readonly playerList = el('ul', { class: 'hud-players-list' });
-  private readonly hint = el('div', { class: 'hint' }, [
-    el('kbd', { text: 'WASD' }),
-    ' move ',
-    el('kbd', { text: 'Space' }),
-    ' jump ',
-    el('kbd', { text: 'Shift' }),
-    ' sprint ',
-    el('kbd', { text: 'Q' }),
-    ' switch ',
-    el('kbd', { text: 'I' }),
-    ' inspect',
+  private readonly hint = keyHints('hint', [
+    ['WASD', 'move'],
+    ['Space', 'jump'],
+    ['Shift', 'sprint'],
+    ['Q', 'switch'],
+    ['I', 'inspect'],
   ]);
   /** How to play DOOM, and how to stop, while at the kitchen computer. */
-  private readonly computerHint = el('div', { class: 'hint computer-hint' }, [
-    el('kbd', { text: 'Mouse' }),
-    ' turn ',
-    el('kbd', { text: 'Click' }),
-    ' fire ',
-    el('kbd', { text: 'E' }),
-    ' open ',
-    el('kbd', { text: 'WASD' }),
-    ' move ',
-    el('kbd', { text: 'Shift' }),
-    ' run ',
-    el('kbd', { text: 'Tab' }),
-    ' map ',
-    el('kbd', { text: '`' }),
-    ' menu ',
-    el('kbd', { text: 'Esc' }),
-    ' step away',
+  private readonly computerHint = keyHints('hint computer-hint', [
+    ['Mouse', 'turn'],
+    ['Click', 'fire'],
+    ['E', 'open'],
+    ['WASD', 'move'],
+    ['Shift', 'run'],
+    ['Tab', 'map'],
+    ['`', 'menu'],
+    ['Esc', 'step away'],
   ]);
   /** The bottom right corner, where the loadout stacks over the minimap. */
   readonly corner = el('div', { class: 'hud-corner' });

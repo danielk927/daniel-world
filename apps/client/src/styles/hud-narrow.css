@@ -1,5 +1,17 @@
-/* Below this the controls hint would run into the loadout and minimap; the menu lists them too. */
-@media (max-width: 860px) {
+/* A smaller controls hint where the full one would crowd the chat and the bottom right corner. */
+@media (max-width: 1360px) {
+  .hint {
+    gap: 18px;
+    font-size: 14px;
+  }
+
+  .hint-item {
+    gap: 8px;
+  }
+}
+
+/* Below this the hint would run into the chat, the loadout and the minimap; the menu lists them too. */
+@media (max-width: 1080px) {
   .hint {
     display: none;
   }
