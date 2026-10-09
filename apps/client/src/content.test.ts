@@ -43,6 +43,15 @@ describe('content', () => {
     expect(titles.size, 'every station holds something different').toBe(STATIONS.length);
   });
 
+  it('names no French station in the panels, only the sections', () => {
+    const french =
+      /\b(le passe|saucier|poissonnier|r[oô]tisseur|entremetier|garde.manger|p[aâ]tisserie|plonge)\b/i;
+    const panels = [...Object.values(stations), ...Object.values(dishes)].flatMap((entry) =>
+      texts({ title: entry.title, paragraphs: entry.paragraphs, items: entry.items }),
+    );
+    expect(panels.filter((text) => french.test(text))).toEqual([]);
+  });
+
   it('puts everything the stations hold on the portfolio page too', () => {
     const onPage = new Set<LoreItem>(lore.flatMap((entry) => entry.items ?? []));
     const pageTags = new Set(lore.flatMap((entry) => entry.tags ?? []));

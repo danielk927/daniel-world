@@ -284,93 +284,14 @@ export const lore: readonly LoreEntry[] = [
     kicker: 'How this place works',
     color: '#6bc7ff',
     paragraphs: [
-      'Everyone visiting right now is in the kitchen with you. Press Enter to chat, and 1, 2 or 3 to wave, dance or jump.',
-      'Share a room code with friends to get a private kitchen. Nothing is stored: when everyone leaves, the room is gone.',
+      'Everyone visiting right now is in the kitchen with you. WASD walks, the mouse looks around, Space jumps and Shift sprints.',
+      'E opens the station you are looking at. A left click throws a knife; Q swaps it for your bare hand, which punches instead, and I inspects it.',
+      'Enter opens the chat, and Esc the menu, where you can start a party and share its party code with friends. Nothing is stored: when everyone leaves a party, it is gone.',
     ],
   },
 ];
 
 // ---------- The kitchen ----------
-
-export type StationContent = Readonly<Record<StationId, LoreEntry>>;
-
-/**
- * A section as a station serves it. The title says what it holds; the kicker and the label name
- * the station, so a visitor can tell what is where before opening anything.
- */
-function station(
-  id: StationId,
-  name: string,
-  work: string,
-  entry: Omit<LoreEntry, 'id' | 'kicker' | 'station'>,
-): LoreEntry {
-  return { ...entry, id, station: name, kicker: `${name} · ${work}` };
-}
-
-/**
- * What each station's panel says when it is opened in the kitchen. Each station of the brigade
- * serves the part of the resume that suits its work: the pass, the first thing a visitor sees,
- * introduces Daniel; the saucier, the senior station, holds his experience; the plonge, where every
- * cook starts and by the door to the dining room, holds his education and how to reach him.
- */
-export const stations: StationContent = {
-  passe: station('passe', 'Le passe', 'the pass', {
-    title: 'About me',
-    color: '#ffb86b',
-    paragraphs: [
-      ...aboutParagraphs,
-      'Tonight the pass holds my five favorite dishes of all time, each one from a meal I actually ate.',
-    ],
-    items: [
-      { title: 'Char siu', meta: 'Kamcentre Roast Goose, Hong Kong' },
-      { title: 'Glazed beetroot and La Tur', meta: 'The Four Horsemen, Brooklyn' },
-      { title: 'Roti and dips', meta: 'Kabawa, New York' },
-      { title: 'Ricotta toast', meta: 'Theodora, Brooklyn' },
-      { title: 'Truffle croissant', meta: 'Kasama, Chicago' },
-    ],
-  }),
-  saucier: station('saucier', 'Saucier', 'sauces', {
-    title: 'Experience',
-    color: '#e8a25c',
-    items: [anto],
-  }),
-  poissonnier: station('poissonnier', 'Poissonnier', 'fish', {
-    title: 'Research',
-    color: '#7ec8e3',
-    items: [uclaLab, readingProgram],
-  }),
-  rotisseur: station('rotisseur', 'Rôtisseur', 'roasts', {
-    title: 'Systems and ML',
-    color: '#e07a5f',
-    paragraphs: ['Projects in systems and machine learning, both still cooking.'],
-    items: [inferenceEngine, generativeOmics],
-  }),
-  entremetier: station('entremetier', 'Entremetier', 'vegetables', {
-    title: 'Products',
-    color: '#8fd18a',
-    paragraphs: ['Projects built for people to use, from a hackathon weekend to NGO pilots.'],
-    items: [sync, bridge, thisKitchen],
-  }),
-  'garde-manger': station('garde-manger', 'Garde manger', 'the cold kitchen', {
-    title: 'Skills',
-    color: '#9fd8ef',
-    items: skills,
-  }),
-  patisserie: station('patisserie', 'Pâtisserie', 'pastry', {
-    title: 'Interests',
-    color: '#f4a6c6',
-    ...interests,
-  }),
-  plonge: station('plonge', 'Plonge', 'the dish pit', {
-    title: 'Education and contact',
-    color: '#a9b8ff',
-    paragraphs: [
-      'Every cook starts at the plonge, and it sits by the door to the dining room: here is where I study, and how to reach me. Email is the best way.',
-    ],
-    items: education,
-    links,
-  }),
-};
 
 export type DishContent = Readonly<Record<DishId, LoreEntry>>;
 
@@ -450,4 +371,79 @@ export const dishes: DishContent = {
       'Kasama, in Ukrainian Village, is a Filipino bakery by day and a tasting menu restaurant by night, run by chefs Tim Flores and Genie Kwon.',
     ],
   },
+};
+
+export type StationContent = Readonly<Record<StationId, LoreEntry>>;
+
+/**
+ * A section as a station serves it. The title says what it holds; the kicker and the label name
+ * the station, so a visitor can tell what is where before opening anything.
+ */
+function station(
+  id: StationId,
+  name: string,
+  work: string,
+  entry: Omit<LoreEntry, 'id' | 'kicker' | 'station'>,
+): LoreEntry {
+  return { ...entry, id, station: name, kicker: `${name} · ${work}` };
+}
+
+/**
+ * What each station's panel says when it is opened in the kitchen. Each station of the brigade
+ * serves the part of the resume that suits its work: the pass, the first thing a visitor sees,
+ * introduces Daniel; the saucier, the senior station, holds his experience; the plonge, where every
+ * cook starts and by the door to the dining room, holds his education and how to reach him.
+ */
+export const stations: StationContent = {
+  passe: station('passe', 'Le passe', 'the pass', {
+    title: 'About me',
+    color: '#ffb86b',
+    paragraphs: [
+      ...aboutParagraphs,
+      'Tonight the pass holds my five favorite dishes of all time, each one from a meal I actually ate.',
+    ],
+    // The dishes by their own names and restaurants, so the list and their panels say the same.
+    items: Object.values(dishes).map((dish) => ({ title: dish.title, meta: dish.kicker })),
+  }),
+  saucier: station('saucier', 'Saucier', 'sauces', {
+    title: 'Experience',
+    color: '#e8a25c',
+    items: [anto],
+  }),
+  poissonnier: station('poissonnier', 'Poissonnier', 'fish', {
+    title: 'Research',
+    color: '#7ec8e3',
+    items: [uclaLab, readingProgram],
+  }),
+  rotisseur: station('rotisseur', 'Rôtisseur', 'roasts', {
+    title: 'Systems and ML',
+    color: '#e07a5f',
+    paragraphs: ['Projects in systems and machine learning, both still cooking.'],
+    items: [inferenceEngine, generativeOmics],
+  }),
+  entremetier: station('entremetier', 'Entremetier', 'vegetables', {
+    title: 'Products',
+    color: '#8fd18a',
+    paragraphs: ['Projects built for people to use, from a hackathon weekend to NGO pilots.'],
+    items: [sync, bridge, thisKitchen],
+  }),
+  'garde-manger': station('garde-manger', 'Garde manger', 'the cold kitchen', {
+    title: 'Skills',
+    color: '#9fd8ef',
+    items: skills,
+  }),
+  patisserie: station('patisserie', 'Pâtisserie', 'pastry', {
+    title: 'Interests',
+    color: '#f4a6c6',
+    ...interests,
+  }),
+  plonge: station('plonge', 'Plonge', 'the dish pit', {
+    title: 'Education and contact',
+    color: '#a9b8ff',
+    paragraphs: [
+      'Every cook starts here, by the door to the dining room, so here is where I study and how to reach me. Email is the best way.',
+    ],
+    items: education,
+    links,
+  }),
 };
