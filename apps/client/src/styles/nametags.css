@@ -1,43 +1,51 @@
 /* ---------- Name tags ---------- */
 
+/*
+ * A player's name over their head, with a dot of their color beside it, and what they last said
+ * above it for a moment. Nothing behind or around any of it, as with the station labels.
+ */
 .nametag {
   display: grid;
   justify-items: center;
   gap: 6px;
+  color: var(--ink);
 }
 
+/* The name sits centered over the head; the dot hangs just left of it. */
 .nametag-name {
-  padding: 3px 10px 3px 8px;
-  border-radius: var(--radius-sm);
-  background: rgba(22, 30, 69, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  position: relative;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .nametag-name::before {
   content: '';
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 7px);
   width: 8px;
   height: 8px;
+  margin-top: -4px;
   border-radius: 50%;
   background: var(--player-color);
 }
 
 .nametag-bubble {
-  max-width: 220px;
-  padding: 7px 12px;
-  border-radius: 14px;
-  background: rgba(255, 250, 244, 0.95);
-  color: var(--navy-deep);
-  font-size: 13.5px;
+  max-width: 240px;
+  font-size: 15px;
+  font-weight: 500;
   line-height: 1.35;
   white-space: normal;
   text-align: center;
   overflow-wrap: anywhere;
-  box-shadow: 0 6px 18px rgba(30, 10, 40, 0.25);
-  animation: fade-in 0.2s ease both;
+  text-wrap: balance;
+  animation: nametag-say 0.2s ease both;
+}
+
+@keyframes nametag-say {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
