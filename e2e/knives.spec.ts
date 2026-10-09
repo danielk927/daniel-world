@@ -41,6 +41,21 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
     await expect(target.getByRole('status').filter({ hasText: 'Knocked out by' })).toContainText(
       'Thrower',
     );
+    // Said once: what a screen reader hears does not change while the countdown runs on screen.
+    const heard = await target.evaluate(async () => {
+      const live = [...document.querySelectorAll('[role="status"]')].find((element) =>
+        element.textContent?.includes('Knocked out by'),
+      )!;
+      const countdown = document.querySelector('.knockout-countdown')!;
+      const before = countdown.textContent;
+      let changes = 0;
+      const observer = new MutationObserver((records) => (changes += records.length));
+      observer.observe(live, { subtree: true, childList: true, characterData: true });
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      observer.disconnect();
+      return { changes, counted: countdown.textContent !== before };
+    });
+    expect(heard).toEqual({ changes: 0, counted: true });
     // The thrower sees their hit land under the crosshair; both see it in the kill feed.
     await expect(thrower.locator('.hit-banner')).toContainText('Target');
     for (const page of [thrower, target]) {
