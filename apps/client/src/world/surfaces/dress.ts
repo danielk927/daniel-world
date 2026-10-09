@@ -2,6 +2,7 @@ import { MeshStandardMaterial, type Material, type Texture, type WebGLRenderer }
 import type { LayerName } from '../kit.ts';
 import { TexturePainter, type Recipe } from './painter.ts';
 import {
+  BAFFLE,
   BRASS,
   BRUSHED_STEEL,
   BUTCHER_BLOCK,
@@ -21,6 +22,7 @@ export const LAYER_RECIPES: Partial<Record<LayerName, Recipe>> = {
   tile: WALL_TILE,
   shell: PLASTER,
   steel: BRUSHED_STEEL,
+  baffle: BAFFLE,
   iron: CAST_IRON,
   copper: COPPER,
   brass: BRASS,

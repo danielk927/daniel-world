@@ -599,3 +599,15 @@ Judgment calls made during the unattended build, with reasons.
   The kitchen's materials and the walk-in's door now have the probe as their own `envMap`, which makes their intensity count.
 - **Metals are fully metal on the high tier** (stainless, copper, brass), their colors what they reflect; the low tier has no probe to reflect, so its metals stay partly metal in their old deeper colors.
 - **The low tier keeps plain paint**: the same smooth geometry and colors, no textures, no probe, so software renderers draw as cheaply as before.
+
+### The graphics upgrade: real forms (2026-10-09)
+
+- **Every edge seen up close is rounded and smooth-shaded** (three's `RoundedBoxGeometry`, two facets of arc under 12 mm and four above, with normals that roll round the edge), and round things have enough sides that a facet never strays from the circle by more than 0.6 mm on the high tier (2.5 mm on the low).
+- **The knife solids did not move, so the protocol did not either.** Every drawn face stays within the 2 cm `knifeSolids.test.ts` allows: rounded edges sit inside the solids' boxes, door panels and trim stand at most 1.2 cm proud, and rods, knobs, wire and slats are thin enough to let a knife through as before.
+  The vault is drawn as its true arc over the 12 facets that stay its solid; the two never part by more than 1.3 cm.
+- **Lamp shades are drawn round their solid, not inside it**: a smooth shade's facets drawn inside the solid's circle met a slanting knife a few millimeters short of where it stuck. The outside is circumscribed and the inside drawn 4 mm in.
+- **The cooking suite became a French range**: a thick top with a rounded edge, a brass band under it carrying rows of black knobs on brass bezels, brushed oven doors on brass rails, for the brass and steel of Gusteau's kitchen.
+- **The window counter is white enamel under honed Carrara**, top, splash and sill, with its sinks set in steel rims; the islands stand on round tube legs with bullet feet, and storage is real wire shelving.
+- **No anisotropic highlights on the steel.** Three's anisotropy takes its direction from the texture coordinates' screen derivatives, which on the narrow facets of a rounded edge come out degenerate and threw rows of white sparks along every door frame and counter edge; the brushing is in the normal and roughness maps instead.
+- **The hood's baffle filters are a texture, not slats**: 600 slats a few millimeters across glittered at any distance; one painted filter per panel is crisp up close and quiet far away. Wire shelving is dulled for the same reason.
+- **Plates under others in a stack are turned as their foot and rim only**, since nothing else of them shows; it halved the kitchen's triangles.

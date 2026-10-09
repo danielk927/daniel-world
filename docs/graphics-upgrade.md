@@ -56,7 +56,7 @@ What differs between the parts of one layer is per vertex: the paint (vertex col
 - **Textures are painted on the GPU at load**, by a fragment shader per recipe into mipmapped, anisotropically filtered, repeating render targets (`world/surfaces/`).
   Nothing is downloaded, nothing is committed as an image, and a whole set takes milliseconds.
   Each recipe is periodic noise and patterns (cells, strips, cracks, brush lines), so every texture tiles without a seam.
-  A recipe writes color, normal (from its own height field) and roughness and metalness, the three maps `MeshStandardMaterial` and `MeshPhysicalMaterial` read.
+  A recipe writes color, a height field (made into the normal map) and roughness (carried in the normal map's alpha), so a surface costs two textures, or one when its paint is its color.
 - **Texture coordinates are meters.**
   The builder gives every part real-world texture coordinates as it merges it: flat parts are projected along their face normal (boxes, walls, the floor), round parts unroll their own coordinates to their circumference and height (pots, rods, bowls).
   A texture then says how many meters one repeat covers, so a tile is the same size on every wall and grain the same size on every board.
@@ -67,7 +67,7 @@ What differs between the parts of one layer is per vertex: the paint (vertex col
 | `floor`   | Pale honed stone tiles, 50 cm, thin dark grout, per-tile tone and polish, a satin sheen, worn smoother and darker in the aisles | one repeat 2 m    |
 | `tile`    | Large white glazed tiles, 60 by 30 cm, stacked, grout nearly their own color, on the walls up to the vault                      | one repeat 1.2 m  |
 | `plaster` | Warm white matte paint over plaster: the vault, the arches at the ends, the hood's body, reveals                                | one repeat 2 m    |
-| `steel`   | Brushed stainless, anisotropic along the brushing, streaks and fine scratches in its roughness                                  | one repeat 0.5 m  |
+| `steel`   | Brushed stainless: fine brushing, smudges and scratches in its normal and roughness                                             | one repeat 0.5 m  |
 | `iron`    | Seasoned cast iron and black enamel: the cooking tops, grates, knobs, plinths                                                   | one repeat 0.5 m  |
 | `copper`  | Hammered copper with a darker patina toward the flame                                                                           | one repeat 0.3 m  |
 | `brass`   | Brushed brass with a little tarnish                                                                                             | one repeat 0.3 m  |

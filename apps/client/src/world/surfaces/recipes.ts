@@ -100,8 +100,8 @@ export const BRUSHED_STEEL: Recipe = {
   normalSize: 1024,
   glsl: /* glsl */ `
 void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
-  float brush = fbm(uv, vec2(3.0, 640.0), 3, 0.55);
-  float streak = fbm(uv, vec2(2.0, 48.0), 3, 0.5);
+  float brush = fbm(uv, vec2(6.0, 900.0), 3, 0.55);
+  float streak = fbm(uv, vec2(1.0, 24.0), 2, 0.5);
   float smudge = fbm(uv, vec2(4.0), 4, 0.5);
   float scratch = 0.0;
   for (int k = 0; k < 48; k++) {
@@ -115,7 +115,32 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   }
   color = vec3(1.0);
   height = 0.000004 * brush - 0.000006 * scratch;
-  roughness = 0.3 + 0.05 * brush + 0.04 * streak + 0.07 * smoothstep(0.1, 0.8, smudge) - 0.1 * scratch;
+  roughness = 0.32 + 0.035 * brush + 0.02 * streak + 0.06 * smoothstep(0.1, 0.8, smudge) - 0.1 * scratch;
+}
+`,
+};
+
+/**
+ * A hood's baffle filter, one to a repeat: a flat steel frame round six slats folded into a
+ * chevron, the dark of the duct showing in the folds and a film of grease dulling them.
+ */
+export const BAFFLE: Recipe = {
+  meters: 0.58,
+  colorSize: 512,
+  normalSize: 512,
+  glsl: /* glsl */ `
+void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
+  // Meters to the filter's edge: a 3 cm frame.
+  vec2 e = min(uv, 1.0 - uv) * 0.58;
+  float frame = 1.0 - smoothstep(0.028, 0.032, min(e.x, e.y));
+  float slat = fract(uv.y * 6.0);
+  float fold = abs(slat - 0.5) * 2.0;
+  float grease = smoothstep(-0.2, 0.7, fbm(uv, vec2(4.0), 4, 0.5));
+  float brush = fbm(uv, vec2(4.0, 300.0), 2, 0.5);
+  height = mix(-0.008 * (1.0 - fold), 0.002, frame);
+  float valley = (1.0 - smoothstep(0.0, 0.18, fold)) * (1.0 - frame);
+  color = vec3(0.92) * (1.0 - 0.75 * valley) * (1.0 - 0.18 * grease);
+  roughness = 0.34 + 0.2 * grease + 0.03 * brush;
 }
 `,
 };
@@ -185,12 +210,16 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   float wander = fbm(q, vec2(4.0), 4, 0.5);
   float main = abs(sin(6.2832 * (2.0 * q.x + q.y) + 2.2 * wander));
   float thin = abs(sin(6.2832 * (3.0 * q.x - 2.0 * q.y) + 3.1 * fbm(q, vec2(6.0), 4, 0.5)));
-  float vein = (1.0 - smoothstep(0.0, 0.07, main)) * 0.8 + (1.0 - smoothstep(0.0, 0.025, thin)) * 0.45;
-  vein *= 0.55 + 0.45 * smoothstep(-0.3, 0.6, fbm(uv, vec2(2.0), 3, 0.5));
+  // Veins in soft clouds of grey, a few with a finer line through them, fading in and out.
+  float cloud = 1.0 - smoothstep(0.0, 0.42, main);
+  float line = 1.0 - smoothstep(0.0, 0.05, main);
+  float hair = 1.0 - smoothstep(0.0, 0.04, thin);
+  float vein = cloud * 0.32 + line * 0.28 + hair * 0.14;
+  vein *= smoothstep(-0.45, 0.5, fbm(uv, vec2(2.0), 3, 0.5));
   vec4 grain = cells(uv, vec2(220.0));
   float crystal = hash12(grain.zw);
   vec3 base = vec3(0.92) * (1.0 + 0.1 * (crystal - 0.5)) * (1.0 + 0.04 * wander);
-  color = mix(base, vec3(0.52, 0.52, 0.54), clamp(vein, 0.0, 1.0));
+  color = mix(base, vec3(0.55, 0.56, 0.58), clamp(vein, 0.0, 1.0));
   height = -0.000015 * smoothstep(0.0, 0.3, grain.x) * crystal;
   roughness = 0.42 + 0.08 * (crystal - 0.5) + 0.05 * vein;
 }

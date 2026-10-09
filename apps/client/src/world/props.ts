@@ -25,7 +25,7 @@ const ZONE = TOP + 0.01;
 /** Heat lamp bulbs glow brighter than any paint, so their color goes past 1. */
 const BULB = new Color(paint.bulb).multiplyScalar(1.4);
 /** A heat lamp shade with a thin wall, so it reads from above and below. */
-const LAMP_SHADE = shadeGeometry(HEAT_LAMP_SHADE, 10);
+const LAMP_SHADE = shadeGeometry(HEAT_LAMP_SHADE, 40);
 
 /** An open gas burner: a crown, a cast iron grate, and flames. Returns where a pan sits. */
 function burner(kit: Kit, x: number, z: number, size = 1): number {

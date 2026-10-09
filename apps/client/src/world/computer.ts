@@ -11,7 +11,8 @@ import {
   type Texture,
 } from 'three';
 import { COMPUTER, KITCHEN } from '@world/shared';
-import { paint, type Kit } from './kit.ts';
+import { at } from './builder.ts';
+import { paint, type Kit, type LayerName } from './kit.ts';
 
 /**
  * The chef's desk in the south-west corner and the kitchen computer on it: a beige mid-nineties PC
@@ -27,7 +28,9 @@ export const SCREEN_SIZE = { width: 0.36, height: 0.27 } as const;
 const PLASTIC = '#d6cdb6';
 const PLASTIC_SHADE = '#bfb59c';
 const KEYCAP = '#e4dcc8';
-const WOOD = '#8a5a35';
+const WOOD = '#9a6a45';
+/** Mid-nineties plastic: a dull sheen. */
+const PLASTIC_FINISH = 4;
 
 /** The screen faces east, into the room; its glass is this far in front of the case's front. */
 const FRONT = COMPUTER.x - 0.03;
@@ -37,26 +40,80 @@ export function buildComputerDesk(kit: Kit): void {
   const d = KITCHEN.desk;
   const top = d.top;
   const cz = COMPUTER.z;
-  // A butcher-block top on a steel frame, as tall as the counters: a cook works at it standing.
-  kit.box('wood', d.minX, d.maxX, top - 0.045, top, d.minZ, d.maxZ, WOOD);
+  const box = (
+    layer: LayerName,
+    minX: number,
+    maxX: number,
+    minY: number,
+    maxY: number,
+    minZ: number,
+    maxZ: number,
+    radius: number,
+    color?: string,
+    finish?: number,
+  ): void =>
+    kit.rounded(
+      layer,
+      (minX + maxX) / 2,
+      (minY + maxY) / 2,
+      (minZ + maxZ) / 2,
+      maxX - minX,
+      maxY - minY,
+      maxZ - minZ,
+      radius,
+      color,
+      { finish },
+    );
+  // A butcher-block top on a steel frame of round legs, as tall as the counters: a cook works at it
+  // standing.
+  box('wood', d.minX, d.maxX, top - 0.045, top, d.minZ, d.maxZ, 0.006, WOOD);
   for (const x of [d.minX + 0.05, d.maxX - 0.06]) {
     for (const z of [d.minZ + 0.06, d.maxZ - 0.06]) {
-      kit.box('steel', x - 0.02, x + 0.02, 0, top - 0.045, z - 0.02, z + 0.02);
+      kit.cylinder('steel', x, 0, z, 0.019, top - 0.045);
     }
   }
   // A shelf low down, holding the tower and a stack of order books.
-  kit.box('steel', d.minX + 0.03, d.maxX - 0.04, 0.16, 0.18, d.minZ + 0.04, d.maxZ - 0.04);
-  kit.box('matte', d.minX + 0.08, d.minX + 0.5, 0.18, 0.62, d.maxZ - 0.5, d.maxZ - 0.1, PLASTIC);
-  kit.box(
-    'matte',
+  box('steel', d.minX + 0.03, d.maxX - 0.04, 0.16, 0.18, d.minZ + 0.04, d.maxZ - 0.04, 0.004);
+  box(
+    'gloss',
+    d.minX + 0.08,
     d.minX + 0.5,
+    0.18,
+    0.62,
+    d.maxZ - 0.5,
+    d.maxZ - 0.1,
+    0.008,
+    PLASTIC,
+    PLASTIC_FINISH,
+  );
+  // Its face: a floppy drive's slot, a vented panel and the power lamp.
+  box(
+    'gloss',
+    d.minX + 0.497,
     d.minX + 0.505,
     0.5,
     0.52,
     d.maxZ - 0.44,
     d.maxZ - 0.16,
+    0.002,
     '#3a3833',
+    2,
   );
+  for (let i = 0; i < 6; i++) {
+    const y = 0.28 + i * 0.022;
+    box(
+      'gloss',
+      d.minX + 0.497,
+      d.minX + 0.503,
+      y,
+      y + 0.008,
+      d.maxZ - 0.42,
+      d.maxZ - 0.18,
+      0.002,
+      PLASTIC_SHADE,
+      PLASTIC_FINISH,
+    );
+  }
   kit.box(
     'light',
     d.minX + 0.5,
@@ -69,7 +126,7 @@ export function buildComputerDesk(kit: Kit): void {
   );
   for (let i = 0; i < 3; i++) {
     const y = 0.18 + i * 0.035;
-    kit.box(
+    box(
       'matte',
       d.minX + 0.1,
       d.minX + 0.42,
@@ -77,6 +134,7 @@ export function buildComputerDesk(kit: Kit): void {
       y + 0.03,
       d.minZ + 0.1,
       d.minZ + 0.42,
+      0.004,
       i % 2 ? '#7a2c25' : '#24384f',
     );
   }
@@ -85,77 +143,97 @@ export function buildComputerDesk(kit: Kit): void {
   const y = COMPUTER.y;
   const bezelW = SCREEN_SIZE.width + 0.1;
   const bezelH = SCREEN_SIZE.height + 0.11;
-  kit.box(
-    'matte',
+  box(
+    'gloss',
     FRONT - 0.32,
     FRONT - 0.04,
     top,
     top + 0.025,
     cz - 0.15,
     cz + 0.15,
+    0.01,
     PLASTIC_SHADE,
+    PLASTIC_FINISH,
   );
-  kit.box(
-    'matte',
+  box(
+    'gloss',
     FRONT - 0.3,
     FRONT - 0.08,
     top + 0.025,
     y - bezelH / 2,
     cz - 0.07,
     cz + 0.07,
+    0.01,
     PLASTIC_SHADE,
+    PLASTIC_FINISH,
   );
-  kit.box(
-    'matte',
+  box(
+    'gloss',
     FRONT - 0.07,
     FRONT,
     y - bezelH / 2,
     y + bezelH / 2,
     cz - bezelW / 2,
     cz + bezelW / 2,
+    0.018,
     PLASTIC,
+    PLASTIC_FINISH,
   );
-  kit.box(
-    'matte',
+  box(
+    'gloss',
     FRONT - 0.36,
     FRONT - 0.07,
     y - 0.15,
     y + 0.155,
     cz - 0.17,
     cz + 0.17,
+    0.03,
     PLASTIC_SHADE,
+    PLASTIC_FINISH,
   );
-  kit.box(
-    'matte',
+  box(
+    'gloss',
     FRONT - 0.42,
     FRONT - 0.36,
     y - 0.11,
     y + 0.11,
     cz - 0.12,
     cz + 0.12,
+    0.02,
     PLASTIC_SHADE,
+    PLASTIC_FINISH,
   );
-  // The glass sits in a dark recess, a little behind the bezel's face.
-  kit.box(
-    'iron',
+  // The glass sits in a dark recess, a little behind the bezel's face, under a film of reflection.
+  box(
+    'gloss',
     FRONT - 0.004,
     FRONT + 0.001,
     y - SCREEN_SIZE.height / 2 - 0.015,
     y + SCREEN_SIZE.height / 2 + 0.015,
     cz - SCREEN_SIZE.width / 2 - 0.015,
     cz + SCREEN_SIZE.width / 2 + 0.015,
+    0.004,
+    '#141413',
+    2,
+  );
+  kit.add(
+    'pane',
+    new PlaneGeometry(SCREEN_SIZE.width, SCREEN_SIZE.height),
+    at(COMPUTER.x - 0.023, y, cz, { ry: Math.PI / 2 }),
   );
   // Power button and its lamp, under the glass on the right.
   const chin = y - SCREEN_SIZE.height / 2 - 0.035;
-  kit.box(
-    'matte',
+  box(
+    'gloss',
     FRONT,
     FRONT + 0.006,
     chin - 0.008,
     chin + 0.008,
     cz + 0.12,
     cz + 0.145,
+    0.003,
     PLASTIC_SHADE,
+    PLASTIC_FINISH,
   );
   kit.box(
     'light',
@@ -168,11 +246,18 @@ export function buildComputerDesk(kit: Kit): void {
     '#57ff6e',
   );
 
-  // A corkboard on the wall above, with the night's order tickets pinned to it.
+  // A corkboard on the wall above in a thin wooden frame, the night's order tickets pinned to it.
   const wall = d.minX;
-  kit.box('matte', wall, wall + 0.02, 1.42, 2.02, d.minZ + 0.12, d.maxZ - 0.12, '#a5784c');
-  kit.box('iron', wall, wall + 0.025, 2.02, 2.04, d.minZ + 0.1, d.maxZ - 0.1);
-  kit.box('iron', wall, wall + 0.025, 1.4, 1.42, d.minZ + 0.1, d.maxZ - 0.1);
+  box('matte', wall, wall + 0.02, 1.42, 2.02, d.minZ + 0.12, d.maxZ - 0.12, 0.003, '#a87c50');
+  for (const [y0, y1] of [
+    [2.02, 2.04],
+    [1.4, 1.42],
+  ] as const) {
+    box('wood', wall, wall + 0.025, y0, y1, d.minZ + 0.1, d.maxZ - 0.1, 0.004, WOOD);
+  }
+  for (const z of [d.minZ + 0.1, d.maxZ - 0.12]) {
+    box('wood', wall, wall + 0.025, 1.42, 2.02, z, z + 0.02, 0.004, WOOD);
+  }
   const tickets: readonly (readonly [number, number, number])[] = [
     [5.05, 1.83, 0.2],
     [5.27, 1.79, 0.24],
@@ -180,41 +265,71 @@ export function buildComputerDesk(kit: Kit): void {
     [5.86, 1.62, 0.22],
     [6.07, 1.82, 0.2],
   ];
-  for (const [z, ty, h] of tickets) {
-    kit.box(
-      'matte',
-      wall + 0.02,
-      wall + 0.024,
-      ty - h / 2,
-      ty + h / 2,
-      z - 0.07,
-      z + 0.07,
-      paint.ticket,
-    );
-    kit.box(
-      'light',
-      wall + 0.024,
-      wall + 0.03,
-      ty + h / 2 - 0.02,
-      ty + h / 2 - 0.008,
-      z - 0.006,
-      z + 0.006,
-      '#c0392b',
-    );
-  }
-  // A mug of coffee gone cold beside the keyboard.
-  kit.cylinder('gloss', FRONT + 0.22, top, cz - 0.36, 0.04, 0.095, { color: paint.porcelain });
-  kit.cylinder('matte', FRONT + 0.22, top + 0.088, cz - 0.36, 0.035, 0.004, { color: '#2b1a10' });
-
-  // Keyboard and mouse, in front of the screen.
-  const kx = FRONT + 0.2;
-  kit.boxAt('matte', kx, top + 0.014, cz, 0.16, 0.028, 0.44, { rz: 0.06, color: PLASTIC });
-  kit.boxAt('matte', kx - 0.005, top + 0.03, cz - 0.02, 0.12, 0.01, 0.36, {
-    rz: 0.06,
-    color: KEYCAP,
+  tickets.forEach(([z, ty, h], i) => {
+    kit.boxAt('matte', wall + 0.022, ty, z, 0.004, h, 0.14, {
+      rx: (i % 2 ? 1 : -1) * 0.03,
+      color: paint.ticket,
+    });
+    kit.sphere('gloss', wall + 0.03, ty + h / 2 - 0.014, z, 0.006, {
+      color: '#b8302a',
+      finish: 0.8,
+    });
   });
-  kit.boxAt('matte', kx, top + 0.014, cz + 0.32, 0.1, 0.028, 0.06, { color: PLASTIC });
-  kit.box('iron', FRONT + 0.12, FRONT + 0.125, top, top + 0.003, cz - 0.3, cz + 0.35);
+  // A mug of coffee gone cold beside the keyboard.
+  const mx = FRONT + 0.22;
+  const mz = cz - 0.36;
+  kit.lathe(
+    'gloss',
+    mx,
+    top,
+    mz,
+    [
+      [0.001, 0],
+      [0.036, 0],
+      [0.04, 0.004],
+      [0.04, 0.092],
+      [0.0385, 0.095],
+      [0.036, 0.093],
+      [0.036, 0.012],
+      [0.001, 0.012],
+    ],
+    { color: paint.porcelain, finish: 0.6 },
+  );
+  kit.cylinder('food', mx, top + 0.084, mz, 0.0355, 0.001, { color: '#2b1a10', finish: 0.15 });
+  kit.add(
+    'gloss',
+    kit.torus(0.026, 0.006, Math.PI),
+    at(mx, top + 0.05, mz - 0.04, { ry: Math.PI / 2, rz: -Math.PI / 2 }),
+    paint.porcelain,
+    { uv: 'own', finish: 0.6 },
+  );
+
+  // Keyboard and mouse, in front of the screen: a sloped case of keycaps in rows.
+  const kx = FRONT + 0.2;
+  const tilt = 0.06;
+  kit.rounded('gloss', kx, top + 0.014, cz, 0.16, 0.028, 0.44, 0.008, PLASTIC, {
+    rz: tilt,
+    finish: PLASTIC_FINISH,
+  });
+  for (let row = 0; row < 5; row++) {
+    const u = -0.055 + row * 0.024;
+    const keys = row === 4 ? 1 : 15;
+    for (let k = 0; k < keys; k++) {
+      const v = row === 4 ? 0 : -0.175 + k * 0.025 + (row % 2) * 0.006;
+      const w = row === 4 ? 0.15 : 0.019;
+      // Along the slope of the case: down toward the front edge, nearest the cook.
+      const x = kx + u * Math.cos(tilt) - 0.0185 * Math.sin(tilt);
+      const yk = top + 0.014 + u * Math.sin(tilt) + 0.0185 * Math.cos(tilt);
+      kit.rounded('gloss', x, yk, cz + v, 0.019, 0.009, w, 0.003, KEYCAP, {
+        rz: tilt,
+        finish: PLASTIC_FINISH,
+      });
+    }
+  }
+  kit.rounded('gloss', kx, top + 0.014, cz + 0.32, 0.1, 0.026, 0.06, 0.012, PLASTIC, {
+    finish: PLASTIC_FINISH,
+  });
+  kit.box('iron', FRONT + 0.12, FRONT + 0.125, top, top + 0.003, cz - 0.3, cz + 0.35, '#2a2826');
 }
 
 /**

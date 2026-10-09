@@ -1,5 +1,7 @@
 import {
+  AdditiveBlending,
   BoxGeometry,
+  CircleGeometry,
   BufferGeometry,
   CylinderGeometry,
   DoubleSide,
@@ -7,7 +9,6 @@ import {
   LatheGeometry,
   Matrix4,
   MeshBasicMaterial,
-  MeshPhysicalMaterial,
   MeshStandardMaterial,
   Quaternion,
   SphereGeometry,
@@ -31,6 +32,7 @@ export type LayerName =
   | 'matte'
   | 'gloss'
   | 'steel'
+  | 'baffle'
   | 'iron'
   | 'brass'
   | 'copper'
@@ -39,6 +41,7 @@ export type LayerName =
   | 'food'
   | 'glass'
   | 'window'
+  | 'pane'
   | 'light'
   | 'cold'
   | 'sign'
@@ -100,11 +103,16 @@ const spheres = new Map<number, SphereGeometry>();
 
 /**
  * A lamp shade turned from its outline (shared, so knives stick where it is drawn): down the outside
- * from the top to the rim and back up the inside, a thin wall that reads from above and below.
+ * from the top to the rim and back up the inside, a thin wall that reads from above and below. Its
+ * inside is drawn a few millimeters in from the solid's, since a knife sunk into the wall at a slant
+ * may reach a hair past it.
  */
 export function shadeGeometry(outline: ShadeOutline, segments: number): LatheGeometry {
-  const outside = [...outline.outside].reverse();
-  const inside = outline.inside;
+  // The outside's facets are drawn round the solid's circle, not inside it, so a knife that meets
+  // the solid at a slant never meets it short of what is drawn.
+  const around = 1 / Math.cos(Math.PI / segments);
+  const outside = [...outline.outside].reverse().map(([radius, y]) => [radius * around, y]);
+  const inside = outline.inside.map(([radius, y]) => [Math.max(0.001, radius - 0.004), y]);
   const profile = [
     [0.001, outside[0]![1]],
     ...outside,
@@ -216,6 +224,11 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
     options: { vertexColors: true, finish: true, ...extra },
     shading: { finish: true },
   });
+  // Metals painted per part (a dark bronze window frame is steel tinted dark), with a finish.
+  const tinted = (): Omit<Surface, 'material'> => ({
+    options: { castShadow: true, vertexColors: true, finish: true },
+    shading: { finish: true },
+  });
   // A metal's color is what it reflects; with nothing to reflect, the low tier's metals are only
   // partly metal and keep the deeper color of the old flat look.
   const metal = (
@@ -250,24 +263,37 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
     matte: finished(0.85, { castShadow: true }),
     gloss: finished(0.12, { castShadow: true }),
     steel: {
+      ...tinted(),
       material: hdr
-        ? new MeshPhysicalMaterial({
-            color: '#b4b7b8',
+        ? new MeshStandardMaterial({
+            color: '#aeb3b6',
             metalness: 1,
             roughness: 0.32,
-            // Brushed: the highlights stretch across the grain, along u (see the builder).
-            anisotropy: 0.5,
+            vertexColors: true,
           })
-        : new MeshStandardMaterial({ color: '#cfd3d4', metalness: 0.55, roughness: 0.34 }),
-      options: { castShadow: true },
+        : new MeshStandardMaterial({
+            color: '#cfd3d4',
+            metalness: 0.55,
+            roughness: 0.34,
+            vertexColors: true,
+          }),
+    },
+    // The hood's filters: steel with a baffle's folds painted in, under the hood's body, which casts
+    // no shadow, so neither do they.
+    baffle: {
+      material: hdr
+        ? new MeshStandardMaterial({ color: '#aeb3b6', metalness: 1, roughness: 0.4 })
+        : new MeshStandardMaterial({ color: '#b9bec1', metalness: 0.55, roughness: 0.4 }),
+      options: {},
     },
     iron: {
+      ...tinted(),
       material: new MeshStandardMaterial({
         color: '#3d3a38',
         metalness: hdr ? 0.45 : 0.3,
         roughness: 0.6,
+        vertexColors: true,
       }),
-      options: { castShadow: true },
     },
     // Brass and copper are small polished pieces; shadows would only turn them maroon and olive.
     brass: metal('#e9cf8d', '#e0b052', 0.3, { castShadow: true, receiveShadow: false }),
@@ -302,6 +328,20 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
       }),
       // Before the clear glass, so a tumbler seen against a window is not tinted as if behind it.
       options: { receiveShadow: false, renderOrder: -1 },
+    },
+    pane: {
+      // The kitchen reflected in the night glass, added over the view outside: black, so all it
+      // gives is its reflection, which the probe puts where the room is. Nothing to reflect on the
+      // low tier, so nothing drawn.
+      material: new MeshStandardMaterial({
+        color: '#000000',
+        roughness: 0.04,
+        transparent: true,
+        blending: AdditiveBlending,
+        depthWrite: false,
+        visible: hdr,
+      }),
+      options: { receiveShadow: false, renderOrder: 1 },
     },
     light: {
       material: new MeshBasicMaterial({ vertexColors: true, color: glow(hdr ? 2.2 : 1) }),
@@ -426,12 +466,14 @@ export class Kit {
     d: number,
     radius: number,
     color?: string,
-    options: { ry?: number; finish?: number } = {},
+    options: { ry?: number; rx?: number; rz?: number; finish?: number } = {},
   ): void {
+    // Small radii round off in two facets, large ones in four, all smooth-shaded.
+    const segments = radius < 0.012 ? 1 : 2;
     this.add(
       layer,
-      new RoundedBoxGeometry(w, h, d, 2, radius),
-      at(x, y, z, { ry: options.ry }),
+      new RoundedBoxGeometry(w, h, d, segments, radius),
+      at(x, y, z, { ry: options.ry, rx: options.rx, rz: options.rz }),
       color,
       { finish: options.finish },
     );
@@ -473,7 +515,15 @@ export class Kit {
   }
 
   /** A rod between two points. */
-  rod(layer: LayerName, from: Vector3, to: Vector3, radius: number, segments?: number): void {
+  rod(
+    layer: LayerName,
+    from: Vector3,
+    to: Vector3,
+    radius: number,
+    segments?: number,
+    color?: string,
+    finish?: number,
+  ): void {
     const length = from.distanceTo(to);
     const geometry = new CylinderGeometry(
       radius,
@@ -488,8 +538,9 @@ export class Kit {
     const direction = new Vector3().subVectors(to, from).normalize();
     const rotation = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), direction);
     const matrix = new Matrix4().compose(from, rotation, new Vector3(1, 1, 1));
-    this.add(layer, scaledUvs(geometry, 2 * Math.PI * radius, length), matrix, undefined, {
+    this.add(layer, scaledUvs(geometry, 2 * Math.PI * radius, length), matrix, color, {
       uv: 'own',
+      finish,
     });
   }
 
@@ -533,6 +584,11 @@ export class Kit {
     );
   }
 
+  /** A flat disc of this radius facing +z, round enough at this tier, its coordinates in meters. */
+  disc(radius: number): BufferGeometry {
+    return scaledUvs(new CircleGeometry(radius, this.sides(radius)), 2 * radius, 2 * radius);
+  }
+
   /** A flat ring lying on a surface at height y. */
   ring(layer: LayerName, x: number, y: number, z: number, radius: number, tube: number): void {
     this.add(layer, this.torus(radius, tube), at(x, y, z, { rx: Math.PI / 2 }), undefined, {
@@ -562,12 +618,21 @@ export class Kit {
     y: number,
     z: number,
     profile: readonly (readonly [number, number])[],
-    options: { color?: string; finish?: number; ry?: number; depthScale?: number } = {},
+    options: {
+      color?: string;
+      finish?: number;
+      rx?: number;
+      ry?: number;
+      rz?: number;
+      depthScale?: number;
+      /** At most this many sides, for things only ever seen from a few meters. */
+      segments?: number;
+    } = {},
   ): void {
     const widest = Math.max(...profile.map(([r]) => r));
     const geometry = new LatheGeometry(
       profile.map(([r, h]) => new Vector2(r, h)),
-      this.sides(widest * Math.max(1, options.depthScale ?? 1)),
+      this.sides(widest * Math.max(1, options.depthScale ?? 1), options.segments),
     );
     let length = 0;
     for (let i = 1; i < profile.length; i++) {
@@ -579,7 +644,7 @@ export class Kit {
     this.add(
       layer,
       scaledUvs(geometry, 2 * Math.PI * widest, length),
-      at(x, y, z, { ry: options.ry, sz: options.depthScale }),
+      at(x, y, z, { rx: options.rx, ry: options.ry, rz: options.rz, sz: options.depthScale }),
       options.color,
       { uv: 'own', finish: options.finish },
     );
