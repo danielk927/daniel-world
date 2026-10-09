@@ -278,6 +278,8 @@ describe('the camera behind the landing', () => {
     }
   });
 
+  // Thousands of raycasts at the whole view outside: a couple of seconds alone, far more on a busy
+  // machine, so it gets more than the default five.
   it('sees the view outside through every pane and skylight, all the way round', () => {
     const outside = paintOutside(lookAt(19.8));
     const mesh = new Mesh(outside.geometry, new MeshBasicMaterial({ side: FrontSide }));
@@ -310,5 +312,5 @@ describe('the camera behind the landing', () => {
       }
     }
     expect(misses).toEqual([]);
-  });
+  }, 30_000);
 });
