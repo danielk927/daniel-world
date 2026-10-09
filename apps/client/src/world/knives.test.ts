@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { KNIFE_MAX_STUCK, launchKnife, type StuckKnife } from '@world/shared';
+import {
+  KNIFE_MAX_STUCK,
+  TICK_SECONDS,
+  flyKnife,
+  launchKnife,
+  thrownKnife,
+  type KnifeState,
+  type StuckKnife,
+} from '@world/shared';
 import { Knives } from './knives.ts';
 
 const DOWN = -Math.PI / 2 + 0.01;
@@ -42,6 +50,44 @@ describe('Knives', () => {
     run(knives, 1 / 30);
     expect(knives.flyingCount).toBe(0);
     expect(knives.stuckCount).toBe(1);
+  });
+
+  it("measures how far the server's verdict moves a knife from where this screen flew it", () => {
+    /** Where the server, flying a tick at a time, has this knife stick. */
+    const verdict = (id: number, knife: KnifeState): StuckKnife => {
+      for (;;) {
+        const impact = flyKnife(knife, TICK_SECONDS, [], 1);
+        if (impact?.kind === 'surface') {
+          const { x, y, z, dx, dy, dz } = impact;
+          return { id, x, y, z, dx, dy, dz };
+        }
+      }
+    };
+    const knives = new Knives();
+    // Our own throw, launched just as the server launches it.
+    knives.throwOwn(5, 1, thrownKnife(0, 1.6, 2.6, 0, DOWN, 1, 5), true);
+    knives.launch(9, 1, 5, thrownKnife(0, 1.6, 2.6, 0, DOWN, 1, 5), true, 0);
+    run(knives, 0.5);
+    knives.resolve(9, {
+      kind: 'stuck',
+      knife: verdict(9, thrownKnife(0, 1.6, 2.6, 0, DOWN, 1, 5)),
+      at: 0.1,
+    });
+    run(knives, 1 / 30);
+    expect(knives.stuckKnives().map((k) => k.id)).toEqual([9]);
+    expect(knives.maxCorrection).toBeLessThan(1e-3);
+    // One this screen launched another way than the server did jumps to where the server says.
+    knives.throwOwn(19, 1, launchKnife(0, 1.6, 2.6, 0, DOWN), true);
+    knives.launch(10, 1, 19, launchKnife(0, 1.6, 2.6, 0, DOWN), true, 0);
+    run(knives, 0.5);
+    const here = verdict(10, launchKnife(0, 1.6, 2.6, 0, DOWN));
+    const there = verdict(10, thrownKnife(0, 1.6, 2.6, 0, DOWN, 1, 19));
+    knives.resolve(10, { kind: 'stuck', knife: there, at: 0.1 });
+    run(knives, 1 / 30);
+    expect(knives.stuckKnives().map((k) => k.id)).toEqual([9, 10]);
+    const jump = Math.hypot(there.x - here.x, there.y - here.y, there.z - here.z);
+    expect(jump).toBeGreaterThan(1e-3);
+    expect(knives.maxCorrection).toBeCloseTo(jump, 6);
   });
 
   it('holds back a remote knife until it leaves the thrower as drawn', () => {

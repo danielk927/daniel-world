@@ -1,4 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
+import {
+  EYE_HEIGHT,
+  KNIFE_SPREAD,
+  TICK_SECONDS,
+  flyKnife,
+  launchKnife,
+  type KnifeImpact,
+} from '@world/shared';
 import { knifeMoves } from '../apps/client/src/world/knifeMoves.ts';
 import {
   enterWorld,
@@ -8,6 +16,8 @@ import {
   waitUntilStill,
   world,
 } from './helpers.ts';
+
+type Point = { readonly x: number; readonly y: number; readonly z: number };
 
 /** Left click the world, as a visitor throws. A press that does not move is a click, not a look. */
 async function throwKnife(page: Page): Promise<void> {
@@ -50,6 +60,63 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
     }
     await thrower.context().close();
     await target.context().close();
+  } finally {
+    await server.close();
+  }
+});
+
+test('knives scatter a little round the crosshair, each sticking where its thrower saw it fly', async ({
+  browser,
+}) => {
+  const server = await startRoomServer();
+  try {
+    const thrower = await enterWorld(browser, { name: 'Thrower', room: 'e2e-spread' });
+    const watcher = await enterWorld(browser, { name: 'Watcher', room: 'e2e-spread' });
+    await expectWorld(thrower, (w) => w.playerCount === 2, 'the thrower sees the watcher');
+    await waitUntilStill(thrower);
+    // Down the aisle, away from the watcher, at the bare wall high over the kitchen computer.
+    await turnTo(thrower, Math.PI / 2, 0.2);
+    const { player, look } = await world(thrower);
+    const throws = 5;
+    for (let i = 1; i <= throws; i++) {
+      // A click while the arm is still throwing does nothing, so click until the next knife goes.
+      await expect
+        .poll(
+          async () => {
+            await throwKnife(thrower);
+            return (await world(thrower)).knives.stuck;
+          },
+          { message: `knife ${i} sticks`, timeout: 15_000 },
+        )
+        .toBeGreaterThanOrEqual(i);
+    }
+    for (const page of [thrower, watcher]) {
+      const w = await expectWorld(
+        page,
+        (w) => w.knives.stuck >= throws && w.knives.flying === 0,
+        'every knife has stuck',
+      );
+      // Each stuck where this screen flew it: the thrower's launched its own knives before the
+      // server heard of them, the watcher's replayed the server's, and all three agree.
+      expect(w.knives.maxCorrection).toBeLessThan(0.01);
+    }
+
+    // Where a knife dead on the crosshair sticks.
+    const eye = { x: player.x, y: player.y + EYE_HEIGHT, z: player.z };
+    const aimed = launchKnife(eye.x, eye.y, eye.z, look.yaw, look.pitch);
+    let dead: KnifeImpact | null = null;
+    while (!dead) dead = flyKnife(aimed, TICK_SECONDS, [], -1);
+    const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    const reach = distance(eye, dead) * Math.tan(KNIFE_SPREAD);
+    const { tips } = (await world(thrower)).knives;
+    // Round it, within the spread, and scattered: never two in one hole, as knives thrown from one
+    // spot with one aim used to be.
+    for (const tip of tips) expect(distance(tip, dead)).toBeLessThan(reach + 0.02);
+    const apart = tips.flatMap((a, i) => tips.slice(i + 1).map((b) => distance(a, b)));
+    expect(Math.min(...apart)).toBeGreaterThan(0);
+    expect(Math.max(...apart)).toBeGreaterThan(reach / 4);
+    await thrower.context().close();
+    await watcher.context().close();
   } finally {
     await server.close();
   }
