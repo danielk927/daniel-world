@@ -134,7 +134,13 @@ export class WorldStack extends Stack {
       vpc,
       vpcSubnets: { subnetType: SubnetType.PUBLIC },
       instanceType: InstanceType.of(InstanceClass.T4G, InstanceSize.MICRO),
-      machineImage: MachineImage.latestAmazonLinux2023({ cpuType: AmazonLinuxCpuType.ARM_64 }),
+      // The AMI is looked up once and kept in cdk.context.json, so a new Amazon Linux release
+      // never replaces the instance (and drops every room) on a deploy that changed nothing here.
+      // README's deployment section says how to move to a newer one on purpose.
+      machineImage: MachineImage.latestAmazonLinux2023({
+        cpuType: AmazonLinuxCpuType.ARM_64,
+        cachedInContext: true,
+      }),
       securityGroup: serverSecurityGroup,
       role,
       userData,

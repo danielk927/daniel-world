@@ -8,6 +8,11 @@ import { SERVER_PATH, SERVER_PORT, WorldStack } from '../lib/world-stack.ts';
 
 let template: Template;
 
+/** The AMI lookup as cdk.context.json records it, with an AMI standing in for a real one. */
+const AMI_CONTEXT_KEY =
+  'ssm:account=123456789012:parameterName=/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-arm64:region=us-east-1';
+const CACHED_AMI = 'ami-0123456789abcdef0';
+
 /** A template value as text, with intrinsics shown as `{Ref X}` or `{X.Attr}` placeholders. */
 function render(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -39,7 +44,7 @@ beforeAll(() => {
   writeFileSync(join(clientDir, 'index.html'), '<!doctype html>');
   writeFileSync(join(serverDir, 'index.js'), 'console.log("server")');
 
-  const app = new App();
+  const app = new App({ context: { [AMI_CONTEXT_KEY]: CACHED_AMI } });
   const stack = new WorldStack(app, 'Test', {
     env: { account: '123456789012', region: 'us-east-1' },
     clientDir,
@@ -177,6 +182,14 @@ describe('WorldStack', () => {
       ),
     );
     expect(steps.indexOf('systemctl enable --now world.service')).toBeLessThan(steps.length - 2);
+  });
+
+  it('boots the AMI recorded in cdk.context.json, not whichever is newest at deploy time', () => {
+    expect(server()[1].Properties.ImageId).toBe(CACHED_AMI);
+    // No SSM parameter that CloudFormation would resolve afresh, and replace the instance for.
+    expect(JSON.stringify(template.toJSON().Parameters ?? {})).not.toContain(
+      'ami-amazon-linux-latest',
+    );
   });
 
   it('ships the boot log before the steps that can fail, so a rolled back boot leaves it', () => {

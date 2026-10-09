@@ -171,6 +171,18 @@ It prints `SiteUrl` (the site), `ServerUrl` (for a client hosted elsewhere), `Sh
 `npm run diff -w @world/infra` previews changes; `npm run destroy -w @world/infra` removes everything.
 Rooms live in one process's memory, so keep exactly one instance.
 
+The stack looks a few things up in the account: the availability zone, CloudFront's origin-facing prefix list, and the Amazon Linux 2023 AMI.
+A deploy with credentials records them in `infra/cdk.context.json`; commit that file, so every later deploy, from any checkout, builds the same instance.
+The AMI in particular stays put: a new Amazon Linux release no longer replaces the instance (and drops every room) on a deploy that changed nothing on the server.
+To move the server to a newer AMI on purpose, for example monthly for OS patches, list the cached values and reset the AMI's, then deploy, which replaces the instance:
+
+```bash
+cd infra
+npx cdk context                                   # the AMI's key starts with ssm: and names al2023-ami
+npx cdk context --reset <number of that key>
+cd .. && npm run deploy:aws
+```
+
 ### Vercel (optional second front end)
 
 `vercel.json` builds the static client for Vercel.
