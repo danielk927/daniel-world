@@ -14,11 +14,6 @@ function bar(): HTMLElement {
   return el('span', { class: 'bar', attrs: { 'aria-hidden': 'true' } });
 }
 
-/** The line under the name, once `content.ts` has one. */
-function headline(): string | undefined {
-  return 'headline' in site && typeof site.headline === 'string' ? site.headline : undefined;
-}
-
 /** The five dishes on the pass, each with its photo, which in the kitchen have panels of their own. */
 function renderDishes(): HTMLElement {
   return el(
@@ -126,13 +121,12 @@ function labelForPrint(root: HTMLElement): void {
 function render(): void {
   const root = document.getElementById('portfolio')!;
   document.title = `${site.name} - Portfolio`;
-  const line = headline();
   const list = sections();
 
   const header = el('header', { class: 'pf-header' }, [
     el('h1', { class: 'title pf-name', text: site.name }),
     bar(),
-    line ? el('p', { class: 'pf-headline', text: line }) : null,
+    el('p', { class: 'pf-headline', text: site.headline }),
     el('p', { class: 'pf-intro', text: site.intro }),
     el('div', { class: 'pf-actions' }, [
       el('a', {
