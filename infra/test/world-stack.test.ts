@@ -1,12 +1,19 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { App, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { SERVER_PATH, SERVER_PORT, WorldStack, publicDnsName } from '../lib/world-stack.ts';
+import {
+  SERVER_PATH,
+  SERVER_PORT,
+  SITE_ASSETS_DIR,
+  WorldStack,
+  publicDnsName,
+} from '../lib/world-stack.ts';
 
 let template: Template;
+let assemblyDir: string;
 
 /** The AMI lookup as cdk.context.json records it, with an AMI standing in for a real one. */
 const AMI_CONTEXT_KEY =
@@ -41,11 +48,23 @@ function evaluate(value: unknown, values: Record<string, string> = {}): string |
 /** A template value as text, with intrinsics shown as placeholders. */
 const render = (value: unknown): string => String(evaluate(value));
 
+/** A resource as the template has it. */
+interface Resource {
+  Properties: Record<string, unknown>;
+  DependsOn?: string[];
+  [key: string]: unknown;
+}
+
+/** The template's resources of a type, by logical ID. */
+function resources(type: string): [string, Resource][] {
+  return Object.entries(template.findResources(type)) as [string, Resource][];
+}
+
 /** The room server instance: its logical ID, and the template entry. */
-function server(): [string, { Properties: Record<string, unknown>; [key: string]: unknown }] {
-  const instances = Object.entries(template.findResources('AWS::EC2::Instance'));
+function server(): [string, Resource] {
+  const instances = resources('AWS::EC2::Instance');
   expect(instances).toHaveLength(1);
-  return instances[0]! as [string, { Properties: Record<string, unknown> }];
+  return instances[0]!;
 }
 
 beforeAll(() => {
@@ -53,9 +72,11 @@ beforeAll(() => {
   const dir = mkdtempSync(join(tmpdir(), 'world-infra-'));
   const clientDir = join(dir, 'client');
   const serverDir = join(dir, 'server');
-  mkdirSync(clientDir);
+  mkdirSync(join(clientDir, SITE_ASSETS_DIR), { recursive: true });
   mkdirSync(serverDir);
   writeFileSync(join(clientDir, 'index.html'), '<!doctype html>');
+  writeFileSync(join(clientDir, 'favicon.svg'), '<svg/>');
+  writeFileSync(join(clientDir, SITE_ASSETS_DIR, 'main-B8FjIsg3.js'), 'export {}');
   writeFileSync(join(serverDir, 'index.js'), 'console.log("server")');
 
   const app = new App({ context: { [AMI_CONTEXT_KEY]: CACHED_AMI } });
@@ -65,7 +86,16 @@ beforeAll(() => {
     serverDir,
   });
   template = Template.fromStack(stack);
+  assemblyDir = app.synth().directory;
 });
+
+/** The files a BucketDeployment uploads, as staged in the cloud assembly. */
+function uploads(deployment: Resource): string[] {
+  const [zip] = deployment.Properties.SourceObjectKeys as string[];
+  return readdirSync(join(assemblyDir, `asset.${zip!.replace(/\.zip$/, '')}`), {
+    recursive: true,
+  }).map(String);
+}
 
 describe('WorldStack', () => {
   it('serves the site from a private, encrypted bucket through Origin Access Control', () => {
@@ -79,6 +109,33 @@ describe('WorldStack', () => {
       BucketEncryption: Match.objectLike({}),
     });
     template.resourceCountIs('AWS::CloudFront::OriginAccessControl', 1);
+  });
+
+  it('keeps every hashed file of earlier builds, cached for good, and has pages checked each visit', () => {
+    const deployments = resources('Custom::CDKBucketDeployment');
+    expect(deployments).toHaveLength(2);
+    const [hashedId, hashed] = deployments.find(
+      ([, d]) => d.Properties.DestinationBucketKeyPrefix === `${SITE_ASSETS_DIR}/`,
+    )!;
+    const [, pages] = deployments.find(([id]) => id !== hashedId)!;
+
+    // Hashed names never mean two things, so nothing a tab opened earlier may still load is removed.
+    expect(hashed.Properties).toMatchObject({
+      Prune: false,
+      SystemMetadata: { 'cache-control': 'public, max-age=31536000, immutable' },
+    });
+    expect(uploads(hashed)).toEqual(['main-B8FjIsg3.js']);
+
+    // The pages are revalidated, pruned except for assets/, and go up after what they name.
+    expect(pages.Properties).toMatchObject({
+      Prune: true,
+      Exclude: [`${SITE_ASSETS_DIR}/*`],
+      SystemMetadata: { 'cache-control': 'no-cache' },
+      DistributionPaths: ['/*'],
+    });
+    expect(pages.Properties.DestinationBucketKeyPrefix).toBeUndefined();
+    expect(uploads(pages).sort()).toEqual(['favicon.svg', 'index.html']);
+    expect(pages.DependsOn).toContain(hashedId);
   });
 
   it('routes /ws* to the room server with caching off and upgrade headers forwarded', () => {

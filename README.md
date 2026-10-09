@@ -144,6 +144,7 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
   It serves the site and proxies WebSocket traffic on the same domain, so the page connects to `wss://<same host>/ws` with CloudFront's TLS certificate and no custom domain is required.
 - **S3** holds the built client; the bucket is private, encrypted, and readable only by the distribution.
   Every deploy uploads the new build and invalidates the cache.
+  The files Vite names by their content (everything under `assets/`) are cached for a year and never deleted, so a tab opened before a deploy can still lazy-load the build it started with (the kitchen computer, DOOM, the post-processing); the pages and the favicon are revalidated on every visit, and go up only after the files they name.
 - **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
   Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
   CloudFront reaches it by an Elastic IP's public DNS name, which survives a stop and start (AWS maintenance included), unlike the instance's own address.

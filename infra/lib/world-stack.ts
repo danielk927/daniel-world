@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { CfnOutput, Duration, Fn, RemovalPolicy, Stack, Token, type StackProps } from 'aws-cdk-lib';
 import { Alarm, ComparisonOperator, Metric, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
 import { Ec2Action, Ec2InstanceAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
@@ -35,7 +36,7 @@ import { ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
-import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
+import { BucketDeployment, CacheControl, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import type { Construct } from 'constructs';
 
 export interface WorldStackProps extends StackProps {
@@ -49,6 +50,8 @@ export interface WorldStackProps extends StackProps {
 export const SERVER_PORT = 3001;
 /** CloudFront forwards this path prefix (WebSocket and HTTP) to the room server. */
 export const SERVER_PATH = '/ws';
+/** Where Vite puts the files it names by their content (its default `build.assetsDir`). */
+export const SITE_ASSETS_DIR = 'assets';
 
 // Pinned Node.js runtime for the instance, verified by checksum before it is used.
 const NODE_VERSION = 'v24.21.0';
@@ -259,13 +262,34 @@ export class WorldStack extends Stack {
       },
     });
 
-    new BucketDeployment(this, 'DeploySite', {
-      sources: [Source.asset(props.clientDir)],
+    // The site goes up in two parts with different caching. Vite names everything in assets/ by
+    // its content (the chunks, the computer's worker, the DOOM ELF and WAD, fonts, images), so a
+    // name there never means two things: those are cached for good, and never deleted, since a tab
+    // opened before a deploy keeps lazy-loading the build it started with.
+    const hashedFiles = new BucketDeployment(this, 'DeploySiteAssets', {
+      sources: [Source.asset(join(props.clientDir, SITE_ASSETS_DIR))],
       destinationBucket: siteBucket,
+      destinationKeyPrefix: `${SITE_ASSETS_DIR}/`,
+      cacheControl: [
+        CacheControl.setPublic(),
+        CacheControl.maxAge(Duration.days(365)),
+        CacheControl.immutable(),
+      ],
+      prune: false,
+    });
+    // The pages, and the few files kept under their own names (the favicon), are checked again on
+    // every visit. They go up only once every file they name is in place; any the build no longer
+    // has are removed, but never anything under assets/.
+    const pages = new BucketDeployment(this, 'DeploySitePages', {
+      sources: [Source.asset(props.clientDir, { exclude: [SITE_ASSETS_DIR] })],
+      destinationBucket: siteBucket,
+      exclude: [`${SITE_ASSETS_DIR}/*`],
+      cacheControl: [CacheControl.noCache()],
       distribution,
       distributionPaths: ['/*'],
       prune: true,
     });
+    pages.node.addDependency(hashedFiles);
 
     new CfnOutput(this, 'SiteUrl', { value: `https://${distribution.distributionDomainName}` });
     new CfnOutput(this, 'ServerUrl', {
