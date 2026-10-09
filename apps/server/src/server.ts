@@ -292,7 +292,20 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
   const maxPerIp = options.maxConnectionsPerIp ?? 20;
   const perIp = new Map<string, number>();
 
+  /**
+   * Turn a socket away before it is a connection: say why, and stop waiting for its handshake after
+   * the grace period, so sockets refused for being too many cannot pile up while they close.
+   */
+  const turnAway = (ws: WebSocket, code: number, reason: string): void => {
+    ws.close(code, reason);
+    setTimeout(() => ws.terminate(), CLOSE_GRACE_MS).unref();
+  };
+
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+    // First, before anything can turn the socket away: a socket emits errors (an oversized or
+    // malformed frame) even while it closes, and an error event nobody listens for is thrown, which
+    // would take the whole server down. A close event follows, which does any cleanup.
+    ws.on('error', () => {});
     const forwarded = options.trustProxy ? req.headers['x-forwarded-for'] : undefined;
     const ip =
       (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ??
@@ -300,11 +313,11 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       'unknown';
     const origin = req.headers.origin;
     if (options.allowedOrigins && (!origin || !options.allowedOrigins.includes(origin))) {
-      ws.close(CLOSE_FLOOD, 'origin not allowed');
+      turnAway(ws, CLOSE_FLOOD, 'origin not allowed');
       return;
     }
     if (connections.size >= maxConnections || (perIp.get(ip) ?? 0) >= maxPerIp) {
-      ws.close(CLOSE_TRY_AGAIN_LATER, 'too many connections');
+      turnAway(ws, CLOSE_TRY_AGAIN_LATER, 'too many connections');
       return;
     }
     perIp.set(ip, (perIp.get(ip) ?? 0) + 1);
@@ -360,8 +373,6 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       else perIp.set(ip, count);
       leave(conn);
     });
-    // Errors (e.g. oversized frames) are followed by a close event, which does the cleanup.
-    ws.on('error', () => {});
   });
 
   // Drop connections that stopped answering pings (closed laptop lids, dead networks).

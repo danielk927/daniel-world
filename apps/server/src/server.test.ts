@@ -17,6 +17,7 @@ import {
   CLOSE_ROOM_FULL,
   CLOSE_ROOM_TAKEN,
   CLOSE_TRY_AGAIN_LATER,
+  MAX_PAYLOAD_BYTES,
   startServer,
   type WorldServer,
 } from './server.ts';
@@ -283,6 +284,28 @@ describe('room server', () => {
     await client().join('Two');
     const third = client();
     expect(await third.waitForClose()).toBe(CLOSE_TRY_AGAIN_LATER);
+  });
+
+  it('survives a socket it turned away sending a frame over the size limit', async () => {
+    await server.close();
+    server = await startServer({ port: 0, host: '127.0.0.1', maxConnectionsPerIp: 1 });
+    // An error event nobody listens for is thrown, and would take the whole process down.
+    const uncaught: unknown[] = [];
+    const onUncaught = (error: unknown): void => void uncaught.push(error);
+    process.on('uncaughtException', onUncaught);
+    try {
+      const a = client();
+      await a.join('One');
+      const turnedAway = client();
+      // Sent as soon as the socket opens, while the server is already closing it.
+      turnedAway.ws.once('open', () => turnedAway.ws.send('x'.repeat(MAX_PAYLOAD_BYTES + 3000)));
+      await turnedAway.waitForClose();
+      a.send({ t: 'ping', id: 1 });
+      await a.waitForMessage('pong');
+      expect(uncaught).toEqual([]);
+    } finally {
+      process.off('uncaughtException', onUncaught);
+    }
   });
 
   it('drops invalid messages without disconnecting', async () => {
