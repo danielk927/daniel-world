@@ -624,3 +624,58 @@ Judgment calls made during the unattended build, with reasons.
 - **When the server's heartbeat comes late, the process itself was held up, and it only pings.** Node runs timers before it reads sockets, so after a pause of a few heartbeats (a long garbage collection, a busy host) the overdue beat found every pong that came meanwhile still unread, and dropped clients that had answered in time.
   `server.test.ts` holds the process for 700 ms while a pong is on its way, and the connection stays; one that stops answering is still dropped at the next beat on time.
 - Found chasing an E2E run on a heavily loaded machine that went "Offline, playing solo" mid-test with nothing in the room's log; a stalled test process, which runs the room server in-process, fits it, though that one run could not be reproduced.
+
+### A safer AWS stack and dev scripts that clean up (2026-10-09)
+
+From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call was made, so the stack was checked by local synth (dummy account, no credentials) and template tests only.
+
+- **A server deploy waits for the new instance to answer its health check.**
+  The instance has a CreationPolicy (one signal within 10 minutes; CloudFormation's documented default count is 1, so only the timeout is set).
+  The boot script signals from its exit trap with its own exit code, and its last step waits up to 60 s for `/ws/health` on the instance, through the prefix CloudFront forwards.
+  A failing step or a hang rolls the deploy back and the old instance keeps serving; before, a failed boot still ended `UPDATE_COMPLETE` with the old instance deleted.
+  `cfn-signal` needs no credentials (CloudFormation checks the instance belongs to the stack); the helper scripts are documented as preinstalled on Amazon Linux AMIs, and the boot installs `aws-cfn-bootstrap` anyway.
+  The shell flow was run locally against the real server bundle, with `cfn-signal` stubbed: success signals 0 only once `/ws/health` answers, a failing step signals 1 and names itself in the log, a server that never answers signals 124.
+- **The boot log ships to CloudWatch before any step that can fail** (stream `<instance id>-boot`), and a failed boot waits 15 s before signalling.
+  `cfn-signal --reason` only works for wait condition handles, so the stack event cannot say which step failed, and the rollback deletes the instance with its local log.
+  Not verified on AWS: that the agent reads `cloud-init-output.log` from its start and ships it within those 15 s.
+- **The instance and its Elastic IP depend on the public subnet's route to the internet gateway.**
+  In a new stack the instance could otherwise boot before its route existed, which used to fail silently and would now fail the deploy.
+  CloudFormation's EIP docs ask for a dependency on the gateway attachment; CDK's VPC-wide dependable is only the gateway, while the subnet's default route depends on the attachment.
+- **The AMI is looked up once and kept in `infra/cdk.context.json`** (`cachedInContext`), which git now tracks; it was gitignored, so the availability zone and prefix list lookups lived only on Daniel's machine too.
+  Before, CloudFormation resolved the AMI's SSM parameter on every deploy, so the first deploy after an Amazon Linux release replaced the instance and dropped every room, whatever the deploy was for.
+  Considered: `resolveSsmParameterAtLaunch` (the newest AMI whenever an instance launches, never a replacement on its own), which patches the OS on every server deploy but keeps the AMI out of the template and `cdk diff`; and a hand-pinned AMI per region, which needs a lookup anyway.
+  A recorded lookup keeps synth reproducible, as the CDK guidance asks, and moving on is a deliberate `cdk context --reset` (README).
+  No entry is committed: a lookup needs credentials, so the first deploy writes it and Daniel commits the file.
+  AL2023 locks its package repository to the AMI's release, so packages stay as they were until the AMI is refreshed; monthly is suggested.
+- **CloudFront reaches the room server by an Elastic IP's public DNS name.**
+  An instance's own public IP, and the name made from it, change on every stop and start, AWS maintenance included, which left the origin pointing nowhere until the next deploy.
+  CloudFormation has no DNS name attribute for an Elastic IP, so it is built from `PublicIp`: `ec2-a-b-c-d.compute-1.amazonaws.com` in us-east-1, `ec2-a-b-c-d.<region>.compute.amazonaws.com` elsewhere.
+  EC2's docs give the regional form and say a public DNS name resolves to the public address, Elastic IP included, from outside the VPC; the us-east-1 form comes from AWS's examples and from how the Terraform AWS provider derives `aws_eip.public_dns`, not from one stated rule, so `dig +short` the new `ServerOrigin` output once after the first deploy (it should print the Elastic IP).
+  `AWS::EC2::EIP`'s `InstanceId` updates without replacement (it reassociates), so a server deploy moves the address only once the new instance has signalled, and the origin itself never changes.
+  The instance still gets its own public IP at launch, for its boot downloads with no NAT gateway; EC2 releases it when the Elastic IP is associated, so the cost stays one public IPv4.
+  Considered: CloudFront VPC origins, with no public address at all, which would need private egress (NAT or endpoints) for the boot.
+- **The instance role reads only its bundle's object** (`s3:GetObject` on that key), instead of `Asset.grantRead`'s read and list on the whole CDK assets bucket.
+  `aws s3 cp` makes a HeadObject first, which `s3:GetObject` covers; the default bootstrap key policy lets account principals decrypt through S3, so no KMS grant is needed (the old grant had none either).
+- **The site goes up in two uploads.**
+  `assets/`, where Vite puts everything it names by content (chunks, the computer's worker, the DOOM ELF and WAD, fonts, images), is cached `public, max-age=31536000, immutable` and never pruned, so a tab opened before a deploy can still lazy-load its own build instead of getting 403s.
+  The pages and the favicon go up after it, with `no-cache` (CloudFront keeps them for the cache policy's 1 s minimum TTL; browsers revalidate each load), pruned except for `assets/*` (a BucketDeployment `exclude` also spares files from pruning), and with the `/*` invalidation.
+  Old hashed files pile up, a few MB per build that changes them; removing the old single deployment deletes nothing, since `retainOnDelete` defaults to true.
+- **The server log on the instance is bounded by size**: rotated daily, or once past 50 MB, keeping seven compressed copies.
+  logrotate runs from `logrotate.timer` on AL2023, daily by default, so a drop-in makes it hourly for `maxsize` to act in time, and the boot enables the timer outright (an Amazon Linux maintainer says it is on in their AMIs; enabling it again is harmless).
+  logrotate was not available here to dry-run the file; the directives are standard (`maxsize` since 3.8.1).
+  The log group already kept two weeks; a flood still costs CloudWatch ingestion, and limiting what the server logs belongs in `apps/server`.
+- **Bots never take a room's last seat.**
+  `npm run bots -- --count 15` in the lobby made 16 with Chef Skinner, and the developer's own browser got `room_full`, while `/rooms/lobby` said 15 of 16.
+  The bots read `/rooms/<code>` (lobby only) for a first count, then join one at a time and stop when the welcome's player list reaches one short of `MAX_PLAYERS_PER_ROOM`; a bot whose join fills the room leaves again, and a refused join gives one seat back.
+  That holds whether `/rooms` counts Chef Skinner's seat in `max` or not; the room server's review now leaves it out (15 with him in), and the bots were checked against the version that counted it.
+  They number their inputs one after another, as the server now requires: skipping ahead after a stall moves their clock, not their count.
+  `--count` defaults to and stops at 15, one room's worth less a seat; the old cap of 64 predates the 16 player rooms and the 20 sockets per address.
+- **Bots keep time in seconds at the 60 Hz tick.**
+  Their odds were per tick from the 20 Hz days, so at 60 Hz they threw a knife about every 2 s (said 2 to 6), changed their minds every 0.3 to 1 s (said 1 to 3), and jumped and chatted three times as often.
+  They also sent inputs off a timer that drifts (59.4 a second, measured from the server's acks); now each sends one input per tick of time gone by, 60.0 measured, and skips ahead rather than bursting after a stall.
+- **The screenshots' own server has Chef Skinner in**, as the live site and `npm run dev` have him, so the lobby shots no longer depend on whether a dev server was already up (the committed ones were taken without him).
+  He leaves newcomers alone for 8 s and anyone standing still, so he never knocks out the visitor in a shot.
+  If the caged chef design is built, he will be in the walk-in in these shots too, as on the live site.
+- **perf and screenshots stop what they start, however they end** (`scripts/processes.ts`).
+  Vite and the bots were spawned before the `try`, so a failure (a port in use, a timeout, Chromium not launching) left them running, and the next run quietly reused a Vite built for another server; reproduced with a port that accepts and never answers, which left Vite on its port.
+  Children now start inside the `try`, Vite directly rather than through npm, each in a process group of its own, and the whole groups are stopped on finishing, on an error, and on Ctrl+C (which no longer reaches them by itself, so the script passes it on and exits 130).
