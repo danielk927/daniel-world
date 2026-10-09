@@ -1,7 +1,8 @@
 /**
  * The kitchen from fixed viewpoints, for judging a visual change: the same frames before and after.
  *
- *   node scripts/viewpoints.ts [--out docs/graphics-upgrade/after] [--dpr 1] [--only suite,pass]
+ *   node scripts/viewpoints.ts [--out docs/graphics-upgrade/after] [--dpr 1] [--format jpg|png]
+ *                              [--only suite,pass]
  *                              [--time 20:00] [--quality high]
  *
  * Starts the Vite dev client if it is not up (WORLD_CLIENT_PORT moves it off :5173); no room server
@@ -22,6 +23,7 @@ const { values } = parseArgs({
   options: {
     out: { type: 'string', default: 'docs/graphics-upgrade/after' },
     dpr: { type: 'string', default: '1' },
+    format: { type: 'string', default: 'jpg' },
     only: { type: 'string' },
     time: { type: 'string', default: '20:00' },
     quality: { type: 'string', default: 'high' },
@@ -122,7 +124,11 @@ async function main(): Promise<void> {
       await page.addStyleTag({ content: '.ui, #loading { display: none !important; }' });
       // Let the first frames settle (the outside is painted for the hour once the page is idle).
       await page.waitForTimeout(1500);
-      await page.screenshot({ path: `${outDir}/${view.name}.png` });
+      await page.screenshot(
+        values.format === 'png'
+          ? { path: `${outDir}/${view.name}.png` }
+          : { path: `${outDir}/${view.name}.jpg`, type: 'jpeg', quality: 90 },
+      );
       console.log(`${view.name}: loaded in ${loadMs} ms`);
     }
     console.log(`Viewpoints written to ${outDir}`);
