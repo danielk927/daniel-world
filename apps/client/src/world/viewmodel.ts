@@ -416,9 +416,19 @@ const HANG_ALONG = 0.88;
  * A knife on its way from the grip to the index finger, by how far along it is (`hang`): it stays
  * put while the hand opens, by `open`; swings out from the palm (as far as `lift`) and round to the
  * finger's line, `ahead` of where it hangs, by `round`, while the other fingers fold into a fist
- * (from `fold` to `round`); and comes onto the finger along it (in the arm's units).
+ * behind it (from `fold` to `folded`); and comes onto the finger along it (in the arm's units). A
+ * ring already on the finger turns the handle out of the fist by `round`, and the fingers fold
+ * after it, by `threadFolded`.
  */
-const HANG = { open: 0.15, fold: 0.3, round: 0.6, lift: 0.06, ahead: 0.055 } as const;
+const HANG = {
+  open: 0.15,
+  fold: 0.2,
+  folded: 0.45,
+  round: 0.6,
+  threadFolded: 0.9,
+  lift: 0.06,
+  ahead: 0.055,
+} as const;
 
 /**
  * A karambit's grip. The middle, ring and little fingers wrap the handle; the index finger, past
@@ -1145,8 +1155,10 @@ export class Viewmodel {
     this.spinTurn.setFromAxisAngle(Z_AXIS, -pose.spin);
     this.heldAt.copy(this.toPivot).applyQuaternion(this.spinTurn);
     if (held.threaded) {
+      // Once the hand has opened, its handle turns out of the fist about the ring.
+      const out = smoothstep(clamp01((hang - HANG.open) / (HANG.round - HANG.open)));
       this.flipper.position.copy(this.hangAt);
-      this.flipper.quaternion.slerpQuaternions(this.spinTurn, this.hangTurn, hang);
+      this.flipper.quaternion.slerpQuaternions(this.spinTurn, this.hangTurn, out);
     } else {
       // Once the hand has opened, the knife swings out from the palm, round the hand rather than
       // through it, turning to hang as it comes round to the finger's line in front of the
@@ -1199,7 +1211,10 @@ export class Viewmodel {
       const hang = clamp01(pose.hang);
       const open = Math.max(this.release, smoothstep(clamp01(hang / HANG.open)));
       mixPose(this.handPose, grip, held.open, open);
-      const point = smoothstep(clamp01((hang - HANG.fold) / (HANG.round - HANG.fold)));
+      const [fold, folded] = held.threaded
+        ? [HANG.round, HANG.threadFolded]
+        : [HANG.fold, HANG.folded];
+      const point = smoothstep(clamp01((hang - fold) / (folded - fold)));
       mixPose(this.handPose, this.handPose, POINT_POSE, point);
       // A ring on the finger keeps it through the ring, straightening as the ring slides out.
       if (held.threaded) {
