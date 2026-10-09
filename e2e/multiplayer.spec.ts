@@ -34,6 +34,19 @@ test('two players join the lobby and see each other', async ({ browser }) => {
     (await world(page)).remotePlayers.map((p) => p.name).sort();
   expect(await names(a)).toEqual(['Bob', 'Chef Skinner']);
   expect(await names(b)).toEqual(['Alice', 'Chef Skinner']);
+  // Each of the others wears a name tag in the page, in their own color.
+  for (const page of [a, b]) {
+    const tags = await page.locator('.nametag').evaluateAll((tags) =>
+      tags.map((tag) => ({
+        name: tag.querySelector('.nametag-name')?.textContent,
+        color: (tag as HTMLElement).style.getPropertyValue('--player-color'),
+      })),
+    );
+    const remotes = (await world(page)).remotePlayers.map(({ name, color }) => ({ name, color }));
+    const byName = (p: { name?: string | null }, q: { name?: string | null }) =>
+      String(p.name).localeCompare(String(q.name));
+    expect(tags.sort(byName)).toEqual(remotes.sort(byName));
+  }
   await expect(b.getByRole('region', { name: 'Players in this room' })).toContainText('3 / 16');
   await expect(a.getByRole('img', { name: /Minimap/ })).toBeVisible();
 
@@ -132,11 +145,15 @@ test("closing A drops B's count to 1", async ({ browser }) => {
   const a = await enterWorld(browser, { name: 'Leaver', room: 'e2e-leave' });
   const b = await enterWorld(browser, { name: 'Stayer', room: 'e2e-leave' });
   await expectWorld(b, (w) => w.playerCount === 2, 'B sees A');
+  const tag = b.locator('.nametag-name', { hasText: 'Leaver' });
+  await expect(tag).toHaveCount(1);
 
   await a.context().close();
 
   await expectWorld(b, (w) => w.playerCount === 1, "B's count drops to 1");
   await expect(b.getByRole('list', { name: 'Chat history' })).toContainText('Leaver left');
+  // And their name tag goes with them.
+  await expect(tag).toHaveCount(0);
   await b.context().close();
 });
 
