@@ -17,8 +17,8 @@ import { KnifePreview } from './knifePreview.ts';
 /** Knives across the grid; arrow keys move this far up and down. */
 const COLUMNS = 4;
 
-/** Names short enough for a tile; the full name heads the preview. */
-const TILE_NAMES: Readonly<Record<KnifeSkin, string>> = {
+/** Names short enough for the grid; the full name heads the preview. */
+const SHORT_NAMES: Readonly<Record<KnifeSkin, string>> = {
   kitchen: 'Chef’s',
   karambit: 'Karambit',
   butterfly: 'Butterfly',
@@ -33,7 +33,7 @@ const TILE_NAMES: Readonly<Record<KnifeSkin, string>> = {
   stiletto: 'Stiletto',
 };
 
-/** A strip of a finish, as it is painted along a blade, tip on the left. */
+/** A finish as it is painted along a blade, tip on the left, shown through a small ring. */
 function swatch(finish: KnifeFinish): HTMLCanvasElement {
   const { data, width, height } = finishSwatch(finish);
   const canvas = el('canvas', {
@@ -46,23 +46,22 @@ function swatch(finish: KnifeFinish): HTMLCanvasElement {
 }
 
 /**
- * The Knives tab of the pause menu: every knife in a grid, a live look at the one chosen, its
- * finishes, and Equip, which carries it from the next time the knife is drawn (as the menu closes),
- * for everyone in the room to see.
+ * The Knives tab of the pause menu: a live look at the knife chosen, its finishes, and Equip,
+ * which carries it from the next time the knife is drawn (as the menu closes), for everyone in the
+ * room to see; under them every knife, by icon and name, the one carried marked with the bar.
  */
 export class KnivesPanel {
   readonly element: HTMLElement;
   private readonly settings: Settings;
   private readonly preview = new KnifePreview();
-  private readonly tiles = new Map<KnifeSkin, HTMLButtonElement>();
+  private readonly options = new Map<KnifeSkin, HTMLButtonElement>();
   private readonly name = el('h3', { class: 'knives-name' });
-  private readonly finishName = el('p', { class: 'knives-finish' });
   private readonly finishes = el('div', {
     class: 'finish-list',
     attrs: { role: 'radiogroup', 'aria-label': 'Finish' },
   });
   private readonly equip = el('button', {
-    class: 'button button-primary knives-equip',
+    class: 'button knives-equip',
     attrs: { type: 'button' },
   });
   private readonly status = el('p', { class: 'knives-status', attrs: { role: 'status' } });
@@ -79,27 +78,22 @@ export class KnivesPanel {
       attrs: { role: 'radiogroup', 'aria-label': 'Knife' },
     });
     KNIFE_SKINS.forEach((skin, i) => {
-      const tile = el(
+      const option = el(
         'button',
-        { class: 'knife-tile', attrs: { type: 'button', role: 'radio', 'data-skin': skin } },
-        [
-          skinIcon(skin),
-          el('span', { class: 'knife-tile-name', text: TILE_NAMES[skin] }),
-          el('span', { class: 'visually-hidden knife-tile-equipped', text: ', equipped' }),
-        ],
+        { class: 'knife-option', attrs: { type: 'button', role: 'radio', 'data-skin': skin } },
+        [skinIcon(skin), el('span', { class: 'knife-option-name', text: SHORT_NAMES[skin] })],
       );
-      tile.setAttribute('aria-label', knifeModel(skin).name);
-      tile.addEventListener('click', () => this.choose(skin));
-      tile.addEventListener('keydown', (event) => this.moveInGrid(event, i));
-      this.tiles.set(skin, tile);
-      grid.append(tile);
+      option.addEventListener('click', () => this.choose(skin));
+      option.addEventListener('keydown', (event) => this.moveInGrid(event, i));
+      this.options.set(skin, option);
+      grid.append(option);
     });
     this.equip.addEventListener('click', () => this.equipSelected());
     this.element = el('div', { class: 'pause-panel knives' }, [
       el('div', { class: 'knives-top' }, [
         this.preview.element,
         el('div', { class: 'knives-details' }, [
-          el('div', {}, [this.name, this.finishName]),
+          this.name,
           this.finishes,
           el('div', { class: 'knives-actions' }, [this.equip, this.status]),
         ]),
@@ -161,7 +155,7 @@ export class KnivesPanel {
     event.preventDefault();
     const next = KNIFE_SKINS[(target + count) % count]!;
     this.choose(next);
-    this.tiles.get(next)?.focus();
+    this.options.get(next)?.focus();
   }
 
   private moveInFinishes(
@@ -194,16 +188,17 @@ export class KnivesPanel {
   private render(): void {
     const { skin, finish } = this.selected;
     const equipped = this.settings.values.knife;
-    for (const [tileSkin, tile] of this.tiles) {
-      const chosen = tileSkin === skin;
-      tile.setAttribute('aria-checked', String(chosen));
-      tile.tabIndex = chosen ? 0 : -1;
-      const isEquipped = tileSkin === equipped.skin;
-      tile.classList.toggle('is-equipped', isEquipped);
-      (tile.querySelector('.knife-tile-equipped') as HTMLElement).hidden = !isEquipped;
+    for (const [optionSkin, option] of this.options) {
+      const chosen = optionSkin === skin;
+      option.setAttribute('aria-checked', String(chosen));
+      option.tabIndex = chosen ? 0 : -1;
+      const isEquipped = optionSkin === equipped.skin;
+      option.classList.toggle('is-equipped', isEquipped);
+      // The full name, and which knife is carried, as the bar shows it.
+      const name = knifeModel(optionSkin).name;
+      option.setAttribute('aria-label', isEquipped ? `${name}, equipped` : name);
     }
     this.name.textContent = knifeModel(skin).name;
-    this.finishName.textContent = FINISHES[finish].name;
 
     const finishes = SKIN_FINISHES[skin];
     const focused = this.finishes.contains(document.activeElement);
@@ -216,7 +211,10 @@ export class KnivesPanel {
             class: 'finish',
             attrs: { type: 'button', role: 'radio', 'aria-checked': String(chosen) },
           },
-          [this.swatchFor(option), el('span', { text: FINISHES[option].name })],
+          [
+            this.swatchFor(option),
+            el('span', { class: 'finish-name', text: FINISHES[option].name }),
+          ],
         );
         button.tabIndex = chosen ? 0 : -1;
         button.addEventListener('click', () => this.choose(skin, option));
@@ -229,6 +227,8 @@ export class KnivesPanel {
     const isEquipped = sameLook(this.selected, equipped);
     this.equip.textContent = isEquipped ? 'Equipped' : 'Equip';
     this.equip.setAttribute('aria-disabled', String(isEquipped));
+    // The bar is under Equip while there is something to equip.
+    this.equip.classList.toggle('button-primary', !isEquipped);
 
     if (this.active) {
       const still = document.documentElement.classList.contains('reduce-motion');

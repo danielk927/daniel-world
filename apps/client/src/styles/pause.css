@@ -1,327 +1,443 @@
 /* ---------- Pause menu ---------- */
 
+/*
+ * On the dark side of the screen, with the kitchen still going on the right: the state of play
+ * and the room along the top, the tabs as a list of words down the left, the open tab's rows to
+ * their right, and Resume and Leave at the bottom left. No card: words, rings and the bar.
+ */
 .pause {
-  background: rgba(16, 22, 52, 0.55);
-  animation: fade-in 0.2s ease both;
+  position: absolute;
+  inset: 0;
+  /* A modal: nothing behind it takes the mouse. */
+  pointer-events: auto;
+  background: var(--dark-from-left);
+  animation: pause-in 0.2s ease both;
 }
 
-.pause-card {
-  width: min(560px, 100%);
-  max-height: calc(100vh - 48px);
-  display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
-  padding: 26px 28px 22px;
-  overflow: auto;
-  animation: card-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-@keyframes card-in {
+@keyframes pause-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.985);
   }
 }
 
-.pause-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
+.pause-frame {
+  --pause-side: clamp(24px, 6.1vw, 88px);
+  --pause-top: clamp(24px, 8.9vh, 80px);
+  --pause-nav: clamp(200px, 26.5vw, 382px);
+  --pause-content: 460px;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: var(--pause-nav) minmax(0, var(--pause-content));
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head head'
+    'tabs panel'
+    '. panel'
+    'actions panel';
+  padding: var(--pause-top) var(--pause-side) clamp(20px, 6.5vh, 58px);
+  /* Only a window too short for the left column scrolls as a whole; the tab's rows scroll alone. */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+  animation: pause-frame-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.pause-card .card-title {
-  margin: 0;
-  font-size: 32px;
+@keyframes pause-frame-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+.pause-head {
+  grid-area: head;
+  padding-bottom: 38px;
 }
 
 .pause-status {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  text-align: right;
+  margin: 0 0 18px;
+}
+
+.pause-status-dot {
+  margin: 0 0.3em;
+}
+
+.pause-title {
+  overflow-wrap: anywhere;
+}
+
+.pause-title.is-long {
+  font-size: 48px;
+}
+
+.pause-bar {
+  margin-top: 7px;
 }
 
 .pause-note {
-  margin: 0 0 14px;
+  margin: 16px 0 0;
   font-size: 14px;
   color: var(--warn);
 }
 
-/* Tabs: small capitals on a hairline, the selected one underlined in ivory. */
-.tabs {
-  display: flex;
-  gap: 26px;
-  border-bottom: 1px solid var(--panel-border);
-  margin-bottom: 18px;
+/* The tabs: words in the title face, the open one in ivory with the bar under it. */
+.pause-tabs {
+  grid-area: tabs;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 11px;
 }
 
-.tab {
+.pause-tab {
+  appearance: none;
   position: relative;
-  padding: 0 0 11px;
+  padding: 6px 0 12px;
   border: 0;
   background: none;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font: 700 28px/1.1 var(--font-display);
+  letter-spacing: -0.005em;
   color: var(--ink-faint);
   cursor: pointer;
   transition: color 0.15s ease;
 }
 
-.tab:hover {
+.pause-tab:hover {
   color: var(--ink-muted);
 }
 
-.tab[aria-selected='true'] {
+.pause-tab[aria-selected='true'] {
   color: var(--ink);
 }
 
-.tab[aria-selected='true']::after {
+/* The bar under the word chosen from a few: the open tab, Off or On, a tier, a finish, a knife. */
+.pause-tab::after,
+.switch-word::after,
+.choice::after,
+.finish-name::after,
+.knife-option-name::after {
   content: '';
   position: absolute;
-  right: 0;
-  bottom: -1px;
   left: 0;
-  height: 2px;
-  background: var(--ivory);
+  right: 0;
+  bottom: 0;
+  height: var(--bar);
+  border-radius: calc(var(--bar) / 2);
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.18s ease;
 }
 
-.tab:focus-visible {
-  outline: none;
-  box-shadow: var(--focus);
+.pause-tab[aria-selected='true']::after {
+  transform: scaleX(1);
 }
 
-/* The panels share one cell, so the card is as tall as the tallest and keeps its size between tabs. */
+/* Focus is a brass ring with room round the word, as on buttons. */
+.pause-tab:focus-visible,
+.switch:focus-visible,
+.choice:focus-visible,
+.finish:focus-visible,
+.knife-option:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+/* The open tab, to the right of the list; it scrolls on its own when the window is short. */
 .pause-panels {
-  display: grid;
+  grid-area: panel;
+  min-height: 0;
+  /* Room inside the scroller for focus rings, taken back outside; the first row's words line up
+     with the first tab's. */
+  margin: -24px -16px -12px -12px;
+  padding: 12px 16px 12px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
 }
 
-.pause-panels > .pause-panel {
-  grid-area: 1 / 1;
-}
-
-.pause-panels > .pause-panel[hidden] {
-  display: block !important;
-  visibility: hidden;
-}
-
-.settings-list {
+/* Rows: the label, help under it in faint, and the control on the right. */
+.settings-list,
+.pause-controls {
   display: grid;
   align-content: start;
+  margin: 0;
 }
 
 .setting {
   display: grid;
-  grid-template-columns: 1fr minmax(0, 240px);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 20px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(246, 243, 234, 0.08);
-}
-
-.setting:last-child {
-  border-bottom: 0;
+  column-gap: 24px;
+  padding: 14px 0;
 }
 
 .setting-label {
-  font-size: 14.5px;
+  font: 400 18px/1.3 var(--font-body);
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .setting-control {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 22px;
+  /* Controls are taller than a line of the label, but the row is spaced by the label. */
+  margin: -8px 0;
 }
 
-.setting-control .slider-row {
-  width: 100%;
+.setting-value {
+  min-width: 3.4ch;
+  font: 400 18px/1 var(--font-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  text-align: right;
 }
 
 .setting-help,
 .setting-help-row {
   grid-column: 1 / -1;
-  margin: 6px 0 0;
-  font-size: 12.5px;
+  margin: 3px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--ink-faint);
+  text-wrap: pretty;
 }
 
 .setting-help-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 
 .setting-help-row .setting-help {
   margin: 0;
 }
 
-/* A switch: a hairline track with a square thumb, ivory when on. */
-.switch {
-  position: relative;
-  width: 40px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--panel-border);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.06);
-  cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease;
+.setting-help-row .setting-action {
+  flex: none;
+  /* A word on the help's line, without making the line taller. */
+  min-height: 30px;
+  margin: -5px 0;
 }
 
-.switch-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
+/* A slider: a hairline track, the brass run up to a ringed knob. */
+.pause-slider {
+  --run: 0.5;
+  appearance: none;
+  width: 180px;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pause-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    to right,
+    var(--accent) calc(7px + (100% - 14px) * var(--run)),
+    var(--ink-hair) 0
+  );
+}
+
+.pause-slider::-webkit-slider-thumb {
+  appearance: none;
+  box-sizing: border-box;
   width: 14px;
   height: 14px;
+  margin-top: -6px;
+  border: 2px solid var(--accent);
   border-radius: 50%;
-  background: var(--ink-muted);
-  transition:
-    transform 0.18s ease,
-    background-color 0.18s ease;
-}
-
-.switch[aria-checked='true'] {
-  background: var(--ivory);
-  border-color: var(--ivory);
-}
-
-.switch[aria-checked='true'] .switch-thumb {
-  transform: translateX(18px);
-  background: var(--navy-deep);
-}
-
-.switch:focus-visible,
-.segment:focus-visible {
-  outline: none;
-  box-shadow: var(--focus);
-}
-
-.segmented {
-  display: inline-flex;
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-}
-
-.segment {
-  min-width: 64px;
-  padding: 6px 12px;
-  border: 0;
-  border-left: 1px solid var(--panel-border);
-  background: none;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-muted);
-  cursor: pointer;
+  background: var(--night);
   transition:
     background-color 0.15s ease,
-    color 0.15s ease;
+    box-shadow 0.15s ease;
 }
 
-.segment:first-child {
-  border-left: 0;
+.pause-slider::-moz-range-track {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink-hair);
 }
 
-.segment:hover {
+.pause-slider::-moz-range-progress {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.pause-slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--night);
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pause-slider:active::-webkit-slider-thumb {
+  background: var(--accent);
+}
+
+.pause-slider:active::-moz-range-thumb {
+  background: var(--accent);
+}
+
+/* Focused, the knob gets a second ring round it. */
+.pause-slider:focus-visible {
+  box-shadow: none;
+}
+
+.pause-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 3px var(--night),
+    0 0 0 5px var(--accent);
+}
+
+.pause-slider:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 3px var(--night),
+    0 0 0 5px var(--accent);
+}
+
+/* Switches and choices: small words, the one that holds in ivory with the bar under it. */
+.switch,
+.choice {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.switch {
+  display: inline-flex;
+  padding: 0;
+}
+
+.switch-words {
+  display: inline-flex;
+  gap: 20px;
+}
+
+.choices {
+  display: inline-flex;
+  gap: 16px;
+}
+
+.switch-word,
+.choice {
+  position: relative;
+  /* The tracking trails the last letter; the bar reaches as far either side. */
+  padding: 9px calc(3px - 0.14em) 11px 3px;
+  font: 600 12.5px/1 var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color 0.15s ease;
+}
+
+/* Off and On are as wide as each other, so their bars are too. */
+.switch-word {
+  min-width: 37px;
+  text-align: center;
+}
+
+.switch-word:hover,
+.choice:hover {
+  color: var(--ink-muted);
+}
+
+.switch[aria-checked='false'] .switch-word[data-value='false'],
+.switch[aria-checked='true'] .switch-word[data-value='true'],
+.choice[aria-checked='true'] {
   color: var(--ink);
 }
 
-.segment[aria-checked='true'] {
-  background: var(--ivory);
-  color: var(--navy-deep);
+.switch[aria-checked='false'] .switch-word[data-value='false']::after,
+.switch[aria-checked='true'] .switch-word[data-value='true']::after,
+.choice[aria-checked='true']::after {
+  transform: scaleX(1);
 }
 
-.button-small {
-  min-height: 30px;
-  padding: 0 12px;
-  font-size: 11.5px;
+/* The Controls tab: each action, and its keys as rings. */
+.pause-controls dt,
+.pause-controls dd {
+  margin: 0;
+}
+
+.pause-controls .setting {
+  padding: 10px 0;
 }
 
 /* The Party tab: where you are, then a code to start or join a party with. */
 .party {
   display: grid;
   align-content: start;
+  gap: 36px;
+  padding-top: 8px;
 }
 
 .party-section {
   display: grid;
-  gap: 10px;
-  padding-bottom: 18px;
+  gap: 6px;
 }
 
-.party-section + .party-section {
-  padding-top: 16px;
-  border-top: 1px solid rgba(246, 243, 234, 0.08);
-}
-
-.party-heading {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.party-where-row {
+.party-heading-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 34px;
+  min-height: 36px;
+}
+
+.party-heading {
+  margin: 0;
+  font: 400 18px/1.3 var(--font-body);
+  color: var(--ink);
+}
+
+.party-heading-row .button {
+  flex: none;
 }
 
 .party-where {
   margin: 0;
-  min-width: 0;
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 600;
-  line-height: 1.1;
+  font: 500 22px/1.25 var(--font-body);
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
-.party-where-row .button {
-  flex: none;
-}
-
 .party-invite {
-  display: grid;
-  gap: 8px;
+  margin-top: 18px;
 }
 
-.party-invite-row {
-  display: flex;
-  gap: 8px;
-}
-
+/* The invite link is there to copy, not to write on: its line is a hairline. */
 .party-link {
-  flex: 1;
-  min-width: 0;
   height: 42px;
-  font-size: 14px;
+  border-bottom-color: var(--ink-hair);
+  font-size: 15px;
   color: var(--ink-muted);
   text-overflow: ellipsis;
 }
 
-.party-copy {
-  flex: none;
-  min-width: 128px;
+.party-invite .input-with-action .input {
+  padding-right: 112px;
 }
 
 .party-line {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.45;
   color: var(--ink-faint);
 }
@@ -339,39 +455,39 @@
 }
 
 .party-form .field {
-  gap: 8px;
+  margin-top: 6px;
+}
+
+.party-form .icon-button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .party-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px 32px;
+  margin-top: 10px;
 }
 
-.party-actions .button {
-  min-width: 132px;
-}
-
-/* The Knives tab: a live look at the chosen knife beside its finishes, every knife in a grid below. */
+/* The Knives tab: a live look at the chosen knife beside its finishes, every knife below. */
 .knives {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 22px;
+  padding-top: 16px;
 }
 
 .knives-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 196px;
-  gap: 16px;
+  gap: 20px;
 }
 
+/* The knife on its own in the dark, turning to the light: no frame round it. */
 .knife-preview {
   position: relative;
-  min-height: 168px;
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-  background: var(--navy-deep);
-  overflow: hidden;
+  min-height: 156px;
   cursor: grab;
   touch-action: pan-y;
 }
@@ -390,207 +506,350 @@
 
 .knives-details {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  align-content: start;
   gap: 10px;
   min-width: 0;
 }
 
 .knives-name {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.knives-finish {
-  margin: 4px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.finish-list {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-}
-
-.finish {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 30px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: none;
-  font: inherit;
-  font-size: 13.5px;
-  color: var(--ink-muted);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.finish:hover {
+  font: 700 26px/1.1 var(--font-display);
+  letter-spacing: -0.005em;
   color: var(--ink);
 }
 
+/* Finishes: words, each after a small ring of the finish itself. Room is kept for three, and for
+   the line Equip leaves, so the knives below stay put whichever is chosen. */
+.finish-list {
+  display: grid;
+  grid-auto-rows: 36px;
+  justify-items: start;
+  min-height: calc(3 * 36px);
+}
+
+.finish {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.finish:hover {
+  color: var(--ink-muted);
+}
+
 .finish[aria-checked='true'] {
-  border-color: var(--panel-border);
-  background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
 }
 
 .finish-swatch {
   flex: none;
-  width: 44px;
-  height: 12px;
-  border-radius: 1px;
-  box-shadow: 0 0 0 1px rgba(246, 243, 234, 0.22);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: fill;
+  box-shadow:
+    0 0 0 2px var(--night),
+    0 0 0 3.5px var(--ink-faint);
+  transition: box-shadow 0.15s ease;
 }
 
-.knives-actions {
-  display: grid;
-  gap: 6px;
+.finish[aria-checked='true'] .finish-swatch {
+  box-shadow:
+    0 0 0 2px var(--night),
+    0 0 0 3.5px var(--accent);
 }
 
-.knives-equip {
-  width: 100%;
-}
-
-.knives-status {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--ok);
-}
-
-.knives-status:empty {
-  display: none;
-}
-
-.knife-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px 8px;
-}
-
-.knife-tile {
+.finish-name {
   position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 9px 8px 7px;
-  border: 1px solid rgba(246, 243, 234, 0.12);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.04);
-  font: inherit;
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.knife-tile svg {
-  display: block;
-  width: 100%;
-  height: 20px;
-  fill: currentColor;
-}
-
-.knife-tile-name {
-  font-size: 10.5px;
-  font-weight: 600;
+  padding: 7px calc(2px - 0.14em) 9px 2px;
+  font: 600 12px/1 var(--font-body);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
-.knife-tile:hover {
-  background: rgba(255, 255, 255, 0.08);
+.finish[aria-checked='true'] .finish-name::after {
+  transform: scaleX(1);
+}
+
+.knives-actions {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+}
+
+/* Equipped says how things stand rather than offering anything: faint, but still to be read. */
+.knives-equip[aria-disabled='true'] {
+  opacity: 1;
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+.knives-status {
+  min-height: calc(2 * 1.45em);
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ok);
+}
+
+/* Every knife, by its outline and name; the one on show in ivory, the one carried with the bar. */
+.knife-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px 12px;
+}
+
+.knife-option {
+  appearance: none;
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 8px 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.knife-option svg {
+  display: block;
+  width: 100%;
+  height: 22px;
+  fill: currentColor;
+}
+
+.knife-option:hover {
   color: var(--ink-muted);
 }
 
-.knife-tile[aria-checked='true'] {
-  border-color: var(--ivory);
-  background: rgba(255, 255, 255, 0.1);
+.knife-option[aria-checked='true'] {
   color: var(--ink);
 }
 
-/* The knife carried now: a small ivory mark in the corner. */
-.knife-tile.is-equipped::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ivory);
+.knife-option-name {
+  position: relative;
+  padding: 0 calc(2px - 0.12em) 11px 2px;
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.knife-tile:focus-visible,
-.finish:focus-visible {
-  outline: none;
-  box-shadow: var(--focus);
+.knife-option.is-equipped .knife-option-name::after {
+  transform: scaleX(1);
 }
 
-@media (max-width: 600px) {
+/* Resume (with the key that does it, in a brass ring), Leave, and the plain page. */
+.pause-actions {
+  grid-area: actions;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  align-items: center;
+  gap: 13px 10px;
+  padding-top: 32px;
+}
+
+.pause-actions > .button,
+.pause-portfolio {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.pause-esc {
+  grid-column: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pause-actions .button {
+  min-height: 30px;
+  font: 400 18px/1 var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.pause-actions .button::after {
+  bottom: 0;
+}
+
+.pause-portfolio {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  font-size: 18px;
+  color: var(--ink-faint);
+  text-decoration-color: transparent;
+  transition:
+    color 0.15s ease,
+    text-decoration-color 0.15s ease;
+}
+
+.pause-portfolio:hover {
+  color: var(--ink);
+}
+
+/* Narrower windows: the dark reaches further across, so the rows on the right stay on it. */
+@media (max-width: 1180px) {
+  .pause {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--night-rgb) / 0.95) 0 60%,
+      rgb(var(--night-rgb) / 0.86) 82%,
+      rgb(var(--night-rgb) / 0.4) 100%
+    );
+  }
+}
+
+/* Short windows: everything a size down, so the tab still fits beside the list. */
+@media (max-height: 720px) {
+  .pause-head {
+    padding-bottom: 26px;
+  }
+
+  .pause-status {
+    margin-bottom: 12px;
+  }
+
+  .pause-title {
+    font-size: 48px;
+  }
+
+  .pause-title.is-long {
+    font-size: 36px;
+  }
+
+  .pause-bar {
+    margin-top: 12px;
+  }
+
+  .pause-tabs {
+    gap: 6px;
+  }
+
+  .pause-tab {
+    padding: 4px 0 10px;
+    font-size: 22px;
+  }
+
+  .setting {
+    padding: 10px 0;
+  }
+
+  .pause-actions {
+    row-gap: 8px;
+    padding-top: 20px;
+  }
+
+  .pause-actions .button,
+  .pause-portfolio {
+    font-size: 16px;
+  }
+}
+
+/* Phones: an even dark, the tabs across the top, the rows the full width. */
+@media (max-width: 640px) {
+  .pause {
+    background: rgb(var(--night-rgb) / 0.96);
+  }
+
+  .pause-frame {
+    --pause-side: 22px;
+    --pause-top: 26px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'tabs'
+      'panel'
+      'actions';
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    padding-bottom: 20px;
+  }
+
+  .pause-head {
+    padding-bottom: 20px;
+  }
+
+  .pause-title {
+    font-size: 40px;
+  }
+
+  .pause-title.is-long {
+    font-size: 30px;
+  }
+
+  .pause-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 20px;
+    padding-bottom: 14px;
+  }
+
+  .pause-tab {
+    padding: 4px 0 10px;
+    font-size: 19px;
+  }
+
+  .pause-panels {
+    margin-top: 0;
+    padding-top: 8px;
+  }
+
+  .setting-label,
+  .party-heading {
+    font-size: 16px;
+  }
+
+  .setting-control {
+    gap: 14px;
+  }
+
+  .pause-slider {
+    width: 118px;
+  }
+
   .knives-top {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knives {
+    gap: 14px;
+  }
+
+  .knife-preview {
+    min-height: 132px;
   }
 
   .knife-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-}
 
-/* Four tabs across a phone: closer together, in smaller capitals. */
-@media (max-width: 480px) {
-  .tabs {
-    gap: 14px;
+  /* Resume and Leave side by side, the key ring kept for a keyboard. */
+  .pause-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 10px;
+    padding-top: 14px;
   }
 
-  .tab {
-    font-size: 11px;
-    letter-spacing: 0.1em;
-  }
-}
-
-@media (max-width: 400px) {
-  .knife-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .pause-actions > .button {
+    margin-right: 14px;
   }
 }
 
-.pause-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding-top: 18px;
-  margin-top: 6px;
-  border-top: 1px solid var(--panel-border);
-}
-
-.pause-footer .button {
-  min-width: 132px;
-}
-
-.pause-portfolio {
-  margin-left: auto;
-  font-size: 13px;
-}
-
+/* The HUD's frame rate readout, in its corner. */
 .hud-fps {
   grid-column: 1 / -1;
   font-size: 11.5px;
