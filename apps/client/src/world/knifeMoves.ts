@@ -57,8 +57,12 @@ export const CHANNELS = [
   'hang',
 ] as const;
 export type Channel = (typeof CHANNELS)[number];
-/** Channels that turn something, which wrap: a whole turn is the same as none. */
-export const TURNS: readonly Channel[] = ['spin', 'flip', 'a', 'b'];
+/**
+ * Channels that turn something, which wrap: a whole turn is the same as none. A folding blade and
+ * a butterfly's free handle (`a` and `b`) are hinges, not turns: each swings one way between open
+ * and shut, and the other way round is through the hand holding it.
+ */
+export const TURNS: readonly Channel[] = ['spin', 'flip'];
 /** The first channel that moves the knife rather than the arm. */
 const KNIFE_CHANNELS = CHANNELS.indexOf('spin');
 

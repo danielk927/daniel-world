@@ -30,7 +30,9 @@ const blank = (): ArmPose => ({
   hang: 0,
 });
 const ARM: readonly Channel[] = ['x', 'y', 'z', 'rx', 'ry', 'rz'];
-const TURNS: readonly Channel[] = ['spin', 'flip', 'a', 'b'];
+const TURNS: readonly Channel[] = ['spin', 'flip'];
+/** A folding blade and a butterfly's free handle swing between open and shut; they never wrap. */
+const HINGES: readonly Channel[] = ['a', 'b'];
 /** How far an angle is from a whole number of turns. */
 const offTurn = (angle: number): number =>
   Math.abs(angle - Math.PI * 2 * Math.round(angle / (Math.PI * 2)));
@@ -53,6 +55,7 @@ function largestJump(c: Clip, channels: readonly Channel[]): number {
 function atRest(pose: ArmPose): void {
   for (const k of ARM) expect(pose[k]).toBeCloseTo(0, 6);
   for (const k of TURNS) expect(offTurn(pose[k])).toBeCloseTo(0, 6);
+  for (const k of HINGES) expect(pose[k]).toBeCloseTo(0, 6);
 }
 
 describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => {
@@ -163,7 +166,7 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => 
     }
     // The redraw is squeezed into a third of a second, so it is quicker.
     expect(largestJump(moves.redraw, ARM)).toBeLessThan(0.012);
-    expect(largestJump(moves.redraw, TURNS)).toBeLessThan(0.04);
+    expect(largestJump(moves.redraw, [...TURNS, ...HINGES])).toBeLessThan(0.04);
   });
 
   it('keys only the channels a pose has', () => {
