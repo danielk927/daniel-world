@@ -1,9 +1,15 @@
 /* ---------- World labels ---------- */
 
+/*
+ * A stacking context of its own: the labels rank among themselves (the label layer sets their
+ * z-index), and the whole layer stays under the interface that comes after it, from the HUD, the
+ * prompt and the chat to the hit flash.
+ */
 .labels {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .label {

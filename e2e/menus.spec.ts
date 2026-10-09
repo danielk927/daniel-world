@@ -49,6 +49,39 @@ test('Tab and Shift+Tab stay in the pause menu, and only on what the keyboard ca
   await page.context().close();
 });
 
+test('the HUD, the prompt and the hit flash draw over the labels in the world', async ({
+  browser,
+}) => {
+  const page = await enterWorld(browser, { name: 'Looker', online: false });
+  const covered = await page.evaluate(() => {
+    // Hit testing finds what is drawn on top, once everything takes the pointer.
+    const style = document.createElement('style');
+    style.textContent = '.ui, .ui * { pointer-events: auto !important; }';
+    document.head.append(style);
+    // A label as the label layer draws one, ranked over its neighbors as it ranks them.
+    const probe = document.createElement('div');
+    probe.className = 'label lore-label';
+    probe.append(Object.assign(document.createElement('span'), { textContent: 'Probe' }));
+    probe.style.cssText = 'opacity: 1; z-index: 40; transform: none;';
+    document.querySelector('.labels')!.append(probe);
+    const parts = ['.prompt kbd', '.hud-room-title', '.hud-player', '.minimap', '.impact-flash'];
+    return parts.map((selector) => {
+      const part = document.querySelector<HTMLElement>(selector)!;
+      const box = part.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      probe.style.left = `${x - 20}px`;
+      probe.style.top = `${y - 12}px`;
+      const stack = document.elementsFromPoint(x, y);
+      const partAt = stack.findIndex((node) => part.contains(node));
+      const probeAt = stack.findIndex((node) => probe.contains(node));
+      return { selector, over: partAt >= 0 && probeAt >= 0 && partAt < probeAt };
+    });
+  });
+  expect(covered).toEqual(covered.map(({ selector }) => ({ selector, over: true })));
+  await page.context().close();
+});
+
 test('the arrow keys move straight up and down the knife grid, however many columns it has', async ({
   browser,
 }) => {
