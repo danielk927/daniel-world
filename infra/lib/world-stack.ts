@@ -64,6 +64,10 @@ const NODE_SHA256 = '6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d2
 export const BOOT_TIMEOUT = Duration.minutes(10);
 /** How long the boot script gives the freshly started server to answer its health check. */
 const HEALTH_WAIT_SECONDS = 60;
+/** The server log on the instance is rotated once it passes this size (checked hourly)... */
+export const LOG_MAX_SIZE = '50M';
+/** ...and this many compressed rotations are kept, so logs stay within a few hundred MB of 8 GB. */
+export const LOG_ROTATIONS = 7;
 
 /**
  * The whole site on AWS:
@@ -399,16 +403,29 @@ ReadWritePaths=/var/log/world
 [Install]
 WantedBy=multi-user.target
 UNIT`,
+    // The log is bounded by size as well as age, since a flood of joins can write it fast and the
+    // disk is 8 GB: rotated daily, or within the hour once it passes LOG_MAX_SIZE, keeping
+    // LOG_ROTATIONS compressed. CloudWatch keeps the history; these are only the local copy.
     `cat > /etc/logrotate.d/world <<'ROTATE'
 /var/log/world/server.log {
-  weekly
-  rotate 4
+  daily
+  maxsize ${LOG_MAX_SIZE}
+  rotate ${LOG_ROTATIONS}
   compress
   missingok
+  notifempty
   copytruncate
 }
 ROTATE`,
+    // logrotate runs from a systemd timer, daily by default; hourly lets maxsize act within the hour.
+    'mkdir -p /etc/systemd/system/logrotate.timer.d',
+    `cat > /etc/systemd/system/logrotate.timer.d/hourly.conf <<'TIMER'
+[Timer]
+OnCalendar=
+OnCalendar=hourly
+TIMER`,
     'systemctl daemon-reload',
+    'systemctl enable --now logrotate.timer',
     'systemctl enable --now world.service',
 
     // The deploy's gate: the script, and so the signal, succeeds only once the server answers.

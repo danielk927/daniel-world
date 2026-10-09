@@ -153,6 +153,7 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
   Only then does the Elastic IP move to the new instance, so CloudFront's origin never changes.
   The boot log goes to the server's log group (stream `<instance id>-boot`), so a failed boot can still be read after the rollback deletes its instance.
 - **CloudWatch** receives the server logs (two-week retention) and two alarms self-heal the instance: host failure triggers EC2 auto-recovery, an unresponsive instance is rebooted.
+  On the instance the log is rotated daily, or within the hour once it passes 50 MB, keeping seven compressed copies, so a flood of connections cannot fill the disk.
 - **IAM** is least privilege: the instance role has Session Manager access, read access to its own code bundle (that one object, not the CDK assets bucket), and write access to its own log group.
 - No NAT gateway and a single public subnet keep the cost to roughly the instance and its public IP (about $10/month, less on the AWS free tier).
 

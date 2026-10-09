@@ -5,6 +5,8 @@ import { App, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
+  LOG_MAX_SIZE,
+  LOG_ROTATIONS,
   SERVER_PATH,
   SERVER_PORT,
   SITE_ASSETS_DIR,
@@ -325,6 +327,19 @@ describe('WorldStack', () => {
     expect(script.indexOf('amazon-cloudwatch-agent-ctl')).toBeLessThan(
       script.indexOf('https://nodejs.org'),
     );
+  });
+
+  it('bounds the server log on disk by size, checked hourly, not only by age', () => {
+    const script = render(server()[1].Properties.UserData);
+    const rotation = /\/var\/log\/world\/server\.log \{\n([^}]*)\}/.exec(script)?.[1] ?? '';
+    expect(rotation).toContain(`maxsize ${LOG_MAX_SIZE}`);
+    expect(rotation).toContain(`rotate ${LOG_ROTATIONS}`);
+    expect(rotation).toContain('compress');
+    expect(LOG_MAX_SIZE).toMatch(/^\d+M$/);
+    expect(LOG_ROTATIONS).toBeLessThanOrEqual(10);
+    // maxsize only acts when logrotate runs: hourly here, rather than the timer's daily.
+    expect(script).toContain('OnCalendar=hourly');
+    expect(script).toContain('systemctl enable --now logrotate.timer');
   });
 
   it('keeps server logs in CloudWatch for two weeks', () => {
