@@ -127,9 +127,12 @@ export class Knives {
     this.dirty = true;
   }
 
-  /** The carrier moved: redraw the knives in it. */
+  /**
+   * The carrier moved: redraw the knives in it now. The door moves after this frame's knives are
+   * drawn, and waiting for the next frame would leave them a frame behind it, off its face.
+   */
   carrierMoved(): void {
-    if (this.carried.includes(true)) this.dirty = true;
+    if (this.carried.includes(true)) this.draw();
   }
 
   get flyingCount(): number {

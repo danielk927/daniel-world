@@ -473,10 +473,12 @@ export class CoolerDoor {
 
   /** Per frame: the swing, the jolt, the readout's flicker. */
   update(time: number, dt: number): void {
-    if (this.swinging) this.swing(dt);
+    // Read before the swing, whose last step stops it, so that step is drawn too.
+    const swinging = this.swinging;
+    if (swinging) this.swing(dt);
     const sinceJolt = time - this.joltAt;
     const jolting = sinceJolt < 0.5;
-    if (jolting || this.swinging || this.moved) this.place(time);
+    if (jolting || swinging || this.moved) this.place(time);
     this.flickerReadout(time);
   }
 
