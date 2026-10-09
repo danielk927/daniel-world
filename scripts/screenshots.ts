@@ -3,8 +3,10 @@
  *
  *   node scripts/screenshots.ts
  *
- * Starts whatever is missing (Vite dev client on :5173, room server on :3001) plus a few bots so
- * the world has people in it, then drives a real (GPU-backed, headless) Chromium like a visitor.
+ * Starts whatever is missing (Vite dev client on :5173, room server on :3001, with Chef Skinner as
+ * a dev server has him) plus a few bots so the world has people in it, then drives a real
+ * (GPU-backed, headless) Chromium like a visitor. A dev server already running with CHEF=off would
+ * leave him out of the lobby shots.
  * The hour is pinned to evening service (8 p.m.), so the pictures do not depend on when they are taken.
  * WORLD_CLIENT_PORT and WORLD_SERVER_PORT move both off their usual ports, to run beside another copy.
  */
@@ -78,7 +80,10 @@ async function main(): Promise<void> {
       await waitFor(clientUrl, 30_000, startClient(clientPort, serverUrl));
     }
     if (!(await reachable(`http://localhost:${serverPort}/health`))) {
-      ownServer = await startServer({ port: serverPort });
+      // Chef Skinner in, as the live site and `npm run dev` have him, so the lobby shots come out
+      // the same whether this server runs or a dev server was up already. He leaves a newcomer
+      // alone for 8 s, and anyone standing still, so he never knocks out the visitor in a shot.
+      ownServer = await startServer({ port: serverPort, chef: true });
     }
     start(process.execPath, ['scripts/bots.ts', '--count', '6', '--chat', '--url', serverUrl]);
 
