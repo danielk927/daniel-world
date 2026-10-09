@@ -30,7 +30,11 @@ const OVERHEAD = '#ffe4c8';
 /** The light strips where the vault springs from the long walls, washing the arch above. */
 const COVE = '#ffdcb2';
 const DOWNLIGHT = '#ffd6a6';
-const HEAT_LAMP = '#ff9447';
+/**
+ * The heat lamps: amber, but not so deep that the food under them loses its own colors (a deeper
+ * orange turned beetroot salmon and golden roti pink).
+ */
+export const HEAT_LAMP = '#ffad72';
 const FIRE = '#ff9a5c';
 /** The blue hour outside: what comes in through the windows and skylights. */
 const DUSK = '#7f9dc9';
@@ -134,7 +138,7 @@ export function createLighting(
     const passZ = (pass.minZ + pass.maxZ) / 2;
     // A heat lamp over each plate, as drawn: amber pools on the plates, short enough not to wash
     // the walls orange.
-    const heat = PASS_DISHES.map(({ x }) => spot(HEAT_LAMP, 17, x, 2.05, passZ, 3.2, 0.35, 0, 512));
+    const heat = PASS_DISHES.map(({ x }) => spot(HEAT_LAMP, 11, x, 2.05, passZ, 3.2, 0.35, 0, 512));
     // One light for each pair of pendants, between them, wide enough to cover the island.
     const islands = [KITCHEN.pastryIsland, KITCHEN.gardeManger].map((f) =>
       spot(DOWNLIGHT, 22, (f.minX + f.maxX) / 2, 2.98, (f.minZ + f.maxZ) / 2, 5, 0.78, 0, 1024),

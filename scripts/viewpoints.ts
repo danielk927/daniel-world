@@ -62,6 +62,11 @@ export const VIEWPOINTS: readonly Viewpoint[] = [
   { name: 'walk-in', eye: [5.4, E, -1.4], at: [8.0, 1.15, -3.1] },
   // The chef's desk in the south-west corner and the kitchen computer on it.
   { name: 'desk', eye: [-5.7, E, 4.5], at: [-7.7, 1.1, 5.6] },
+  // The dishes on the pass under their heat lamps, close, as a visitor first sees them, from the
+  // dining room side: the west pair, the roti in the middle, the east pair.
+  { name: 'dishes-west', eye: [-2.25, 1.42, 5.15], at: [-2.25, 0.93, 4.3] },
+  { name: 'dishes-middle', eye: [0, 1.32, 4.95], at: [0, 0.95, 4.3] },
+  { name: 'dishes-east', eye: [2.25, 1.42, 5.15], at: [2.25, 0.93, 4.3] },
 ];
 
 /** The look along eye to target, as the player's yaw (0 north, toward -z) and pitch (up positive). */

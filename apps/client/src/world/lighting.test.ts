@@ -2,7 +2,7 @@ import { Color, Light, Scene, SpotLight, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { PASS_DISHES } from '@world/shared';
 import { createLightCones } from './effects.ts';
-import { createLighting } from './lighting.ts';
+import { HEAT_LAMP, createLighting } from './lighting.ts';
 
 function lightsIn(scene: Scene): Light[] {
   const lights: Light[] = [];
@@ -29,7 +29,7 @@ describe('the high quality lighting', () => {
   it('lights every dish on the pass with a heat lamp, inside the bright core of its pool', () => {
     const scene = new Scene();
     createLighting(scene, 'high');
-    const amber = new Color('#ff9447').getHex();
+    const amber = new Color(HEAT_LAMP).getHex();
     const heat = lightsIn(scene).filter(
       (l): l is SpotLight => l instanceof SpotLight && l.color.getHex() === amber,
     );
