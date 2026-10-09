@@ -595,16 +595,25 @@ export const OPEN_POSE: HandPose = (() => {
 
 /** How far the thumb keeps off a handle it has let go of, beyond the handle's thickness. */
 const LET_GO_CLEAR = 0.004;
+/** How far the thumb lifts off the fist to let a handle go. */
+const THUMB_LIFT = 0.022;
 
 /**
  * The hand opened from a grip to let its handle go: the fingers as the open hand has them, and the
- * thumb laid out along the index finger, clear of the handle, rather than toward the palm, where
- * the handle still is.
+ * thumb lifted straight off the fist, out from the handle, so that closing on the handle again only
+ * lays the thumb back down over the fingers, never across the handle's end.
  */
 export function letGo(grip: Grip): HandPose {
   const pose = OPEN_POSE.slice();
-  pose.set([0.5, 0, -0.9, 0.2, 0.15], THUMB_AT);
-  solveThumb(pose, new Vector3(0.004, 0.047, -0.056), new Vector3(0.006, 0.045, -0.082), {
+  pose.set(grip.pose.subarray(THUMB_AT), THUMB_AT);
+  handSegments(grip.pose, gripSegments);
+  const lifted = (segment: number): Vector3 => {
+    const at = gripSegments[segment]!.end.clone();
+    const out = at.clone().sub(grip.center);
+    out.addScaledVector(grip.axis, -out.dot(grip.axis)).normalize();
+    return at.addScaledVector(out, THUMB_LIFT);
+  };
+  solveThumb(pose, lifted(SEGMENT_COUNT - 2), lifted(SEGMENT_COUNT - 1), {
     center: grip.center,
     axis: grip.axis,
     radius: grip.radius + LET_GO_CLEAR,
