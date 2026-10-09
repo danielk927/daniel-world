@@ -85,7 +85,7 @@ try {
   await page.goto(`${clientUrl}/?quality=high&time=20:00`);
   await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Private party' }).click();
-  await page.getByLabel('Private party').fill(room);
+  await page.getByRole('textbox', { name: 'Party code' }).fill(room);
   await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   await page.waitForFunction(
     (expected) => window.__world?.mode === 'playing' && window.__world.playerCount === expected,

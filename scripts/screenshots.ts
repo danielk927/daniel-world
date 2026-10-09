@@ -57,7 +57,7 @@ async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.getByLabel('Your name').fill(name);
   if (room) {
     await page.getByRole('button', { name: 'Private party' }).click();
-    await page.getByLabel('Private party').fill(room);
+    await page.getByRole('textbox', { name: 'Party code' }).fill(room);
   }
   await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 60_000 });

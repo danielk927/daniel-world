@@ -85,7 +85,7 @@ export async function enterWorld(
     // The party's code field opens from the row along the bottom, unless an invite opened it.
     const party = page.getByRole('button', { name: 'Private party' });
     if ((await party.getAttribute('aria-expanded')) !== 'true') await party.click();
-    await page.getByLabel('Private party').fill(options.room);
+    await page.getByRole('textbox', { name: 'Party code' }).fill(options.room);
   }
   await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   const online = options.online ?? true;

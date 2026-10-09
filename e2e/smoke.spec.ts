@@ -12,10 +12,10 @@ test('landing screen loads over the 3D world', async ({ page }) => {
   // The party code field stays closed until the private party is opened from the bottom row.
   const party = page.getByRole('button', { name: 'Private party' });
   await expect(party).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByLabel('Private party')).toBeHidden();
+  await expect(page.getByRole('textbox', { name: 'Party code' })).toBeHidden();
   await party.click();
   await expect(party).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByLabel('Private party')).toBeFocused();
+  await expect(page.getByRole('textbox', { name: 'Party code' })).toBeFocused();
 });
 
 test('on a phone the portfolio is the way in, and the kitchen a quiet second choice', async ({
@@ -48,7 +48,7 @@ test('an invite link opens the private party with its code in', async ({ page })
     'true',
     { timeout: 30_000 },
   );
-  await expect(page.getByLabel('Private party')).toHaveValue('friday-service');
+  await expect(page.getByRole('textbox', { name: 'Party code' })).toHaveValue('friday-service');
   await expect(page.locator('#landing-room-help')).toHaveText(
     'You are invited to this party. Clear the code for the public lobby.',
   );
