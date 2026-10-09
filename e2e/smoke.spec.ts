@@ -61,11 +61,13 @@ test('portfolio page renders every section', async ({ page }) => {
 
 test('station labels that would overlap give way to the nearer one', async ({ browser }) => {
   const page = await enterWorld(browser, { name: 'Label Reader', online: false });
-  // From the spawn point the rotisseur and poissonnier labels line up behind each other.
+  // From the spawn point the rotisseur's label (Systems and ML) and the poissonnier's (Research)
+  // line up behind each other: one of them shows, and nothing it shows over.
+  const pair = ['Systems and ML', 'Research'];
   await expect
     .poll(
       () =>
-        page.evaluate(() => {
+        page.evaluate((names) => {
           const boxes = [...document.querySelectorAll<HTMLElement>('.lore-label')]
             .filter((label) => Number(label.style.opacity) > 0)
             .map((label) => ({ text: label.textContent, box: label.getBoundingClientRect() }));
@@ -80,10 +82,11 @@ test('station labels that would overlap give way to the nearer one', async ({ br
               if (!apart) overlapping.push(`${a.text} / ${b.text}`);
             }
           }
-          return { shown: boxes.length, overlapping };
-        }),
-      { message: 'visible station labels should not overlap' },
+          const shown = boxes.map((box) => box.text);
+          return { pairShown: shown.some((text) => names.includes(text)), shown, overlapping };
+        }, pair),
+      { message: 'one of the pair shows, and no showing labels overlap' },
     )
-    .toMatchObject({ shown: expect.any(Number), overlapping: [] });
+    .toMatchObject({ pairShown: true, overlapping: [] });
   await page.context().close();
 });
