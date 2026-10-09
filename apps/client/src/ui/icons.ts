@@ -28,17 +28,38 @@ export function knifeIcon(): SVGSVGElement {
   ]);
 }
 
-/** A clenched fist from the front: four knuckles over the palm, the thumb folded across. */
+/** Each fist's mask needs an id of its own in the page. */
+let fists = 0;
+
+/**
+ * A clenched fist from the front: four knuckles over the palm, the thumb folded across. The parts
+ * are cut apart by thin gaps that show whatever is behind, so it needs nothing behind it.
+ */
 export function fistIcon(): SVGSVGElement {
-  return svg('0 0 30 26', [
-    ['rect', { x: '4', y: '9', width: '24', height: '16', rx: '5' }],
-    ['rect', { class: 'loadout-cut', x: '4', y: '2', width: '6.5', height: '11', rx: '3.2' }],
-    ['rect', { class: 'loadout-cut', x: '9.8', y: '1', width: '6.5', height: '12', rx: '3.2' }],
-    [
-      'rect',
-      { class: 'loadout-cut', x: '15.6', y: '1.5', width: '6.5', height: '11.5', rx: '3.2' },
-    ],
-    ['rect', { class: 'loadout-cut', x: '21.4', y: '3', width: '6.5', height: '10', rx: '3.2' }],
-    ['rect', { class: 'loadout-cut', x: '1', y: '12.5', width: '17', height: '6.5', rx: '3.2' }],
-  ]);
+  const id = `fist-cuts-${++fists}`;
+  // Painted in order, as if each part were laid over the last with a dark outline: white keeps,
+  // the black outlines cut.
+  const parts = [
+    ['rect', { x: '4', y: '9', width: '24', height: '16', rx: '5', stroke: 'none' }],
+    ['rect', { x: '4', y: '2', width: '6.5', height: '11', rx: '3.2' }],
+    ['rect', { x: '9.8', y: '1', width: '6.5', height: '12', rx: '3.2' }],
+    ['rect', { x: '15.6', y: '1.5', width: '6.5', height: '11.5', rx: '3.2' }],
+    ['rect', { x: '21.4', y: '3', width: '6.5', height: '10', rx: '3.2' }],
+    ['rect', { x: '1', y: '12.5', width: '17', height: '6.5', rx: '3.2' }],
+  ] as const;
+  const root = svg('0 0 30 26', [['rect', { width: '30', height: '26', mask: `url(#${id})` }]]);
+  const mask = document.createElementNS(SVG, 'mask');
+  mask.id = id;
+  const cuts = document.createElementNS(SVG, 'g');
+  cuts.setAttribute('fill', 'white');
+  cuts.setAttribute('stroke', 'black');
+  cuts.setAttribute('stroke-width', '1.4');
+  for (const [tag, attrs] of parts) {
+    const part = document.createElementNS(SVG, tag);
+    for (const [name, value] of Object.entries(attrs)) part.setAttribute(name, value);
+    cuts.append(part);
+  }
+  mask.append(cuts);
+  root.prepend(mask);
+  return root;
 }
