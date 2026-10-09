@@ -25,7 +25,9 @@ export default defineConfig({
       // Software WebGL so the suite runs on machines and CI runners without a GPU.
       args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
     },
-    trace: 'retain-on-failure',
+    // Every action, the DOM before and after it, the console and the network, but no screencast:
+    // filming every animating canvas made a three-page test take half as long again.
+    trace: { mode: 'retain-on-failure', screenshots: false },
   },
   webServer: {
     command: [
