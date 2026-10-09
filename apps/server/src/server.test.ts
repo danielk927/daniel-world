@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import {
   CHAT_MAX_LENGTH,
+  KNIFE_COOLDOWN_INPUTS,
   Keys,
   MAX_PLAYERS_PER_ROOM,
   PROTOCOL_VERSION,
@@ -14,6 +15,7 @@ import {
   CLOSE_FLOOD,
   CLOSE_HELLO_TIMEOUT,
   CLOSE_NO_ROOM,
+  CLOSE_OUT_OF_SEQUENCE,
   CLOSE_ROOM_FULL,
   CLOSE_ROOM_TAKEN,
   CLOSE_TRY_AGAIN_LATER,
@@ -165,6 +167,50 @@ describe('room server', () => {
       return me && me.ack === count - 1 ? me : undefined;
     });
     expect(snap.x).toBeLessThan(startX - 1);
+  });
+
+  it('ends a connection whose inputs skip ahead, before its cooldowns can be skipped', async () => {
+    const watcher = client();
+    await watcher.join('Watcher');
+    const cheater = client();
+    const welcome = await cheater.join('Cheater');
+    // Every input a cooldown's worth past the last, as if the knife were ready each time.
+    for (let i = 0; i < 10; i++) {
+      const seq = 5000 + i * KNIFE_COOLDOWN_INPUTS;
+      cheater.send({ t: 'input', seq, keys: Keys.Armed | Keys.Throw, yaw: 0, pitch: 0 });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const knives = watcher.messages.filter((m) => m.t === 'knife' && m.from === welcome.id);
+    expect(knives.length).toBeLessThanOrEqual(1);
+    expect(cheater.closeCode).toBe(CLOSE_OUT_OF_SEQUENCE);
+    expect(server.rooms.get('lobby')?.players.has(welcome.id)).toBe(false);
+  });
+
+  it('ends a connection that sends an input again, or an older one', async () => {
+    const a = client();
+    await a.join('Echo');
+    a.send({ t: 'input', seq: 7, keys: 0, yaw: 0, pitch: 0 });
+    a.send({ t: 'input', seq: 8, keys: 0, yaw: 0, pitch: 0 });
+    a.send({ t: 'input', seq: 8, keys: 0, yaw: 0, pitch: 0 });
+    expect(await a.waitForClose()).toBe(CLOSE_OUT_OF_SEQUENCE);
+  });
+
+  it('takes everything a stalled connection sent at once when it recovers', async () => {
+    const a = client();
+    const welcome = await a.join('Tunnel');
+    // Five seconds of inputs and pings, the longest a client waits on a silent server before it
+    // reconnects, held up on the way and arriving together; numbered on from a solo stretch.
+    const first = 1234;
+    const count = 5 * TICK_RATE;
+    for (let i = 0; i < count; i++) {
+      if (i % TICK_RATE === 0) a.send({ t: 'ping', id: i });
+      a.send({ t: 'input', seq: first + i, keys: Keys.Left, yaw: 0, pitch: 0 });
+    }
+    await a.waitFor(() => {
+      const me = a.latestSnapshot()?.players.find((p) => p.id === welcome.id);
+      return (me && me.ack === first + count - 1) || a.closeCode !== null;
+    });
+    expect(a.closeCode).toBeNull();
   });
 
   it('broadcasts sanitized chat to the room, including the sender', async () => {

@@ -56,7 +56,25 @@ export const CLOSE_BAD_HELLO = 4002;
 export const CLOSE_HELLO_TIMEOUT = 4003;
 export const CLOSE_ROOM_TAKEN = 4004;
 export const CLOSE_NO_ROOM = 4005;
+/** An input that is not the one after the last: only a modified client sends one. */
+export const CLOSE_OUT_OF_SEQUENCE = 4006;
 export const CLOSE_TRY_AGAIN_LATER = 1013;
+
+/**
+ * Messages a socket may send at once. A client sends an input every tick, a ping a second, and chat
+ * or prefs now and then. A connection that stalls delivers everything it sent meanwhile at once when
+ * it recovers, and a client waits up to 5 s on a silent server before it reconnects, so 6 s of
+ * inputs must pass at once: inputs are numbered one after another, and losing one to this limit
+ * would end the connection (`CLOSE_OUT_OF_SEQUENCE`).
+ */
+export const MESSAGE_BURST = 6 * TICK_RATE;
+/**
+ * Messages a socket may send per second, sustained: a little over the one input a tick a client
+ * sends, so one sending inputs faster than there are ticks, to count its cooldowns down sooner,
+ * gains next to nothing (the room still simulates one a tick), and is cut off once its burst is
+ * spent.
+ */
+export const MESSAGES_PER_SECOND = 1.1 * TICK_RATE;
 
 /** A client that is this far behind on reading snapshots is dropped instead of buffered forever. */
 export const MAX_BUFFERED_BYTES = 256 * 1024;
@@ -274,7 +292,10 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     if (!room || !player) return;
     switch (message.t) {
       case 'input':
-        room.enqueueInput(player, message);
+        if (!room.enqueueInput(player, message)) {
+          log(`disconnecting #${player.id}: input ${message.seq} after ${player.received}`);
+          drop(conn, CLOSE_OUT_OF_SEQUENCE, 'input out of sequence');
+        }
         break;
       case 'prefs':
         room.setPrefs(player, message.prefs);
@@ -329,9 +350,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       closing: false,
       room: null,
       player: null,
-      // ~21 messages per second is normal (20 inputs + pings); allow bursts well above that.
-      // One input every tick, plus pings, chat and emotes on top.
-      messages: new TokenBucket(2 * TICK_RATE, TICK_RATE * 1.5),
+      messages: new TokenBucket(MESSAGE_BURST, MESSAGES_PER_SECOND),
       chat: new TokenBucket(4, 0.5),
       strikes: new StrikeCounter(40, 10),
     };
