@@ -19,15 +19,25 @@ export class TokenBucket {
   }
 
   take(cost = 1): boolean {
+    this.refill();
+    if (this.tokens < cost) return false;
+    this.tokens -= cost;
+    return true;
+  }
+
+  /** Milliseconds until `take(cost)` would succeed: 0 if it would now. */
+  wait(cost = 1): number {
+    this.refill();
+    return this.tokens >= cost ? 0 : ((cost - this.tokens) / this.refillPerSecond) * 1000;
+  }
+
+  private refill(): void {
     const now = this.now();
     this.tokens = Math.min(
       this.capacity,
       this.tokens + ((now - this.last) / 1000) * this.refillPerSecond,
     );
     this.last = now;
-    if (this.tokens < cost) return false;
-    this.tokens -= cost;
-    return true;
   }
 }
 
