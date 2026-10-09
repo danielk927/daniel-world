@@ -66,6 +66,14 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - 60 fps with 16 players at about 2.1 ms of frame CPU and 72 draw calls.
 - Input lag cut: the high tier now steps its own resolution, MSAA and ambient occlusion down when the GPU falls behind the display (retina screens ran at about 52 fps, queueing frames), and movement is drawn toward the next tick with the keys held now, so a key shows on the next frame instead of up to 48 ms later.
 
+### The interface revamp (2026-10-08)
+
+- Every overlay redone in one system (`docs/ui-revamp.md`): no boxes, the blue-hour dark as the container, Gabarito and Rubik, brass only for what is current with a short bar under it, keys as rings, and nothing behind or around words in the world.
+- A centered landing with "Doyoon (Daniel) Kim" and "CS + Statistics @ UChicago" over a camera walking a slow lap of the kitchen; a loading screen to match; the station panel as a column on the right; section-only labels and plain name tags; a HUD of plain words; a round minimap with the knife over the fist; the pause menu with tabs down the left; and the portfolio in the same voice.
+- Built by six agents in parallel worktrees on a shared groundwork, merged into `main`.
+- Fixed on the way: nothing in front of the east wall could be picked while the walk-in was shut (the plonge among them).
+- Lint, typecheck, 883 unit tests, 27 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash

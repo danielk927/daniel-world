@@ -493,3 +493,44 @@ Judgment calls made during the unattended build, with reasons.
 
 - **Pressing Q again before a switch is done picks up from the arm's height.** Every switch started from the top, so pressing Q twice within a tenth of a second snapped the arm back up from partway down, and a press while the bare hand was coming up snapped it.
   Now, on the way down, what is in hand comes back up from where it is; on the way up, it goes back down from there (`switchFrom` inverts the lowering and raising curves), and the cut's blend smooths what is left, the raise's overshoot above rest included.
+
+### The interface revamp (2026-10-08)
+
+- **The navy box is gone.**
+  Every surface was the same navy rectangle with a hairline border, a tracked kicker, a serif title and pill tags, which read as generated.
+  One system replaces it, written up with the approved mockups in `docs/ui-revamp.md`.
+- **One theme, taken from games and 3D sites.**
+  A first board also had kitchen paper, tape, enamel signs and printed menus, but drawing on all of them per surface would have looked cluttered; Daniel chose how Clair Obscur, Disco Elysium, Heaven's Vault and the Cartier site keep every screen the same.
+- **No boxes: the dark is the container.**
+  Reading surfaces sit on a side of the screen darkened like the blue hour (`--dark-from-left`, `--dark-from-right`) or on an even dim (`--dim`), and the house navy is that dark, never a fill.
+- **Nothing behind or around words in the world.**
+  Halos and ink pools read as blur, a crisp dark outline as too heavy, and a lighter rim was turned down too; labels, the prompt and the HUD hold up by weight, size, color and where they sit.
+  The weakest spot left is a brass label over something pale (the beige house outside the windows, a white wall at noon).
+- **Gabarito and Rubik.**
+  The serifs tried (Bodoni Moda, EB Garamond) read as Times, and a marker hand (Kalam) as messy; Daniel picked Gabarito from six clean faces, with Rubik for text.
+  The bundled latin subset has no arrows, so arrows are drawn.
+  The kitchen's painted signs, the clock and the walk-in's readout letter in Rubik too, as they did in Jost.
+- **Brass is the only accent, marked by a short rounded bar** under whatever is current, and keys are rings, a circle round one letter and a capsule round a word.
+- **Plain words.**
+  No slogans or flavor text: the landing lost "Come cook with me" and its tagline, the loading screen says what it is doing, and the pause menu keeps Resume and Leave world.
+- **No French station names in the game.**
+  Labels, panels and the prompt name the resume section only; `station` and `kicker` stay in `content.ts`.
+- **The stylesheet is one file per surface** (`styles/app.css` imports them in cascade order), and the E2E suite and the screenshot script take other ports (`E2E_SERVER_PORT`, `E2E_CLIENT_PORT`, `WORLD_CLIENT_PORT`, `WORLD_SERVER_PORT`), so surfaces could be built in parallel worktrees and checked at once.
+- **The landing is centered**: "Doyoon (Daniel) Kim", the bar, "CS + Statistics @ UChicago", the cook's name and "Enter the kitchen", with no key ring beside it since the button says it.
+  A quiet row along the bottom has who is online, "Private party" (a disclosure that opens the code field, and opens by itself when an invite link carries a room) and the plain portfolio.
+- **Behind the landing the camera walks a lap of the kitchen** (`game/landingCamera.ts`): two minutes round the suite and the pass at head height, looking ahead and a little in toward the suite, on a closed centripetal curve sampled into reused vectors.
+  The swoop into the game follows that walk to the aisle by the dining room doors and glides along it to the cook, so it never crosses the hot line, the hood or the heat lamps; with motion reduced the old still shot holds.
+  `landingCamera.test.ts` checks the whole loop and every swoop for clearance.
+- **The loading screen is the landing's name**, with the landing's bar as a track filling with brass, so the bar is whole when the landing takes over.
+- **The station panel is a column on the right**, the station in view beside it.
+  Its leaders to the pins fade out close up rather than being capped: capping lowered the labels onto the lit counters, where brass vanished.
+  A dish panel keeps its restaurant as a plain line under the bar, the five dishes on About read as menu rows, and phones and windows up to 480 px tall take the full width on the night.
+  Focus starts in the scrolling text, so arrow keys and Page Down scroll at once.
+- **The pause menu's tabs run down the left** and the arrow keys walk them either way; switches stay `role="switch"` but read as Off and On with the bar under the current word, and the knives are outlines and names instead of tiles.
+  On a phone the tabs go across the top.
+- **The HUD is plain words in the corners**; the prompt shows the E ring and the action while screen readers hear the whole sentence, and chat's system lines are full ivory so they hold over the light floor.
+- **The minimap is a round night disc** with north tabbed on top, and the loadout stacks the knife over the fist with Q beside them and nothing behind; the icons held up against the bright walls without discs of their own.
+- **The portfolio follows the same system**, imports `controls.css` rather than copying it, drops the kickers (they repeated the titles), gains the five dishes as its own section, lists its sections down the left on wide screens, and prints as a resume.
+- **Picking stops at the walk-in's wall instead of being refused by it.**
+  The wall test took the whole 10 m pick ray, so with the walk-in shut nothing could be picked while looking east, the plonge and the truffle croissant from the spawn among them.
+  `coolerWallReach` now gives how far the ray gets before the wall stops it and picking looks only that far; `e2e/stations.spec.ts` reproduced the plonge failing first, and `cooler.test.ts` checks it agrees with the old segment test for any ray.
