@@ -21,7 +21,8 @@ npm run bots -- --count 15   # simulated players for load testing
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
 node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU;
                              # WORLD_CLIENT_PORT / WORLD_SERVER_PORT move it off :5173 / :3001)
-node scripts/perf.ts         # 16-player perf report (needs the dev client on :5173)
+node scripts/perf.ts         # 16-player perf report (starts what it needs, real GPU; --dpr 2 for retina;
+                             # the same WORLD_* ports move it, and governorLevel above 0 means the GPU fell behind)
 node scripts/computer-bench.ts  # kitchen computer: DOOM timedemo, guest MIPS (--engine jit|interpreter)
 firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install llvm lld`)
 ```
