@@ -356,6 +356,47 @@ export function coolerWallBetween(
   );
 }
 
+/**
+ * How far a ray from (ox, oy, oz) along the unit (dx, dy, dz) gets before the wall between the
+ * kitchen and the cooler stops it: to the first face it meets beside the doorway (anywhere, with the
+ * door shut), or `reach` if it gets that far first. What is in front of the wall can be picked and
+ * what is behind it cannot, however far the ray would have gone. Picking asks every frame: no
+ * allocations.
+ */
+export function coolerWallReach(
+  ox: number,
+  oy: number,
+  oz: number,
+  dx: number,
+  dy: number,
+  dz: number,
+  reach: number,
+  coolerOpen: boolean,
+): number {
+  return Math.min(
+    faceReach(ROOM_HALF_X, ox, oy, oz, dx, dy, dz, reach, coolerOpen),
+    faceReach(COOLER.minX, ox, oy, oz, dx, dy, dz, reach, coolerOpen),
+  );
+}
+
+/** How far along the ray it meets the face x = `plane` and is stopped there, else `reach`. */
+function faceReach(
+  plane: number,
+  ox: number,
+  oy: number,
+  oz: number,
+  dx: number,
+  dy: number,
+  dz: number,
+  reach: number,
+  coolerOpen: boolean,
+): number {
+  if (dx === 0) return reach;
+  const t = (plane - ox) / dx;
+  if (t < 0 || t > reach) return reach;
+  return coolerOpen && inCoolerDoorway(oy + dy * t, oz + dz * t) ? reach : t;
+}
+
 /** Whether a segment crosses the plane x = `plane` outside the walk-in's doorway. */
 function crossesBesideDoorway(
   plane: number,

@@ -34,6 +34,7 @@ import {
   OPEN_COOLER_COLLIDERS,
   coolerColliders,
   coolerWallBetween,
+  coolerWallReach,
   inPlayArea,
 } from './world.ts';
 
@@ -213,6 +214,9 @@ describe('walking into the walk-in', () => {
   });
 });
 
+/** Standing at the dish pit's west end, looking east along it at the walk-in's wall. */
+const EAST_RAY = { o: { x: 5, y: 1.6, z: 6.1 }, d: { x: 1, y: 0, z: 0 } };
+
 describe('seeing into the walk-in', () => {
   const kitchen = { x: 4, y: 1.6, z: DOOR_Z };
   const inside = { x: COOLER.minX + 1.5, y: 1.6, z: DOOR_Z };
@@ -231,6 +235,63 @@ describe('seeing into the walk-in', () => {
   it('leaves the kitchen and the cooler each open to themselves', () => {
     expect(see(kitchen, { x: -6, y: 1, z: 5 }, false)).toBe(true);
     expect(see(inside, { x: COOLER.maxX - 0.2, y: 2, z: COOLER.minZ + 0.2 }, true)).toBe(true);
+  });
+});
+
+describe("picking up to the walk-in's wall", () => {
+  const reach = (o: typeof EAST_RAY.o, d: typeof EAST_RAY.d, open: boolean): number =>
+    coolerWallReach(o.x, o.y, o.z, d.x, d.y, d.z, 10, open);
+
+  it('stops at the wall, so what stands in front of it can still be picked', () => {
+    // Looking east along the dish pit, whose far end is the walk-in's wall.
+    expect(reach(EAST_RAY.o, EAST_RAY.d, false)).toBeCloseTo(ROOM_HALF_X - EAST_RAY.o.x);
+    expect(reach(EAST_RAY.o, EAST_RAY.d, true)).toBeCloseTo(ROOM_HALF_X - EAST_RAY.o.x);
+    // Away from it, the whole reach.
+    expect(reach(EAST_RAY.o, { x: -1, y: 0, z: 0 }, false)).toBe(10);
+  });
+
+  it('goes on through the open doorway, and stops at the shut door', () => {
+    const o = { x: 4, y: 1.6, z: DOOR_Z };
+    expect(reach(o, { x: 1, y: 0, z: 0 }, true)).toBe(10);
+    expect(reach(o, { x: 1, y: 0, z: 0 }, false)).toBeCloseTo(ROOM_HALF_X - 4);
+  });
+
+  it("stops a ray from inside the walk-in at the wall's inner face", () => {
+    const o = { x: COOLER.minX + 1.5, y: 1.6, z: COOLER.minZ + 0.5 };
+    expect(reach(o, { x: -1, y: 0, z: 0 }, true)).toBeCloseTo(1.5);
+  });
+
+  it('agrees with the wall hiding a point from the eye, for any ray and point along it', () => {
+    let seed = 7;
+    const random = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    let checked = 0;
+    for (let i = 0; i < 6000; i++) {
+      // An eye in the kitchen or in the walk-in, where eyes can be.
+      const inCooler = random() < 0.3;
+      const o = inCooler
+        ? {
+            x: COOLER.minX + random() * (COOLER.maxX - COOLER.minX),
+            y: 0.2 + random() * 2.2,
+            z: COOLER.minZ + random() * (COOLER.maxZ - COOLER.minZ),
+          }
+        : { x: -7.9 + random() * 15.8, y: 0.2 + random() * 2.6, z: -6.4 + random() * 12.8 };
+      const yaw = random() * Math.PI * 2;
+      const pitch = (random() - 0.5) * 1.2;
+      const d = {
+        x: Math.cos(pitch) * Math.cos(yaw),
+        y: Math.sin(pitch),
+        z: Math.cos(pitch) * Math.sin(yaw),
+      };
+      const open = random() < 0.5;
+      const s = random() * 10;
+      const r = reach(o, d, open);
+      const p = { x: o.x + d.x * s, y: o.y + d.y * s, z: o.z + d.z * s };
+      // Nothing to pick inside the wall itself, nor within a hair of where the ray meets it.
+      if ((p.x >= ROOM_HALF_X && p.x <= COOLER.minX) || Math.abs(s - r) < 1e-6) continue;
+      expect(coolerWallBetween(o.x, o.y, o.z, p.x, p.y, p.z, open)).toBe(s > r);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(5000);
   });
 });
 

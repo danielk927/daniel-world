@@ -79,17 +79,18 @@ export class Stations {
   }
 
   /**
-   * Find the station or dish under the crosshair, if any is close enough. A dish beats the station
-   * it sits in; otherwise the nearest wins. Allocation free.
+   * Find the station or dish under the crosshair, if any is within `reach` (less than the usual
+   * reach where a wall is nearer). A dish beats the station it sits in; otherwise the nearest wins.
+   * Allocation free.
    */
-  pick(ray: Ray): number {
+  pick(ray: Ray, reach = PICK_DISTANCE): number {
     this.childHit.fill(0);
     for (let i = this.stationCount; i < this.objects.length; i++) {
       const o = this.objects[i]!;
-      if (o.parent >= 0 && this.hits(ray, o, PICK_DISTANCE) >= 0) this.childHit[o.parent] = 1;
+      if (o.parent >= 0 && this.hits(ray, o, reach) >= 0) this.childHit[o.parent] = 1;
     }
     let best = -1;
-    let bestDistance = PICK_DISTANCE;
+    let bestDistance = reach;
     for (let i = 0; i < this.objects.length; i++) {
       if (this.childHit[i]) continue;
       const along = this.hits(ray, this.objects[i]!, bestDistance);

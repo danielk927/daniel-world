@@ -8,6 +8,7 @@ import {
   SPAWN,
   TICK_SECONDS,
   coolerWallBetween,
+  coolerWallReach,
   launchKnife,
   type InputMessage,
   type KnifeTarget,
@@ -106,7 +107,6 @@ export class Game {
   private readonly enterToQuat = new Quaternion();
   private readonly feet = new Vector3();
   private readonly ray = new Ray();
-  private readonly reach = new Vector3();
   /** The kitchen computer on the chef's desk, which runs DOOM. */
   readonly desk: ComputerDesk;
   private readonly computerGuide: ComputerGuide;
@@ -892,14 +892,14 @@ export class Game {
           .sub(camera.position)
           .normalize();
       }
-      // Nothing in the kitchen can be picked through the walk-in's walls.
+      // Nothing can be picked through the walk-in's walls: the ray reaches only as far as the wall,
+      // so what stands in front of it still can.
       const o = this.ray.origin;
-      this.reach.copy(o).addScaledVector(this.ray.direction, PICK_DISTANCE);
-      const r = this.reach;
-      if (!coolerWallBetween(o.x, o.y, o.z, r.x, r.y, r.z, this.world.cooler.open)) {
-        computer = this.desk.picked(this.ray, PICK_DISTANCE);
-        if (!computer) index = this.world.stations.pick(this.ray);
-      }
+      const d = this.ray.direction;
+      const open = this.world.cooler.open;
+      const reach = coolerWallReach(o.x, o.y, o.z, d.x, d.y, d.z, PICK_DISTANCE, open);
+      computer = this.desk.picked(this.ray, reach);
+      if (!computer) index = this.world.stations.pick(this.ray, reach);
     }
     if (index === this.hoveredIndex && computer === this.computerHovered) return;
     if (computer !== this.computerHovered && this.computerLabel) {
