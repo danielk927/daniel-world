@@ -27,12 +27,14 @@ import {
   gripPose,
   handPose,
   indexThrough,
+  letGo,
   mixPose,
   placeHand,
   proximalAt,
   threadIndex,
   wristBend,
   type Grip,
+  type HandPose,
   type Placement,
 } from './hand.ts';
 import {
@@ -130,6 +132,8 @@ const KNIFE_BLEND = 0.5;
 /** Which way a cut takes the knife between the grip and the index finger, if either. */
 type Travel = 'off' | 'on' | 'none';
 const HANG_CHANNEL = CHANNELS.indexOf('hang');
+const BLADE = CHANNELS.indexOf('a');
+const HANDLE = CHANNELS.indexOf('b');
 /** The first channel that moves the knife rather than the arm. */
 const KNIFE_CHANNELS = CHANNELS.indexOf('spin');
 
@@ -163,7 +167,9 @@ function blend(
   for (let i = 0; i < CHANNELS.length; i++) {
     const c = CHANNELS[i]!;
     const k = i < KNIFE_CHANNELS ? arm : i === HANG_CHANNEL ? hang : turns;
-    to[c] += (from[c] + speed[c] * carried - to[c]) * k;
+    // A hinge stops at its stops: it is not carried on past them at the speed it was flicked.
+    const on = i === BLADE || i === HANDLE ? 0 : speed[c] * carried;
+    to[c] += (from[c] + on - to[c]) * k;
   }
   // Nor does it go back toward the grip further than either end of the cut has it.
   to.hang = Math.max(to.hang, hangFloor);
@@ -183,22 +189,6 @@ function unwind(from: ArmPose, speed: Readonly<ArmPose>, aim: Readonly<ArmPose>)
     from[c] = aim[c] + turn(from[c] + coast, aim[c]) - coast;
   }
 }
-
-/** The arm at rest, the knife not turned: where a throw or a switch has the knife's turns. */
-const AT_REST: Readonly<ArmPose> = {
-  x: 0,
-  y: 0,
-  z: 0,
-  rx: 0,
-  ry: 0,
-  rz: 0,
-  knife: true,
-  spin: 0,
-  flip: 0,
-  a: 0,
-  b: 0,
-  hang: 0,
-};
 
 const KITCHEN = knifeMoves('kitchen');
 
@@ -359,6 +349,8 @@ const FOREARM_FOLLOWS = 0.5;
 export interface KnifeHand {
   /** The fingers round its handle. */
   readonly grip: Grip;
+  /** The hand opened from that grip to let the handle go. */
+  readonly open: HandPose;
   /** Where the wrist goes for that grip, in the arm's frame. */
   readonly placement: Placement;
   /** Spun on the index finger through a ring (karambit, talon, skeleton). */
@@ -543,7 +535,8 @@ export function knifeHand(model: KnifeModel): KnifeHand {
   const forearm = new Quaternion()
     .identity()
     .slerp(new Quaternion().setFromUnitVectors(FOREARM, reach), FOREARM_FOLLOWS);
-  const hand = { grip, placement, ringed, threaded, along, pivot, radius, forearm };
+  const open = letGo(grip);
+  const hand = { grip, open, placement, ringed, threaded, along, pivot, radius, forearm };
   knifeHands.set(model.skin, hand);
   return hand;
 }
@@ -664,8 +657,9 @@ export class Viewmodel {
   /** Which way the last cut takes the knife, off the index finger or onto it, and how far. */
   private travel: Travel = 'none';
   private hangFloor = 0;
-  /** Where an inspect will be once blended in. */
-  private readonly inspectAim: ArmPose = { ...this.pose };
+  /** Where the last cut is headed once blended, and whether that is still to be worked out. */
+  private readonly cutAim: ArmPose = { ...this.pose };
+  private aiming = false;
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
 
   constructor() {
@@ -814,7 +808,7 @@ export class Viewmodel {
     if (armed === this.armed) return;
     // Switching back mid-switch picks up from the arm's height (switchFrom); the blend smooths the
     // rest, the raise's overshoot above rest included.
-    this.interrupt(INTERRUPT_BLEND, AT_REST, this.sinceSwitch < SWITCH.raise);
+    this.interrupt(INTERRUPT_BLEND, this.sinceSwitch < SWITCH.raise);
     this.armed = armed;
     this.sinceThrow = Infinity;
     this.sinceSwitch = switchFrom(this.sinceSwitch);
@@ -861,7 +855,7 @@ export class Viewmodel {
    */
   startInspect(): boolean {
     if (!this.knifeInHand) return false;
-    this.interrupt(INSPECT_BLEND, sample(this.moves.inspect, INSPECT_BLEND, this.inspectAim));
+    this.interrupt(INSPECT_BLEND);
     this.sinceInspect = 0;
     return true;
   }
@@ -932,27 +926,49 @@ export class Viewmodel {
    * the arm was, at the speed it was going, into what follows; `aim` is where that has the knife's
    * turns once blended in.
    */
-  private interrupt(
-    duration = INTERRUPT_BLEND,
-    aim: Readonly<ArmPose> = AT_REST,
-    always = false,
-  ): void {
+  private interrupt(duration = INTERRUPT_BLEND, always = false): void {
     const flourish = this.flourishing && this.sinceSwitch >= SWITCH.lower;
     const busy = this.inspecting || this.punching || flourish || (this.idling && this.idleTime > 0);
     if (!busy && !always) return;
     Object.assign(this.interrupted, this.pose);
     Object.assign(this.interruptedSpeed, this.poseSpeed);
-    unwind(this.interrupted, this.interruptedSpeed, aim);
     this.sinceInspect = Infinity;
     this.sincePunch = Infinity;
     if (flourish) this.drawCut = true;
     this.idleTime = 0;
     this.sinceInterrupt = 0;
     this.interruptBlend = duration;
-    // Decided once, against where the cut is headed, so it cannot change partway.
-    const hang = clamp01(this.interrupted.hang) - clamp01(aim.hang);
-    this.travel = hang > 0.01 ? 'off' : hang < -0.01 ? 'on' : 'none';
-    this.hangFloor = Math.min(clamp01(this.interrupted.hang), clamp01(aim.hang));
+    // What follows is set up after this; the next frame aims at it.
+    this.aiming = true;
+  }
+
+  /**
+   * Where the cut just made is headed, once whatever follows has been set up: the arm `duration`
+   * on, as nothing else is pressed. The knife's turns unwind toward it, and it decides once, so it
+   * cannot change partway, whether the knife goes off the index finger or onto it.
+   */
+  private aimCut(): void {
+    this.aiming = false;
+    const aim = this.poseAhead(this.interruptBlend, this.cutAim);
+    unwind(this.interrupted, this.interruptedSpeed, aim);
+    const from = clamp01(this.interrupted.hang);
+    const to = clamp01(aim.hang);
+    this.travel = from - to > 0.01 ? 'off' : to - from > 0.01 ? 'on' : 'none';
+    this.hangFloor = Math.min(from, to);
+  }
+
+  /** The arm `ahead` seconds from now if nothing else is pressed. */
+  private poseAhead(ahead: number, out: ArmPose): ArmPose {
+    const { sinceInspect, sincePunch, sinceSwitch, sinceThrow, idleTime, holding } = this;
+    this.sinceInspect += ahead;
+    this.sincePunch += ahead;
+    this.sinceSwitch += ahead;
+    this.sinceThrow += ahead;
+    this.idleTime += ahead;
+    if (this.sinceSwitch >= SWITCH.lower) this.holding = this.armed ? 'knife' : 'hand';
+    this.poseNow(out);
+    Object.assign(this, { sinceInspect, sincePunch, sinceSwitch, sinceThrow, idleTime, holding });
+    return out;
   }
 
   /** The knife's middle in the world right now, where a knife leaving the hand starts from. */
@@ -1065,6 +1081,7 @@ export class Viewmodel {
   private apply(): void {
     const pose = this.pose;
     this.poseNow(pose);
+    if (this.aiming) this.aimCut();
     if (this.sinceInterrupt < Math.max(this.interruptBlend, KNIFE_BLEND)) {
       blend(
         this.interrupted,
@@ -1169,7 +1186,10 @@ export class Viewmodel {
       // fingers stay open through a spin and close on the handle once it settles.
       const turning = Math.abs(turn(pose.flip, this.lastFlip)) > dt * 1.5 && dt > 0;
       this.lastFlip = pose.flip;
-      const loose = !inHand || pose.hang > 0.02 || Math.abs(turn(pose.flip, 0)) > 0.25 || turning;
+      // A folding blade or a butterfly's free handle swings through the fingers' side too.
+      const folding = Math.abs(pose.a) > 0.05 || Math.abs(pose.b) > 0.05;
+      const loose =
+        !inHand || pose.hang > 0.02 || Math.abs(turn(pose.flip, 0)) > 0.25 || turning || folding;
       const target = loose ? 1 : 0;
       const rate = target > this.release ? 28 : 10;
       this.release += (target - this.release) * (1 - Math.exp(-dt * rate));
@@ -1178,7 +1198,7 @@ export class Viewmodel {
       // fist while the knife is clear of it, ready for the knife to turn about the finger.
       const hang = clamp01(pose.hang);
       const open = Math.max(this.release, smoothstep(clamp01(hang / HANG.open)));
-      mixPose(this.handPose, grip, OPEN_POSE, open);
+      mixPose(this.handPose, grip, held.open, open);
       const point = smoothstep(clamp01((hang - HANG.fold) / (HANG.round - HANG.fold)));
       mixPose(this.handPose, this.handPose, POINT_POSE, point);
       // A ring on the finger keeps it through the ring, straightening as the ring slides out.

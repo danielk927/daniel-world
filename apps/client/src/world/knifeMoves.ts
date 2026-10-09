@@ -296,8 +296,9 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   // The butterfly rises closed and flips open, and its inspect is a flipping routine.
   butterfly: {
     draw: [
-      { ...DOWN, spin: 0, a: PI, b: PI },
-      { t: 0.18, y: -0.06, rx: 0.15, a: PI, b: PI, ease: 'out' },
+      // Shut the way round that opens away from the palm, through the fingers, which let go.
+      { ...DOWN, spin: 0, a: -PI, b: PI },
+      { t: 0.18, y: -0.06, rx: 0.15, a: -PI, b: PI, ease: 'out' },
       // The free handle swings away with the blade, then back round to close on the grip.
       { t: 0.36, y: 0.01, rx: -0.05, rz: 0.15, a: 0, b: PI, knifeEase: 'in' },
       { t: 0.56, y: 0, rx: 0, rz: 0, a: 0, b: 0, knifeEase: 'out' },
@@ -315,7 +316,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 0.35, x: -0.07, y: 0.08, z: 0.02, rx: -0.12, rz: 0.35 },
       // Closed: the free handle swings round over the edge, then the blade folds into the grip.
       { t: 0.58, b: PI, knifeEase: 'in' },
-      { t: 0.78, a: PI, b: PI, rz: 0.2, knifeEase: 'out' },
+      { t: 0.78, a: -PI, b: PI, rz: 0.2, knifeEase: 'out' },
       // Open again as the wrist turns over: the blade swings out, then the handle comes home.
       { t: 1.02, x: -0.075, y: 0.085, a: 0, spin: PI, rz: 0.5, knifeEase: 'in' },
       { t: 1.24, b: 0, spin: TAU, knifeEase: 'out' },

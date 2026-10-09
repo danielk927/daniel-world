@@ -593,6 +593,25 @@ export const OPEN_POSE: HandPose = (() => {
   return pose;
 })();
 
+/** How far the thumb keeps off a handle it has let go of, beyond the handle's thickness. */
+const LET_GO_CLEAR = 0.004;
+
+/**
+ * The hand opened from a grip to let its handle go: the fingers as the open hand has them, and the
+ * thumb laid out along the index finger, clear of the handle, rather than toward the palm, where
+ * the handle still is.
+ */
+export function letGo(grip: Grip): HandPose {
+  const pose = OPEN_POSE.slice();
+  pose.set([0.5, 0, -0.9, 0.2, 0.15], THUMB_AT);
+  solveThumb(pose, new Vector3(0.004, 0.047, -0.056), new Vector3(0.006, 0.045, -0.082), {
+    center: grip.center,
+    axis: grip.axis,
+    radius: grip.radius + LET_GO_CLEAR,
+  });
+  return pose;
+}
+
 const fkAxis = new Vector3();
 
 /**
