@@ -717,7 +717,7 @@ export class CoolerDoor {
     ctx.beginPath();
     ctx.arc(98, 13, 3, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.font = '600 17px Jost, sans-serif';
+    ctx.font = '600 17px Rubik, sans-serif';
     ctx.fillText('C', 104, 37);
     this.readoutTexture.needsUpdate = true;
   }

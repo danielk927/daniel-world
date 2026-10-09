@@ -48,18 +48,4 @@
 
   --bar: 4px;
   --focus: 0 0 0 2px var(--brass);
-
-  /* The old navy names, until every surface has moved off them. */
-  --navy: #1f2a5a;
-  --navy-deep: #161e45;
-  --navy-light: #2b3870;
-  --panel: rgba(31, 42, 90, 0.96);
-  --panel-strong: var(--navy-deep);
-  --panel-border: rgba(246, 243, 234, 0.22);
-  --accent-strong: #ffffff;
-  --accent-ink: var(--navy-deep);
-  --radius-sm: 2px;
-  --radius: 2px;
-  --radius-lg: 3px;
-  --shadow: 0 10px 30px rgba(10, 14, 36, 0.28);
 }

@@ -43,7 +43,7 @@ export const softTexture = once(() => {
 });
 
 /**
- * A sign lettered in the interface's Jost, so the kitchen does not add typefaces of its own.
+ * A sign lettered in the interface's Rubik, so the kitchen does not add typefaces of its own.
  * Canvas text only uses a web font once it has loaded, so the sign is repainted when it arrives.
  */
 function sign(
@@ -71,7 +71,7 @@ function sign(
  * rails that hold it are geometry, not paint.
  */
 export const everySecondCountsTexture = once(() =>
-  sign(1024, 256, '500 80px Jost, sans-serif', (ctx) => {
+  sign(1024, 256, '500 80px Rubik, sans-serif', (ctx) => {
     ctx.fillStyle = '#1b2150';
     ctx.fillRect(0, 0, 1024, 256);
     ctx.fillStyle = '#f7f7f4';
@@ -82,7 +82,7 @@ export const everySecondCountsTexture = once(() =>
 
 /** The green exit sign over the back door. */
 export const exitSignTexture = once(() =>
-  sign(256, 96, '600 54px Jost, sans-serif', (ctx) => {
+  sign(256, 96, '600 54px Rubik, sans-serif', (ctx) => {
     ctx.fillStyle = '#0d3b24';
     ctx.fillRect(0, 0, 256, 96);
     ctx.fillStyle = '#7dffb0';

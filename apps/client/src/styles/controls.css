@@ -8,23 +8,6 @@
   padding: 24px;
 }
 
-/* The old card, until the landing and the pause menu have moved off it. */
-.card {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 28px;
-  user-select: text;
-}
-
-.card-title {
-  margin: 0 0 16px;
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 600;
-}
-
 /* Type roles: a kicker over a title. Sizes belong to each surface. */
 .kicker {
   font: 600 13px/1.2 var(--font-body);

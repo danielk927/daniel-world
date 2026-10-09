@@ -42,11 +42,6 @@
   letter-spacing: -0.005em;
 }
 
-/* The station's French name stays on the portfolio page. */
-.lore-label-station {
-  display: none;
-}
-
 .lore-label::before,
 .lore-label::after {
   content: '';

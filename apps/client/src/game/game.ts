@@ -195,14 +195,8 @@ export class Game {
     this.world.stations.entries.forEach((entry, i) => {
       const anchor = this.world.stations.anchor(i);
       if (!anchor) return;
-      // What the station holds, under the station's own name in small.
-      const label = el('div', { class: 'lore-label' }, [
-        el('span', {}, [
-          entry.station ? el('small', { class: 'lore-label-station', text: entry.station }) : null,
-          entry.title,
-        ]),
-      ]);
-      label.style.setProperty('--accent-entry', entry.color);
+      // What the station holds: its section of the resume, never the station's French name.
+      const label = el('div', { class: 'lore-label' }, [el('span', { text: entry.title })]);
       // Labels show exactly as far away as the station can be clicked.
       this.stationLabels.push(this.labels.add(label, anchor, 0.55, PICK_DISTANCE, 'yield'));
     });
@@ -213,10 +207,7 @@ export class Game {
 
     this.desk = new ComputerDesk(world.computer, (message) => this.toasts.show(message));
     this.computerGuide = new ComputerGuide(overlay);
-    const pcLabel = el('div', { class: 'lore-label' }, [
-      el('span', {}, [el('small', { class: 'lore-label-station', text: 'Kitchen PC' }), 'DOOM']),
-    ]);
-    pcLabel.style.setProperty('--accent-entry', '#e2584a');
+    const pcLabel = el('div', { class: 'lore-label' }, [el('span', { text: 'DOOM' })]);
     this.computerLabel = this.labels.add(
       pcLabel,
       new Vector3(COMPUTER.x, COMPUTER.y + 0.08, COMPUTER.z),

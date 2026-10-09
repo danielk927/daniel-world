@@ -50,7 +50,7 @@ body {
   user-select: none;
 }
 
-.ui :where(button, a, input, output, label, .card, .panel-card, .chat) {
+.ui :where(button, a, input, output, label, .chat) {
   pointer-events: auto;
 }
 

@@ -130,7 +130,7 @@ export class KitchenClock {
     this.digit(x0 + 392, small, seconds % 10);
     if (this.twelveHour) {
       // AM and PM lamps above the seconds, the one that applies lit.
-      ctx.font = '600 15px Jost, sans-serif';
+      ctx.font = '600 15px Rubik, sans-serif';
       ctx.textBaseline = 'middle';
       const pm = hours >= 12;
       for (const [label, x, on] of [
