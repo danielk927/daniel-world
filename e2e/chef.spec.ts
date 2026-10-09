@@ -58,8 +58,13 @@ test('a visitor who switches him off is left alone while he throws at others', a
   // Off in the settings menu, with the keyboard; the server hears at once.
   const reader = await enterWorld(browser, { name: 'Reader' });
   await reader.keyboard.press('Escape');
-  // The menu opens on the Party tab.
-  await reader.getByRole('tab', { name: 'Settings' }).click();
+  // The menu opens on the Party tab; the arrow keys go down the list of tabs to Settings.
+  await reader.getByRole('tab', { name: 'Party' }).focus();
+  await reader.keyboard.press('ArrowDown');
+  await reader.keyboard.press('ArrowDown');
+  const settings = reader.getByRole('tab', { name: 'Settings' });
+  await expect(settings).toBeFocused();
+  await expect(settings).toHaveAttribute('aria-selected', 'true');
   const toggle = reader.getByRole('switch', { name: 'Chef Skinner throws knives at me' });
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await toggle.focus();
