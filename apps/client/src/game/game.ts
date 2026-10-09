@@ -42,6 +42,7 @@ import { Input } from './input.ts';
 import { LandingCamera } from './landingCamera.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
+import { photoView, type PhotoView } from './photoView.ts';
 import { addressForRoom, inviteLink, joinFailureMessage, roomName } from './party.ts';
 import { prefsOf, type Settings } from './settings.ts';
 import type { Quality } from '../util/capabilities.ts';
@@ -101,6 +102,9 @@ export class Game {
   private accumulator = 0;
   /** The slow walk round the kitchen behind the landing, and the swoop from it into the game. */
   private readonly landingCamera = new LandingCamera();
+  /** A fixed camera behind the landing, for judging the look (dev and test builds only). */
+  private readonly photo: PhotoView | null =
+    import.meta.env.MODE !== 'production' ? photoView(location.search) : null;
   private enterProgress = 0;
   private readonly enterFrom = new Vector3();
   private readonly enterFromQuat = new Quaternion();
@@ -738,6 +742,12 @@ export class Game {
   private updateCamera(dt: number): void {
     const camera = this.world.camera;
     if (this.mode === 'landing') {
+      if (this.photo) {
+        const { x, y, z, yaw, pitch } = this.photo;
+        camera.position.set(x, y, z);
+        camera.quaternion.setFromEuler(this.euler.set(pitch, yaw, 0));
+        return;
+      }
       this.landingCamera.update(camera, this.elapsed, this.settings.values.reduceMotion);
       return;
     }
