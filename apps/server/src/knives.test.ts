@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EYE_HEIGHT,
   KNIFE_COOLDOWN_INPUTS,
   KNIFE_MAX_STUCK,
   Keys,
   parseServerMessage,
+  thrownKnife,
   type ServerMessage,
   TICK_RATE,
 } from '@world/shared';
@@ -82,6 +84,37 @@ describe('knives', () => {
       expect(knife).toMatchObject({ from: a.id, seq: 0 });
       expect(knife!.vz).toBeLessThan(-10);
     }
+  });
+
+  it("spreads every knife by who threw it and on which input, as the thrower's screen does", () => {
+    const { join, input, steps, received } = setup();
+    const a = join(0, 5.6);
+    const b = join(-3, 5.6);
+    const chef = join(3, 5.6, { resident: true });
+    const cooks = [a, b, chef];
+    // The same aim, on the same input, from three cooks (Chef Skinner among them).
+    for (const cook of cooks) input(cook, { throwKnife: true, pitch: 0.05 });
+    steps(1);
+    const knives = received(a.id, 'knife');
+    expect(knives.map((k) => k.from)).toEqual(cooks.map((c) => c.id));
+    for (const knife of knives) {
+      // The thrower's screen launches its own knife from the eye after the same step, by its id
+      // in the room and the input's sequence number.
+      const s = cooks.find((c) => c.id === knife.from)!.state;
+      const own = thrownKnife(s.x, s.y + EYE_HEIGHT, s.z, NORTH, 0.05, knife.from, knife.seq);
+      expect([knife.x, knife.y, knife.z, knife.vx, knife.vy, knife.vz]).toEqual([
+        own.x,
+        own.y,
+        own.z,
+        own.vx,
+        own.vy,
+        own.vz,
+      ]);
+    }
+    // Three ways, none of them exactly where they looked.
+    const headings = new Set(knives.map((k) => Math.atan2(k.vx, -k.vz)));
+    expect(headings.size).toBe(3);
+    expect(headings.has(0)).toBe(false);
   });
 
   it('knocks out a player it hits, who respawns protected after a while', () => {
