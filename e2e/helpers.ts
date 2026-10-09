@@ -77,10 +77,17 @@ export async function enterWorld(
   await page.goto(options.path ?? '/');
   // Pages already in the world keep rendering in software on the same CPU, so a third page can take
   // a while to build the kitchen and compile its shaders.
-  await expect(page.getByRole('button', { name: 'Enter world' })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeVisible({
+    timeout: 60_000,
+  });
   await page.getByLabel('Your name').fill(options.name);
-  if (options.room) await page.getByLabel('Private party').fill(options.room);
-  await page.getByRole('button', { name: 'Enter world' }).click();
+  if (options.room) {
+    // The party's code field opens from the row along the bottom, unless an invite opened it.
+    const party = page.getByRole('button', { name: 'Private party' });
+    if ((await party.getAttribute('aria-expanded')) !== 'true') await party.click();
+    await page.getByLabel('Private party').fill(options.room);
+  }
+  await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   const online = options.online ?? true;
   await expectWorld(
     page,

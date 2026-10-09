@@ -59,9 +59,10 @@ const browser = await chromium.launch({
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.goto(`${clientUrl}/?quality=high`);
-  await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Private party' }).click();
   await page.getByLabel('Private party').fill(room);
-  await page.getByRole('button', { name: 'Enter world' }).click();
+  await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   await page.waitForFunction(
     (expected) => window.__world?.mode === 'playing' && window.__world.playerCount === expected,
     MAX_PLAYERS_PER_ROOM,

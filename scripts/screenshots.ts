@@ -53,10 +53,13 @@ function run(command: string, args: string[], env: Record<string, string> = {}):
 async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.goto(`${clientUrl}/?quality=high&time=20:00`);
   // Other pages may still be rendering on the same GPU, so loading can take a while.
-  await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 60_000 });
   await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Private party').fill(room);
-  await page.getByRole('button', { name: 'Enter world' }).click();
+  if (room) {
+    await page.getByRole('button', { name: 'Private party' }).click();
+    await page.getByLabel('Private party').fill(room);
+  }
+  await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 60_000 });
 }
 
@@ -116,13 +119,13 @@ async function main(): Promise<void> {
     const page = await context.newPage();
 
     await page.goto(`${clientUrl}/?quality=high&time=20:00`);
-    await page.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
     await page.getByLabel('Your name').fill('Curious Otter');
     await page.waitForTimeout(2500);
     await page.screenshot({ path: `${outDir}/landing.png` });
 
     // The lobby, with the bots wandering around.
-    await page.getByRole('button', { name: 'Enter world' }).click();
+    await page.getByRole('button', { name: 'Enter the kitchen' }).click();
     await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 30_000 });
     await page.keyboard.press('Enter');
     await page.keyboard.type('hi everyone!');
@@ -215,7 +218,7 @@ async function main(): Promise<void> {
     });
     const phonePage = await phone.newPage();
     await phonePage.goto(`${clientUrl}/`);
-    await phonePage.getByRole('button', { name: 'Enter world' }).waitFor({ timeout: 30_000 });
+    await phonePage.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
     await phonePage.waitForTimeout(1500);
     await phonePage.screenshot({ path: `${outDir}/mobile-landing.png` });
     await phonePage.goto(`${clientUrl}/portfolio.html`);

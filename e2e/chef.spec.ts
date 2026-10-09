@@ -69,7 +69,7 @@ test('a visitor who switches him off is left alone while he throws at others', a
 
   // Still off after a reload: saved, and in the hello of the new connection.
   await reader.reload();
-  await reader.getByRole('button', { name: 'Enter world' }).click({ timeout: 60_000 });
+  await reader.getByRole('button', { name: 'Enter the kitchen' }).click({ timeout: 60_000 });
   await expectWorld(
     reader,
     (w) => w.mode === 'playing' && w.connection === 'online',
