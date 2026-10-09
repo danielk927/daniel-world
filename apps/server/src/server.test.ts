@@ -18,6 +18,7 @@ import {
   CLOSE_ROOM_TAKEN,
   CLOSE_TRY_AGAIN_LATER,
   startServer,
+  type ServerOptions,
   type WorldServer,
 } from './server.ts';
 
@@ -122,8 +123,19 @@ function client(options?: { autoPong?: boolean }): TestClient {
   return c;
 }
 
+/**
+ * Swap the server for one with `options`, for the few tests about timeouts. Every other test runs
+ * with the real ones: under a 200 ms heartbeat, a stall of the worker just after a ping (a busy
+ * machine, garbage collection) lets the next heartbeat come round before the pong is read, and it
+ * drops a perfectly live client.
+ */
+async function restartWith(options: Partial<ServerOptions>): Promise<void> {
+  await server.close();
+  server = await startServer({ port: 0, host: '127.0.0.1', ...options });
+}
+
 beforeEach(async () => {
-  server = await startServer({ port: 0, host: '127.0.0.1', heartbeatMs: 200, helloTimeoutMs: 300 });
+  server = await startServer({ port: 0, host: '127.0.0.1' });
 });
 
 afterEach(async () => {
@@ -307,12 +319,14 @@ describe('room server', () => {
   });
 
   it('closes connections that never say hello', async () => {
+    await restartWith({ helloTimeoutMs: 300 });
     const a = client();
     await a.opened();
     expect(await a.waitForClose()).toBe(CLOSE_HELLO_TIMEOUT);
   });
 
   it('drops connections that stop answering heartbeats', async () => {
+    await restartWith({ heartbeatMs: 200 });
     const a = client();
     const b = client({ autoPong: false });
     await a.join('Alive');
