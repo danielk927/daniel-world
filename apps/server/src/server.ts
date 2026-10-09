@@ -106,8 +106,9 @@ interface Connection {
   readonly chat: TokenBucket;
   /** Changes of prefs passed on to the room; any more in between are folded into the next. */
   readonly prefs: TokenBucket;
-  /** The newest change of prefs not yet passed on, and when it will be. */
+  /** The newest change of prefs not yet passed on. */
   pendingPrefs: Prefs | null;
+  /** Set while `pendingPrefs` waits for the bucket. */
   prefsTimer: NodeJS.Timeout | null;
   readonly strikes: StrikeCounter;
 }
