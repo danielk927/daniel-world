@@ -25,6 +25,13 @@
   }
 }
 
+/* DOOM's reminder is longer, and fits on one line down to here; the guide has shown the keys. */
+@media (max-width: 900px) {
+  .hud.is-computer .computer-hint {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .landing {
     background: rgba(10, 14, 36, 0.35);

@@ -24,6 +24,11 @@
   pointer-events: auto;
 }
 
+/* At the computer the reminder of DOOM's keys runs the width of the bottom: the lines go above it. */
+.ui:has(> .hud.is-computer:not(.is-computer-guide)) .chat {
+  bottom: calc(var(--hud-edge) + 44px);
+}
+
 .chat-log {
   display: grid;
   align-content: end;
@@ -57,6 +62,7 @@
   font: 500 15px/1.4 var(--font-body);
   color: var(--ink);
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .chat-name {

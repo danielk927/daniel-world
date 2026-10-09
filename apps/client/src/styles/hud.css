@@ -136,86 +136,102 @@
   display: none;
 }
 
-/* How to play DOOM, over the computer's screen when a cook sits down. */
+/* How to play DOOM, over the computer's screen when a cook sits down: plain rows on an even dim. */
 .computer-guide {
   position: absolute;
-  top: 46%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(560px, calc(100% - 32px));
-  max-height: calc(100% - 32px);
-  overflow-y: auto;
-  padding: 30px 36px 26px;
-  border-radius: var(--radius-lg);
-  background: rgba(16, 22, 52, 0.94);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--dim);
 }
 
-.computer-guide-kicker {
-  margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ivory);
+.computer-guide-body {
+  display: grid;
+  justify-items: center;
+  width: min(600px, 100%);
+  text-align: center;
 }
 
 .computer-guide-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 1.05;
+  font-size: 64px;
+}
+
+.computer-guide-body .bar {
+  margin-top: 14px;
 }
 
 .computer-guide-lede {
-  margin: 10px 0 20px;
-  font-size: 15px;
-  line-height: 1.55;
+  max-width: 470px;
+  margin: 18px 0 30px;
+  font: 400 16px/1.55 var(--font-body);
   color: var(--ink-muted);
   text-wrap: pretty;
 }
 
+/* The keys ring-aligned on the right of a gutter, what they do on its left. */
 .computer-guide-keys {
   display: grid;
+  grid-template-columns: auto auto;
+  gap: 12px 22px;
   margin: 0;
-  border-top: 1px solid var(--panel-border);
+  text-align: left;
 }
 
 .computer-guide-keys > div {
-  display: grid;
-  grid-template-columns: 170px 1fr;
-  align-items: center;
-  gap: 16px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--panel-border);
+  display: contents;
 }
 
 .computer-guide-keys dt {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  color: var(--ink-faint);
-}
-
-.computer-guide-keys kbd {
-  font-size: 13px;
+  justify-content: flex-end;
+  gap: 6px;
+  font: 500 14px/1 var(--font-body);
+  color: var(--ink-muted);
 }
 
 .computer-guide-keys dd {
   margin: 0;
-  font-size: 15px;
+  align-self: center;
+  font: 500 16px/1.3 var(--font-body);
   color: var(--ink);
 }
 
+.key-arrow svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .computer-guide-start {
-  margin: 20px 0 0;
-  font-size: 13px;
-  font-weight: 600;
+  margin: 32px 0 0;
+  font: 600 13px/1 var(--font-body);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  text-align: center;
-  color: var(--ivory);
+  color: var(--accent);
+}
+
+/* On a short window the lede goes and the rows close up, so the whole guide still fits. */
+@media (max-height: 720px) {
+  .computer-guide-title {
+    font-size: 48px;
+  }
+
+  .computer-guide-lede {
+    display: none;
+  }
+
+  .computer-guide-keys {
+    margin-top: 24px;
+    row-gap: 8px;
+  }
+
+  .computer-guide-start {
+    margin-top: 22px;
+  }
 }
