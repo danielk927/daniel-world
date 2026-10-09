@@ -8,47 +8,18 @@
  * The hour is pinned to evening service (8 p.m.), so the pictures do not depend on when they are taken.
  * WORLD_CLIENT_PORT and WORLD_SERVER_PORT move both off their usual ports, to run beside another copy.
  */
-import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { chromium, type Page } from '@playwright/test';
+import { chromium, type Browser, type Page } from '@playwright/test';
 import { DEFAULT_SERVER_PORT } from '@world/shared';
-import { startServer } from '../apps/server/src/server.ts';
+import { startServer, type WorldServer } from '../apps/server/src/server.ts';
+import { reachable, start, startClient, stopAll, waitFor } from './processes.ts';
 
-const root = resolve(import.meta.dirname, '..');
-const outDir = resolve(root, 'docs/screenshots');
+const outDir = resolve(import.meta.dirname, '../docs/screenshots');
 const clientPort = Number(process.env.WORLD_CLIENT_PORT ?? 5173);
 const serverPort = Number(process.env.WORLD_SERVER_PORT ?? DEFAULT_SERVER_PORT);
 const clientUrl = `http://localhost:${clientPort}`;
 const serverUrl = `ws://localhost:${serverPort}`;
-const children: ChildProcess[] = [];
-
-async function reachable(url: string): Promise<boolean> {
-  try {
-    await fetch(url, { signal: AbortSignal.timeout(1000) });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function waitFor(url: string, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!(await reachable(url))) {
-    if (Date.now() > deadline) throw new Error(`${url} did not come up`);
-    await new Promise((r) => setTimeout(r, 300));
-  }
-}
-
-function run(command: string, args: string[], env: Record<string, string> = {}): ChildProcess {
-  const child = spawn(command, args, {
-    cwd: root,
-    stdio: 'ignore',
-    env: { ...process.env, ...env },
-  });
-  children.push(child);
-  return child;
-}
 
 async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.goto(`${clientUrl}/?quality=high&time=20:00`);
@@ -100,21 +71,20 @@ async function walkUntil(
 
 async function main(): Promise<void> {
   await mkdir(outDir, { recursive: true });
-  if (!(await reachable(clientUrl))) {
-    run('npm', ['run', 'dev', '-w', '@world/client', '--', '--port', String(clientPort)], {
-      VITE_SERVER_URL: serverUrl,
-    });
-    await waitFor(clientUrl, 30_000);
-  }
-  const ownServer = (await reachable(`http://localhost:${serverPort}/health`))
-    ? null
-    : await startServer({ port: serverPort });
-  run('node', ['scripts/bots.ts', '--count', '6', '--chat', '--url', serverUrl]);
-
-  const browser = await chromium.launch({
-    args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'],
-  });
+  let ownServer: WorldServer | null = null;
+  let browser: Browser | null = null;
   try {
+    if (!(await reachable(clientUrl))) {
+      await waitFor(clientUrl, 30_000, startClient(clientPort, serverUrl));
+    }
+    if (!(await reachable(`http://localhost:${serverPort}/health`))) {
+      ownServer = await startServer({ port: serverPort });
+    }
+    start(process.execPath, ['scripts/bots.ts', '--count', '6', '--chat', '--url', serverUrl]);
+
+    browser = await chromium.launch({
+      args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'],
+    });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
 
@@ -225,8 +195,8 @@ async function main(): Promise<void> {
     await phonePage.screenshot({ path: `${outDir}/mobile-portfolio.png` });
     console.log(`Screenshots written to ${outDir}`);
   } finally {
-    await browser.close();
-    for (const child of children) child.kill('SIGINT');
+    await browser?.close();
+    await stopAll();
     await ownServer?.close();
   }
 }

@@ -163,10 +163,13 @@ function leave(bot: Bot | undefined): void {
 }
 
 const bots: Bot[] = [];
-process.on('SIGINT', () => {
-  for (const bot of bots) leave(bot);
-  setTimeout(() => process.exit(0), 200);
-});
+// Ctrl+C here, or SIGTERM from a script that started the bots: leave the room properly.
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    for (const bot of bots) leave(bot);
+    setTimeout(() => process.exit(0), 200);
+  });
+}
 
 const free = await freeSeats();
 const wanted = free === null ? asked : Math.min(asked, free - 1);
