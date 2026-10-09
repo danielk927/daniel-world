@@ -88,6 +88,17 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Still protocol version 8.
 - Lint, typecheck, 916 unit tests, 29 E2E tests and the build pass.
 
+### The client game after review (2026-10-09)
+
+- The findings from a review of the client's game and networking code, each reproduced by a failing test first, end to end where a visitor would meet it.
+- Connection: a network gone quiet now turns solo in seconds instead of up to a minute, a late ping (the page held up) judges no silence, a socket the browser will not make no longer breaks entering the world, a room that fills while the server is away keeps the cook in the kitchen solo instead of sending them to the landing, and a new connection's inputs no longer carry the last session's view.
+- Knockouts: no arm under the menu at the respawn, no labels over the knockout card, nothing picked or opened from the floor, and screen readers hear it once.
+- The pause menu and station panels close with Esc after a click on their words or their dark; the panel had the same bug the review put only on the menu.
+- The kitchen computer: leaving the window or tab steps away, the auto-repeat of the E that sits a cook down stays out of DOOM, Ctrl and Alt are no longer DOOM keys (Ctrl+W closed the tab, Ctrl+Tab and Alt+Tab switched away), and a crash after boot shows the standby screen and says so.
+- A kitchen that fails to load offers the portfolio instead of a loading screen up forever.
+- Still protocol version 8.
+- Lint, typecheck, 932 unit tests, 36 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash
