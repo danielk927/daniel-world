@@ -18,7 +18,7 @@ export function world(page: Page): Promise<WorldDebugState> {
   return page.evaluate(() => {
     const w = window.__world!;
     return {
-      ready: w.ready,
+      frames: w.frames,
       mode: w.mode,
       connection: w.connection,
       room: w.room,
@@ -64,6 +64,21 @@ export async function expectWorld(
 }
 
 /**
+ * Wait until the game has run `count` more frames, each reading the input, stepping the simulation
+ * and updating the hover prompt, so whatever the test just did has been seen however slowly the page
+ * runs. Use it before a check that something did not happen, instead of a fixed wait: on a starved
+ * page a fixed wait can pass before the game has looked.
+ */
+export async function waitForFrames(page: Page, count = 2): Promise<void> {
+  await page.evaluate(async (count) => {
+    const target = window.__world!.frames + count;
+    while (window.__world!.frames < target) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  }, count);
+}
+
+/**
  * Open the site in a fresh browser context and walk through the landing screen like a visitor.
  * `path` opens another address first, such as an invite link.
  */
@@ -98,11 +113,16 @@ export async function enterWorld(
   return page;
 }
 
-/** Wait until the local player has stopped moving, and return that state. */
+/**
+ * Wait until the local player has stopped moving, and return that state: two samples apart in time
+ * that agree, with the game's frames having moved on between them, since a page that ran no frame
+ * in between would look still in the middle of a slide.
+ */
 export async function waitUntilStill(page: Page): Promise<WorldDebugState> {
   let previous = await world(page);
   for (let i = 0; i < 50; i++) {
     await page.waitForTimeout(200);
+    await waitForFrames(page, 2);
     const current = await world(page);
     const p = previous.player;
     const c = current.player;

@@ -3,7 +3,12 @@ import type { RemoteDebugInfo } from './game/multiplayer.ts';
 import type { WorldScene } from './world/scene.ts';
 
 export interface WorldDebugState {
-  readonly ready: boolean;
+  /**
+   * Frames the game has run since the page loaded the world. Each one reads the input, steps the
+   * simulation and updates the hover prompt, so a test that has waited for this to move on after an
+   * action knows the game has seen it, however slowly the page is drawing.
+   */
+  readonly frames: number;
   readonly mode: string;
   readonly connection: 'none' | 'connecting' | 'online' | 'offline';
   readonly room: string | null;
@@ -69,12 +74,29 @@ declare global {
 /**
  * Read-only view of game state for E2E tests and debugging. Only installed in dev and test builds.
  * Every getter returns a fresh copy, so callers cannot mutate the game.
+ * Call it after `game.start()`: its own frame callback then runs after the game's in every frame,
+ * so once `frames` has counted a frame, the game's whole frame has run too.
  */
-export function installDebugHooks(game: Game, world: WorldScene, fps: () => number): void {
+export function installDebugHooks(game: Game, world: WorldScene): void {
   const info = world.renderer.info;
+  let frames = 0;
+  let fps = 0;
+  let windowFrames = 0;
+  let windowStart = performance.now();
+  const countFrame = (now: number): void => {
+    frames++;
+    windowFrames++;
+    if (now - windowStart >= 1000) {
+      fps = (windowFrames * 1000) / (now - windowStart);
+      windowFrames = 0;
+      windowStart = now;
+    }
+    requestAnimationFrame(countFrame);
+  };
+  requestAnimationFrame(countFrame);
   const state: WorldDebugState = {
-    get ready() {
-      return true;
+    get frames() {
+      return frames;
     },
     get mode() {
       return game.mode;
@@ -146,7 +168,7 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
       return {
         drawCalls: info.render.calls,
         triangles: info.render.triangles,
-        fps: fps(),
+        fps,
         frameCpuMs: game.frameCpuMs,
         quality: world.quality,
         level: world.renderLevel,

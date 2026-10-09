@@ -79,20 +79,7 @@ async function boot(): Promise<void> {
   // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.
   if (import.meta.env.MODE !== 'production') {
     const { installDebugHooks } = await import('./debug.ts');
-    let frames = 0;
-    let fps = 0;
-    let windowStart = performance.now();
-    const countFrame = (now: number): void => {
-      frames++;
-      if (now - windowStart >= 1000) {
-        fps = (frames * 1000) / (now - windowStart);
-        frames = 0;
-        windowStart = now;
-      }
-      requestAnimationFrame(countFrame);
-    };
-    requestAnimationFrame(countFrame);
-    installDebugHooks(game, world, () => fps);
+    installDebugHooks(game, world);
   }
 
   // Two frames so the first real render is on screen before the loading screen fades.
