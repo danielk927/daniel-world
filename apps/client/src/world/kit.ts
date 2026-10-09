@@ -532,7 +532,8 @@ export class Kit {
       length,
       this.sides(radius, segments),
       1,
-      false,
+      // A wire's ends are always in something; only thicker rods show theirs.
+      radius < 0.006,
     );
     geometry.translate(0, length / 2, 0);
     // Turn +Y onto the rod direction.
@@ -565,7 +566,8 @@ export class Kit {
   ): void {
     const reach = radius * Math.max(options.sx ?? 1, options.sy ?? 1, options.sz ?? 1);
     const geometry = scaledUvs(
-      unitSphere(this.sides(reach, options.segments)),
+      // Spheres are mostly small things seen from a meter or more: twice the facet's leeway.
+      unitSphere(roundSides(reach, options.segments, this.sagitta * 2)),
       2 * Math.PI * reach,
       Math.PI * reach,
     );

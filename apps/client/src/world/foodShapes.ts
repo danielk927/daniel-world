@@ -124,8 +124,8 @@ export function croissantGeometry(): BufferGeometry {
   const sweepAngle = 2.5;
   const rolls = 7;
   return sweepGeometry({
-    along: 84,
-    round: 28,
+    along: 70,
+    round: 20,
     flatBelow: 0.55,
     path: (t, out) => {
       const a = (t - 0.5) * sweepAngle;
@@ -157,8 +157,8 @@ export function croissantGeometry(): BufferGeometry {
  */
 export function pipedKiss(radius: number, height: number): BufferGeometry {
   return sweepGeometry({
-    along: 18,
-    round: 30,
+    along: 10,
+    round: 18,
     path: (t, out) => out.set(0, t * height, 0),
     radius: (t, around) => {
       const profile =
@@ -263,8 +263,8 @@ const toasted = new Color('#c48a4a');
  */
 export function flatbreadGeometry(radius: number, seed: number): BufferGeometry {
   const noise = valueNoise(seed);
-  const rings = 12;
-  const spokes = 48;
+  const rings = 8;
+  const spokes = 36;
   const thick = 0.004;
   const positions: number[] = [];
   const colors: number[] = [];

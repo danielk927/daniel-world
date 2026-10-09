@@ -1,7 +1,7 @@
 /**
  * Performance check with a full room: 15 bots plus one real browser (16 players).
  *
- *   node scripts/perf.ts [--dpr 2] [--uncapped]
+ *   node scripts/perf.ts [--dpr 2] [--uncapped] [--params key=value&...]
  *
  * Starts whatever is missing (Vite dev client on :5173, room server on :3001), on the real GPU at
  * the high tier and the evening hour. Reports frame rate, main-thread time per frame, draw calls,
@@ -9,6 +9,7 @@
  * GPU could not keep up). `--dpr 2` measures a retina screen, four times the pixels.
  * `--uncapped` lifts the browser's frame rate cap and holds the governor at its best level, so the
  * frame rate says how fast the frame really draws: the headroom left under 60 fps.
+ * `--params` adds to the page's address (say `time=12:00`), to measure another hour or setting.
  * WORLD_CLIENT_PORT and WORLD_SERVER_PORT move both off their usual ports, to run beside another copy.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -20,7 +21,11 @@ import { startServer } from '../apps/server/src/server.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const { values } = parseArgs({
-  options: { dpr: { type: 'string', default: '1' }, uncapped: { type: 'boolean', default: false } },
+  options: {
+    dpr: { type: 'string', default: '1' },
+    uncapped: { type: 'boolean', default: false },
+    params: { type: 'string', default: '' },
+  },
 });
 const deviceScaleFactor = Number(values.dpr);
 const uncapped = values.uncapped;
@@ -88,7 +93,9 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor });
-  await page.goto(`${clientUrl}/?quality=high&time=20:00${uncapped ? '&governor=off' : ''}`);
+  await page.goto(
+    `${clientUrl}/?quality=high&time=20:00${uncapped ? '&governor=off' : ''}${values.params ? `&${values.params}` : ''}`,
+  );
   await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Private party' }).click();
   await page.getByLabel('Private party').fill(room);
