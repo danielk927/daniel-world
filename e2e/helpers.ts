@@ -133,6 +133,44 @@ export async function waitUntilStill(page: Page): Promise<WorldDebugState> {
 }
 
 /**
+ * Without pointer lock the game picks under the cursor: move it over `points` in turn, as a visitor
+ * sweeps the mouse over the view, until the prompt says `prompt`. The prompt follows the cursor once
+ * a frame, so each point waits for the game to have run a frame with the cursor there before reading
+ * it: the move is handled by the time the next frame's callbacks run, whether Chrome has dispatched
+ * it already or holds it to the start of that frame, as it does with mouse moves. Returns the point
+ * that found it, or null.
+ */
+export async function findWithCursor(
+  page: Page,
+  points: Iterable<{ readonly x: number; readonly y: number }>,
+  prompt: string,
+): Promise<{ x: number; y: number } | null> {
+  for (const { x, y } of points) {
+    await page.mouse.move(x, y);
+    await waitForFrames(page, 1);
+    const shown = await page.locator('.prompt-sentence').textContent();
+    if (shown === prompt) return { x, y };
+  }
+  return null;
+}
+
+/** Points down a column of the screen, from `from` to before `to`, every `step` pixels. */
+export function* column(x: number, from: number, to: number, step: number) {
+  for (let y = from; y < to; y += step) yield { x, y };
+}
+
+/** Points over a box of the screen, row by row, every `step` pixels each way. */
+export function* grid(
+  x: readonly [number, number],
+  y: readonly [number, number],
+  step: { readonly x: number; readonly y: number },
+) {
+  for (let py = y[0]; py < y[1]; py += step.y) {
+    for (let px = x[0]; px < x[1]; px += step.x) yield { x: px, y: py };
+  }
+}
+
+/**
  * Hold a key until the player's position satisfies `arrived`, like a person walking to a spot.
  * Robust to frame rate, unlike holding for a fixed time.
  */

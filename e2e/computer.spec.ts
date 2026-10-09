@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test';
-import { enterWorld, expectWorld, turnTo, waitUntilStill, walkUntil, world } from './helpers.ts';
+import {
+  column,
+  enterWorld,
+  expectWorld,
+  findWithCursor,
+  turnTo,
+  waitUntilStill,
+  walkUntil,
+  world,
+} from './helpers.ts';
 
 test('the kitchen computer runs DOOM, and pauses when the cook steps away', async ({ browser }) => {
   const page = await enterWorld(browser, { name: 'Gamer', online: false });
@@ -10,13 +19,8 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   await turnTo(page, Math.PI / 2, -0.3);
 
   // Without pointer lock the game picks under the cursor: find the screen around the middle.
-  const prompt = page.locator('.prompt-sentence');
-  let found = false;
-  for (let y = 200; y < 400 && !found; y += 8) {
-    await page.mouse.move(480, y);
-    found = (await prompt.textContent()) === 'Press E to play DOOM';
-  }
-  expect(found, 'the cursor should find the computer').toBe(true);
+  const found = await findWithCursor(page, column(480, 200, 400, 8), 'Press E to play DOOM');
+  expect(found, 'the cursor should find the computer').not.toBeNull();
 
   await page.keyboard.press('KeyE');
   const running = await expectWorld(
