@@ -8,8 +8,9 @@
 .panel {
   /* From the column to the right edge of the screen, kept clear for the scrollbar's air. */
   --panel-edge: clamp(28px, 6.9vw, 120px);
-  /* From the top of the screen to the title. */
+  /* From the top of the screen to the title, and the title's size. */
   --panel-top: clamp(28px, 11.7vh, 118px);
+  --panel-title: clamp(44px, min(5.3vw, 8.5vh), 84px);
   /* Reading text, a step under the names so the entries keep their shape. */
   --panel-text: color-mix(in srgb, var(--ink) 88%, transparent);
   position: absolute;
@@ -49,7 +50,7 @@
 }
 
 .panel-title {
-  font-size: clamp(44px, min(5.3vw, 8.5vh), 84px);
+  font-size: var(--panel-title);
   line-height: 1;
   /* Even lines, so a long dish name never leaves one word on its own. */
   text-wrap: balance;
@@ -68,9 +69,10 @@
   color: var(--ink-muted);
 }
 
+/* Level with the middle of the title's first line. */
 .panel-close {
   position: absolute;
-  top: calc(var(--panel-top) + 20px);
+  top: calc(var(--panel-top) + 0.47 * var(--panel-title) - 16px);
   right: var(--panel-edge);
 }
 
@@ -374,25 +376,29 @@
 
 /*
  * Phones, and windows too narrow or too short for a side column: the column takes the whole
- * width on an even dark, and an entry's dates go under its name.
+ * width on an even dark. The dark is the night itself: the station is out of view anyway, and
+ * anything showing through would only blur the words.
  */
 @media (max-width: 820px), (max-height: 480px) {
   .panel {
     --panel-edge: 20px;
-    background: rgb(var(--night-rgb) / 0.9);
+    --panel-top: 28px;
+    --panel-title: clamp(34px, 10.5vw, 48px);
+    background: var(--night);
   }
 
   .panel-column {
     left: 0;
-    padding: 28px var(--panel-edge) 16px 24px;
+    padding: var(--panel-top) var(--panel-edge) 16px 24px;
   }
 
   .panel-header {
     padding-right: 44px;
   }
 
-  .panel-title {
-    font-size: clamp(34px, 10.5vw, 48px);
+  /* A phone on its side is wide: the lines keep the measure they have at the side. */
+  .lore-body {
+    max-width: 640px;
   }
 
   .panel-header .bar {
@@ -403,10 +409,6 @@
   .panel-where {
     margin-top: 12px;
     font-size: 16.5px;
-  }
-
-  .panel-close {
-    top: 24px;
   }
 
   .panel-body {
@@ -424,11 +426,6 @@
 
   .lore-items {
     gap: 32px;
-  }
-
-  .lore-item-head {
-    flex-direction: column;
-    gap: 4px;
   }
 
   .lore-item-title {
@@ -449,18 +446,19 @@
   }
 }
 
+/* A phone held upright: an entry's dates go under its name. */
+@media (max-width: 560px) {
+  .lore-item-head {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
 /* A phone on its side: the title gives up height to the text. */
 @media (max-height: 480px) {
-  .panel-column {
-    padding-top: 18px;
-  }
-
-  .panel-title {
-    font-size: 34px;
-  }
-
-  .panel-close {
-    top: 14px;
+  .panel {
+    --panel-top: 18px;
+    --panel-title: 34px;
   }
 
   .panel-body {
