@@ -104,7 +104,7 @@ export class InfoPanel {
     this.count.replaceChildren(
       ...(place ? [el('span', { text: String(place.index + 1) }), ` of ${place.count}`] : []),
     );
-    this.body.replaceChildren(toElement(renderLoreBody(entry, 'text-link')));
+    this.body.replaceChildren(toElement(renderLoreBody(entry)));
     this.element.hidden = false;
     // Only once it shows: a hidden panel ignores this, and would open where the last one was left.
     this.body.scrollTop = 0;

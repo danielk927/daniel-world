@@ -110,7 +110,7 @@ export function portfolioPage(year = new Date().getFullYear()): Markup[] {
       h(
         'ul',
         { class: 'pf-contact', attrs: { 'aria-label': 'Contact' } },
-        site.links.map((l) => h('li', {}, [link(l.label, l.href, 'button')])),
+        site.links.map((l) => h('li', {}, [link(l.label, l.href, 'text-link')])),
       ),
     ]),
   ]);

@@ -97,10 +97,6 @@
   opacity: 0.45;
 }
 
-.button-secondary {
-  color: var(--ink-muted);
-}
-
 /* The main action of a screen, in the title face. */
 .button-large {
   min-height: 52px;

@@ -43,10 +43,10 @@ function renderItem(item: LoreItem): Markup {
 }
 
 /**
- * The body of a lore entry. Shared by the in-world info panel and the static portfolio page, which
- * styles its own links: `linkClass` is the class of the entry's links (Email, GitHub...).
+ * The body of a lore entry, shared by the station panel and the portfolio page. Its links (Email,
+ * GitHub...) are text links, as the house style has them.
  */
-export function renderLoreBody(entry: LoreEntry, linkClass = 'button button-secondary'): Markup {
+export function renderLoreBody(entry: LoreEntry): Markup {
   return h('div', { class: 'lore-body' }, [
     entry.image
       ? h('figure', { class: 'lore-photo' }, [
@@ -66,7 +66,7 @@ export function renderLoreBody(entry: LoreEntry, linkClass = 'button button-seco
       ? h(
           'div',
           { class: 'lore-links' },
-          entry.links.map((l) => link(l.label, l.href, linkClass)),
+          entry.links.map((l) => link(l.label, l.href, 'text-link')),
         )
       : null,
   ]);
