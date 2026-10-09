@@ -16,9 +16,21 @@ export interface HudPlayer {
  */
 export const MAX_PLAYER_ROWS = 8;
 
-/** How many names to list for a room of `total`, the rest folded into one "and N more" row. */
-export function listedPlayers(total: number): number {
-  return total <= MAX_PLAYER_ROWS ? total : MAX_PLAYER_ROWS - 1;
+/** The fewest rows the list folds down to in a short window: you, and how many more. */
+const MIN_PLAYER_ROWS = 2;
+
+/**
+ * How many names to list for a room of `total` in `rows` rows, the rest folded into one
+ * "and N more" row.
+ */
+export function listedPlayers(total: number, rows = MAX_PLAYER_ROWS): number {
+  return total <= rows ? total : rows - 1;
+}
+
+/** How many rows `row` tall, `gap` apart, fit in `space`: never more than the most, nor fewer than two. */
+export function rowsThatFit(space: number, row: number, gap: number): number {
+  const rows = Math.floor((space + gap) / (row + gap));
+  return Math.max(MIN_PLAYER_ROWS, Math.min(MAX_PLAYER_ROWS, rows));
 }
 
 /** The prompt read out in full: "Open Products" becomes "Press E to open Products". */
@@ -100,6 +112,11 @@ export class Hud {
   private hintTimer = 0;
   private promptShown = '';
   private playersKey = '';
+  private players: readonly HudPlayer[] = [];
+  /** How many rows the list has room for above the bottom right corner, and whether to measure. */
+  private playerRows = MAX_PLAYER_ROWS;
+  private fitPending = true;
+  private readonly fit = new ResizeObserver(() => this.fitPlayers());
 
   private readonly room = el('div', { class: 'hud-room' }, [
     el('p', { class: 'hud-room-title' }, [this.roomKind, this.roomName]),
@@ -126,6 +143,31 @@ export class Hud {
       this.corner,
     ]);
     parent.append(this.element);
+    // The HUD fills the window: it changes size with the window, and when it first shows.
+    this.fit.observe(this.element);
+  }
+
+  /**
+   * How many names fit between the top of the list and the loadout over the map, leaving the kill
+   * feed its gap and a line under them, so a full room in a short window folds into "and N more"
+   * before it prints over the knife. Measured when the window changes size, never in a frame.
+   */
+  private fitPlayers(): void {
+    this.fitPending = true;
+    const corner = this.corner.getBoundingClientRect();
+    const list = this.playerList.getBoundingClientRect();
+    const row = this.playerList.firstElementChild?.getBoundingClientRect().height ?? 0;
+    // Hidden (a phone has neither), or no name to measure yet: once there is one.
+    if (!corner.height || !list.width || !row) return;
+    this.fitPending = false;
+    const gap = parseFloat(getComputedStyle(this.playerList).rowGap) || 0;
+    const feedGap = parseFloat(getComputedStyle(this.right).rowGap) || 0;
+    // A line of the feed is about as tall as a name.
+    const rows = rowsThatFit(corner.top - feedGap - row - list.top, row, gap);
+    if (rows === this.playerRows) return;
+    this.playerRows = rows;
+    this.playersKey = '';
+    this.setPlayers(this.players);
   }
 
   show(): void {
@@ -221,8 +263,9 @@ export class Hud {
     const key = players.map((p) => `${p.id}:${p.name}:${p.color}:${p.isSelf}`).join('|');
     if (key === this.playersKey) return;
     this.playersKey = key;
+    this.players = players;
     this.playerCount.textContent = `${players.length} / ${MAX_PLAYERS_PER_ROOM}`;
-    const listed = listedPlayers(players.length);
+    const listed = listedPlayers(players.length, this.playerRows);
     const rows: HTMLElement[] = players.slice(0, listed).map((p) => {
       const item = el('li', { class: `hud-player${p.isSelf ? ' is-self' : ''}` }, [
         el('span', { class: 'hud-player-name', text: p.name }),
@@ -242,6 +285,7 @@ export class Hud {
       );
     }
     this.playerList.replaceChildren(...rows);
+    if (this.fitPending) this.fitPlayers();
   }
 
   /**
