@@ -3,7 +3,7 @@
  *
  *   node scripts/viewpoints.ts [--out docs/graphics-upgrade/after] [--dpr 1] [--format jpg|png]
  *                              [--only suite,pass]
- *                              [--time 20:00] [--quality high]
+ *                              [--time 20:00] [--quality high] [--params key=value&...]
  *
  * Starts the Vite dev client if it is not up (WORLD_CLIENT_PORT moves it off :5173); no room server
  * is needed. Each view loads the page with `?view=` (see apps/client/src/game/photoView.ts), which
@@ -27,6 +27,7 @@ const { values } = parseArgs({
     only: { type: 'string' },
     time: { type: 'string', default: '20:00' },
     quality: { type: 'string', default: 'high' },
+    params: { type: 'string', default: '' },
   },
 });
 const outDir = resolve(root, values.out);
@@ -117,6 +118,7 @@ async function main(): Promise<void> {
         governor: 'off',
         view: [...view.eye, yaw, pitch].map((n) => n.toFixed(4)).join(','),
       });
+      for (const [key, value] of new URLSearchParams(values.params)) params.set(key, value);
       const started = Date.now();
       await page.goto(`${clientUrl}/?${params}`);
       await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 60_000 });

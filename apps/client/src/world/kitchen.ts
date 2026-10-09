@@ -1,6 +1,5 @@
 import {
   CircleGeometry,
-  Color,
   ExtrudeGeometry,
   PlaneGeometry,
   Shape,
@@ -27,7 +26,6 @@ import {
   vaultHeight,
   WINDOWS,
   WINDOW_GLASS_DEPTH,
-  createRandom,
   islandStacks,
   shelvingBins,
   type Fixture,
@@ -155,35 +153,9 @@ function wallFace(kit: Kit, wall: WallSpec, y0: number, y1: number, color: strin
   }
 }
 
-/** Floor panels this big, with a hairline of grout between them. */
-const FLOOR_PANEL = 1.0;
-const GROUT = 0.012;
-
+/** The floor: one surface, its stone tiles and grout painted (see surfaces/recipes.ts). */
 function createFloor(kit: Kit): void {
-  const random = createRandom(202);
-  kit.flat('floor', -HX, HX, -HZ, HZ, 0, true, paint.grout);
-  const color = new Color();
-  const cols = Math.round((HX * 2) / FLOOR_PANEL);
-  const rows = Math.round((HZ * 2) / FLOOR_PANEL);
-  const depth = (HZ * 2) / rows;
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const x0 = -HX + col * FLOOR_PANEL;
-      const z0 = -HZ + row * depth;
-      // A polished floor: barely any variation, just enough to see the panels.
-      color.set(paint.floor).offsetHSL(0, 0, (random() - 0.5) * 0.02);
-      kit.flat(
-        'floor',
-        x0 + GROUT / 2,
-        x0 + FLOOR_PANEL - GROUT / 2,
-        z0 + GROUT / 2,
-        z0 + depth - GROUT / 2,
-        0.003,
-        true,
-        `#${color.getHexString()}`,
-      );
-    }
-  }
+  kit.flat('floor', -HX, HX, -HZ, HZ, 0, true, paint.floor);
 }
 
 /** The skylights' openings in the vault, each as its four corners. */
@@ -598,7 +570,7 @@ function createClockHousing(kit: Kit): void {
 /** A charcoal-topped prep island on a steel frame, plates stacked on its open shelves. */
 function island(kit: Kit, f: Fixture): void {
   kit.box(
-    'matte',
+    'stone',
     f.minX - 0.04,
     f.maxX + 0.04,
     TOP - SLAB,

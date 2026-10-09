@@ -580,3 +580,22 @@ Judgment calls made during the unattended build, with reasons.
   The governor now steps between levels that look different on the screen at hand, always lands on the best of its kind, and never climbs back to one that draws like a level that fell behind.
 - **The screen's ratio is followed, not taken once.** Browser zoom and moving the window to a screen of another ratio change it; the canvas used to keep the old one (blurry on a retina screen, or four times the pixels after leaving one, which stepped quality down and saved that). Now every resize applies it, a media query catches a move that does not resize the window, and the governor judges afresh there.
 - **The string lights' shader compiles while loading**, by showing the bulbs for the compile: shown only toward dusk, a visitor arriving by day compiled it mid-play when they came on.
+
+### The graphics upgrade: materials and reflections (2026-10-09)
+
+- **The kitchen leaves the low-poly style, at Daniel's request.** The direction, the audit of what read as cheap and the before and after frames are in `docs/graphics-upgrade.md`; this records the calls made on the way.
+- **Textures are painted on the GPU at load, from recipes in the code** (`world/surfaces/`): a fragment shader per surface draws its color, its height (made into a normal map) and its roughness into repeating, mipmapped, anisotropically filtered render targets.
+  The spec forbids downloaded textures; a committed generator's images would have added megabytes to the repository and the download and could not be changed without rerunning it, while the GPU paints all of them in a few milliseconds behind the loading screen.
+  Roughness rides in the normal map's alpha, so a surface costs two textures, or one when its paint is its color.
+- **Texture coordinates are meters**, made by the builder as it merges each part: flat faces projected along their normal (with grain along a board's longer side), round parts unrolled to their circumference by the Kit's helpers.
+  So a tile is the same size on every wall, and one material can carry any number of parts at their real scale.
+- **Per-part finish**: the builder can write a roughness multiplier per vertex, so a polished marble slab and a honed charcoal top share the stone material, and glazed and crusty food share one too.
+- **Wall tiles are large, 60 by 30 cm, stacked, with grout nearly their own color**, not subway tile: 15 by 7.5 cm in running bond read as a brick wall at the length of this room, and its grout grid fought everything in front of it.
+  The walls should be calm, so the steel, the copper and the food carry the room; the French Laundry's renovated kitchen is plain white too.
+- **Every kitchen material reflects a probe of the kitchen itself**: a cube map captured once the shaders have compiled (and again when the hour's light moves on), PMREM-filtered, and box-projected onto the room in the shader, so a lamp's reflection in the floor or the steel lands under the lamp.
+  It replaces the small painted room the environment map used to be, and it is the scene's environment for the cooks and knives too.
+- **The environment is still for reflections only**: the kitchen's materials take its specular reflection at full strength (Fresnel decides how much shows) and its diffuse light at 0.05, the old `environmentIntensity`.
+- **Found on the way: three.js r186 ignores a material's `envMapIntensity` when it reflects `scene.environment`**; `WebGLRenderer.setProgram` puts `scene.environmentIntensity` in its place. The metals' 12 to 14 had never applied, so every metal reflected at 0.05, which is much of why the steel read as grey paint.
+  The kitchen's materials and the walk-in's door now have the probe as their own `envMap`, which makes their intensity count.
+- **Metals are fully metal on the high tier** (stainless, copper, brass), their colors what they reflect; the low tier has no probe to reflect, so its metals stay partly metal in their old deeper colors.
+- **The low tier keeps plain paint**: the same smooth geometry and colors, no textures, no probe, so software renderers draw as cheaply as before.

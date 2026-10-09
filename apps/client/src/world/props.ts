@@ -244,7 +244,7 @@ function entremetier(kit: Kit): void {
 
   // Cutting board with carrots, leeks and a chef's knife.
   const bx = cx + 0.25;
-  kit.boxAt('matte', bx, ZONE + 0.015, cz + 0.02, 0.5, 0.03, 0.32, { color: paint.woodLight });
+  kit.boxAt('wood', bx, ZONE + 0.015, cz + 0.02, 0.5, 0.03, 0.32, { color: paint.woodLight });
   const by = ZONE + 0.03;
   for (let i = 0; i < 3; i++) {
     kit.cylinder('matte', bx - 0.17, by + 0.022, cz - 0.07 + i * 0.06, 0.02, 0.22, {
@@ -306,7 +306,7 @@ function pianoCenter(kit: Kit): void {
   kit.steamFrom(0.6, ry + 0.18, 0, 0.9);
 
   // Salt, pepper and side towels on the steel at the ends of the piano.
-  kit.boxAt('matte', -4.3, TOP + 0.06, -0.4, 0.18, 0.12, 0.14, { color: paint.wood });
+  kit.boxAt('wood', -4.3, TOP + 0.06, -0.4, 0.18, 0.12, 0.14, { color: paint.wood });
   kit.cylinder('matte', -4.3, TOP, 0.2, 0.03, 0.22, { color: '#3b2416' });
   for (let i = 0; i < 4; i++)
     kit.boxAt('matte', -4.3, TOP + 0.012 + i * 0.022, 0.75, 0.3, 0.02, 0.24, { color: '#f4f1ea' });
@@ -653,7 +653,7 @@ function stationAt(id: StationId): { x: number; z: number } {
 /** Garde manger: a cheese under a glass cloche, a pâté en croûte, and oysters on ice. */
 function gardeManger(kit: Kit): void {
   const { x: cx, z: cz } = stationAt('garde-manger');
-  kit.cylinder('matte', cx, TOP, cz, 0.22, 0.03, { color: paint.wood });
+  kit.cylinder('wood', cx, TOP, cz, 0.22, 0.03, { color: paint.wood });
   kit.cylinder('matte', cx, TOP + 0.03, cz, 0.13, 0.07, { color: '#efd38f' });
   kit.cylinder('matte', cx + 0.09, TOP + 0.03, cz - 0.1, 0.05, 0.06, {
     segments: 3,
@@ -670,7 +670,7 @@ function gardeManger(kit: Kit): void {
 
   // Pâté en croûte on a board along the island, two slices fanned out.
   const px = cx - 1.1;
-  kit.boxAt('matte', px, TOP + 0.012, cz, 0.5, 0.025, 0.24, { color: paint.wood });
+  kit.boxAt('wood', px, TOP + 0.012, cz, 0.5, 0.025, 0.24, { color: paint.wood });
   kit.rounded('gloss', px - 0.05, TOP + 0.075, cz, 0.28, 0.1, 0.12, 0.015, '#c98a3e');
   for (let i = 0; i < 2; i++) {
     const x = px + 0.14 + i * 0.05;
@@ -707,7 +707,7 @@ function gardeManger(kit: Kit): void {
 function patisserie(kit: Kit): void {
   const { x: cx, z: cz } = stationAt('patisserie');
   // A marble slab set on the charcoal top: cool, for working butter into dough.
-  kit.box('marble', cx - 1.6, cx + 1.7, TOP, TOP + 0.02, cz - 0.4, cz + 0.4);
+  kit.box('stone', cx - 1.6, cx + 1.7, TOP, TOP + 0.02, cz - 0.4, cz + 0.4, paint.marble, 0.4);
   const top = TOP + 0.02;
   // The croquembouche: a cone of caramel-glazed choux on a silver base.
   kit.cylinder('steel', cx, top, cz, 0.22, 0.02);
@@ -770,7 +770,7 @@ function patisserie(kit: Kit): void {
   // A rolling pin in a dusting of flour, which stays on the marble.
   const rx = cx + 1.55;
   kit.cylinder('matte', rx, top + 0.001, cz + 0.15, 0.15, 0.002, { color: '#fbfaf6' });
-  kit.cylinder('matte', rx, top + 0.03, cz - 0.08, 0.03, 0.46, {
+  kit.cylinder('wood', rx, top + 0.03, cz - 0.08, 0.03, 0.46, {
     rx: Math.PI / 2,
     color: paint.woodLight,
   });

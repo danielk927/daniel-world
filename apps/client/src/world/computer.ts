@@ -38,7 +38,7 @@ export function buildComputerDesk(kit: Kit): void {
   const top = d.top;
   const cz = COMPUTER.z;
   // A butcher-block top on a steel frame, as tall as the counters: a cook works at it standing.
-  kit.box('matte', d.minX, d.maxX, top - 0.045, top, d.minZ, d.maxZ, WOOD);
+  kit.box('wood', d.minX, d.maxX, top - 0.045, top, d.minZ, d.maxZ, WOOD);
   for (const x of [d.minX + 0.05, d.maxX - 0.06]) {
     for (const z of [d.minZ + 0.06, d.maxZ - 0.06]) {
       kit.box('steel', x - 0.02, x + 0.02, 0, top - 0.045, z - 0.02, z + 0.02);

@@ -65,7 +65,7 @@ What differs between the parts of one layer is per vertex: the paint (vertex col
 | Layer     | What                                                                                                                            | Scale             |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | `floor`   | Pale honed stone tiles, 50 cm, thin dark grout, per-tile tone and polish, a satin sheen, worn smoother and darker in the aisles | one repeat 2 m    |
-| `tile`    | White glazed subway tile, 15 by 7.5 cm in running bond, on the walls up to the vault                                            | one repeat 0.6 m  |
+| `tile`    | Large white glazed tiles, 60 by 30 cm, stacked, grout nearly their own color, on the walls up to the vault                      | one repeat 1.2 m  |
 | `plaster` | Warm white matte paint over plaster: the vault, the arches at the ends, the hood's body, reveals                                | one repeat 2 m    |
 | `steel`   | Brushed stainless, anisotropic along the brushing, streaks and fine scratches in its roughness                                  | one repeat 0.5 m  |
 | `iron`    | Seasoned cast iron and black enamel: the cooking tops, grates, knobs, plinths                                                   | one repeat 0.5 m  |
@@ -81,7 +81,7 @@ Glass, the night windows, the lamps and signs, and the walk-in's baked room keep
 
 ## Scale rules
 
-- Real sizes first: a tile is 15 by 7.5 cm, a floor tile 50 cm, a board's strip 4 cm, steel brushed at about a millimeter.
+- Real sizes first: a wall tile is 60 by 30 cm, a floor tile 50 cm, a board's strip 4 cm, steel brushed at about a millimeter.
 - Detail that cannot be resolved where it is seen is not drawn: textures are mipmapped and filtered anisotropically, so grout and brushing average out with distance instead of shimmering.
 - Nothing has a sharp edge unless it is paper or a seam: steel and stone edges round off over 3 to 10 mm, cabinet doors over 2 mm, tops are eased.
 - Round things are smooth-shaded and have enough sides that their facets never show from a meter away: sides from the radius, so the gap between a facet and the true circle stays under a millimeter or so.
