@@ -1,6 +1,7 @@
 import { dishes, stations, type LoreEntry } from '../content.ts';
 import { el, tabStops, trapFocus } from './dom.ts';
 import { renderLoreBody } from './loreContent.ts';
+import { toElement } from './markup.ts';
 
 const stationIds: readonly string[] = Object.keys(stations);
 const dishIds: readonly string[] = Object.keys(dishes);
@@ -103,7 +104,7 @@ export class InfoPanel {
     this.count.replaceChildren(
       ...(place ? [el('span', { text: String(place.index + 1) }), ` of ${place.count}`] : []),
     );
-    this.body.replaceChildren(renderLoreBody(entry, 'text-link'));
+    this.body.replaceChildren(toElement(renderLoreBody(entry, 'text-link')));
     this.element.hidden = false;
     // Only once it shows: a hidden panel ignores this, and would open where the last one was left.
     this.body.scrollTop = 0;

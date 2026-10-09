@@ -59,6 +59,24 @@ test('portfolio page renders every section', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 2 })).toHaveCount(10);
 });
 
+test('without JavaScript the world points to the portfolio, which has everything', async ({
+  browser,
+}) => {
+  // With scripts off Playwright cannot wait out the landing's fade-in before clicking, so the
+  // visitor asks for no motion and it shows at once.
+  const context = await browser.newContext({ javaScriptEnabled: false, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  await page.goto('/');
+  // Clicked as a visitor would, so nothing may lie over it.
+  await page.getByRole('link', { name: 'View the portfolio' }).click({ timeout: 5_000 });
+  await expect(page).toHaveURL(/\/portfolio\.html$/);
+  await expect(page).toHaveTitle('Doyoon (Daniel) Kim - Portfolio');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Doyoon (Daniel) Kim');
+  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(10);
+  await expect(page.getByRole('link', { name: 'Enter the 3D kitchen' }).first()).toBeVisible();
+  await context.close();
+});
+
 test('station labels that would overlap give way to the nearer one', async ({ browser }) => {
   const page = await enterWorld(browser, { name: 'Label Reader', online: false });
   // From the spawn point the rotisseur and poissonnier labels line up behind each other.
