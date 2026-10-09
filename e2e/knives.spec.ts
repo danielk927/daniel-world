@@ -107,6 +107,51 @@ test('a cook who gets back up with the menu open finds the arm only once it clos
   }
 });
 
+test('a cook knocked out sees no labels and opens no station until back up', async ({
+  browser,
+}) => {
+  const server = await startRoomServer();
+  try {
+    const { thrower, target } = await knockOutInParty(browser, 'e2e-down');
+    // Into the menu and straight back out, still on the floor: the labels stay away.
+    await target.keyboard.press('Escape');
+    await expectWorld(target, (w) => w.mode === 'paused', 'the menu opens');
+    await target.keyboard.press('Escape');
+    const back = await expectWorld(target, (w) => w.mode === 'playing', 'the menu closes');
+    expect(back.knockedOut).toBe(true);
+    expect(back.labels).toBe(false);
+
+    // For the rest of the time down, the cursor goes over the view from the floor, where stations
+    // are in sight, and E is pressed on anything that gets picked: nothing does, and nothing opens.
+    const picked = await target.evaluate(async () => {
+      const prompt = document.querySelector('.prompt-sentence')!;
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const found: string[] = [];
+      for (let i = 0; window.__world!.knockedOut; i++) {
+        const x = 40 + ((i * 120) % 960);
+        const y = 30 + ((Math.floor(i / 8) * 80) % 480);
+        document.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y }));
+        await frame();
+        const text = prompt.textContent ?? '';
+        if (!text.startsWith('Press E to open') || !window.__world!.knockedOut) continue;
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', key: 'e' }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE', key: 'e' }));
+        await frame();
+        found.push(`${text} at ${x},${y}, ${window.__world!.mode}`);
+        if (window.__world!.mode === 'panel') break;
+      }
+      return found;
+    });
+    expect(picked).toEqual([]);
+    // Up again, they come back.
+    await expectWorld(target, (w) => !w.knockedOut && w.labels, 'up, with the labels', 8000);
+    await thrower.context().close();
+    await target.context().close();
+  } finally {
+    await server.close();
+  }
+});
+
 test('knives scatter a little round the crosshair, each sticking where its thrower saw it fly', async ({
   browser,
 }) => {

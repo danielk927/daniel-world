@@ -257,7 +257,6 @@ export class Game {
     if (this.mode !== 'landing') return;
     this.room = room;
     this.landing.hide();
-    this.labels.element.hidden = false;
     this.player.reset();
     this.world.knives.reset([]);
     this.cooler.reset([]);
@@ -270,6 +269,7 @@ export class Game {
     this.enterToQuat.setFromEuler(this.euler.set(0, SPAWN.yaw, 0));
     this.enterProgress = 0;
     this.mode = 'entering';
+    this.showLabels();
     this.name = name;
     this.chat.clear();
     this.multiplayer = this.connect(room);
@@ -442,8 +442,6 @@ export class Game {
     // Entering again goes back to the same room, as the address bar says.
     this.landing.setRoom(this.room);
     this.landing.show();
-    // Labels would float over the landing card; the world behind it is just scenery.
-    this.labels.element.hidden = true;
   }
 
   /** Whether station labels and name tags show over the world. */
@@ -454,7 +452,17 @@ export class Game {
   /** Menus and panels cover the HUD and the labels, which would otherwise float over them. */
   private setCovered(covered: boolean): void {
     this.hud.setCovered(covered);
-    this.labels.element.hidden = covered;
+    this.showLabels();
+  }
+
+  /**
+   * Station labels and name tags float over the world only while in it on one's feet: not over the
+   * landing card, a menu, a panel or DOOM, nor the knockout card. Called whenever any of those
+   * change.
+   */
+  private showLabels(): void {
+    const playing = this.mode === 'entering' || this.mode === 'playing' || this.mode === 'chat';
+    this.labels.element.hidden = !playing || this.knockedOut;
   }
 
   /**
@@ -480,8 +488,8 @@ export class Game {
   private async resume(look: boolean): Promise<void> {
     if (this.mode !== 'paused' && this.mode !== 'panel') return;
     this.pause.hide();
-    this.setCovered(false);
     this.mode = 'playing';
+    this.setCovered(false);
     this.input.enabled = true;
     this.showArm();
     if (look) await this.input.lock();
@@ -573,7 +581,7 @@ export class Game {
     this.rig.setKnockedOut(true);
     this.showArm();
     // Station labels would float over the knockout card.
-    this.labels.element.hidden = true;
+    this.showLabels();
     // The first time Chef Skinner gets this visitor, say he need not.
     const hint = by.resident && !this.toldAboutChef;
     if (hint) this.toldAboutChef = true;
@@ -596,7 +604,7 @@ export class Game {
     if (this.mode !== 'landing') this.impact.blink();
     // Under a menu or a panel the arm waits for it to close.
     this.showArm();
-    this.labels.element.hidden = this.mode !== 'playing' && this.mode !== 'chat';
+    this.showLabels();
   }
 
   private onLockChange(locked: boolean): void {
@@ -624,8 +632,10 @@ export class Game {
     } else if (code === 'KeyI') {
       if (!this.knockedOut) this.viewmodel.startInspect();
     } else if (code === 'KeyE') {
+      // Down on the floor, nothing is in reach: no station, no computer.
+      if (this.knockedOut) return true;
       const entry = this.world.stations.hoveredEntry;
-      if (this.computerHovered && !this.knockedOut) this.useComputer();
+      if (this.computerHovered) this.useComputer();
       else if (entry) this.openPanel(entry);
     } else {
       return false;
@@ -815,7 +825,7 @@ export class Game {
     this.input.releaseAll();
     this.hud.setComputer('guide');
     this.computerGuide.show();
-    this.labels.element.hidden = true;
+    this.showLabels();
     this.showArm();
     // The mouse turns the marine, so hold on to it; E is a key press, so the browser allows it.
     void this.input.lock();
@@ -829,7 +839,7 @@ export class Game {
     this.mode = 'playing';
     this.input.enabled = true;
     this.hud.setComputer('off');
-    this.labels.element.hidden = false;
+    this.showLabels();
     this.showArm();
   }
 
@@ -890,7 +900,8 @@ export class Game {
   private updateHover(): void {
     let index = -1;
     let computer = false;
-    if (this.mode === 'playing') {
+    // Knocked out, nothing is picked: no station lights up under the veil, and E finds nothing.
+    if (this.mode === 'playing' && !this.knockedOut) {
       const camera = this.world.camera;
       this.ray.origin.copy(camera.position);
       if (this.input.locked) {
