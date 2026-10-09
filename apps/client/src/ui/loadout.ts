@@ -5,11 +5,14 @@ import { skinIcon } from './knifeIcon.ts';
 
 /** Smallest change in readiness worth restyling for; the refill takes well under a second. */
 const READINESS_STEP = 0.02;
+/** The knife's slot: this tall, and at most this wide (a long knife is drawn smaller). */
+const KNIFE_HEIGHT = 20;
+const KNIFE_WIDTH = 76;
 
 /**
- * What is in hand and what Q switches to, in the bottom right corner like a shooter's loadout: the
- * knife over the bare hand, the one held bright and marked on the rail, the other dim with its key.
- * After a throw the knife fills back in as the next one is drawn.
+ * What is in hand and what Q switches to, in the bottom right corner over the minimap: the knife
+ * over the bare hand, Q beside the pair, the one in hand bright with the brass bar under it and the
+ * other dim. After a throw the knife fills back in from the handle as the next one is drawn.
  */
 export class Loadout {
   readonly element: HTMLElement;
@@ -28,24 +31,28 @@ export class Loadout {
   constructor(parent: HTMLElement) {
     this.fill = el('span', { class: 'loadout-fill' }, [knifeIcon()]);
     this.icon = el('span', { class: 'loadout-icon' }, [knifeIcon(), this.fill]);
-    this.knife = el('div', { class: 'loadout-slot loadout-knife' }, [
-      el('kbd', { text: 'Q' }),
-      this.icon,
-    ]);
+    this.knife = el('div', { class: 'loadout-slot loadout-knife' }, [this.icon]);
     this.hand = el('div', { class: 'loadout-slot loadout-hand' }, [
-      el('kbd', { text: 'Q' }),
       el('span', { class: 'loadout-icon' }, [fistIcon()]),
     ]);
-    this.element = el('div', { class: 'loadout' }, [this.knife, this.hand, this.announcement]);
+    this.element = el('div', { class: 'loadout' }, [
+      el('kbd', { text: 'Q' }),
+      el('div', { class: 'loadout-slots' }, [this.knife, this.hand]),
+      this.announcement,
+    ]);
     parent.append(this.element);
     this.update(true, 1);
   }
 
-  /** The knife carried: its outline replaces the chef's knife in the slot. */
+  /** The knife carried: its outline replaces the chef's knife in the slot, as wide as it draws. */
   setKnife(skin: KnifeSkin): void {
     if (skin === this.skin) return;
     this.skin = skin;
-    this.icon.firstElementChild?.replaceWith(skinIcon(skin, 'end'));
+    const icon = skinIcon(skin, 'end');
+    const box = icon.viewBox.baseVal;
+    const width = Math.min(KNIFE_WIDTH, (KNIFE_HEIGHT * box.width) / box.height);
+    this.knife.style.setProperty('--knife-width', `${Math.round(width)}px`);
+    this.icon.firstElementChild?.replaceWith(icon);
     this.fill.replaceChildren(skinIcon(skin, 'end'));
   }
 

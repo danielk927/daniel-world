@@ -2,72 +2,61 @@
 
 .hud-corner {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  /* One column: the loadout as wide as the minimap, clear of its north tag. */
-  align-items: stretch;
-  gap: 18px;
-}
-
-.loadout {
+  right: 36px;
+  bottom: 30px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
-  padding: 6px 0 6px 12px;
-  border-radius: var(--radius-sm);
-  background: rgba(22, 30, 69, 0.85);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow);
+  gap: 20px;
+}
+
+/* Q beside the knife over the fist, with nothing behind them; in from the disc's edge, where it
+   curves away under them. */
+.loadout {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-right: 16px;
+}
+
+.loadout-slots {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 
 .loadout-slot {
-  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  height: 34px;
-  padding-right: 18px;
-  /* The rail on the right, like a shooter's weapon list. */
-  border-right: 1px solid rgba(246, 243, 234, 0.3);
-  margin-right: 10px;
-  color: var(--ivory);
-}
-
-.loadout-slot kbd {
-  font-size: 11px;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+  opacity: 0.6;
   transition: opacity 0.2s ease;
 }
 
-.loadout-slot.is-active kbd {
-  opacity: 0;
+.loadout-slot.is-active {
+  opacity: 1;
 }
 
-/* The marker on the rail beside whatever is in hand. */
-.loadout-slot.is-active::after {
+/* The bar under whatever is in hand, sliding in from the right as it comes up. */
+.loadout-slot::after {
   content: '';
-  position: absolute;
-  right: -4px;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  margin-top: -3.5px;
-  background: var(--accent-strong);
-  transform: rotate(45deg);
+  height: var(--bar);
+  border-radius: calc(var(--bar) / 2);
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 0.18s ease;
+}
+
+.loadout-slot.is-active::after {
+  transform: scaleX(1);
 }
 
 .loadout-icon {
   position: relative;
   display: block;
-  opacity: 0.4;
-  transition: opacity 0.2s ease;
-}
-
-.loadout-slot.is-active .loadout-icon {
-  opacity: 1;
 }
 
 .loadout-icon svg {
@@ -76,7 +65,7 @@
 }
 
 .loadout-knife svg {
-  width: 76px;
+  width: var(--knife-width, 76px);
   height: 20px;
 }
 
@@ -86,16 +75,10 @@
 }
 
 .loadout-rivet {
-  fill: rgba(22, 30, 69, 0.85);
+  fill: var(--night);
 }
 
-/* Finger and thumb outlines, cut out of the fist in the panel's color. */
-.loadout-cut {
-  stroke: rgba(22, 30, 69, 1);
-  stroke-width: 1.4;
-}
-
-/* After a throw, the bright knife wipes back in from the handle as the next one comes up. */
+/* After a throw, the knife wipes back in from the handle as the next one comes up. */
 .loadout-fill {
   position: absolute;
   inset: 0;
@@ -107,7 +90,7 @@
   display: block;
 }
 
-/* Under the fill, the knife stays dim until the next one is ready. */
+/* Under the fill, the knife stays faint until the next one is ready. */
 .loadout-knife.is-active .loadout-icon > svg {
-  opacity: 0.4;
+  opacity: 0.35;
 }
