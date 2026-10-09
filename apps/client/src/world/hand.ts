@@ -224,6 +224,8 @@ export interface Grip {
   readonly touch: readonly number[];
   /** How thick the handle is. */
   readonly radius: number;
+  /** How thick each finger takes it to be where it wraps it, index first, if not all `radius`. */
+  readonly radii?: readonly number[];
 }
 
 /**
@@ -295,7 +297,7 @@ export function wrapCenter(grip: Grip, f: number, out: Vector3): Vector3 {
   if (grip.touch[f]! < 0) return onAxis(grip.center, grip.axis, FINGERS[f]!.base[1], out);
   const a = f * FINGER_STRIDE;
   const finger = FINGERS[f]!;
-  const rho = grip.radius + finger.radius;
+  const rho = (grip.radii?.[f] ?? grip.radius) + finger.radius;
   const touch = grip.touch[f]!;
   knucklePosition(f, grip.pose[a + CUP]!, out);
   const bend = grip.pose[a + CUP]! + grip.pose[a + BEND]!;
@@ -471,9 +473,9 @@ function wrapThumb(
 /**
  * A fist round a handle of `radius`. The handle rests on the palm in the crease at the root of the
  * fingers (GRIP_DEPTH) and crosses the palm at `slant`; each finger wraps it where it crosses that
- * finger.
+ * finger, as thick as `radii` has it there if given.
  */
-export function gripPose(radius: number, slant = GRIP_SLANT): Grip {
+export function gripPose(radius: number, slant = GRIP_SLANT, radii?: readonly number[]): Grip {
   const pose = handPose();
   const through = FINGERS.map(() => new Vector3());
   // The handle lies along the palm, in the crease at the root of the fingers, behind the middle
@@ -489,14 +491,14 @@ export function gripPose(radius: number, slant = GRIP_SLANT): Grip {
   const toward = new Vector3();
   const touch = FINGERS.map((finger, f) => {
     onAxis(rest, axis, finger.base[1], toward);
-    const at = wrapFinger(f, radius, toward, pose);
+    const at = wrapFinger(f, radii?.[f] ?? radius, toward, pose);
     clearPalm(f, pose);
     return at;
   });
   const center = onAxis(rest, axis, (FINGERS[0]!.base[1] + FINGERS[3]!.base[1]) / 2, new Vector3());
-  const grip = { pose, axis, center, through, touch, radius };
+  const grip = { pose, axis, center, through, touch, radius, ...(radii ? { radii } : {}) };
   FINGERS.forEach((_, f) => wrapCenter(grip, f, through[f]!));
-  wrapThumb(pose, grip);
+  wrapThumb(pose, { center, axis, radius: Math.max(radius, ...(radii ?? [])) });
   return grip;
 }
 
