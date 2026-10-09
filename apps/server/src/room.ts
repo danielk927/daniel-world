@@ -8,7 +8,7 @@ import {
   RESPAWN_PROTECTION_SECONDS,
   SNAPSHOT_EVERY_TICKS,
   TICK_RATE,
-  launchKnife,
+  thrownKnife,
   MAX_PLAYERS_PER_ROOM,
   NAME_MAX_LENGTH,
   DEFAULT_PREFS,
@@ -365,18 +365,22 @@ export class Room {
     return this.cooler.state();
   }
 
-  /** The knife leaves the eye, after this input's step, exactly as the thrower's client predicts. */
+  /**
+   * The knife leaves the eye, after this input's step, spread by who threw it and on which input,
+   * exactly as the thrower's client predicts.
+   */
   private throwKnife(player: RoomPlayer, input: QueuedInput): void {
-    player.lastThrowSeq = input.seq;
+    const { yaw, pitch, seq } = input;
+    player.lastThrowSeq = seq;
     const s = player.state;
-    const knife = launchKnife(s.x, s.y + EYE_HEIGHT, s.z, input.yaw, input.pitch);
+    const knife = thrownKnife(s.x, s.y + EYE_HEIGHT, s.z, yaw, pitch, player.id, seq);
     const rewind = input.view === undefined ? 0 : this.tick - input.view;
     const id = this.knives.launch(player, knife, rewind);
     this.broadcast({
       t: 'knife',
       id,
       from: player.id,
-      seq: input.seq,
+      seq,
       x: knife.x,
       y: knife.y,
       z: knife.z,

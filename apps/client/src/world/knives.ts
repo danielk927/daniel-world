@@ -93,6 +93,12 @@ export class Knives {
   coolerOpen = false;
   /** A knife this screen flew, with nobody else to decide, stuck where it landed. */
   onOfflineStuck: ((knife: StuckKnife) => void) | null = null;
+  /**
+   * Farthest the server's word has moved a knife from where this screen flew it to stick, in
+   * meters: about 0 while every flight leaves the hand as the server's did. For debugging and
+   * tests.
+   */
+  maxCorrection = 0;
 
   // Scratch, so updates never allocate.
   private readonly m = new Matrix4();
@@ -107,6 +113,11 @@ export class Knives {
 
   get stuckCount(): number {
     return this.stuck.length;
+  }
+
+  /** The knives stuck around the room, oldest first. */
+  stuckKnives(): readonly StuckKnife[] {
+    return this.stuck;
   }
 
   /** Knives stuck in `carrier` move with it from now on. */
@@ -227,6 +238,7 @@ export class Knives {
     this.carried.length = 0;
     this.stuckLooks.length = 0;
     for (const knife of stuck) this.addStuck(knife);
+    this.maxCorrection = 0;
     this.dirty = true;
   }
 
@@ -280,7 +292,14 @@ export class Knives {
   private finished(f: Flight): boolean {
     if (f.outcome) {
       if (f.clock < f.outcome.at) return false;
-      if (f.outcome.kind === 'stuck') this.addStuck(f.outcome.knife);
+      if (f.outcome.kind === 'stuck') {
+        // From where the flight on this screen stopped (in a wall, or a cook as drawn here).
+        const at = f.landed?.kind === 'surface' ? f.landed : f.state;
+        const { x, y, z } = f.outcome.knife;
+        const moved = Math.hypot(x - at.x, y - at.y, z - at.z);
+        this.maxCorrection = Math.max(this.maxCorrection, moved);
+        this.addStuck(f.outcome.knife);
+      }
       return true;
     }
     const outOfTime = f.clock >= KNIFE_MAX_FLIGHT_SECONDS;

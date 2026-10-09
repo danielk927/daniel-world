@@ -3,14 +3,17 @@ import {
   EYE_HEIGHT,
   KNIFE_EMBED,
   KNIFE_GRAVITY,
+  KNIFE_HIT_RADIUS,
   KNIFE_MAX_FLIGHT_SECONDS,
   KNIFE_SPEED,
+  KNIFE_SPREAD,
   ROOM_HALF_X,
   ROOM_HALF_Z,
 } from './constants.ts';
 import {
   flyKnife,
   launchKnife,
+  thrownKnife,
   type KnifeImpact,
   type KnifeState,
   type KnifeTarget,
@@ -201,6 +204,86 @@ describe('knife flight', () => {
     const a = throwFrom(0.3, 1.62, 5.6, 0.2, 0.1);
     const b = throwFrom(0.3, 1.62, 5.6, 0.2, 0.1);
     expect(a).toEqual(b);
+  });
+});
+
+describe("a throw's spread", () => {
+  /** How far off where the eye looked a knife leaves the hand, in radians. */
+  const offAim = (knife: KnifeState, yaw: number, pitch: number): number => {
+    const aim = launchKnife(0, 0, 0, yaw, pitch);
+    const cos = (knife.vx * aim.vx + knife.vy * aim.vy + knife.vz * aim.vz) / KNIFE_SPEED ** 2;
+    return Math.acos(Math.min(1, cos));
+  };
+
+  it('leaves the eye at throwing speed, a little off where the eye looks', () => {
+    const knife = thrownKnife(1, 1.6, 2, NORTH, 0, 3, 42);
+    expect([knife.x, knife.y, knife.z, knife.t]).toEqual([1, 1.6, 2, 0]);
+    expect(Math.hypot(knife.vx, knife.vy, knife.vz)).toBeCloseTo(KNIFE_SPEED, 9);
+    expect(offAim(knife, NORTH, 0)).toBeGreaterThan(0);
+    expect(offAim(knife, NORTH, 0)).toBeLessThanOrEqual(KNIFE_SPREAD);
+  });
+
+  it('is decided by who threw it and on which input, and nothing else', () => {
+    // The thrower's screen draws its own knife before the server hears of the throw, so both must
+    // launch the same knife from what they both know.
+    const knife = thrownKnife(0.3, 1.62, 5.6, 0.2, 0.1, 3, 42);
+    // Any other throws in between change nothing: there is no state to share.
+    for (let seq = 0; seq < 100; seq++) thrownKnife(0, 1.62, 0, 0, 0, 5, seq);
+    expect(thrownKnife(0.3, 1.62, 5.6, 0.2, 0.1, 3, 42)).toEqual(knife);
+    // The same aim on another input, or from another cook on the same one, goes another way.
+    expect(thrownKnife(0.3, 1.62, 5.6, 0.2, 0.1, 3, 56)).not.toEqual(knife);
+    expect(thrownKnife(0.3, 1.62, 5.6, 0.2, 0.1, 4, 42)).not.toEqual(knife);
+    // Playing solo, without an id from a room, still spreads.
+    expect(offAim(thrownKnife(0, 1.62, 0, 0, 0, -1, 42), 0, 0)).toBeGreaterThan(0);
+  });
+
+  it('fills the spread evenly, centered on the aim, at any pitch', () => {
+    const yaw = 1.3;
+    for (const pitch of [DOWN, -0.6, 0, 0.6, UP]) {
+      // The knives of 16 cooks throwing as fast as they can, one input in 14.
+      const n = 4096;
+      let most = 0;
+      let inner = 0;
+      let right = 0;
+      let up = 0;
+      for (let i = 0; i < n; i++) {
+        const knife = thrownKnife(0, 0, 0, yaw, pitch, 1 + (i % 16), 14 * (i >> 4));
+        const off = offAim(knife, yaw, pitch);
+        most = Math.max(most, off);
+        if (off < KNIFE_SPREAD / 2) inner++;
+        // Which way off: along the view's right and up.
+        right += (knife.vx * Math.cos(yaw) - knife.vz * Math.sin(yaw)) / KNIFE_SPEED;
+        up +=
+          (knife.vx * Math.sin(yaw) * Math.sin(pitch) +
+            knife.vy * Math.cos(pitch) +
+            knife.vz * Math.cos(yaw) * Math.sin(pitch)) /
+          KNIFE_SPEED;
+      }
+      expect(most).toBeLessThanOrEqual(KNIFE_SPREAD + 1e-12);
+      expect(most).toBeGreaterThan(0.99 * KNIFE_SPREAD);
+      // As likely anywhere in the circle it makes on a wall: a quarter is within half its radius.
+      expect(inner / n).toBeCloseTo(0.25, 1);
+      expect(Math.abs(right / n)).toBeLessThan(0.05 * KNIFE_SPREAD);
+      expect(Math.abs(up / n)).toBeLessThan(0.05 * KNIFE_SPREAD);
+    }
+  });
+
+  it('never makes a throw at the middle of a still cook miss, all along the kitchen', () => {
+    // A cook at the far end of the kitchen's 16 m is still hit by the widest throw.
+    expect(2 * ROOM_HALF_X * Math.tan(KNIFE_SPREAD)).toBeLessThan(KNIFE_HIT_RADIUS);
+    // And by every knife thrown at their chest from one end of the aisle by the dining room doors
+    // to the other, the longest clear line in the kitchen.
+    const eye: Point = [6.3, STAND, 5.3];
+    const cook: KnifeTarget = { id: 7, x: -6.6, y: 0, z: 5.3 };
+    const d = eye[0] - cook.x;
+    const h = 1.1 - eye[1];
+    const v2 = KNIFE_SPEED * KNIFE_SPEED;
+    const g = KNIFE_GRAVITY;
+    const pitch = Math.atan((v2 - Math.sqrt(v2 * v2 - g * (g * d * d + 2 * h * v2))) / (g * d));
+    for (let seq = 0; seq < 2000; seq++) {
+      const knife = thrownKnife(eye[0], eye[1], eye[2], WEST, pitch, 2, seq);
+      expect(fly(knife, [cook], 2), `input ${seq}`).toMatchObject({ kind: 'player', id: 7 });
+    }
   });
 });
 

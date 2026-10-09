@@ -49,7 +49,7 @@ In a party it shows the invite link (`/?room=<code>`) with a Copy link button, a
 Chef Skinner stays in the lobby.
 
 Every cook carries knives, in every room.
-Left click to throw one; it flies in a slight arc and sticks into whatever it hits.
+Left click to throw one; it leaves the hand a little off the crosshair (never more than 1.5°), flies in a slight arc and sticks into whatever it hits.
 A knife that hits another cook knocks them out for three seconds, then they get back up somewhere else, briefly protected.
 The newest 60 knives stay stuck around the kitchen until everyone leaves the room.
 

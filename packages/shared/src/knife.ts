@@ -4,10 +4,12 @@ import {
   KNIFE_HIT_HEIGHT,
   KNIFE_HIT_RADIUS,
   KNIFE_SPEED,
+  KNIFE_SPREAD,
   ROOM_HALF_X,
   ROOM_HALF_Z,
   ROOM_HEIGHT,
 } from './constants.ts';
+import { hashRandom } from './random.ts';
 import {
   COOLER_KNIFE_SOLIDS,
   COOLER_ROOM_KNIFE_SOLIDS,
@@ -95,6 +97,43 @@ export function launchKnife(
     vx: -Math.sin(yaw) * level,
     vy: Math.sin(pitch) * KNIFE_SPEED,
     vz: -Math.cos(yaw) * level,
+    t: 0,
+  };
+}
+
+/**
+ * The knife `thrower` throws on their input `seq`, leaving an eye at (x, y, z) up to `KNIFE_SPREAD`
+ * off where it looks: how far and which way, only those two numbers decide. The server and the
+ * thrower's own screen, which draws the knife before the server hears of the throw, both know
+ * them, so both launch the same knife; everyone else is told its velocity.
+ */
+export function thrownKnife(
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  pitch: number,
+  thrower: number,
+  seq: number,
+): KnifeState {
+  // Any direction in the cone as likely as any other, so a circle on a wall fills evenly.
+  const off = KNIFE_SPREAD * Math.sqrt(hashRandom(thrower, seq, 0));
+  const around = 2 * Math.PI * hashRandom(thrower, seq, 1);
+  const ahead = Math.cos(off) * KNIFE_SPEED;
+  const right = Math.sin(off) * Math.cos(around) * KNIFE_SPEED;
+  const up = Math.sin(off) * Math.sin(around) * KNIFE_SPEED;
+  const sinYaw = Math.sin(yaw);
+  const cosYaw = Math.cos(yaw);
+  const sinPitch = Math.sin(pitch);
+  const cosPitch = Math.cos(pitch);
+  // Along the view's forward, right and up axes.
+  return {
+    x,
+    y,
+    z,
+    vx: -sinYaw * cosPitch * ahead + cosYaw * right + sinYaw * sinPitch * up,
+    vy: sinPitch * ahead + cosPitch * up,
+    vz: -cosYaw * cosPitch * ahead - sinYaw * right + cosYaw * sinPitch * up,
     t: 0,
   };
 }

@@ -48,7 +48,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 8. **Knives**: every cook carries an endless supply in every room, and a left click throws one; holding the button keeps throwing, about one every 0.8 s, as fast as each knife is drawn (the server allows one every 0.7 s).
    Q switches between the knife and the bare hand, which punches instead (others see the jab; it hits nothing), and I inspects the knife, as in CS2.
    The bottom right corner shows both over the minimap, like a shooter's loadout: the one in hand bright, the other with its key, and the knife filling back in after each throw.
-   A knife flies fast in a slight arc, tumbling, and sticks into whatever surface it hits; the newest 60 per room stay until the room empties, and newcomers see them.
+   A knife leaves the hand a little off the crosshair (up to 1.5°, any way), flies fast in a slight arc, tumbling, and sticks into whatever surface it hits; the newest 60 per room stay until the room empties, and newcomers see them.
    A knife that hits another cook knocks them out: they fall over, see "Knocked out by <name>" for 3 s, then respawn at a spawn point, protected for 2 s.
    Kills show in the chat and as a toast; there are no scores and no game modes.
 

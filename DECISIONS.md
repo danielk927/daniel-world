@@ -534,3 +534,23 @@ Judgment calls made during the unattended build, with reasons.
 - **Picking stops at the walk-in's wall instead of being refused by it.**
   The wall test took the whole 10 m pick ray, so with the walk-in shut nothing could be picked while looking east, the plonge and the truffle croissant from the spawn among them.
   `coolerWallReach` now gives how far the ray gets before the wall stops it and picking looks only that far; `e2e/stations.spec.ts` reproduced the plonge failing first, and `cooler.test.ts` checks it agrees with the old segment test for any ray.
+
+### A little spread on every throw (2026-10-09)
+
+- **Every knife leaves the hand up to 1.5° off the crosshair, any way equally**, so knives thrown at one spot scatter round it instead of all going into one hole.
+  Ten knives at the west wall from 8 m were tried in the kitchen at 1°, 1.5° and 2°: 1° still bunched them, and at the few meters most throws cross would stack them almost into one; 2° looked careless, up to 28 cm off.
+  1.5° is the widest that costs a good aim nothing: a throw at the middle of a cook standing still hits them from anywhere along the kitchen's 16 m, where 2° misses about one in seven.
+  At 8 m the knives land within 21 cm of the aim, half of them within 15 cm.
+- **Uniform over the cone, not weighted toward the middle**, since weighting most throws onto the crosshair would bring back the knives stacked in one hole.
+- **The spread is a hash of the thrower's id in the room and the sequence number of the input that threw it**, not `Math.random()` on either side.
+  The thrower's screen draws its knife the moment the hand lets go, before the server hears of the throw, so the knife must come from what both already know: the knife's id comes from the server later, but the player's id (from the welcome) and the input's sequence number (sent with it) are known to both.
+  Everyone else is sent the knife's velocity, as before, so nothing new goes over the wire.
+  The hash (`hashRandom`, Murmur3's finalizer) is integer arithmetic only, which every engine does exactly alike; turning the throw by it uses the same trigonometry launching always did.
+  A thrower could work out their next knife's spread in advance, but any way of letting a screen draw its own knife at once has to tell it, and anyone who would use that can already aim with devtools.
+- **Chef Skinner's knives spread too**, since every knife in the room is thrown the same way, and his own wandering aim (up to 0.1 radians either way) is far wider anyway.
+  His knockout rate against a pacing cook barely moved: 41% of his throws, against 42% without the spread, over 60 two-minute runs.
+  `aimAt` still finds the throw that would hit if it flew straight from his eye; the spread and his aim error are how it misses.
+- **Each screen keeps how far the server's word has moved a knife from where it flew it** (`knives.maxCorrection` in the debug state).
+  An E2E test throws knives at one spot with a watcher in the room: they scatter within the spread, and each sticks where both screens flew it (a few micrometers off in the kitchen, against the 1 cm the test allows).
+  With the thrower's screen seeding from the wrong id, the same test fails, its knives jumping up to 27 cm.
+- This changed the shared simulation, so the protocol is version 8.

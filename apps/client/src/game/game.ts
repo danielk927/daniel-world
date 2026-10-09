@@ -9,7 +9,7 @@ import {
   TICK_SECONDS,
   coolerWallBetween,
   coolerWallReach,
-  launchKnife,
+  thrownKnife,
   type InputMessage,
   type KnifeTarget,
   type RoomIntent,
@@ -519,23 +519,20 @@ export class Game {
   }
 
   /**
-   * Throw from the eye, after this input's step, as the server will: the knife is drawn at once and
-   * the server's version of it, when it arrives, takes over where it ends up.
+   * Throw from the eye, after this input's step, spread by our id in the room and the input, as the
+   * server will: the knife is drawn at once and the server's version of it, when it arrives, takes
+   * over where it ends up.
    */
   private throwKnife(input: InputMessage, online: boolean): void {
-    this.lastThrowSeq = input.seq;
+    const { yaw, pitch, seq } = input;
+    this.lastThrowSeq = seq;
     const s = this.player.state;
-    const knife = launchKnife(s.x, s.y + EYE_HEIGHT, s.z, input.yaw, input.pitch);
+    // Online, the welcome has told us our id before any input is sent.
+    const self = this.multiplayer?.selfId ?? -1;
+    const knife = thrownKnife(s.x, s.y + EYE_HEIGHT, s.z, yaw, pitch, self, seq);
     // Drawn leaving the hand on screen, flying from the eye where it can hit.
     const hand = this.viewmodel.knifeCenter(this.hand);
-    this.world.knives.throwOwn(
-      input.seq,
-      this.multiplayer?.selfId ?? -1,
-      knife,
-      online,
-      hand,
-      this.viewmodel.look,
-    );
+    this.world.knives.throwOwn(seq, self, knife, online, hand, this.viewmodel.look);
   }
 
   private onKill(

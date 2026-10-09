@@ -13,7 +13,7 @@ export const SNAPSHOT_EVERY_TICKS = 3;
 export const INTERPOLATION_DELAY_MS = 100;
 
 /** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 export const DEFAULT_SERVER_PORT = 3001;
 
 // Rooms and players.
@@ -80,6 +80,12 @@ export const PUNCH_COOLDOWN_INPUTS = Math.round(PUNCH_COOLDOWN_MS / TICK_MS);
 // Knives: every cook carries an endless supply and can throw one with a left click.
 /** Speed a knife leaves the hand at, in meters per second. */
 export const KNIFE_SPEED = 26;
+/**
+ * A knife leaves the hand up to this far off where its thrower looked (1.5 degrees, in radians), so
+ * knives thrown at one spot scatter round it, yet a throw at the middle of a cook standing still
+ * hits them from anywhere along the kitchen's 16 m.
+ */
+export const KNIFE_SPREAD = (1.5 * Math.PI) / 180;
 /** Knives drop a little on long throws. Lighter than player gravity, which is tuned for jumps. */
 export const KNIFE_GRAVITY = 9.81;
 /** End-over-end tumble while flying, in radians per second. Only for looks. */

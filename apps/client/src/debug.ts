@@ -29,9 +29,17 @@ export interface WorldDebugState {
   readonly knife: { skin: string; finish: string };
   /**
    * Knives stuck around the room, and in the air, as this screen shows them; `looks` counts those
-   * drawn of each look, keyed `skin/finish`.
+   * drawn of each look, keyed `skin/finish`, and `tips` is where each stuck knife's tip is, oldest
+   * first. `maxCorrection` is the farthest the server has moved a knife from where this screen flew
+   * it to stick, in meters.
    */
-  readonly knives: { stuck: number; flying: number; looks: Record<string, number> };
+  readonly knives: {
+    stuck: number;
+    flying: number;
+    looks: Record<string, number>;
+    tips: { x: number; y: number; z: number }[];
+    maxCorrection: number;
+  };
   /**
    * The walk-in cooler's door: hits the room has decided, whether that has burst it open, and how
    * far it has swung open on this screen, in radians (a right angle is fully open).
@@ -118,6 +126,8 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
         stuck: world.knives.stuckCount,
         flying: world.knives.flyingCount,
         looks: world.knives.drawnLooks(),
+        tips: world.knives.stuckKnives().map(({ x, y, z }) => ({ x, y, z })),
+        maxCorrection: world.knives.maxCorrection,
       };
     },
     get cooler() {

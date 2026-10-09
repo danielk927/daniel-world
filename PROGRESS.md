@@ -74,6 +74,13 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Fixed on the way: nothing in front of the east wall could be picked while the walk-in was shut (the plonge among them).
 - Lint, typecheck, 883 unit tests, 27 E2E tests and the build pass.
 
+### Knife spread (2026-10-09)
+
+- Every knife leaves the hand up to 1.5° off the crosshair, any way equally, so knives thrown at one spot scatter round it, yet a throw at the middle of a cook standing still hits them anywhere along the kitchen.
+- The spread is a hash of the thrower's id and the input's sequence number, so the room and the thrower's own screen launch the same knife and everyone else replays it; Chef Skinner's knives spread too.
+- Protocol version 8; the AWS room server needs `npm run deploy:aws` for multiplayer to match the client.
+- Lint, typecheck, 889 unit tests, 28 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash
