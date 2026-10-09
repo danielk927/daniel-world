@@ -1,11 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   EYE_HEIGHT,
+  KNIFE_MAX_FLIGHT_SECONDS,
   KNIFE_SPREAD,
-  TICK_SECONDS,
   flyKnife,
   launchKnife,
-  type KnifeImpact,
 } from '@world/shared';
 import { knifeMoves } from '../apps/client/src/world/knifeMoves.ts';
 import {
@@ -104,8 +103,8 @@ test('knives scatter a little round the crosshair, each sticking where its throw
     // Where a knife dead on the crosshair sticks.
     const eye = { x: player.x, y: player.y + EYE_HEIGHT, z: player.z };
     const aimed = launchKnife(eye.x, eye.y, eye.z, look.yaw, look.pitch);
-    let dead: KnifeImpact | null = null;
-    while (!dead) dead = flyKnife(aimed, TICK_SECONDS, [], -1);
+    const dead = flyKnife(aimed, KNIFE_MAX_FLIGHT_SECONDS, [], -1);
+    if (!dead) throw new Error('a knife on the crosshair sticks nowhere');
     const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
     const reach = distance(eye, dead) * Math.tan(KNIFE_SPREAD);
     const { tips } = (await world(thrower)).knives;
