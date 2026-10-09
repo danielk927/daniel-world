@@ -4,7 +4,8 @@ import type { KillParty } from './killFeed.ts';
 
 /**
  * The screen while a knife has this player down: who did it, and a bar running down to when they
- * get back up. It comes in a beat after the hit, once the flash and the fall have landed.
+ * get back up, centered on the veiled view with nothing behind them. It comes in a beat after the
+ * hit, once the flash and the fall have landed.
  */
 export class Knockout {
   readonly element: HTMLElement;
@@ -19,8 +20,8 @@ export class Knockout {
       'div',
       { class: 'knockout', attrs: { role: 'status', 'aria-live': 'assertive', hidden: '' } },
       [
-        el('div', { class: 'knockout-card' }, [
-          el('p', { class: 'knockout-label', text: 'Knocked out by' }),
+        el('div', { class: 'knockout-body' }, [
+          el('p', { class: 'kicker knockout-label', text: 'Knocked out by' }),
           this.by,
           el('div', { class: 'knockout-bar', attrs: { 'aria-hidden': 'true' } }, [this.bar]),
           this.countdown,

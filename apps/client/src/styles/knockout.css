@@ -1,13 +1,13 @@
 /* ---------- Knocked out ---------- */
 
-/* A navy veil over the fallen view, and who did it. Above the HUD, below menus and panels. */
+/* A flat veil of the night over the fallen view, and who did it. Above the HUD, below menus and panels. */
 .knockout {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
   pointer-events: none;
-  background: rgba(22, 30, 69, 0);
+  background: rgb(var(--night-rgb) / 0);
   transition: background-color 0.6s ease 0.25s;
 }
 
@@ -16,29 +16,28 @@
 }
 
 .knockout.is-shown {
-  background: rgba(22, 30, 69, 0.5);
+  background: rgb(var(--night-rgb) / 0.5);
 }
 
-/* A beat after the hit: the flash and the fall land first, then the card. */
-.knockout-card {
+/* Nothing to aim at while down, and the crosshair would sit on the name in the middle. */
+.ui:has(> .knockout:not([hidden])) :is(.crosshair, .prompt, .look-cue, .hit-marker, .hit-banner) {
+  visibility: hidden;
+}
+
+/* A beat after the hit: the flash and the fall land first, then the words. */
+.knockout-body {
   display: grid;
   justify-items: center;
-  min-width: 300px;
-  padding: 26px 44px 22px;
-  border-radius: var(--radius-lg);
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow);
   text-align: center;
   opacity: 0;
-  transform: translateY(10px) scale(0.98);
+  transform: translateY(10px);
 }
 
-.knockout.is-shown .knockout-card {
-  animation: knockout-card-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s forwards;
+.knockout.is-shown .knockout-body {
+  animation: knockout-body-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s forwards;
 }
 
-@keyframes knockout-card-in {
+@keyframes knockout-body-in {
   to {
     opacity: 1;
     transform: none;
@@ -47,35 +46,42 @@
 
 .knockout-label {
   margin: 0;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
 }
 
+/* The name in the display face, a dot of the cook's color hung before it so the name stays centered. */
 .knockout-name {
-  margin: 6px 0 18px;
-  padding-bottom: 6px;
-  font-family: var(--font-display);
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 1.05;
+  position: relative;
+  margin: 8px 0 22px;
+  font: 700 56px/1.05 var(--font-display);
+  letter-spacing: -0.015em;
   color: var(--ink);
-  border-bottom: 2px solid var(--player-color, var(--ivory));
 }
 
+.knockout-name::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 16px);
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--player-color, var(--ink));
+}
+
+/* The bar runs down from both ends to when they get back up. */
 .knockout-bar {
-  width: 100%;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.14);
+  width: 160px;
+  height: var(--bar);
+  border-radius: calc(var(--bar) / 2);
+  background: var(--ink-hair);
   overflow: hidden;
 }
 
 .knockout-bar-fill {
   height: 100%;
-  background: var(--ivory);
-  transform-origin: left;
+  border-radius: inherit;
+  background: var(--accent);
 }
 
 .knockout.is-shown .knockout-bar-fill {
@@ -92,21 +98,22 @@
 }
 
 .knockout-countdown {
-  margin: 10px 0 0;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
+  margin: 14px 0 0;
+  font: 600 12px/1 var(--font-body);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--ink);
 }
 
 .knockout-hint {
-  margin: 16px 0 0;
-  font-size: 12.5px;
-  color: var(--ink-faint);
+  max-width: 420px;
+  margin: 18px 0 0;
+  font: 400 15px/1.45 var(--font-body);
+  color: var(--ink-muted);
+  text-wrap: balance;
 }
 
-/* While down, the world drains of color behind the card. */
+/* While down, the world drains of color behind the words. */
 .world-canvas {
   transition: filter 0.6s ease;
 }
