@@ -348,6 +348,19 @@ describe('room server', () => {
     expect(watcher.messages.some((m) => m.t === 'join')).toBe(false);
   });
 
+  it('refuses a hello whose spawn hint is turned past any real turn', async () => {
+    const a = client();
+    await a.opened();
+    const spawn = { x: 0, z: 5.6, yaw: 1.7e308 };
+    a.send({ t: 'hello', v: PROTOCOL_VERSION, name: 'Spinner', room: 'lobby', spawn });
+    expect(await a.waitForClose()).toBe(CLOSE_HELLO_TIMEOUT);
+    expect(a.messages.some((m) => m.t === 'welcome')).toBe(false);
+    // A hint as a real client sends it, its turn wrapped or not, is welcome, facing the same way.
+    const b = client();
+    const welcome = await b.join('Turner', 'lobby', { spawn: { ...spawn, yaw: 4 * Math.PI + 1 } });
+    expect(welcome.self.yaw).toBeCloseTo(1, 3);
+  });
+
   it('gives duplicate names a number', async () => {
     await client().join('Otter');
     const second = await client().join('otter');
