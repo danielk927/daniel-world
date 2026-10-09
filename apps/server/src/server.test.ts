@@ -509,6 +509,22 @@ describe('Chef Skinner in the lobby', () => {
     expect(hideout.players.map((p) => p.name)).toEqual(['Bob']);
   });
 
+  it("takes one of the lobby's places, so the count says how many visitors fit", async () => {
+    const lobby = async () =>
+      (await (await fetch(`http://127.0.0.1:${server.port}/rooms/lobby`)).json()) as {
+        players: number;
+        max: number;
+      };
+    // Before anyone is there, and with them.
+    expect(await lobby()).toEqual({ room: 'lobby', players: 0, max: MAX_PLAYERS_PER_ROOM - 1 });
+    for (let i = 0; i < MAX_PLAYERS_PER_ROOM - 1; i++) await client().join(`P${i}`);
+    const { players, max } = await lobby();
+    expect(players).toBe(max);
+    expect(await client().refused({ name: 'Late', room: 'lobby' }, 'room_full')).toBe(
+      CLOSE_ROOM_FULL,
+    );
+  });
+
   it('is marked as the resident, and nobody else is', async () => {
     const welcome = await client().join('Alice');
     const chef = welcome.players.find((p) => p.name === 'Chef Skinner')!;

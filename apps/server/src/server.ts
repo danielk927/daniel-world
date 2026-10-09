@@ -202,9 +202,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       }
       sendJson(res, 200, {
         room: code,
-        // Visitors only: Chef Skinner is always in, so he is not news.
+        // Visitors only: Chef Skinner is always in, so he is not news, but he takes a place.
         players: rooms.get(code)?.visitors ?? 0,
-        max: MAX_PLAYERS_PER_ROOM,
+        max: MAX_PLAYERS_PER_ROOM - (options.chef ? 1 : 0),
       });
       return;
     }
