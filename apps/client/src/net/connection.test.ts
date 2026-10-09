@@ -112,6 +112,24 @@ describe('joinRoom', () => {
 });
 
 describe('Connection', () => {
+  it('says nothing from inside its constructor, even when no socket can be made', async () => {
+    FakeSocket.refuse = true;
+    const onStatus = vi.fn<ConnectionHandlers['onStatus']>();
+    const connection = new Connection({ ...options, handlers: { ...quiet, onStatus } });
+    expect(connection.status).toBe('connecting');
+    expect(onStatus).not.toHaveBeenCalled();
+    // A moment later it fails as a refused socket would, and tries again.
+    await Promise.resolve();
+    expect(connection.status).toBe('offline');
+    expect(onStatus.mock.lastCall?.[0]).toBe('offline');
+    vi.runOnlyPendingTimers();
+    expect(onStatus.mock.lastCall?.[0]).toBe('connecting');
+    await Promise.resolve();
+    expect(connection.status).toBe('offline');
+    connection.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('only states its intent until it is let in, so a reconnect just rejoins', () => {
     const handlers: ConnectionHandlers = {
       onStatus: vi.fn(),

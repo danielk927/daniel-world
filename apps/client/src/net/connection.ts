@@ -78,6 +78,11 @@ export class Connection {
   private intent: RoomIntent | undefined;
   private handlers: ConnectionHandlers;
 
+  /**
+   * Starts connecting at once, `connecting` from the start. The handlers hear nothing from inside
+   * the constructor, even when no socket can be made, since whoever is constructing it does not
+   * have it yet.
+   */
   constructor(options: ConnectionOptions) {
     this.url = options.url;
     this.name = options.name;
@@ -141,12 +146,14 @@ export class Connection {
 
   private open(): void {
     if (this.closed) return;
-    this.setStatus('connecting');
+    if (this.status !== 'connecting') this.setStatus('connecting');
     let ws: WebSocket;
     try {
       ws = new WebSocket(this.url);
     } catch {
-      this.scheduleRetry();
+      // The browser will not make this socket at all (a ws:// address on an https page, a
+      // malformed one). Fail as a socket refused at once would: on a later turn, not in this call.
+      queueMicrotask(() => this.scheduleRetry());
       return;
     }
     this.ws = ws;
@@ -283,25 +290,25 @@ export function joinRoom(
   signal: AbortSignal,
 ): Promise<JoinedRoom> {
   return new Promise((resolve, reject) => {
-    let connection: Connection | null = null;
     let settled = false;
     const backlog: ServerMessage[] = [];
     const fail = (failure: JoinError['failure']): void => {
       if (settled) return;
       settled = true;
-      connection?.close();
+      connection.close();
       reject(new JoinError(failure));
     };
-    connection = new Connection({
+    // Its handlers are only ever called once the constructor has returned.
+    const connection: Connection = new Connection({
       ...options,
       handlers: {
         onStatus: (status) => {
-          if (status === 'offline') fail(connection?.versionMismatch ? 'version' : 'unreachable');
+          if (status === 'offline') fail(connection.versionMismatch ? 'version' : 'unreachable');
         },
         onWelcome: (welcome) => {
           if (settled) return;
           settled = true;
-          resolve({ connection: connection!, welcome, backlog });
+          resolve({ connection, welcome, backlog });
         },
         onMessage: (message) => backlog.push(message),
         onFatal: (code) => fail(code),
@@ -309,8 +316,6 @@ export function joinRoom(
         spawnHint: () => undefined,
       },
     });
-    // A failure inside the constructor came before `connection` was set, so close it now.
-    if (settled) connection.close();
     signal.addEventListener('abort', () => fail('cancelled'), { once: true });
     if (signal.aborted) fail('cancelled');
   });

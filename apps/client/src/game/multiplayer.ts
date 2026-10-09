@@ -170,6 +170,8 @@ export class Multiplayer {
         prefs: deps.prefs,
         handlers,
       });
+      // Connecting, as it starts; it reports every change after this.
+      this.onStatus(this.connection.status);
     }
   }
 

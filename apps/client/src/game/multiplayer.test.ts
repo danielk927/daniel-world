@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { joinRoom } from '../net/connection.ts';
 import { FakeSocket, latestSocket, welcome } from '../net/fakeSocket.ts';
+import type { Hud } from '../ui/hud.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer, type MultiplayerDeps } from './multiplayer.ts';
 
@@ -13,6 +14,7 @@ function setup(room: string) {
   const onCoolerHit = vi.fn<MultiplayerDeps['onCoolerHit']>();
   const addSystem = vi.fn<(text: string) => void>();
   const addMessage = vi.fn<(name: string, color: string, text: string) => void>();
+  const setStatus = vi.fn<Hud['setStatus']>();
   const deps: MultiplayerDeps = {
     url: 'ws://test',
     name: 'Otter',
@@ -21,7 +23,7 @@ function setup(room: string) {
     player: new LocalPlayer(),
     avatars: stub({ add: vi.fn(), remove: vi.fn(), update: vi.fn(), playThrow: vi.fn() }),
     labels: stub({ add: vi.fn(), remove: vi.fn() }),
-    hud: stub({ setRoom: vi.fn(), setPlayers: vi.fn(), setStatus: vi.fn() }),
+    hud: stub({ setRoom: vi.fn(), setPlayers: vi.fn(), setStatus }),
     chat: stub({ addSystem, addMessage }),
     knives: stub({
       reset: vi.fn(),
@@ -40,7 +42,7 @@ function setup(room: string) {
     onCoolerState,
     onCoolerHit,
   };
-  return { deps, onKill, onSpawn, addSystem, addMessage, onCoolerState, onCoolerHit };
+  return { deps, onKill, onSpawn, addSystem, addMessage, onCoolerState, onCoolerHit, setStatus };
 }
 
 const killOfSelf = { t: 'kill', knife: 1, from: 3, to: 7, at: 0.2 } as const;
@@ -50,6 +52,7 @@ beforeEach(() => {
   vi.stubGlobal('window', globalThis);
   vi.stubGlobal('WebSocket', FakeSocket);
   FakeSocket.sockets = [];
+  FakeSocket.refuse = false;
 });
 
 afterEach(() => {
@@ -112,6 +115,23 @@ describe('Multiplayer', () => {
     latestSocket().receive(knifeHit);
     expect(onCoolerHit).toHaveBeenLastCalledWith(knifeHit, 0.5, false);
     mp.close();
+  });
+
+  it('plays solo, retrying, when the browser will not make a socket at all', async () => {
+    FakeSocket.refuse = true;
+    const { deps, setStatus } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    expect(mp.status).toBe('connecting');
+    await Promise.resolve();
+    expect(mp.status).toBe('offline');
+    expect(setStatus).toHaveBeenLastCalledWith('offline', { updating: false });
+    // Every retry fails the same way, and still reports to this Multiplayer.
+    vi.runOnlyPendingTimers();
+    await Promise.resolve();
+    expect(mp.status).toBe('offline');
+    expect(deps.onStatus).toHaveBeenLastCalledWith('offline');
+    mp.close();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('takes over a room joined in the background, replaying what arrived meanwhile', async () => {

@@ -131,6 +131,50 @@ test('a room server on another protocol version still lets visitors in, solo', a
   }
 });
 
+test('a room server address the browser will not even open still lets visitors in, solo', async ({
+  browser,
+}) => {
+  const errors: Error[] = [];
+  const page = await enterWorld(browser, {
+    name: 'Mixed Content',
+    online: false,
+    prepare: async (page) => {
+      page.on('pageerror', (error) => errors.push(error));
+      // As a ws:// address on an https page, or a malformed VITE_SERVER_URL: no socket is made.
+      await page.addInitScript(() => {
+        window.WebSocket = new Proxy(WebSocket, {
+          construct(_target, [url]: unknown[]) {
+            throw new DOMException(`Refused to connect to ${String(url)}`, 'SecurityError');
+          },
+        });
+      });
+    },
+  });
+  try {
+    await expectWorld(page, (w) => w.connection === 'offline', 'solo, and saying so');
+    await expect(page.locator('.hud-status')).toHaveText('Solo');
+    // The retries fail the same way, quietly, for as long as the visitor stays.
+    await page.waitForTimeout(2500);
+    expect((await world(page)).mode).toBe('playing');
+    await expect(page.locator('.hud-status')).toHaveText('Solo');
+
+    // Leaving and coming back works, and leaves nothing trying on behind it.
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Leave world' }).click();
+    await page.getByRole('button', { name: 'Enter the kitchen' }).click();
+    await expectWorld(
+      page,
+      (w) => w.mode === 'playing' && w.connection === 'offline',
+      'solo again',
+    );
+    await page.waitForTimeout(2500);
+    await expect(page.locator('.hud-status')).toHaveText('Solo');
+    expect(errors.map((error) => error.message)).toEqual([]);
+  } finally {
+    await page.context().close();
+  }
+});
+
 test('a connection the network silently drops turns solo in seconds, and back when it returns', async ({
   browser,
 }) => {
