@@ -29,16 +29,21 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 export function trapFocus(container: HTMLElement): () => void {
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Tab') return;
-    const focusable = container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
+    // Only what Tab can reach: not tabs a tab list has taken out of the order, nor hidden pages.
+    const focusable = [
+      ...container.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]',
+      ),
+    ].filter((element) => element.tabIndex >= 0 && element.checkVisibility());
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     if (!first || !last) return;
-    if (event.shiftKey && document.activeElement === first) {
+    // From the container itself (a click on its text), Shift+Tab wraps round too.
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === container)) {
       event.preventDefault();
       last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
+    } else if (!event.shiftKey && active === last) {
       event.preventDefault();
       first.focus();
     }
