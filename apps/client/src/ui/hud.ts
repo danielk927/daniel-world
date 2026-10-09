@@ -9,6 +9,17 @@ export interface HudPlayer {
   isSelf: boolean;
 }
 
+/**
+ * The most names the list shows. Past this, the last row counts the rest, so a full room does not
+ * run the list down into the kill feed and the loadout.
+ */
+export const MAX_PLAYER_ROWS = 8;
+
+/** How many names to list for a room of `total`, the rest folded into one "and N more" row. */
+export function listedPlayers(total: number): number {
+  return total <= MAX_PLAYER_ROWS ? total : MAX_PLAYER_ROWS - 1;
+}
+
 /** Always-on in-world overlay: crosshair, prompt, room and connection, player list, controls hint. */
 export class Hud {
   readonly element: HTMLElement;
@@ -17,7 +28,8 @@ export class Hud {
   /** While the mouse is free in play: how to get it back for looking around. */
   private readonly lookCue = el('div', { class: 'look-cue', text: 'Click to look around' });
   private lookCueShown = false;
-  private readonly roomLabel = el('span', { class: 'hud-label', text: 'Room' });
+  /** "Party" before a party's code; the lobby's name says what it is. */
+  private readonly roomKind = el('span', { class: 'hud-room-kind', text: 'Party ' });
   private readonly roomName = el('span', { class: 'hud-room-name' });
   private readonly statusDot = el(
     'span',
@@ -31,7 +43,7 @@ export class Hud {
     class: 'visually-hidden',
     attrs: { role: 'status' },
   });
-  private readonly playerCount = el('span', { class: 'hud-players-count' });
+  private readonly playerCount = el('p', { class: 'hud-players-count' });
   private readonly fps = el('span', { class: 'hud-fps', attrs: { hidden: '' } });
   private readonly playerList = el('ul', { class: 'hud-players-list' });
   private readonly hint = el('div', { class: 'hint' }, [
@@ -78,25 +90,16 @@ export class Hud {
       this.crosshair,
       this.prompt,
       this.lookCue,
-      el('div', { class: 'hud-panel hud-room' }, [
-        this.roomLabel,
-        this.roomName,
-        this.status,
-        this.fps,
+      el('div', { class: 'hud-room' }, [
+        el('p', { class: 'hud-room-title' }, [this.roomKind, this.roomName]),
+        el('div', { class: 'hud-room-line' }, [this.status, this.fps]),
         this.statusAnnouncement,
       ]),
       el('div', { class: 'hud-right' }, [
-        el(
-          'section',
-          { class: 'hud-panel hud-players', attrs: { 'aria-label': 'Players in this room' } },
-          [
-            el('div', { class: 'hud-players-head' }, [
-              el('span', { class: 'hud-label', text: 'Players' }),
-              this.playerCount,
-            ]),
-            this.playerList,
-          ],
-        ),
+        el('section', { class: 'hud-players', attrs: { 'aria-label': 'Players in this room' } }, [
+          this.playerCount,
+          this.playerList,
+        ]),
         this.feedSlot,
       ]),
       this.hint,
@@ -133,8 +136,8 @@ export class Hud {
 
   setRoom(code: string): void {
     const party = code !== DEFAULT_ROOM;
-    this.roomLabel.textContent = party ? 'Party' : 'Room';
-    this.roomName.textContent = party ? `#${code}` : 'lobby';
+    this.roomKind.hidden = !party;
+    this.roomName.textContent = party ? `#${code}` : 'The lobby';
   }
 
   /**
@@ -181,22 +184,32 @@ export class Hud {
     this.lookCue.classList.toggle('is-visible', shown);
   }
 
+  /** The room's cooks, yours first (marked "you"), each by a dot of their color. */
   setPlayers(players: readonly HudPlayer[]): void {
     const key = players.map((p) => `${p.id}:${p.name}:${p.color}:${p.isSelf}`).join('|');
     if (key === this.playersKey) return;
     this.playersKey = key;
     this.playerCount.textContent = `${players.length} / ${MAX_PLAYERS_PER_ROOM}`;
-    this.playerList.replaceChildren(
-      ...players.map((p) => {
-        const item = el('li', { class: 'hud-player' }, [
-          el('span', { class: 'hud-player-dot' }),
-          el('span', { class: 'hud-player-name', text: p.name }),
-          p.isSelf ? el('span', { class: 'hud-player-you', text: 'you' }) : null,
-        ]);
-        item.style.setProperty('--player-color', p.color);
-        return item;
-      }),
-    );
+    const listed = listedPlayers(players.length);
+    const rows: HTMLElement[] = players.slice(0, listed).map((p) => {
+      const item = el('li', { class: `hud-player${p.isSelf ? ' is-self' : ''}` }, [
+        el('span', { class: 'hud-player-name', text: p.name }),
+        // After the name, so a screen reader hears the name first; the styles put it in front.
+        p.isSelf ? el('span', { class: 'hud-player-you', text: 'you' }) : null,
+        el('span', { class: 'hud-player-dot' }),
+      ]);
+      item.style.setProperty('--player-color', p.color);
+      return item;
+    });
+    if (listed < players.length) {
+      rows.push(
+        el('li', {
+          class: 'hud-player hud-player-more',
+          text: `and ${players.length - listed} more`,
+        }),
+      );
+    }
+    this.playerList.replaceChildren(...rows);
   }
 
   /** Text under the crosshair when an object can be clicked, or null to clear it. */

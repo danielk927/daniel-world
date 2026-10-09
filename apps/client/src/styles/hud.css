@@ -1,5 +1,10 @@
 /* ---------- HUD ---------- */
 
+/* How far the HUD, the chat and the toasts keep from the edges of the screen. */
+:root {
+  --hud-edge: clamp(16px, 2.8vw, 40px);
+}
+
 .hud {
   position: absolute;
   inset: 0;
