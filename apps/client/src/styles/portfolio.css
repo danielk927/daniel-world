@@ -4,7 +4,8 @@
 /*
  * The plain portfolio page, in the same house style as the kitchen (docs/ui-revamp.md): words on
  * the night, titles in Gabarito with the brass bar under them, entries as in a station's panel.
- * No boxes, cards or borders; the sections are set apart by space alone.
+ * No boxes, cards or borders; the sections are set apart by space alone. On a wide screen it is
+ * laid out like the pause menu: the name over a list of the sections, the reading to the right.
  */
 
 *,
@@ -99,6 +100,35 @@ body {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* ---------- The list of sections ---------- */
+
+/* On a narrow screen there is no room beside the reading for it, and the headings guide instead. */
+.pf-nav {
+  display: none;
+}
+
+.pf-nav ul {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The section words, as the pause menu's tabs: the one being read in ivory with the bar. */
+.pf-nav-link {
+  min-height: 38px;
+  font: 700 19px/1.2 var(--font-display);
+  letter-spacing: -0.005em;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+
+.pf-nav-link::after {
+  bottom: 2px;
 }
 
 /* ---------- Sections ---------- */
@@ -280,6 +310,36 @@ body {
 
 .pf-footer p {
   margin: 0;
+}
+
+/* ---------- Wide screens: the pause menu's layout ---------- */
+
+@media (min-width: 1040px) {
+  .pf {
+    display: grid;
+    grid-template-columns: 200px minmax(0, var(--measure));
+    column-gap: 96px;
+    width: calc(200px + 96px + var(--measure) + 2 * var(--gutter));
+  }
+
+  .pf-header {
+    grid-column: 1 / -1;
+  }
+
+  .pf-nav {
+    display: block;
+    grid-column: 1;
+    align-self: start;
+    position: sticky;
+    top: 48px;
+    /* Level with the first section's title. */
+    margin-top: var(--between);
+  }
+
+  .pf-main,
+  .pf-footer {
+    grid-column: 2;
+  }
 }
 
 /* ---------- Phones ---------- */
