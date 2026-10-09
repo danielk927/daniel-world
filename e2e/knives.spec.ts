@@ -128,13 +128,23 @@ test('a cook knocked out sees no labels and opens no station until back up', asy
   const server = await startRoomServer();
   try {
     const { thrower, target } = await knockOutInParty(browser, 'e2e-down');
-    // Into the menu and straight back out, still on the floor: the labels stay away.
-    await target.keyboard.press('Escape');
-    await expectWorld(target, (w) => w.mode === 'paused', 'the menu opens');
-    await target.keyboard.press('Escape');
-    const back = await expectWorld(target, (w) => w.mode === 'playing', 'the menu closes');
-    expect(back.knockedOut).toBe(true);
-    expect(back.labels).toBe(false);
+    // Into the menu and straight back out, still on the floor: the labels stay away. Done in the
+    // page, a frame apart, so it fits in the time down even on a machine too busy for round trips.
+    const back = await target.evaluate(async () => {
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const escape = (at: EventTarget) =>
+        at.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
+        );
+      escape(window);
+      await frame();
+      const menu = window.__world!.mode;
+      escape(document.activeElement ?? document.body);
+      await frame();
+      const { mode, knockedOut, labels } = window.__world!;
+      return { menu, mode, knockedOut, labels };
+    });
+    expect(back).toEqual({ menu: 'paused', mode: 'playing', knockedOut: true, labels: false });
 
     // For the rest of the time down, the cursor goes over the view from the floor, where stations
     // are in sight, and E is pressed on anything that gets picked: nothing does, and nothing opens.
