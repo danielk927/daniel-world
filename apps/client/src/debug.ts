@@ -13,7 +13,8 @@ export interface WorldDebugState {
   readonly connection: 'none' | 'connecting' | 'online' | 'offline';
   readonly room: string | null;
   readonly selfId: number | null;
-  readonly player: { x: number; y: number; z: number; grounded: boolean };
+  /** The local player as simulated; `speed` is how fast they move over the floor, in m/s. */
+  readonly player: { x: number; y: number; z: number; grounded: boolean; speed: number };
   /** Where the player is looking, in radians. */
   readonly look: { yaw: number; pitch: number };
   /** The camera as last drawn: where the player sees from, which can trail the simulation. */
@@ -112,7 +113,7 @@ export function installDebugHooks(game: Game, world: WorldScene): void {
     },
     get player() {
       const s = game.player.state;
-      return { x: s.x, y: s.y, z: s.z, grounded: s.grounded };
+      return { x: s.x, y: s.y, z: s.z, grounded: s.grounded, speed: Math.hypot(s.vx, s.vz) };
     },
     get look() {
       return { yaw: game.input.yaw, pitch: game.input.pitch };
