@@ -988,6 +988,8 @@ export class OutsideView {
   private readonly view: Mesh<BufferGeometry, MeshBasicMaterial>;
   private readonly bulbs: Mesh<BufferGeometry, MeshBasicMaterial>;
   private readonly glow: number;
+  /** Whether the string lights are on at this hour. */
+  private lit = false;
 
   /** `hdr`: the bulbs shine brighter than white, for the bloom to catch. */
   constructor(look: SkyLook, hdr: boolean) {
@@ -1016,8 +1018,17 @@ export class OutsideView {
     this.setLamps(look.lamps);
   }
 
+  /**
+   * Show the bulbs whatever the hour, or put them back as the hour has them: a shader compiles only
+   * for what shows, and theirs is used by nothing else, so it would otherwise compile at dusk, mid-play.
+   */
+  showForCompile(show: boolean): void {
+    this.bulbs.visible = show || this.lit;
+  }
+
   private setLamps(lamps: number): void {
     this.bulbs.material.color.copy(BULB).multiplyScalar(this.glow * lamps);
-    this.bulbs.visible = lamps > 0.02;
+    this.lit = lamps > 0.02;
+    this.bulbs.visible = this.lit;
   }
 }

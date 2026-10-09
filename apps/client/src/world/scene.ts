@@ -61,8 +61,7 @@ export class WorldScene {
   private readonly outside: OutsideView;
   /** The LED clock over the dining room doors, on the visitor's local time. */
   private readonly clock: KitchenClock;
-  /** The local hour the look was painted for, and the quarter hour it falls in. */
-  hour: number;
+  /** The quarter hour of the visitor's local time the look was painted for. */
   private quarter: number;
   /** Seconds until the clock is checked for a new quarter hour. */
   private lookCheck = 0;
@@ -96,9 +95,9 @@ export class WorldScene {
     this.lighting = createLighting(this.scene, this.renderer, quality);
     this.viewmodel.matchLighting(high, this.scene.environment, this.scene.environmentIntensity);
 
-    this.hour = visitorHour(new Date(), location.search);
-    this.quarter = Math.floor(this.hour * 4);
-    const look = lookAt(this.hour);
+    const hour = visitorHour(new Date(), location.search);
+    this.quarter = Math.floor(hour * 4);
+    const look = lookAt(hour);
     this.lighting.applyLook(look);
     this.outside = new OutsideView(look, high);
     this.scene.add(this.outside.group);
@@ -147,8 +146,28 @@ export class WorldScene {
   startGovernor(refreshMs: number): void {
     if (!this.post) return;
     const stored = Number(storage.get(RENDER_LEVEL_KEY));
-    this.governor = new QualityGovernor(refreshMs, Number.isInteger(stored) ? stored : 0);
+    this.governor = new QualityGovernor(
+      refreshMs,
+      Number.isInteger(stored) ? stored : 0,
+      window.devicePixelRatio,
+    );
     this.applyRenderLevel(this.governor.level);
+    this.watchDeviceRatio();
+  }
+
+  /**
+   * Moving the window to a screen of another ratio need not resize it, so watch the ratio itself;
+   * a query matches one ratio, so each change sets up the next.
+   */
+  private watchDeviceRatio(): void {
+    matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener(
+      'change',
+      () => {
+        this.resize();
+        this.watchDeviceRatio();
+      },
+      { once: true },
+    );
   }
 
   /** The governor's current level, or null without one. */
@@ -158,12 +177,20 @@ export class WorldScene {
 
   private applyRenderLevel(index: number): void {
     const level = RENDER_LEVELS[index]!;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, level.pixelRatio));
     this.post?.setQuality(level.msaa, level.ambientOcclusion);
     this.resize();
   }
 
   resize(): void {
+    // The screen's ratio changes with the browser's zoom and from screen to screen; levels that drew
+    // the same may not now, so the governor regroups them (the effects stay as they are).
+    if (this.governor) {
+      const ratio = window.devicePixelRatio;
+      const changed = this.governor.setDeviceRatio(ratio);
+      if (changed !== null) storage.set(RENDER_LEVEL_KEY, String(changed));
+      const level = RENDER_LEVELS[this.governor.level]!;
+      this.renderer.setPixelRatio(Math.min(ratio, level.pixelRatio));
+    }
     const width = window.innerWidth;
     const height = window.innerHeight;
     this.renderer.setSize(width, height, false);
@@ -189,6 +216,7 @@ export class WorldScene {
     // and compile everything both without and with its light, so the door opening never stalls.
     this.cooler.mist.visible = true;
     if (this.coolerRoom) this.coolerRoom.visible = true;
+    this.outside.showForCompile(true);
     const coldLight = this.cooler.light.visible;
     this.cooler.light.visible = false;
     await this.renderer.compileAsync(this.scene, this.camera);
@@ -196,6 +224,7 @@ export class WorldScene {
     await this.renderer.compileAsync(this.scene, this.camera);
     this.cooler.light.visible = coldLight;
     await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
+    this.outside.showForCompile(false);
     this.showCooler();
   }
 
@@ -239,7 +268,6 @@ export class WorldScene {
     if (quarter === this.quarter) return;
     this.quarter = quarter;
     const repaint = (): void => {
-      this.hour = hour;
       const look = lookAt(hour);
       this.outside.repaint(look);
       this.lighting.applyLook(look);

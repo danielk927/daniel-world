@@ -73,6 +73,22 @@ interface DentShape {
 }
 
 /** The shape of the `index`th dent: everything but its place comes from a seed of that place. */
+/**
+ * Whether a knife stuck with its tip at (x, y, z) is in the door, to be carried with it. The door
+ * reaches a little past the doorway behind its frame, where no knife can reach it, so the doorway
+ * bounds it: a knife in the sides of the opening sinks past them and stays put as the door swings.
+ */
+export function doorCarries(x: number, y: number, z: number): boolean {
+  return (
+    x >= FACE - 1e-3 &&
+    x <= FACE + THICKNESS &&
+    z > DOORS.walkIn.from &&
+    z < DOORS.walkIn.to &&
+    y >= COOLER_DOOR.bottom &&
+    y <= COOLER_DOOR.top
+  );
+}
+
 export function dentShape(dent: CoolerDent, index: number): DentShape {
   const seed = Math.round(dent.z * 1000) * 7919 + Math.round(dent.y * 1000) * 104729 + index * 31;
   const random = createRandom(seed);
@@ -417,14 +433,7 @@ export class CoolerDoor {
 
   /** Whether a knife stuck with its tip at (x, y, z) is in the door, to be carried with it. */
   carries(x: number, y: number, z: number): boolean {
-    return (
-      x >= FACE - 1e-3 &&
-      x <= FACE + THICKNESS &&
-      z >= COOLER_DOOR.from &&
-      z <= COOLER_DOOR.to &&
-      y >= COOLER_DOOR.bottom &&
-      y <= COOLER_DOOR.top
-    );
+    return doorCarries(x, y, z);
   }
 
   /** Show exactly these hits, at once: shut and dented, or open against the wall. */
@@ -464,10 +473,12 @@ export class CoolerDoor {
 
   /** Per frame: the swing, the jolt, the readout's flicker. */
   update(time: number, dt: number): void {
-    if (this.swinging) this.swing(dt);
+    // Read before the swing, whose last step stops it, so that step is drawn too.
+    const swinging = this.swinging;
+    if (swinging) this.swing(dt);
     const sinceJolt = time - this.joltAt;
     const jolting = sinceJolt < 0.5;
-    if (jolting || this.swinging || this.moved) this.place(time);
+    if (jolting || swinging || this.moved) this.place(time);
     this.flickerReadout(time);
   }
 

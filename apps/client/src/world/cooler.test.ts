@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { COOLER_HITS_TO_OPEN, type CoolerDent } from '@world/shared';
-import { damageAt, dentShape } from './cooler.ts';
+import {
+  COOLER_HITS_TO_OPEN,
+  DOORS,
+  KNIFE_MAX_FLIGHT_SECONDS,
+  ROOM_HALF_X,
+  flyKnife,
+  launchKnife,
+  type CoolerDent,
+} from '@world/shared';
+import { damageAt, dentShape, doorCarries } from './cooler.ts';
 
 const fist: CoolerDent = { z: -3, y: 1.62, by: 'fist' };
 const knife: CoolerDent = { z: -2.6, y: 1.1, by: 'knife' };
@@ -54,5 +62,35 @@ describe('the walk-in door, worse with every hit', () => {
   it('shifts in its frame just before it gives', () => {
     expect(stages[COOLER_HITS_TO_OPEN - 3]!.shift).toBe(0);
     expect(stages[COOLER_HITS_TO_OPEN - 1]!.shift).toBeGreaterThan(0);
+  });
+});
+
+describe('the knives the walk-in door carries', () => {
+  it('are those stuck in its face', () => {
+    expect(doorCarries(ROOM_HALF_X + 0.03, 1.2, (DOORS.walkIn.from + DOORS.walkIn.to) / 2)).toBe(
+      true,
+    );
+  });
+
+  it('are never those stuck in the sides of the doorway, once it is open', () => {
+    // Shallow throws along the doorway into its sides, which a knife sinks into a few millimetres.
+    let sideHits = 0;
+    for (const side of [-1, 1]) {
+      const z = side < 0 ? DOORS.walkIn.from : DOORS.walkIn.to;
+      for (let from = 0.6; from <= 4; from += 0.2) {
+        for (let lean = 0.04; lean <= 0.25; lean += 0.03) {
+          // Crossing the side halfway through the wall, 10 cm past the kitchen face.
+          const start = { x: ROOM_HALF_X - from, z: z - side * (from + 0.1) * Math.tan(lean) };
+          // Facing east (yaw -pi/2), turned a little toward the side.
+          const knife = launchKnife(start.x, 1.3, start.z, -Math.PI / 2 - side * lean, 0);
+          const hit = flyKnife(knife, KNIFE_MAX_FLIGHT_SECONDS, [], -1, true);
+          if (hit?.kind !== 'surface' || hit.x < ROOM_HALF_X || Math.abs(hit.z - z) > 0.02)
+            continue;
+          sideHits++;
+          expect(doorCarries(hit.x, hit.y, hit.z), `${hit.x} ${hit.y} ${hit.z}`).toBe(false);
+        }
+      }
+    }
+    expect(sideHits).toBeGreaterThan(10);
   });
 });
