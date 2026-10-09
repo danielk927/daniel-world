@@ -26,7 +26,7 @@ export class Impact {
   ]);
   private readonly bannerName = el('span', { class: 'hit-banner-name' });
   private readonly banner = el('div', { class: 'hit-banner', attrs: { role: 'status' } }, [
-    el('span', { class: 'hit-banner-label', text: 'Knocked out' }),
+    el('span', { class: 'kicker hit-banner-label', text: 'Knocked out' }),
     this.bannerName,
   ]);
   private bannerTimer = 0;

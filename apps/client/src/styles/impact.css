@@ -32,7 +32,7 @@
   inset: 0;
   pointer-events: none;
   opacity: 0;
-  background: var(--navy-deep);
+  background: var(--night);
 }
 
 .impact-blink.is-playing {
@@ -64,8 +64,8 @@
   width: 2px;
   height: 9px;
   margin: -4.5px 0 0 -1px;
-  background: var(--ivory);
-  box-shadow: 0 0 0 1px rgba(10, 14, 36, 0.35);
+  background: var(--ink);
+  box-shadow: 0 0 0 1px rgb(var(--night-rgb) / 0.35);
 }
 
 .hit-marker i:nth-child(1) {
@@ -103,6 +103,7 @@
   }
 }
 
+/* Whom the thrower's knife knocked out, said as the knocked out screen says it. */
 .hit-banner {
   position: absolute;
   /* Clear of the station prompt and of name tags around the crosshair. */
@@ -110,11 +111,10 @@
   left: 50%;
   display: grid;
   justify-items: center;
-  gap: 2px;
+  gap: 4px;
   transform: translate(-50%, 6px);
   pointer-events: none;
   opacity: 0;
-  text-shadow: 0 1px 8px rgba(10, 14, 36, 0.85);
   transition:
     opacity 0.3s ease,
     transform 0.3s ease;
@@ -125,18 +125,22 @@
   transform: translate(-50%, 0);
 }
 
-.hit-banner-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+/* The name in the display face, a dot of the cook's color hung before it so the name stays centered. */
+.hit-banner-name {
+  position: relative;
+  font: 700 30px/1.1 var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
-.hit-banner-name {
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 600;
-  color: var(--ivory);
-  border-bottom: 2px solid var(--player-color, var(--ivory));
+.hit-banner-name::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 10px);
+  width: 9px;
+  height: 9px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--player-color, var(--ink));
 }

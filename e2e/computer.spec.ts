@@ -10,7 +10,7 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   await turnTo(page, Math.PI / 2, -0.3);
 
   // Without pointer lock the game picks under the cursor: find the screen around the middle.
-  const prompt = page.locator('.prompt');
+  const prompt = page.locator('.prompt-sentence');
   let found = false;
   for (let y = 200; y < 400 && !found; y += 8) {
     await page.mouse.move(480, y);

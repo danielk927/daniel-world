@@ -9,15 +9,55 @@ export interface HudPlayer {
   isSelf: boolean;
 }
 
+/**
+ * The most names the list shows. Past this, the last row counts the rest, so a full room does not
+ * run the list down into the kill feed and the loadout.
+ */
+export const MAX_PLAYER_ROWS = 8;
+
+/** How many names to list for a room of `total`, the rest folded into one "and N more" row. */
+export function listedPlayers(total: number): number {
+  return total <= MAX_PLAYER_ROWS ? total : MAX_PLAYER_ROWS - 1;
+}
+
+/** The prompt read out in full: "Open Products" becomes "Press E to open Products". */
+export function promptSentence(action: string): string {
+  return `Press E to ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
+}
+
+/** A row of ring keys and the words for what they do, as the controls hints show them. */
+function keyHints(
+  className: string,
+  pairs: readonly (readonly [key: string, action: string])[],
+): HTMLElement {
+  const items: (HTMLElement | string)[] = [];
+  for (const [key, action] of pairs) {
+    // The spaces between items keep the words apart for screen readers; flex layout drops them.
+    if (items.length) items.push(' ');
+    items.push(el('span', { class: 'hint-item' }, [el('kbd', { text: key }), ` ${action}`]));
+  }
+  return el('div', { class: className }, items);
+}
+
 /** Always-on in-world overlay: crosshair, prompt, room and connection, player list, controls hint. */
 export class Hud {
   readonly element: HTMLElement;
   private readonly crosshair = el('div', { class: 'crosshair' });
-  private readonly prompt = el('div', { class: 'prompt', attrs: { 'aria-live': 'polite' } });
+  /** The prompt in full, for screen readers (and tests); on screen it is the E ring and the action. */
+  private readonly promptText = el('span', { class: 'prompt-sentence visually-hidden' });
+  private readonly promptAction = el('span', { class: 'prompt-action' });
+  private readonly prompt = el('div', { class: 'prompt', attrs: { 'aria-live': 'polite' } }, [
+    this.promptText,
+    el('span', { class: 'prompt-cue', attrs: { 'aria-hidden': 'true' } }, [
+      el('kbd', { text: 'E' }),
+      this.promptAction,
+    ]),
+  ]);
   /** While the mouse is free in play: how to get it back for looking around. */
   private readonly lookCue = el('div', { class: 'look-cue', text: 'Click to look around' });
   private lookCueShown = false;
-  private readonly roomLabel = el('span', { class: 'hud-label', text: 'Room' });
+  /** "Party" before a party's code; the lobby's name says what it is. */
+  private readonly roomKind = el('span', { class: 'hud-room-kind', text: 'Party ' });
   private readonly roomName = el('span', { class: 'hud-room-name' });
   private readonly statusDot = el(
     'span',
@@ -31,46 +71,33 @@ export class Hud {
     class: 'visually-hidden',
     attrs: { role: 'status' },
   });
-  private readonly playerCount = el('span', { class: 'hud-players-count' });
+  private readonly playerCount = el('p', { class: 'hud-players-count' });
   private readonly fps = el('span', { class: 'hud-fps', attrs: { hidden: '' } });
   private readonly playerList = el('ul', { class: 'hud-players-list' });
-  private readonly hint = el('div', { class: 'hint' }, [
-    el('kbd', { text: 'WASD' }),
-    ' move ',
-    el('kbd', { text: 'Space' }),
-    ' jump ',
-    el('kbd', { text: 'Shift' }),
-    ' sprint ',
-    el('kbd', { text: 'Q' }),
-    ' switch ',
-    el('kbd', { text: 'I' }),
-    ' inspect',
+  private readonly hint = keyHints('hint', [
+    ['WASD', 'move'],
+    ['Space', 'jump'],
+    ['Shift', 'sprint'],
+    ['Q', 'switch'],
+    ['I', 'inspect'],
   ]);
   /** How to play DOOM, and how to stop, while at the kitchen computer. */
-  private readonly computerHint = el('div', { class: 'hint computer-hint' }, [
-    el('kbd', { text: 'Mouse' }),
-    ' turn ',
-    el('kbd', { text: 'Click' }),
-    ' fire ',
-    el('kbd', { text: 'E' }),
-    ' open ',
-    el('kbd', { text: 'WASD' }),
-    ' move ',
-    el('kbd', { text: 'Shift' }),
-    ' run ',
-    el('kbd', { text: 'Tab' }),
-    ' map ',
-    el('kbd', { text: '`' }),
-    ' menu ',
-    el('kbd', { text: 'Esc' }),
-    ' step away',
+  private readonly computerHint = keyHints('hint computer-hint', [
+    ['Mouse', 'turn'],
+    ['Click', 'fire'],
+    ['E', 'open'],
+    ['WASD', 'move'],
+    ['Shift', 'run'],
+    ['Tab', 'map'],
+    ['`', 'menu'],
+    ['Esc', 'step away'],
   ]);
   /** The bottom right corner, where the loadout stacks over the minimap. */
   readonly corner = el('div', { class: 'hud-corner' });
   /** Under the player list, top right: where the kill feed goes. */
   readonly feedSlot = el('div', { class: 'hud-feed' });
   private hintTimer = 0;
-  private promptText = '';
+  private promptShown = '';
   private playersKey = '';
 
   constructor(parent: HTMLElement) {
@@ -78,25 +105,16 @@ export class Hud {
       this.crosshair,
       this.prompt,
       this.lookCue,
-      el('div', { class: 'hud-panel hud-room' }, [
-        this.roomLabel,
-        this.roomName,
-        this.status,
-        this.fps,
+      el('div', { class: 'hud-room' }, [
+        el('p', { class: 'hud-room-title' }, [this.roomKind, this.roomName]),
+        el('div', { class: 'hud-room-line' }, [this.status, this.fps]),
         this.statusAnnouncement,
       ]),
       el('div', { class: 'hud-right' }, [
-        el(
-          'section',
-          { class: 'hud-panel hud-players', attrs: { 'aria-label': 'Players in this room' } },
-          [
-            el('div', { class: 'hud-players-head' }, [
-              el('span', { class: 'hud-label', text: 'Players' }),
-              this.playerCount,
-            ]),
-            this.playerList,
-          ],
-        ),
+        el('section', { class: 'hud-players', attrs: { 'aria-label': 'Players in this room' } }, [
+          this.playerCount,
+          this.playerList,
+        ]),
         this.feedSlot,
       ]),
       this.hint,
@@ -133,8 +151,8 @@ export class Hud {
 
   setRoom(code: string): void {
     const party = code !== DEFAULT_ROOM;
-    this.roomLabel.textContent = party ? 'Party' : 'Room';
-    this.roomName.textContent = party ? `#${code}` : 'lobby';
+    this.roomKind.hidden = !party;
+    this.roomName.textContent = party ? `#${code}` : 'The lobby';
   }
 
   /**
@@ -181,30 +199,44 @@ export class Hud {
     this.lookCue.classList.toggle('is-visible', shown);
   }
 
+  /** The room's cooks, yours first (marked "you"), each by a dot of their color. */
   setPlayers(players: readonly HudPlayer[]): void {
     const key = players.map((p) => `${p.id}:${p.name}:${p.color}:${p.isSelf}`).join('|');
     if (key === this.playersKey) return;
     this.playersKey = key;
     this.playerCount.textContent = `${players.length} / ${MAX_PLAYERS_PER_ROOM}`;
-    this.playerList.replaceChildren(
-      ...players.map((p) => {
-        const item = el('li', { class: 'hud-player' }, [
-          el('span', { class: 'hud-player-dot' }),
-          el('span', { class: 'hud-player-name', text: p.name }),
-          p.isSelf ? el('span', { class: 'hud-player-you', text: 'you' }) : null,
-        ]);
-        item.style.setProperty('--player-color', p.color);
-        return item;
-      }),
-    );
+    const listed = listedPlayers(players.length);
+    const rows: HTMLElement[] = players.slice(0, listed).map((p) => {
+      const item = el('li', { class: `hud-player${p.isSelf ? ' is-self' : ''}` }, [
+        el('span', { class: 'hud-player-name', text: p.name }),
+        // After the name, so a screen reader hears the name first; the styles put it in front.
+        p.isSelf ? el('span', { class: 'hud-player-you', text: 'you' }) : null,
+        el('span', { class: 'hud-player-dot' }),
+      ]);
+      item.style.setProperty('--player-color', p.color);
+      return item;
+    });
+    if (listed < players.length) {
+      rows.push(
+        el('li', {
+          class: 'hud-player hud-player-more',
+          text: `and ${players.length - listed} more`,
+        }),
+      );
+    }
+    this.playerList.replaceChildren(...rows);
   }
 
-  /** Text under the crosshair when an object can be clicked, or null to clear it. */
-  setPrompt(text: string | null): void {
-    const next = text ?? '';
-    if (next === this.promptText) return;
-    this.promptText = next;
-    this.prompt.textContent = next;
+  /**
+   * What E does at the object under the crosshair, as a verb phrase in sentence case ("Open
+   * Products", "Play DOOM"), or null to clear it.
+   */
+  setPrompt(action: string | null): void {
+    const next = action ?? '';
+    if (next === this.promptShown) return;
+    this.promptShown = next;
+    this.promptText.textContent = next && promptSentence(next);
+    this.promptAction.textContent = next;
     this.prompt.classList.toggle('is-visible', next !== '');
     this.crosshair.classList.toggle('is-active', next !== '');
   }

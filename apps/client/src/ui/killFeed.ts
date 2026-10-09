@@ -14,7 +14,8 @@ const MAX_ENTRIES = 4;
 
 /**
  * Who knocked out whom, in the top right corner under the player list, the way shooters do it:
- * thrower, knife, victim, each name in its cook's color. Lines this player is in stand out.
+ * thrower, knife, victim, each name in its cook's color. In lines this player is in, the knife is
+ * brass.
  */
 export class KillFeed {
   readonly element = el('div', { class: 'kill-feed', attrs: { 'aria-live': 'polite' } });

@@ -1,6 +1,33 @@
-/* Below this the controls hint would run into the loadout and minimap; the menu lists them too. */
-@media (max-width: 860px) {
+/* A smaller controls hint where the full one would crowd the chat and the bottom right corner. */
+@media (max-width: 1360px) {
+  :root {
+    --hint-reach: 288px;
+  }
+
   .hint {
+    gap: 18px;
+    font-size: 14px;
+  }
+
+  .hint-item {
+    gap: 8px;
+  }
+}
+
+/* Below this the hint would run into the chat, the loadout and the minimap; the menu lists them too. */
+@media (max-width: 1080px) {
+  .hint {
+    display: none;
+  }
+
+  .chat {
+    width: min(360px, calc(100vw - 2 * var(--hud-edge)));
+  }
+}
+
+/* DOOM's reminder is longer, and fits on one line down to here; the guide has shown the keys. */
+@media (max-width: 900px) {
+  .hud.is-computer .computer-hint {
     display: none;
   }
 }
