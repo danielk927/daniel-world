@@ -1,19 +1,37 @@
-import type { LoreEntry } from '../content.ts';
+import { dishes, stations, type LoreEntry } from '../content.ts';
 import { el, trapFocus } from './dom.ts';
 import { renderLoreBody } from './loreContent.ts';
 
-/** A station's section of the resume, in a large card in the middle of the screen. */
+const stationIds: readonly string[] = Object.keys(stations);
+const dishIds: readonly string[] = Object.keys(dishes);
+
+/** Which of the stations (or of the dishes) an entry is, in the order the resume reads. */
+function placeOf(entry: LoreEntry): { index: number; count: number; dish: boolean } | null {
+  const station = stationIds.indexOf(entry.id);
+  if (station >= 0) return { index: station, count: stationIds.length, dish: false };
+  const dish = dishIds.indexOf(entry.id);
+  if (dish >= 0) return { index: dish, count: dishIds.length, dish: true };
+  return null;
+}
+
+/**
+ * A station's section of the resume, or a dish on the pass: a column docked to the right edge over
+ * the darkened kitchen, the station still in view on the left. The title is the section; the
+ * station's own name stays on the portfolio page.
+ */
 export class InfoPanel {
   readonly element: HTMLElement;
   /** `look`: take the mouse back for looking around. Not after Esc, which the browser owns. */
   onClose: ((look: boolean) => void) | null = null;
-  private readonly kicker = el('p', { class: 'panel-kicker' });
-  private readonly title = el('h2', { class: 'panel-title', attrs: { id: 'panel-title' } });
-  private readonly body = el('div', { class: 'panel-body' });
+  private readonly title = el('h2', { class: 'title panel-title', attrs: { id: 'panel-title' } });
+  /** Where a dish was eaten. Stations have nothing here. */
+  private readonly where = el('p', { class: 'panel-where' });
+  /** The scrolling part, focused on open so the arrow keys and Page Down read on at once. */
+  private readonly body = el('div', { class: 'panel-body', attrs: { tabindex: '-1' } });
+  private readonly count = el('p', { class: 'panel-count' });
   private readonly closeButton = el('button', {
     class: 'icon-button panel-close',
     attrs: { type: 'button', 'aria-label': 'Close' },
-    text: '×',
   });
   private releaseFocus: (() => void) | null = null;
   current: LoreEntry | null = null;
@@ -31,19 +49,34 @@ export class InfoPanel {
         },
       },
       [
-        el('div', { class: 'panel-card', attrs: { tabindex: '-1' } }, [
+        el('div', { class: 'panel-column' }, [
           el('header', { class: 'panel-header' }, [
-            el('div', {}, [this.kicker, this.title]),
-            this.closeButton,
+            this.title,
+            el('span', { class: 'bar' }),
+            this.where,
           ]),
           this.body,
-          el('p', { class: 'panel-hint', text: 'Press E or Esc to close' }),
+          el('footer', { class: 'panel-footer' }, [
+            el('p', { class: 'panel-keys' }, [
+              el('kbd', { text: 'E' }),
+              ' or ',
+              el('kbd', { text: 'Esc' }),
+              ' to close',
+            ]),
+            this.count,
+          ]),
+          // Last in the column, so Tab from the text reaches it after the links.
+          this.closeButton,
         ]),
       ],
     );
     this.closeButton.addEventListener('click', () => this.close(true));
     this.element.addEventListener('keydown', (event) => {
       if (!this.isOpen) return;
+      if (event.key === 'Tab') {
+        this.tabFromBody(event);
+        return;
+      }
       // E closes it the way it opened, and the game goes straight back to looking around.
       const e = event.code === 'KeyE' && !event.repeat && !event.ctrlKey && !event.metaKey;
       if (event.key !== 'Escape' && !e) return;
@@ -63,17 +96,21 @@ export class InfoPanel {
 
   open(entry: LoreEntry): void {
     this.current = entry;
-    this.element.style.setProperty('--accent-entry', entry.color);
-    this.kicker.textContent = entry.kicker;
     this.title.textContent = entry.title;
-    this.body.replaceChildren(renderLoreBody(entry));
+    const place = placeOf(entry);
+    this.where.textContent = place?.dish ? entry.kicker : '';
+    this.where.hidden = !place?.dish;
+    this.count.replaceChildren(
+      ...(place ? [el('span', { text: String(place.index + 1) }), ` of ${place.count}`] : []),
+    );
+    this.body.replaceChildren(renderLoreBody(entry, 'text-link'));
     this.element.hidden = false;
     // Only once it shows: a hidden panel ignores this, and would open where the last one was left.
     this.body.scrollTop = 0;
     // Next frame, so the slide-in transition runs.
     requestAnimationFrame(() => this.element.classList.add('open'));
     this.releaseFocus = trapFocus(this.element);
-    this.element.querySelector<HTMLElement>('.panel-card')?.focus({ preventScroll: true });
+    this.body.focus({ preventScroll: true });
   }
 
   close(look = false): void {
@@ -87,5 +124,18 @@ export class InfoPanel {
     this.releaseFocus?.();
     this.releaseFocus = null;
     this.onClose?.(look);
+  }
+
+  /**
+   * Tab from the text itself, where focus starts, goes to the first link or the close button, and
+   * Shift+Tab to the last: neither way leaves the dialog. The focus trap handles the rest.
+   */
+  private tabFromBody(event: KeyboardEvent): void {
+    if (document.activeElement !== this.body) return;
+    const focusable = this.element.querySelectorAll<HTMLElement>('a[href], button');
+    const next = event.shiftKey ? focusable[focusable.length - 1] : focusable[0];
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
   }
 }

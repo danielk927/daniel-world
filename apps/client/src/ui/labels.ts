@@ -15,6 +15,11 @@ export interface LabelBox {
   /** This frame's projected state: bottom-center anchor point, scale, distance and opacity. */
   x: number;
   y: number;
+  /**
+   * How far below its bottom the label reaches on screen, in CSS pixels: a raised label's leader
+   * line and pin, down to the point it names. Part of the label when labels make way for each other.
+   */
+  drop: number;
   scale: number;
   distance: number;
   opacity: number;
@@ -35,20 +40,52 @@ export interface Label extends LabelBox {
   lastScale: number;
   lastOpacity: number;
   lastRank: number;
+  /** The leader's length in the label's own (unscaled) pixels, as last written to `--leader`. */
+  lastLeader: number;
+  /** How much of the leader shows, as last written to `--leader-alpha`. */
+  leaderAlpha: number;
+  lastLeaderAlpha: number;
 }
 
 export type Declutter = 'yield' | 'hold';
 
 const scratch = new Vector3();
+const pin = new Vector3();
+/** Half the width a leader and its pin take on screen, in CSS pixels. */
+const LEADER_HALF_WIDTH = 5;
+/** The least room between two labels' words, so neighbors never touch. */
+const LABEL_GAP = 6;
+/**
+ * A leader shows in full up to this share of the screen's height, and fades out by the next: close
+ * to a station it would cut across the view, and the label plainly names what is under it anyway.
+ */
+const LEADER_FULL = 0.07;
+const LEADER_GONE = 0.125;
 
+function boxesOverlap(
+  ax: number,
+  ahw: number,
+  aTop: number,
+  aBottom: number,
+  bx: number,
+  bhw: number,
+  bTop: number,
+  bBottom: number,
+): boolean {
+  return Math.abs(ax - bx) < ahw + bhw && aTop < bBottom && bTop < aBottom;
+}
+
+/** Labels hang above their anchor point, and a raised label's leader hangs below it, as a strip. */
 function overlaps(a: LabelBox, b: LabelBox): boolean {
-  // Labels hang above their anchor point, so compare the centers of their boxes.
-  const aw = a.width * a.scale;
-  const ah = a.height * a.scale;
-  const bw = b.width * b.scale;
-  const bh = b.height * b.scale;
+  const ahw = (a.width * a.scale) / 2;
+  const bhw = (b.width * b.scale) / 2;
+  const aTop = a.y - a.height * a.scale;
+  const bTop = b.y - b.height * b.scale;
+  const gap = LABEL_GAP / 2;
   return (
-    Math.abs(a.x - b.x) < (aw + bw) / 2 && Math.abs(a.y - ah / 2 - (b.y - bh / 2)) < (ah + bh) / 2
+    boxesOverlap(a.x, ahw + gap, aTop - gap, a.y + gap, b.x, bhw + gap, bTop - gap, b.y + gap) ||
+    (a.drop > 0 && boxesOverlap(a.x, LEADER_HALF_WIDTH, a.y, a.y + a.drop, b.x, bhw, bTop, b.y)) ||
+    (b.drop > 0 && boxesOverlap(b.x, LEADER_HALF_WIDTH, b.y, b.y + b.drop, a.x, ahw, aTop, a.y))
   );
 }
 
@@ -90,6 +127,10 @@ export function declutterLabels(labels: readonly LabelBox[], order: number[]): v
 /**
  * DOM labels pinned to points in the world (name tags, object titles). DOM text stays crisp at any
  * resolution and costs no draw calls. Positions update every frame without allocating.
+ *
+ * A label raised above its anchor (`offsetY`) hangs a leader down to it: the layer works out how
+ * long that is on screen and hands it to the stylesheet as `--leader`, in the label's own pixels,
+ * with `--leader-alpha` to fade out a leader that close up would be long.
  */
 export class LabelLayer {
   readonly element: HTMLElement;
@@ -138,6 +179,7 @@ export class LabelLayer {
       height: 0,
       x: 0,
       y: 0,
+      drop: 0,
       scale: 1,
       distance: 0,
       opacity: 0,
@@ -147,6 +189,9 @@ export class LabelLayer {
       lastOpacity: -1,
       rank: 0,
       lastRank: -1,
+      lastLeader: 0,
+      leaderAlpha: 0,
+      lastLeaderAlpha: 0,
     };
     this.labels.push(label);
     return label;
@@ -191,6 +236,18 @@ export class LabelLayer {
       }
       label.x = Math.round((scratch.x * 0.5 + 0.5) * this.width * 2) / 2;
       label.y = Math.round((-scratch.y * 0.5 + 0.5) * this.height * 2) / 2;
+      label.drop = 0;
+      label.leaderAlpha = 0;
+      if (label.offsetY > 0) {
+        pin.copy(label.anchor).project(this.camera);
+        const drop = Math.round((-pin.y * 0.5 + 0.5) * this.height * 2) / 2 - label.y;
+        const full = LEADER_FULL * this.height;
+        const gone = LEADER_GONE * this.height;
+        if (pin.z < 1 && drop > 0 && drop < gone) {
+          label.drop = drop;
+          label.leaderAlpha = Math.round(Math.min(1, (gone - drop) / (gone - full)) * 20) / 20;
+        }
+      }
       label.opacity =
         Math.round(Math.min(1, (label.maxDistance - distance) / (label.maxDistance * 0.25)) * 50) /
         50;
@@ -223,6 +280,16 @@ export class LabelLayer {
       label.element.style.zIndex = String(label.rank);
     }
     const { x, y, scale } = label;
+    // Drawn inside the scaled label, so in its own pixels.
+    const leader = Math.round((label.drop / scale) * 2) / 2;
+    if (leader !== label.lastLeader) {
+      label.lastLeader = leader;
+      label.element.style.setProperty('--leader', `${leader}px`);
+    }
+    if (label.leaderAlpha !== label.lastLeaderAlpha) {
+      label.lastLeaderAlpha = label.leaderAlpha;
+      label.element.style.setProperty('--leader-alpha', String(label.leaderAlpha));
+    }
     if (x !== label.lastX || y !== label.lastY || scale !== label.lastScale) {
       label.lastX = x;
       label.lastY = y;

@@ -17,7 +17,9 @@ export function link(label: string, href: string, className: string): HTMLAnchor
 
 function renderItem(item: LoreItem): HTMLElement {
   const title = item.href ? link(item.title, item.href, 'lore-item-link') : item.title;
-  return el('li', { class: 'lore-item' }, [
+  // Only a name and a line beside it, like a dish and where it was eaten: a row of a menu.
+  const brief = !item.subtitle && !item.description && !item.points?.length && !item.tags?.length;
+  return el('li', { class: brief ? 'lore-item lore-item-brief' : 'lore-item' }, [
     el('div', { class: 'lore-item-head' }, [
       el('h3', { class: 'lore-item-title' }, [title]),
       item.meta ? el('span', { class: 'lore-item-meta', text: item.meta }) : null,
@@ -41,8 +43,14 @@ function renderItem(item: LoreItem): HTMLElement {
   ]);
 }
 
-/** The body of a lore entry. Shared by the in-world info panel and the static portfolio page. */
-export function renderLoreBody(entry: LoreEntry): HTMLElement {
+/**
+ * The body of a lore entry. Shared by the in-world info panel and the static portfolio page, which
+ * styles its own links: `linkClass` is the class of the entry's links (Email, GitHub...).
+ */
+export function renderLoreBody(
+  entry: LoreEntry,
+  linkClass = 'button button-secondary',
+): HTMLElement {
   return el('div', { class: 'lore-body' }, [
     entry.image
       ? el('figure', { class: 'lore-photo' }, [
@@ -64,7 +72,7 @@ export function renderLoreBody(entry: LoreEntry): HTMLElement {
       ? el(
           'div',
           { class: 'lore-links' },
-          entry.links.map((l) => link(l.label, l.href, 'button button-secondary')),
+          entry.links.map((l) => link(l.label, l.href, linkClass)),
         )
       : null,
   ]);

@@ -9,6 +9,7 @@ function box(x: number, y: number, distance: number, options: Partial<LabelBox> 
     height: 24,
     x,
     y,
+    drop: 0,
     scale: 1,
     distance,
     opacity: 1,
@@ -29,6 +30,12 @@ describe('declutterLabels', () => {
 
   it('leaves labels that do not overlap alone', () => {
     expect(run([box(100, 100, 6), box(300, 100, 3), box(100, 200, 4)])).toEqual([1, 1, 1]);
+  });
+
+  it('keeps labels a few pixels apart, so neighbors never touch', () => {
+    expect(run([box(100, 100, 3), box(202, 100, 6)])).toEqual([1, 0]);
+    expect(run([box(100, 100, 3), box(100, 128, 6)])).toEqual([1, 0]);
+    expect(run([box(100, 100, 3), box(210, 100, 6)])).toEqual([1, 1]);
   });
 
   it('only gives way to labels that are actually showing', () => {
@@ -60,6 +67,23 @@ describe('declutterLabels', () => {
     const above = box(100, 30, 5);
     const below = box(100, 150, 5);
     expect(run([tall, above, below])).toEqual([1, 0, 1]);
+  });
+
+  it("counts a station label's leader as part of it, down to its pin", () => {
+    // A near label's leader runs down across a far label's words: the far one gives way.
+    const near = box(100, 100, 3, { drop: 80 });
+    const across = box(110, 150, 8);
+    expect(run([near, across])).toEqual([1, 0]);
+    // Below the pin, or clear of the line to one side, it stays.
+    const below = box(100, 210, 8);
+    const beside = box(170, 150, 8);
+    expect(run([box(100, 100, 3, { drop: 80 }), below, beside])).toEqual([1, 1, 1]);
+  });
+
+  it('keeps a near label whose words cross a far leader, and hides the far one', () => {
+    const far = box(100, 60, 8, { drop: 60 });
+    const near = box(130, 100, 3);
+    expect(run([far, near])).toEqual([0, 1]);
   });
 
   it('stacks nearer labels above farther ones', () => {
