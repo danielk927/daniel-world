@@ -10,7 +10,7 @@ test('landing screen loads over the 3D world', async ({ page }) => {
 
 test('portfolio page renders every section', async ({ page }) => {
   await page.goto('/portfolio.html');
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(9);
+  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(10);
 });
 
 test('station labels that would overlap give way to the nearer one', async ({ browser }) => {

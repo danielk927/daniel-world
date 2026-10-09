@@ -295,6 +295,48 @@ body {
   gap: 4px 32px;
 }
 
+/* A photo keeps its frame, so the text never jumps while it loads. */
+.lore-photo {
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.lore-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The dishes: each photo beside its words. */
+.pf-dishes {
+  gap: 48px;
+  padding: 0;
+  list-style: none;
+}
+
+.pf-dish {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  align-items: start;
+  gap: 32px;
+}
+
+.pf-dish-photo {
+  aspect-ratio: 3 / 4;
+}
+
+.pf-dish-text .lore-item-subtitle {
+  margin-bottom: 14px;
+}
+
+.pf-dish-text .lore-paragraph + .lore-paragraph {
+  margin-top: 12px;
+}
+
 /* ---------- Footer ---------- */
 
 .pf-footer {
@@ -365,6 +407,16 @@ body {
 
   .lore-item-subtitle {
     font-size: 15px;
+  }
+
+  /* A dish's photo goes over its words, at the full width. */
+  .pf-dish {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .pf-dish-photo {
+    aspect-ratio: 4 / 3;
   }
 }
 
