@@ -308,9 +308,9 @@ describe('the view model', () => {
     const vm = ready();
     vm.startInspect();
     step(vm, 2.3);
-    // The knife turns about its length in the spinner.
-    const spinner = (vm as unknown as { spinner: Object3D }).spinner;
-    const spin = (): number => -spinner.rotation.z;
+    // How far the knife is turned about its length, as drawn.
+    const pose = (vm as unknown as { pose: ArmPose }).pose;
+    const spin = (): number => pose.spin;
     vm.startThrow();
     let previous = spin();
     let worst = 0;
@@ -471,21 +471,21 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('pressing I over and over with 
 describe('starting an inspect over', () => {
   it('takes the knife the shorter way to where the inspect is headed, not a whole turn round', () => {
     // Late in its inspect the karambit has spun to hang claw up over the ring: half a turn, where
-    // the inspect's opening swings it again. Starting over swings it back toward the start as the
-    // opening brings it up again, a little over half a turn in all, rather than spinning it a whole
-    // turn round to get there.
+    // the inspect's opening swings it again. Starting over swings it back the shorter way, half a
+    // turn, as the inspect blends in, rather than spinning it a whole turn round to get there.
     const vm = knifeUp('karambit');
     vm.startInspect();
     for (let t = 0; t < 2.3; t += FRAME) vm.update(FRAME, still as never, 0, 0, 0, true);
-    const flipper = (vm as unknown as { flipper: Object3D }).flipper;
-    let previous = flipper.rotation.x;
+    // How far it is turned end over end, as drawn.
+    const pose = (vm as unknown as { pose: ArmPose }).pose;
+    let previous = pose.flip;
     let turned = 0;
     expect(vm.startInspect()).toBe(true);
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 18; i++) {
       vm.update(FRAME, still as never, 0, 0, 0, true);
-      turned += offTurn(flipper.rotation.x - previous);
-      previous = flipper.rotation.x;
+      turned += offTurn(pose.flip - previous);
+      previous = pose.flip;
     }
-    expect(turned).toBeLessThan(Math.PI * 1.5);
+    expect(turned).toBeLessThan(Math.PI * 1.2);
   });
 });

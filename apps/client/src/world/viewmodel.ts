@@ -20,22 +20,19 @@ import { DEFAULT_LOOK, sameLook, type KnifeLook } from '@world/shared';
 import {
   FIST_POSE,
   HandRig,
-  LOOSENED,
   OPEN_POSE,
   FINGERS,
   FINGER_STRIDE,
+  POINT_POSE,
   gripPose,
   handPose,
-  handSegments,
   indexThrough,
   mixPose,
   placeHand,
-  proximalContact,
-  segments,
+  proximalAt,
   threadIndex,
   wristBend,
   type Grip,
-  type HandPose,
   type Placement,
 } from './hand.ts';
 import {
@@ -57,7 +54,7 @@ import {
   type Offset,
 } from './knifeMoves.ts';
 import { handKnifeMaterial, knifeModel, knifePartGeometry, type KnifeModel } from './knifeModel.ts';
-import type { Joint } from './knifeShapes.ts';
+import type { Joint, V2 } from './knifeShapes.ts';
 
 /**
  * The player's own arm, in the style of a CS2 view model: a white chef's sleeve and a hand coming
@@ -125,29 +122,65 @@ function still(out: ArmPose): void {
 }
 
 /**
+ * The knife's own channels (its turns, parts and hang) blend over at least this long, in two
+ * halves when it moves between the grip and the index finger: long enough for a knife cut short
+ * mid-spin to settle upright before it comes back into the hand.
+ */
+const KNIFE_BLEND = 0.5;
+/** Which way a cut takes the knife between the grip and the index finger, if either. */
+type Travel = 'off' | 'on' | 'none';
+const HANG_CHANNEL = CHANNELS.indexOf('hang');
+/** The first channel that moves the knife rather than the arm. */
+const KNIFE_CHANNELS = CHANNELS.indexOf('spin');
+
+/**
  * Blend `to` in, `t` seconds into a cut that lasts `duration`, out of where the arm was when cut
  * (`from`) carried on at the speed it was going (`speed`), dying away. The arm keeps its place and
  * its speed through the cut, so however often cuts come, it never jumps or jolts.
+ *
+ * The knife takes longer, and goes between the grip and the index finger only upright: leaving the
+ * finger, it settles upright on it, then comes back into the hand; going onto the finger, it gets
+ * there, then turns. A knife thrown or put away mid-spin goes from the finger. A knife on the finger
+ * and headed back onto it stays on it, however the clip blended in gets there.
  */
-function blend(from: ArmPose, speed: ArmPose, to: ArmPose, t: number, duration: number): void {
-  const k = 1 - smoothstep(clamp01(t / duration));
+function blend(
+  from: ArmPose,
+  speed: ArmPose,
+  to: ArmPose,
+  t: number,
+  duration: number,
+  travel: Travel,
+  hangFloor: number,
+): void {
   const carried = (1 - Math.exp(-CARRY * t)) / CARRY;
+  const arm = 1 - smoothstep(clamp01(t / duration));
+  const knife = Math.max(duration, KNIFE_BLEND);
+  const whole = 1 - smoothstep(clamp01(t / knife));
+  const first = 1 - smoothstep(clamp01((2 * t) / knife));
+  const second = 1 - smoothstep(clamp01((2 * t) / knife - 1));
+  const turns = travel === 'off' ? first : travel === 'on' ? second : whole;
+  const hang = travel === 'off' ? second : travel === 'on' ? first : whole;
   for (let i = 0; i < CHANNELS.length; i++) {
     const c = CHANNELS[i]!;
+    const k = i < KNIFE_CHANNELS ? arm : i === HANG_CHANNEL ? hang : turns;
     to[c] += (from[c] + speed[c] * carried - to[c]) * k;
   }
+  // Nor does it go back toward the grip further than either end of the cut has it.
+  to.hang = Math.max(to.hang, hangFloor);
 }
 
 /**
- * Turn `from`'s angles by whole turns, which look the same, to within half a turn of `aim`, where
- * the cut is headed once blended: the knife goes the shorter way there, and is not spun a whole
- * turn round to reach a pose it is already in. Chosen once, as the cut is made, so the way round
- * cannot flip partway.
+ * Turn `from`'s angles by whole turns, which look the same, so that where the cut carries them on
+ * to at `speed` is within half a turn of `aim`, where the cut is headed once blended: the knife goes
+ * the shorter way there from where it coasts to, and is neither spun a whole turn round to reach a
+ * pose it is already in nor whipped back to one it has spun past. Chosen once, as the cut is made,
+ * so the way round cannot flip partway.
  */
-function unwind(from: ArmPose, aim: Readonly<ArmPose>): void {
+function unwind(from: ArmPose, speed: Readonly<ArmPose>, aim: Readonly<ArmPose>): void {
   for (let i = 0; i < TURNS.length; i++) {
     const c = TURNS[i]!;
-    from[c] = aim[c] + turn(from[c], aim[c]);
+    const coast = speed[c] / CARRY;
+    from[c] = aim[c] + turn(from[c] + coast, aim[c]) - coast;
   }
 }
 
@@ -306,6 +339,7 @@ const HOLDS: Readonly<Record<KnifeModel['hold'], Quaternion>> = {
 const NO_OFFSET: Readonly<Offset> = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 };
 
 const X_AXIS = new Vector3(1, 0, 0);
+const Z_AXIS = new Vector3(0, 0, 1);
 /** The forearm, from the elbow toward the hand, in the arm's own frame. */
 const FOREARM = new Vector3(0, 0, -1);
 /** The bare hand: palm down, its wrist just inside the cuff. */
@@ -325,19 +359,19 @@ const FOREARM_FOLLOWS = 0.5;
 export interface KnifeHand {
   /** The fingers round its handle. */
   readonly grip: Grip;
-  /** The same hand opened partway, letting the handle go while the knife spins or hangs. */
-  readonly loose: HandPose;
   /** Where the wrist goes for that grip, in the arm's frame. */
   readonly placement: Placement;
   /** Spun on the index finger through a ring (karambit, talon, skeleton). */
   readonly ringed: boolean;
-  /** Where its ring hangs on the index finger, in the knife holder's space. */
-  readonly hang: Vector3;
+  /** Its ring is on the index finger in the grip too, not only when spun (karambit). */
+  readonly threaded: boolean;
+  /** How far along the index finger's proximal phalanx a threaded ring sits in the grip. */
+  readonly along: number;
   /**
-   * How it turns, about its ring, to hang along the finger through the ring (in the holder's
-   * space): the ring's hole lined up with the finger, so it spins round the finger.
+   * What it hangs from on the index finger, and turns end over end about, in model space: the
+   * middle of its ring, or beside its spine above the grip, a finger's thickness off it.
    */
-  readonly hangTurn: Quaternion;
+  readonly pivot: Vector3;
   /** Its handle's thickness where it is held, in the arm's frame. */
   readonly radius: number;
   /** How the forearm turns, at the wrist, toward the hand in this grip. */
@@ -379,6 +413,20 @@ const knifeHands = new Map<KnifeModel['skin'], KnifeHand>();
 
 /** How far a ring's hole may lean off the finger through it and still let the finger through. */
 const RING_TILT = 0.6;
+/** How far a spun knife's spine keeps off the finger it turns round, in the arm's units. */
+const SPINE_GAP = 0.001;
+/**
+ * Where on the index finger's proximal phalanx a spun knife hangs, as a share of its length from
+ * the knuckle: out past the fist the other fingers fold into, so the knife turns clear of them.
+ */
+const HANG_ALONG = 0.88;
+/**
+ * A knife on its way from the grip to the index finger, by how far along it is (`hang`): it stays
+ * put while the hand opens, by `open`; swings out from the palm (as far as `lift`) and round to the
+ * finger's line, `ahead` of where it hangs, by `round`, while the other fingers fold into a fist
+ * (from `fold` to `round`); and comes onto the finger along it (in the arm's units).
+ */
+const HANG = { open: 0.15, fold: 0.3, round: 0.6, lift: 0.06, ahead: 0.055 } as const;
 
 /**
  * A karambit's grip. The middle, ring and little fingers wrap the handle; the index finger, past
@@ -393,11 +441,11 @@ function threadRing(
   point: Vector3,
   ring: Vector3,
   hole: Vector3,
-): { grip: Grip; placement: Placement } | null {
+): { grip: Grip; placement: Placement; along: number } | null {
   const index = FINGERS[0]!;
   const toHand = new Quaternion();
   const local = new Vector3();
-  let best: { placement: Placement; local: Vector3; bend: number } | null = null;
+  let best: { placement: Placement; local: Vector3; bend: number; along: number } | null = null;
   for (let i = 0; i < 360; i++) {
     const turn = (i / 360) * Math.PI * 2;
     const placement = placeHand(grip.axis, grip.center, axis, point, FOREARM, turn);
@@ -413,15 +461,54 @@ function threadRing(
     const lean = Math.abs(finger.dot(hole.clone().applyQuaternion(toHand)));
     if (lean < Math.cos(RING_TILT)) continue;
     const bend = wristBend(placement, FOREARM);
-    if (!best || bend < best.bend) best = { placement, local: local.clone(), bend };
+    if (!best || bend < best.bend) {
+      best = { placement, local: local.clone(), bend, along: through.along };
+    }
   }
-  return best && { grip: threadIndex(grip, best.local), placement: best.placement };
+  return (
+    best && {
+      grip: threadIndex(grip, best.local),
+      placement: best.placement,
+      along: best.along,
+    }
+  );
+}
+
+/** The shortest way from a point to a segment, in side view. */
+function toSegment(z: number, y: number, [za, ya]: V2, [zb, yb]: V2): number {
+  const dz = zb - za;
+  const dy = yb - ya;
+  const length = dz * dz + dy * dy;
+  const t = length > 0 ? clamp01(((z - za) * dz + (y - ya) * dy) / length) : 0;
+  return Math.hypot(z - za - dz * t, y - ya - dy * t);
+}
+
+/**
+ * Where a knife without a ring turns about the index finger when spun (model space): above its
+ * spine at `z`, as far as a finger of `radius` takes to lie along it clear of every part, so the
+ * knife can turn round the finger with its spine against it.
+ */
+function spinePivot(model: KnifeModel, z: number, radius: number): Vector3 {
+  const clear = (y: number): boolean => {
+    for (const part of model.parts) {
+      for (const loop of part.outline) {
+        const points = loop.points;
+        for (let i = 0; i < points.length; i++) {
+          if (toSegment(z, y, points[i]!, points[(i + 1) % points.length]!) < radius) return false;
+        }
+      }
+    }
+    return true;
+  };
+  let y = handleAt(model, z).y;
+  while (!clear(y)) y += radius / 50;
+  return new Vector3(0, y, z);
 }
 
 /**
  * The hand round a knife's handle, turned to carry on from the forearm. A karambit's ring threads
- * the index finger (threadRing), so the knife spins round the finger; a talon or skeleton, held by
- * its handle, slides when spun to hang by its ring from the same place on the index finger.
+ * the index finger (threadRing), so the knife spins round the finger; every other knife, held by
+ * its handle, moves when spun onto the index finger to turn about it: by its ring, or by its spine.
  */
 export function knifeHand(model: KnifeModel): KnifeHand {
   const known = knifeHands.get(model.skin);
@@ -442,33 +529,21 @@ export function knifeHand(model: KnifeModel): KnifeHand {
   const ringed = pz !== gz || py !== gy;
   let grip = gripPose(radius);
   let placement = placeHand(grip.axis, grip.center, axis, point, FOREARM);
+  let threaded = false;
+  let along = HANG_ALONG;
   if (reverse) {
     const ring = threadRing(grip, axis, point, toArm(py, pz), X_AXIS.clone().applyQuaternion(hold));
-    if (ring) ({ grip, placement } = ring);
+    if (ring) ({ grip, placement, along } = ring);
+    threaded = ring !== null;
   }
-  // A spun talon or skeleton hangs by its ring where the index finger touches the handle, its hole
-  // turned onto the finger.
-  const toHolder = hold.clone().invert();
-  const inHolder = (v: Vector3): Vector3 =>
-    v.applyQuaternion(placement.quaternion).add(placement.position).applyQuaternion(toHolder);
-  const hang = inHolder(proximalContact(grip, 0, new Vector3())).divideScalar(KNIFE_SIZE);
-  const proximal = handSegments(grip.pose, segments())[0]!;
-  const finger = proximal.end
-    .clone()
-    .sub(proximal.start)
-    .applyQuaternion(placement.quaternion)
-    .applyQuaternion(toHolder)
-    .normalize();
-  const hangTurn = new Quaternion().setFromUnitVectors(
-    X_AXIS,
-    finger.dot(X_AXIS) < 0 ? finger.negate() : finger,
-  );
+  const pivot = ringed
+    ? new Vector3(0, py, pz)
+    : spinePivot(model, gz, (FINGERS[0]!.radius + SPINE_GAP) / KNIFE_SIZE);
   const reach = new Vector3(0, 0, -1).applyQuaternion(placement.quaternion);
   const forearm = new Quaternion()
     .identity()
     .slerp(new Quaternion().setFromUnitVectors(FOREARM, reach), FOREARM_FOLLOWS);
-  const loose = mixPose(handPose(), grip.pose, OPEN_POSE, LOOSENED);
-  const hand = { grip, loose, placement, ringed, hang, hangTurn, radius, forearm };
+  const hand = { grip, placement, ringed, threaded, along, pivot, radius, forearm };
   knifeHands.set(model.skin, hand);
   return hand;
 }
@@ -497,18 +572,35 @@ export class Viewmodel {
   private lastFlip = 0;
   private readonly bareTilt = new Euler();
   private readonly flipTurn = new Quaternion();
+  private readonly spinTurn = new Quaternion();
+  /**
+   * Where the knife hangs on the index finger this frame, the finger's line, and how the knife
+   * turns to hang there, in the holder's space; and which way along that line the fingertip is.
+   */
   private readonly hangAt = new Vector3();
+  private readonly hangAxis = new Vector3();
+  private readonly hangTurn = new Quaternion();
+  private hangSide = 1;
+  /** Out from the palm, and in front of the fingertip, on the knife's way to the finger. */
+  private readonly palmOut = new Vector3();
+  private readonly aheadAt = new Vector3();
+  /** The knife's pivot where it is held, turned about its length with it. */
+  private readonly heldAt = new Vector3();
+  /** From the arm's frame into the knife holder's turn. */
+  private readonly toHolder = new Quaternion();
   /** The frame's time step, for what eases inside apply. */
   private frameDt = 0;
-  /** The knife: held at the grip, turned about its length, turned end over end about its pivot. */
+  /**
+   * The knife: held at the grip; inside the holder, turned about its length and end over end about
+   * its pivot, which moves onto the index finger as it hangs there.
+   */
   private readonly knifeHolder = new Group();
-  private readonly spinner = new Group();
   private readonly flipper = new Group();
   private readonly model = new Group();
   /** The knife's moving parts, each turned by a pose channel. */
   private joints: { readonly group: Group; readonly joint: Joint }[] = [];
   private current: KnifeModel = knifeModel(DEFAULT_LOOK.skin);
-  /** From the grip to the pivot, in the knife's space: how far it slides to hang from its ring. */
+  /** From the grip to the pivot, in the knife's space. */
   private readonly toPivot = new Vector3();
   private currentLook: KnifeLook = DEFAULT_LOOK;
   private moves: KnifeMoves = KITCHEN;
@@ -569,6 +661,9 @@ export class Viewmodel {
   /** Where the arm was when last cut short, and how fast it was going; blended away from. */
   private readonly interrupted: ArmPose = { ...this.pose };
   private readonly interruptedSpeed: ArmPose = { ...this.pose };
+  /** Which way the last cut takes the knife, off the index finger or onto it, and how far. */
+  private travel: Travel = 'none';
+  private hangFloor = 0;
   /** Where an inspect will be once blended in. */
   private readonly inspectAim: ArmPose = { ...this.pose };
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
@@ -597,8 +692,7 @@ export class Viewmodel {
 
     // The knife, gripped in the fist. The holder turns it to the grip; the rest animate it.
     this.knifeHolder.scale.setScalar(KNIFE_SIZE);
-    this.knifeHolder.add(this.spinner);
-    this.spinner.add(this.flipper);
+    this.knifeHolder.add(this.flipper);
     this.flipper.add(this.model);
     this.build(DEFAULT_LOOK);
 
@@ -681,15 +775,16 @@ export class Viewmodel {
       parent.add(mesh);
     }
     this.knifeHolder.quaternion.copy(HOLDS[model.hold]);
+    this.toHolder.copy(HOLDS[model.hold]).invert();
     this.knifeHand = knifeHand(model);
     this.release = 0;
     this.lastFlip = 0;
     // The grip at the holder's origin; turned end over end about the pivot.
     const [gz, gy] = model.grip;
-    const [pz, py] = model.pivot;
-    this.toPivot.set(0, py - gy, pz - gz);
+    const { pivot } = this.knifeHand;
+    this.toPivot.set(0, pivot.y - gy, pivot.z - gz);
     this.flipper.position.copy(this.toPivot);
-    this.model.position.set(0, -py, -pz);
+    this.model.position.set(0, -pivot.y, -pivot.z);
   }
 
   /** Whether the arm is in view at all (in the world and standing). */
@@ -847,13 +942,17 @@ export class Viewmodel {
     if (!busy && !always) return;
     Object.assign(this.interrupted, this.pose);
     Object.assign(this.interruptedSpeed, this.poseSpeed);
-    unwind(this.interrupted, aim);
+    unwind(this.interrupted, this.interruptedSpeed, aim);
     this.sinceInspect = Infinity;
     this.sincePunch = Infinity;
     if (flourish) this.drawCut = true;
     this.idleTime = 0;
     this.sinceInterrupt = 0;
     this.interruptBlend = duration;
+    // Decided once, against where the cut is headed, so it cannot change partway.
+    const hang = clamp01(this.interrupted.hang) - clamp01(aim.hang);
+    this.travel = hang > 0.01 ? 'off' : hang < -0.01 ? 'on' : 'none';
+    this.hangFloor = Math.min(clamp01(this.interrupted.hang), clamp01(aim.hang));
   }
 
   /** The knife's middle in the world right now, where a knife leaving the hand starts from. */
@@ -966,37 +1065,22 @@ export class Viewmodel {
   private apply(): void {
     const pose = this.pose;
     this.poseNow(pose);
-    if (this.sinceInterrupt < this.interruptBlend) {
+    if (this.sinceInterrupt < Math.max(this.interruptBlend, KNIFE_BLEND)) {
       blend(
         this.interrupted,
         this.interruptedSpeed,
         pose,
         this.sinceInterrupt,
         this.interruptBlend,
+        this.travel,
+        this.hangFloor,
       );
     }
     const knife = this.holding === 'knife' && pose.knife;
     this.knifeHolder.visible = knife;
     this.gripping = this.holding === 'knife';
     this.poseHand(pose, knife);
-    // The knife turns about its length (toward its tip), end over end about its pivot, and opens.
-    this.spinner.rotation.set(0, 0, -pose.spin);
-    // Spun from its ring, it slides out of the grip to hang on the index finger, turned so the
-    // ring's hole lines up with the finger. The hang is worked out in the holder's space and the
-    // flipper sits inside the spin, so the hang point turns with it (a hanging knife is not spun).
-    const held = this.knifeHand;
-    const h = held.hang;
-    const cos = Math.cos(pose.spin);
-    const sin = Math.sin(pose.spin);
-    this.hangAt.set(h.x * cos - h.y * sin, h.x * sin + h.y * cos, h.z);
-    this.flipper.position.copy(this.toPivot).lerp(this.hangAt, pose.hang);
-    this.flipper.quaternion
-      .identity()
-      .slerp(held.hangTurn, pose.hang)
-      .multiply(this.flipTurn.setFromAxisAngle(X_AXIS, pose.flip));
-    for (const { group, joint } of this.joints) {
-      group.rotation.x = joint.sign * (joint.channel === 'a' ? pose.a : pose.b);
-    }
+    this.placeKnife(pose);
 
     // The held knife's own resting place; the pose itself stays relative to it.
     const rest = this.holding === 'knife' ? this.moves.rest : NO_OFFSET;
@@ -1019,8 +1103,62 @@ export class Viewmodel {
   }
 
   /**
+   * Turn the knife about its length and end over end, and open its parts. As it hangs, it moves
+   * from its place in the grip onto the index finger, as the finger is this frame, to turn end over
+   * end about the finger: its ring's hole round it, or its spine along it. Never allocates.
+   */
+  private placeKnife(pose: ArmPose): void {
+    const wrist = this.hand.wrist;
+    const held = this.knifeHand;
+    const hang = clamp01(pose.hang);
+    // A ring already on the finger slides along it, from where it sits in the grip.
+    const along = held.threaded ? lerp(held.along, HANG_ALONG, hang) : HANG_ALONG;
+    proximalAt(this.handPose, 0, along, this.hangAt, this.hangAxis);
+    this.hangAt
+      .applyQuaternion(wrist.quaternion)
+      .add(wrist.position)
+      .applyQuaternion(this.toHolder)
+      .divideScalar(KNIFE_SIZE);
+    this.hangAxis.applyQuaternion(wrist.quaternion).applyQuaternion(this.toHolder);
+    // Toward the fingertip, which way along the knife's own turning axis.
+    this.hangSide = this.hangAxis.x < 0 ? -1 : 1;
+    if (this.hangAxis.x < 0) this.hangAxis.negate();
+    this.hangTurn.setFromUnitVectors(X_AXIS, this.hangAxis);
+    // Held, it turns about its length through the grip.
+    this.spinTurn.setFromAxisAngle(Z_AXIS, -pose.spin);
+    this.heldAt.copy(this.toPivot).applyQuaternion(this.spinTurn);
+    if (held.threaded) {
+      this.flipper.position.copy(this.hangAt);
+      this.flipper.quaternion.slerpQuaternions(this.spinTurn, this.hangTurn, hang);
+    } else {
+      // Once the hand has opened, the knife swings out from the palm, round the hand rather than
+      // through it, turning to hang as it comes round to the finger's line in front of the
+      // fingertip; then it comes onto the finger along it, over the tip, as a ring goes on.
+      const round = smoothstep(clamp01((hang - HANG.open) / (HANG.round - HANG.open)));
+      const on = smoothstep(clamp01((hang - HANG.round) / (1 - HANG.round)));
+      this.aheadAt
+        .copy(this.hangAt)
+        .addScaledVector(this.hangAxis, (HANG.ahead * this.hangSide) / KNIFE_SIZE);
+      this.palmOut.set(-1, 0, 0).applyQuaternion(wrist.quaternion).applyQuaternion(this.toHolder);
+      this.flipper.position
+        .lerpVectors(this.heldAt, this.aheadAt, round)
+        .lerp(this.hangAt, on)
+        .addScaledVector(
+          this.palmOut,
+          (HANG.lift * (256 / 27) * round * (1 - round) ** 3) / KNIFE_SIZE,
+        );
+      this.flipper.quaternion.slerpQuaternions(this.spinTurn, this.hangTurn, round);
+    }
+    this.flipper.quaternion.multiply(this.flipTurn.setFromAxisAngle(X_AXIS, pose.flip));
+    for (const { group, joint } of this.joints) {
+      group.rotation.x = joint.sign * (joint.channel === 'a' ? pose.a : pose.b);
+    }
+  }
+
+  /**
    * Bend the hand and put it where it goes: round the knife's handle, letting go while the knife
-   * spins out of it or hangs from a finger, or bare, curling into a fist to punch.
+   * turns out of it, pointing while it is spun on the index finger, or bare, curling into a fist
+   * to punch.
    */
   private poseHand(pose: ArmPose, inHand: boolean): void {
     const dt = this.frameDt;
@@ -1035,10 +1173,20 @@ export class Viewmodel {
       const target = loose ? 1 : 0;
       const rate = target > this.release ? 28 : 10;
       this.release += (target - this.release) * (1 - Math.exp(-dt * rate));
-      mixPose(this.handPose, held.grip.pose, held.loose, this.release);
-      // A ring keeps the index finger round it.
-      if (held.ringed)
-        for (let i = 0; i < FINGER_STRIDE; i++) this.handPose[i] = held.grip.pose[i]!;
+      const grip = held.grip.pose;
+      // On its way to the index finger the knife leaves the open hand, which folds into a pointing
+      // fist while the knife is clear of it, ready for the knife to turn about the finger.
+      const hang = clamp01(pose.hang);
+      const open = Math.max(this.release, smoothstep(clamp01(hang / HANG.open)));
+      mixPose(this.handPose, grip, OPEN_POSE, open);
+      const point = smoothstep(clamp01((hang - HANG.fold) / (HANG.round - HANG.fold)));
+      mixPose(this.handPose, this.handPose, POINT_POSE, point);
+      // A ring on the finger keeps it through the ring, straightening as the ring slides out.
+      if (held.threaded) {
+        for (let i = 0; i < FINGER_STRIDE; i++) {
+          this.handPose[i] = grip[i]! + (POINT_POSE[i]! - grip[i]!) * hang;
+        }
+      }
       wrist.position.copy(held.placement.position);
       wrist.quaternion.copy(held.placement.quaternion);
     } else {

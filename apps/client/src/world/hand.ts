@@ -440,12 +440,14 @@ function solveThumb(
 }
 
 /**
- * Close the thumb over the fingers: its joint over the index finger's middle phalanx and its tip
- * over the middle finger's, just outside them, as a fist closes or a hand grips a handle.
+ * Close the thumb over the fingers: its joint over the middle phalanx of one finger (`over`, the
+ * index finger's) and its tip over the next one's, just outside them, as a fist closes or a hand
+ * grips a handle.
  */
 function wrapThumb(
   pose: HandPose,
   handle: { center: Vector3; axis: Vector3; radius: number },
+  over = 0,
 ): void {
   handSegments(pose, gripSegments);
   const target = (finger: number, radius: number, out: Vector3): Vector3 => {
@@ -456,8 +458,8 @@ function wrapThumb(
     outward.addScaledVector(handle.axis, -outward.dot(handle.axis)).normalize();
     return out.addScaledVector(outward, seg.radius + radius);
   };
-  const ip = target(0, THUMB.radii[1], new Vector3());
-  const tip = target(1, THUMB.radii[2], new Vector3());
+  const ip = target(over, THUMB.radii[1], new Vector3());
+  const tip = target(over + 1, THUMB.radii[2], new Vector3());
   pose[THUMB_AT] = 0.7;
   pose[THUMB_AT + 1] = 0.8;
   pose[THUMB_AT + 2] = -1;
@@ -551,8 +553,26 @@ export function proximalContact(grip: Grip, f: number, out: Vector3): Vector3 {
   return out.lerpVectors(seg.start, seg.end, grip.touch[f]! / FINGERS[f]!.lengths[0]);
 }
 
+const fist = gripPose(0.003);
+
 /** The bare hand clenched for a punch: fingers folded tight into the palm, the thumb across them. */
-export const FIST_POSE: HandPose = gripPose(0.003).pose;
+export const FIST_POSE: HandPose = fist.pose;
+
+/**
+ * The hand pointing, for a knife spun on the index finger: the index finger held out, a little
+ * curled, and the others folded into a fist behind it with the thumb across them, so a knife
+ * turning about the finger turns clear of the hand.
+ */
+export const POINT_POSE: HandPose = (() => {
+  const pose = fist.pose.slice();
+  pose[CUP] = 0;
+  pose[SPREAD] = 0;
+  pose[BEND] = 0.12;
+  pose[MIDDLE_JOINT] = 0.16;
+  pose[LAST_JOINT] = 0.1;
+  wrapThumb(pose, fist, 1);
+  return pose;
+})();
 
 /**
  * The bare hand at rest: fingers relaxed and a little curled, fanned a touch, and the thumb's joint
@@ -573,8 +593,25 @@ export const OPEN_POSE: HandPose = (() => {
   return pose;
 })();
 
-/** How far a hand opens from its grip, toward OPEN_POSE, to let a spinning knife's handle go. */
-export const LOOSENED = 0.55;
+const fkAxis = new Vector3();
+
+/**
+ * A point `along` a finger's proximal phalanx in a pose (a share of its length from the knuckle),
+ * and the way the phalanx runs, in hand space. Never allocates.
+ */
+export function proximalAt(
+  pose: HandPose,
+  f: number,
+  along: number,
+  point: Vector3,
+  direction: Vector3,
+): void {
+  const a = f * FINGER_STRIDE;
+  knucklePosition(f, pose[a + CUP]!, point);
+  fkQ.copy(fkCup).multiply(knuckle(pose[a + SPREAD]!, pose[a + BEND]!, fkKnuckle));
+  direction.copy(fkAxis.set(0, 0, -1)).applyQuaternion(fkQ);
+  point.addScaledVector(direction, along * FINGERS[f]!.lengths[0]);
+}
 
 // ---------- Placing the hand on a handle ----------
 
