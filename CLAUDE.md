@@ -16,7 +16,8 @@ npm test                     # vitest (all workspaces)
 npx playwright install chromium
 npm run e2e                  # playwright: builds the client in test mode into apps/client/dist-test-<client port>,
                              # serves it on :5174 and runs its own server on :3101; E2E_SERVER_PORT and
-                             # E2E_CLIENT_PORT move both, so two suites can run at once, even in one checkout
+                             # E2E_CLIENT_PORT move both, so two suites can run at once, even in one checkout;
+                             # E2E_CPU_THROTTLE=4 runs every page's CPU 4x slower, to see a spec holds when starved
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
 npm run bots -- --count 15   # simulated players for load testing
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)

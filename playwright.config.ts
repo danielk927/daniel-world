@@ -13,7 +13,8 @@ export default defineConfig({
   // Tests share one room server process and start/stop it, so run serially.
   workers: 1,
   fullyParallel: false,
-  // Several software-rendered pages share the CPU, so give each test generous room.
+  // A test's body; every page it takes into the world adds its own time to this (helpers.ts,
+  // ENTER_MS), so a test opening three pages is not held to what one page may take.
   timeout: 120_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? 'github' : 'list',

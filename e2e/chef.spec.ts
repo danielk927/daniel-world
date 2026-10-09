@@ -3,6 +3,7 @@ import {
   enterWorld,
   expect,
   expectWorld,
+  reenterWorld,
   type RoomServer,
   startRoomServer,
   test,
@@ -19,7 +20,11 @@ test.afterAll(async () => {
   await server.close();
 });
 
+/** Pacing until he throws can take up to a minute and a half, more than a body's usual time. */
+const PACING_MS = 180_000;
+
 test('Chef Skinner walks the lobby and throws at a cook on the move', async ({ browser }) => {
+  test.setTimeout(PACING_MS);
   const page = await enterWorld(browser, { name: 'Pacer' });
   const chef = await expectWorld(
     page,
@@ -55,7 +60,7 @@ test('Chef Skinner walks the lobby and throws at a cook on the move', async ({ b
 test('a visitor who switches him off is left alone while he throws at others', async ({
   browser,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(PACING_MS);
   /** What the room server knows about this page's visitor's choice. */
   const choice = async (page: Page) => {
     const { selfId } = await world(page);
@@ -81,14 +86,7 @@ test('a visitor who switches him off is left alone while he throws at others', a
   await expect.poll(() => choice(reader)).toBe(false);
 
   // Still off after a reload: saved, and in the hello of the new connection.
-  await reader.reload();
-  await reader.getByRole('button', { name: 'Enter the kitchen' }).click({ timeout: 60_000 });
-  await expectWorld(
-    reader,
-    (w) => w.mode === 'playing' && w.connection === 'online',
-    'Reader is back',
-    30_000,
-  );
+  await reenterWorld(reader, { name: 'Reader' });
   expect(await choice(reader)).toBe(false);
 
   // Two cooks pace the aisle; he throws at the one who has not turned him off, never the other.

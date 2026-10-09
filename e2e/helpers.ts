@@ -7,6 +7,26 @@ export { expect };
 export { startRoomServer, type RoomServer, type RoomView } from './roomServer.ts';
 
 /**
+ * The longest a page may take to build the kitchen and compile its shaders (until the landing's
+ * Enter button shows), and then to be in the world, playing and joined. Software rendering on a
+ * busy machine is slow, so these are generous; they bound a hang, they do not pace a test.
+ */
+const LOAD_MS = 60_000;
+const JOIN_MS = 30_000;
+/**
+ * What each page a test takes into the world adds to the test's time: `enterWorld` and
+ * `reenterWorld` add it as they go, so a test's budget is its pages' entries plus its body. The
+ * body's is the config's timeout, or what the test sets with `test.setTimeout` before it enters.
+ */
+export const ENTER_MS = LOAD_MS + JOIN_MS;
+
+/**
+ * How many times slower than this machine the pages' main threads run, from E2E_CPU_THROTTLE (as
+ * DevTools throttles the CPU), to see that a spec holds on a slow or starved machine.
+ */
+const CPU_THROTTLE = Number(process.env.E2E_CPU_THROTTLE ?? 1);
+
+/**
  * Playwright's `test`, which on a failure attaches what every room server running during the test
  * logged meanwhile, so a dropped connection says why. Specs that start a room server take `test`
  * from here.
@@ -106,14 +126,17 @@ export async function enterWorld(
   browser: Browser,
   options: { name: string; room?: string; online?: boolean; path?: string },
 ): Promise<Page> {
+  test.info().setTimeout(test.info().timeout + ENTER_MS);
   // A modest viewport keeps several software-rendered pages responsive on one machine.
   const context = await browser.newContext({ viewport: { width: 960, height: 540 } });
   const page = await context.newPage();
+  if (CPU_THROTTLE > 1) {
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  }
   await page.goto(options.path ?? '/');
-  // Pages already in the world keep rendering in software on the same CPU, so a third page can take
-  // a while to build the kitchen and compile its shaders.
   await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeVisible({
-    timeout: 60_000,
+    timeout: LOAD_MS,
   });
   await page.getByLabel('Your name').fill(options.name);
   if (options.room) {
@@ -123,14 +146,28 @@ export async function enterWorld(
     await page.getByLabel('Private party').fill(options.room);
   }
   await page.getByRole('button', { name: 'Enter the kitchen' }).click();
-  const online = options.online ?? true;
-  await expectWorld(
+  await expectInWorld(page, options.name, options.online ?? true);
+  return page;
+}
+
+/** Reload a page in the world and enter again from the landing screen, as it fills it in. */
+export async function reenterWorld(
+  page: Page,
+  options: { name: string; online?: boolean },
+): Promise<void> {
+  test.info().setTimeout(test.info().timeout + ENTER_MS);
+  await page.reload();
+  await page.getByRole('button', { name: 'Enter the kitchen' }).click({ timeout: LOAD_MS });
+  await expectInWorld(page, options.name, options.online ?? true);
+}
+
+function expectInWorld(page: Page, name: string, online: boolean): Promise<WorldDebugState> {
+  return expectWorld(
     page,
     (w) => w.mode === 'playing' && (!online || w.connection === 'online'),
-    `${options.name} should be ${online ? 'online and ' : ''}playing`,
-    30_000,
+    `${name} should be ${online ? 'online and ' : ''}playing`,
+    JOIN_MS,
   );
-  return page;
 }
 
 /**
