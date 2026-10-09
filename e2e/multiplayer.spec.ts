@@ -1,15 +1,16 @@
-import { expect, test } from '@playwright/test';
-import type { WorldServer } from '../apps/server/src/server.ts';
 import {
   enterWorld,
+  expect,
   expectWorld,
+  type RoomServer,
   startRoomServer,
+  test,
   waitUntilStill,
   walkUntil,
   world,
 } from './helpers.ts';
 
-let server: WorldServer;
+let server: RoomServer;
 
 test.beforeAll(async () => {
   server = await startRoomServer();

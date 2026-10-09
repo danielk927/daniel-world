@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
   EYE_HEIGHT,
   KNIFE_MAX_FLIGHT_SECONDS,
@@ -9,8 +9,10 @@ import {
 import { knifeMoves } from '../apps/client/src/world/knifeMoves.ts';
 import {
   enterWorld,
+  expect,
   expectWorld,
   startRoomServer,
+  test,
   turnTo,
   waitUntilStill,
   world,

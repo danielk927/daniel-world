@@ -1,8 +1,15 @@
-import { expect, test, type Page } from '@playwright/test';
-import type { WorldServer } from '../apps/server/src/server.ts';
-import { enterWorld, expectWorld, startRoomServer, world } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import {
+  enterWorld,
+  expect,
+  expectWorld,
+  type RoomServer,
+  startRoomServer,
+  test,
+  world,
+} from './helpers.ts';
 
-let server: WorldServer;
+let server: RoomServer;
 
 test.beforeAll(async () => {
   server = await startRoomServer();
@@ -52,7 +59,8 @@ test('a visitor who switches him off is left alone while he throws at others', a
   /** What the room server knows about this page's visitor's choice. */
   const choice = async (page: Page) => {
     const { selfId } = await world(page);
-    return selfId === null ? undefined : server.rooms.get('lobby')?.players.get(selfId)?.prefs.chef;
+    const lobby = await server.room('lobby');
+    return lobby?.players.find((player) => player.id === selfId)?.prefs.chef;
   };
 
   // Off in the settings menu, with the keyboard; the server hears at once.

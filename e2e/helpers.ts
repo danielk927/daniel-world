@@ -1,17 +1,37 @@
-import { expect, type Browser, type Page } from '@playwright/test';
+import { test as base, expect, type Browser, type Page } from '@playwright/test';
 import type { WorldDebugState } from '../apps/client/src/debug.ts';
-import { startServer, type WorldServer } from '../apps/server/src/server.ts';
-import { E2E_SERVER_PORT } from './ports.ts';
+import { roomServers } from './roomServer.ts';
 
 export type { WorldDebugState };
+export { expect };
+export { startRoomServer, type RoomServer, type RoomView } from './roomServer.ts';
 
 /**
- * Run the real room server inside the test process so tests can stop and restart it. Chef Skinner
- * is in the lobby, as in production.
+ * Playwright's `test`, which on a failure attaches what every room server running during the test
+ * logged meanwhile, so a dropped connection says why. Specs that start a room server take `test`
+ * from here.
  */
-export function startRoomServer(): Promise<WorldServer> {
-  return startServer({ port: E2E_SERVER_PORT, host: '127.0.0.1', chef: true });
-}
+export const test = base.extend<{ roomServerLogs: void }>({
+  roomServerLogs: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use, testInfo) => {
+      const before = roomServers.length;
+      const from = roomServers.map((server) => (server.closed ? null : server.log.length));
+      await use();
+      if (testInfo.status === testInfo.expectedStatus) return;
+      for (const [i, server] of roomServers.entries()) {
+        const start = i < before ? from[i] : 0;
+        if (start === null || start === undefined) continue;
+        const lines = server.log.slice(start);
+        await testInfo.attach(`room server on ${server.port} (#${i + 1} in this worker)`, {
+          body: lines.length > 0 ? lines.join('\n') : '(nothing logged)',
+          contentType: 'text/plain',
+        });
+      }
+    },
+    { auto: true },
+  ],
+});
 
 /** Read the page's debug state. */
 export function world(page: Page): Promise<WorldDebugState> {

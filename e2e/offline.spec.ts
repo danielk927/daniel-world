@@ -1,7 +1,6 @@
-import { expect, test } from '@playwright/test';
 import { WebSocketServer } from 'ws';
 import { CLOSE_BAD_HELLO } from '../apps/server/src/server.ts';
-import { enterWorld, expectWorld, startRoomServer, walkUntil } from './helpers.ts';
+import { enterWorld, expect, expectWorld, startRoomServer, test, walkUntil } from './helpers.ts';
 import { E2E_SERVER_PORT } from './ports.ts';
 
 test('with the server stopped the world still loads in single-player mode', async ({ browser }) => {

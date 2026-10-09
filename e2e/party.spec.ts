@@ -1,9 +1,16 @@
-import { expect, test, type Page } from '@playwright/test';
-import type { WorldServer } from '../apps/server/src/server.ts';
-import { enterWorld, expectWorld, startRoomServer, world } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import {
+  enterWorld,
+  expect,
+  expectWorld,
+  type RoomServer,
+  startRoomServer,
+  test,
+  world,
+} from './helpers.ts';
 import { E2E_CLIENT_URL } from './ports.ts';
 
-let server: WorldServer;
+let server: RoomServer;
 
 test.beforeAll(async () => {
   server = await startRoomServer();

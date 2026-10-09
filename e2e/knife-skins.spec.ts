@@ -1,5 +1,13 @@
-import { expect, test, type Page } from '@playwright/test';
-import { enterWorld, expectWorld, startRoomServer, turnTo, world } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import {
+  enterWorld,
+  expect,
+  expectWorld,
+  startRoomServer,
+  test,
+  turnTo,
+  world,
+} from './helpers.ts';
 
 const KARAMBIT = 'karambit/doppler';
 

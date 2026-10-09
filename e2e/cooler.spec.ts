@@ -1,9 +1,11 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { COOLER, COOLER_HITS_TO_OPEN, ROOM_HALF_X } from '@world/shared';
 import {
   enterWorld,
+  expect,
   expectWorld,
   startRoomServer,
+  test,
   turnTo,
   waitUntilStill,
   walkUntil,
