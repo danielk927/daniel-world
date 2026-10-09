@@ -84,3 +84,54 @@ test('a room server on another protocol version still lets visitors in, solo', a
     outdated.close();
   }
 });
+
+test('cooks in a private party find each other again after the server restarts', async ({
+  browser,
+}) => {
+  let server = await startRoomServer();
+  try {
+    // One starts the party from the menu, the other comes in with its code from the landing.
+    const host = await enterWorld(browser, { name: 'Host' });
+    await host.keyboard.press('Escape');
+    const menu = host.getByRole('dialog', { name: 'Paused' });
+    await menu.getByLabel('Party code').fill('e2e-restart');
+    await menu.getByRole('button', { name: 'Start party' }).click();
+    await expectWorld(host, (w) => w.room === 'e2e-restart', 'the host is in the party');
+    await menu.getByRole('button', { name: 'Resume' }).click();
+    const guest = await enterWorld(browser, { name: 'Guest', room: 'e2e-restart' });
+    const cooks = [host, guest];
+    for (const page of cooks) {
+      await expectWorld(page, (w) => w.playerCount === 2, 'both are in the party');
+    }
+    const stood = (await world(host)).player;
+
+    // A redeploy: the server goes away with every room in it, and comes back empty.
+    await server.close();
+    for (const page of cooks) {
+      await expectWorld(page, (w) => w.connection === 'offline', 'the cook plays solo meanwhile');
+    }
+    server = await startRoomServer();
+
+    // Both go back into the party on their own, whoever is first opening it again, and nobody
+    // else is there: no lobby, no Chef Skinner.
+    for (const [page, other] of [
+      [host, 'Guest'],
+      [guest, 'Host'],
+    ] as const) {
+      const back = await expectWorld(
+        page,
+        (w) => w.connection === 'online' && w.room === 'e2e-restart' && w.playerCount === 2,
+        'back in the party together',
+        30_000,
+      );
+      expect(back.remotePlayers.map((p) => p.name)).toEqual([other]);
+    }
+    // Where they were standing, not back at a spawn point.
+    const now = (await world(host)).player;
+    expect(Math.hypot(now.x - stood.x, now.z - stood.z)).toBeLessThan(0.01);
+    await expect(host.locator('.hud-room-name')).toHaveText('#e2e-restart');
+    for (const page of cooks) await page.context().close();
+  } finally {
+    await server.close();
+  }
+});
