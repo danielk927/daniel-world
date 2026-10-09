@@ -88,6 +88,13 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Still protocol version 8.
 - Lint, typecheck, 916 unit tests, 29 E2E tests and the build pass.
 
+### A safer AWS stack (2026-10-09, not deployed)
+
+- A server deploy now waits for the new instance's health check and rolls back if it fails; CloudFront reaches the server by an Elastic IP that survives a stop and start; the AMI stays as recorded in `infra/cdk.context.json`; the instance reads only its own bundle; the site's hashed files stay cached and are never deleted under open tabs; the server log is bounded by size.
+- The bots always leave a seat for the developer and keep their timings in seconds at 60 Hz; perf and screenshots stop everything they start, however they end; the screenshots' own server has Chef Skinner in.
+- Before the next `npm run deploy:aws`: it replaces the instance once (rooms drop, players reconnect), creates the Elastic IP and moves CloudFront's `/ws` origin to it (a distribution update, several minutes); afterwards commit `infra/cdk.context.json` and check `dig +short <ServerOrigin output>` prints the Elastic IP.
+- Lint, typecheck, 926 unit tests and the build pass; a local synth shows the changes; `node scripts/perf.ts` on spare ports reports 16 players at 60 fps and leaves nothing running.
+
 ### The client game after review (2026-10-09)
 
 - The findings from a review of the client's game and networking code, each reproduced by a failing test first, end to end where a visitor would meet it.
@@ -97,7 +104,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - The kitchen computer: leaving the window or tab steps away, the auto-repeat of the E that sits a cook down stays out of DOOM, Ctrl and Alt are no longer DOOM keys (Ctrl+W closed the tab, Ctrl+Tab and Alt+Tab switched away), and a crash after boot shows the standby screen and says so.
 - A kitchen that fails to load offers the portfolio instead of a loading screen up forever.
 - Still protocol version 8.
-- Lint, typecheck, 932 unit tests, 36 E2E tests and the build pass.
+- Lint, typecheck, 941 unit tests, 36 E2E tests and the build pass.
 
 ### How to run it
 
