@@ -137,6 +137,56 @@ describe('Connection', () => {
     connection.close();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it('gives up on a socket gone silent at once, not when its closing handshake does', () => {
+    const onStatus = vi.fn<ConnectionHandlers['onStatus']>();
+    const onMessage = vi.fn<ConnectionHandlers['onMessage']>();
+    const connection = new Connection({ ...options, handlers: { ...quiet, onStatus, onMessage } });
+    const lost = latest();
+    lost.open();
+    lost.receive(welcome('friday'));
+    lost.receive({ t: 'pong', id: 0 });
+    // The network goes quiet: nothing arrives, and the browser cannot finish closing the socket.
+    lost.stalls = true;
+    vi.advanceTimersByTime(5000);
+    expect(lost.closed).toBe(true);
+    expect(connection.status).toBe('offline');
+    expect(connection.isOnline).toBe(false);
+    expect(connection.rtt).toBeNull();
+    expect(onStatus.mock.lastCall?.[0]).toBe('offline');
+    // Nothing more is sent on it.
+    const sent = lost.sent.length;
+    connection.send({ t: 'chat', text: 'anyone?' });
+    expect(lost.sent).toHaveLength(sent);
+
+    // A new socket is tried meanwhile, and gets in.
+    vi.runOnlyPendingTimers();
+    expect(FakeSocket.sockets).toHaveLength(2);
+    latest().open();
+    latest().receive(welcome('friday'));
+    expect(connection.status).toBe('online');
+
+    // Whatever the lost socket says at last is not heard.
+    lost.receive({ t: 'leave', id: 3 });
+    lost.finishClosing();
+    expect(connection.status).toBe('online');
+    expect(onMessage).not.toHaveBeenCalled();
+    connection.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('gives up on a server that never welcomes it without waiting on the socket either', () => {
+    const connection = new Connection({ ...options, handlers: quiet });
+    const first = latest();
+    first.stalls = true;
+    first.open();
+    vi.advanceTimersByTime(10_001);
+    expect(first.closed).toBe(true);
+    expect(connection.status).toBe('offline');
+    vi.runOnlyPendingTimers();
+    expect(FakeSocket.sockets).toHaveLength(2);
+    connection.close();
+  });
 });
 
 describe("Connection, with the visitor's prefs", () => {

@@ -1,8 +1,66 @@
+import { createServer, connect, type Socket } from 'node:net';
 import { expect, test } from '@playwright/test';
 import { WebSocketServer } from 'ws';
-import { CLOSE_BAD_HELLO } from '../apps/server/src/server.ts';
-import { enterWorld, expectWorld, startRoomServer, walkUntil } from './helpers.ts';
+import { CLOSE_BAD_HELLO, startServer } from '../apps/server/src/server.ts';
+import { enterWorld, expectWorld, startRoomServer, walkUntil, world } from './helpers.ts';
 import { E2E_SERVER_PORT } from './ports.ts';
+
+/**
+ * A TCP relay on the port the client dials, in front of a room server elsewhere, that can go quiet
+ * the way a dead network does: nothing gets through either way, and nothing is closed either, so a
+ * browser asked to close a socket waits for an answer that never comes.
+ */
+async function startRelay(target: number) {
+  let quiet = false;
+  /** Connections the network lost: never heard from again, until `cut` resets them. */
+  const lost = new Set<Socket>();
+  const live = new Set<{ client: Socket; upstream: Socket }>();
+  const server = createServer((client) => {
+    client.on('error', () => {});
+    if (quiet) {
+      // Accepted, then nothing: the opening handshake hangs as it would with no route.
+      lost.add(client);
+      return;
+    }
+    const upstream = connect(target, '127.0.0.1');
+    upstream.on('error', () => {});
+    const pair = { client, upstream };
+    live.add(pair);
+    client.on('data', (data) => live.has(pair) && upstream.write(data));
+    upstream.on('data', (data) => live.has(pair) && client.write(data));
+    // A lost connection's end does not get through either.
+    const end = () => {
+      if (!live.delete(pair)) return;
+      client.destroy();
+      upstream.destroy();
+    };
+    client.on('close', end);
+    upstream.on('close', end);
+  });
+  await new Promise<void>((resolve) => server.listen(E2E_SERVER_PORT, '127.0.0.1', resolve));
+  return {
+    /** The network goes: every connection open now is lost, and new ones get nowhere. */
+    goQuiet(): void {
+      quiet = true;
+      for (const pair of live) lost.add(pair.client);
+      live.clear();
+    },
+    /** The network is back for new connections; the lost ones stay lost. */
+    comeBack(): void {
+      quiet = false;
+    },
+    /** The lost connections are reset at last, and the browser hears they are gone. */
+    cut(): void {
+      for (const socket of lost) socket.destroy();
+      lost.clear();
+    },
+    close(): Promise<void> {
+      this.cut();
+      for (const pair of live) pair.client.destroy();
+      return new Promise((resolve) => server.close(() => resolve()));
+    },
+  };
+}
 
 test('with the server stopped the world still loads in single-player mode', async ({ browser }) => {
   // No room server is running for this test.
@@ -70,5 +128,55 @@ test('a room server on another protocol version still lets visitors in, solo', a
   } finally {
     await page.context().close();
     outdated.close();
+  }
+});
+
+test('a connection the network silently drops turns solo in seconds, and back when it returns', async ({
+  browser,
+}) => {
+  const server = await startServer({ port: 0, host: '127.0.0.1' });
+  const relay = await startRelay(server.port);
+  try {
+    const page = await enterWorld(browser, { name: 'Commuter', room: 'e2e-tunnel' });
+    const { selfId } = await world(page);
+
+    // The train enters a tunnel: no packet gets through, and no socket is closed.
+    relay.goQuiet();
+    // Snapshots stop, so within the silence timeout the world goes solo, whatever the browser
+    // makes of closing the old socket.
+    await expectWorld(
+      page,
+      (w) => w.connection !== 'online',
+      'solo once the server goes quiet',
+      8000,
+    );
+    await expect(page.locator('.hud-status')).not.toContainText('Online');
+    // Chat says nobody can hear, rather than swallowing the line.
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('anyone there?');
+    await page.keyboard.press('Enter');
+    const log = page.getByRole('list', { name: 'Chat history' });
+    await expect(log).toContainText('You are offline, so nobody can hear you right now.');
+
+    // Out of the tunnel: the next retry gets through and joins the room again.
+    relay.comeBack();
+    const back = await expectWorld(
+      page,
+      (w) => w.connection === 'online' && w.selfId !== null && w.selfId !== selfId,
+      'back online with a new connection',
+      30_000,
+    );
+    await expect(page.locator('.hud-status')).toContainText('Online');
+
+    // The lost socket's end reaches the browser at last, and changes nothing.
+    relay.cut();
+    await page.waitForTimeout(1000);
+    const after = await world(page);
+    expect(after.connection).toBe('online');
+    expect(after.selfId).toBe(back.selfId);
+    await page.context().close();
+  } finally {
+    await relay.close();
+    await server.close();
   }
 });

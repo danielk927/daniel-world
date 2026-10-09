@@ -9,6 +9,11 @@ export class FakeSocket {
   static refuse = false;
   readyState = 0;
   closed = false;
+  /**
+   * On a network that has gone quiet: `close()` starts the closing handshake, but the close event
+   * waits for `finishClosing()`, as a browser waits out a handshake nobody answers.
+   */
+  stalls = false;
   readonly sent: Record<string, unknown>[] = [];
   private readonly listeners = new Map<string, ((event: { data?: unknown }) => void)[]>();
 
@@ -31,6 +36,15 @@ export class FakeSocket {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.stalls) {
+      this.readyState = 2;
+      return;
+    }
+    this.finishClosing();
+  }
+
+  /** The close event at last; see `stalls`. */
+  finishClosing(): void {
     this.readyState = 3;
     this.emit('close', {});
   }

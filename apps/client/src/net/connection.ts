@@ -151,6 +151,7 @@ export class Connection {
     }
     this.ws = ws;
     ws.addEventListener('open', () => {
+      if (this.ws !== ws) return;
       const spawn = this.handlers.spawnHint();
       this.sentPrefs = this.prefs;
       ws.send(
@@ -166,18 +167,27 @@ export class Connection {
       );
     });
     ws.addEventListener('message', (event: MessageEvent<unknown>) => {
+      if (this.ws !== ws) return;
       this.lastMessageAt = performance.now();
       const message = parseServerMessage(event.data);
       if (message) this.receive(message);
     });
-    ws.addEventListener('close', () => {
-      if (this.ws !== ws) return;
-      this.ws = null;
-      this.clearTimers();
-      this.rtt = null;
-      this.scheduleRetry();
-    });
-    this.welcomeTimer = window.setTimeout(() => ws.close(), WELCOME_TIMEOUT_MS);
+    ws.addEventListener('close', () => this.lose(ws));
+    this.welcomeTimer = window.setTimeout(() => this.lose(ws), WELCOME_TIMEOUT_MS);
+  }
+
+  /**
+   * Done with this socket, whether it closed or went quiet: offline at once, and the next attempt
+   * on its way. It is told to close, but not waited on: on a network that has stopped answering,
+   * the browser holds a closing socket open for up to a minute. Nothing it says after this is heard.
+   */
+  private lose(ws: WebSocket): void {
+    if (this.ws !== ws) return;
+    this.ws = null;
+    this.clearTimers();
+    this.rtt = null;
+    ws.close();
+    this.scheduleRetry();
   }
 
   private receive(message: ServerMessage): void {
@@ -223,7 +233,7 @@ export class Connection {
     this.pingTimer = window.setInterval(() => {
       // A socket can stay "open" long after the network is gone (sleep, NAT timeout).
       if (performance.now() - this.lastMessageAt > SILENCE_TIMEOUT_MS) {
-        this.ws?.close();
+        if (this.ws) this.lose(this.ws);
         return;
       }
       const id = this.pingId++;
