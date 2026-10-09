@@ -1,5 +1,6 @@
 import { MeshStandardMaterial, type Material, type Texture, type WebGLRenderer } from 'three';
 import type { LayerName } from '../kit.ts';
+import { paintFloorShade } from './floorShade.ts';
 import { TexturePainter, type Recipe } from './painter.ts';
 import {
   BAFFLE,
@@ -15,6 +16,7 @@ import {
   STONE,
   WALL_TILE,
 } from './recipes.ts';
+import { floorUniforms } from './shading.ts';
 
 /** Which recipe paints each layer. Glazes, glass and the glowing layers have none. */
 export const LAYER_RECIPES: Partial<Record<LayerName, Recipe>> = {
@@ -46,6 +48,7 @@ export function dressKitchen(
   reflections: Texture,
 ): void {
   const painter = new TexturePainter(renderer);
+  floorUniforms.floorShade.value = paintFloorShade(renderer);
   for (const [layer, material] of Object.entries(materials) as [LayerName, Material][]) {
     if (!(material instanceof MeshStandardMaterial)) continue;
     const recipe = LAYER_RECIPES[layer];

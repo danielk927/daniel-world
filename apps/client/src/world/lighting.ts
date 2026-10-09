@@ -111,10 +111,22 @@ export function createLighting(
       reach: number,
       angle: number,
       surface: number,
+      shadowSize: number,
     ): SpotLight => {
       const light = new SpotLight(color, intensity, reach, angle, 0.65, 2);
       light.position.set(x, y, z);
       light.target.position.set(x, surface, z);
+      // What a lamp lights stands still, so its shadow is drawn once, not every frame: the pass
+      // keeps its pool on the plates instead of spilling it through the counter onto the floor.
+      light.castShadow = true;
+      light.shadow.mapSize.set(shadowSize, shadowSize);
+      light.shadow.camera.near = 0.1;
+      light.shadow.camera.far = reach;
+      light.shadow.bias = -0.0006;
+      light.shadow.normalBias = 0.02;
+      light.shadow.radius = 3;
+      light.shadow.autoUpdate = false;
+      light.shadow.needsUpdate = true;
       scene.add(light.target);
       return light;
     };
@@ -122,10 +134,10 @@ export function createLighting(
     const passZ = (pass.minZ + pass.maxZ) / 2;
     // A heat lamp over each plate, as drawn: amber pools on the plates, short enough not to wash
     // the walls orange.
-    const heat = PASS_DISHES.map(({ x }) => spot(HEAT_LAMP, 17, x, 2.05, passZ, 3.2, 0.35, 0));
+    const heat = PASS_DISHES.map(({ x }) => spot(HEAT_LAMP, 17, x, 2.05, passZ, 3.2, 0.35, 0, 512));
     // One light for each pair of pendants, between them, wide enough to cover the island.
     const islands = [KITCHEN.pastryIsland, KITCHEN.gardeManger].map((f) =>
-      spot(DOWNLIGHT, 22, (f.minX + f.maxX) / 2, 2.98, (f.minZ + f.maxZ) / 2, 5, 0.78, 0),
+      spot(DOWNLIGHT, 22, (f.minX + f.maxX) / 2, 2.98, (f.minZ + f.maxZ) / 2, 5, 0.78, 0, 1024),
     );
     fire = new PointLight(FIRE, 0.9, 2.6, 2);
     fire.position.set(0, 1.05, 0);

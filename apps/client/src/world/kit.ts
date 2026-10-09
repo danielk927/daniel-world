@@ -249,6 +249,7 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
       ...painted(0.42),
       shading: {
         tiles: { size: [0.5, 0.5], bond: false, color: 0.035, roughness: 0.12 },
+        floor: true,
       },
     },
     tile: {
