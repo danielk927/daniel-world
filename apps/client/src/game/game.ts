@@ -876,6 +876,9 @@ export class Game {
     if (this.mode !== 'computer') return;
     event.preventDefault();
     event.stopPropagation();
+    // A key held down repeats, but it is the same press: DOOM keeps track of held keys itself, and
+    // the E that sat the cook down, still held, must neither use nor put the controls away.
+    if (event.repeat) return;
     const down = event.type === 'keydown';
     if (event.code === 'Escape') {
       if (down) this.leaveComputer();

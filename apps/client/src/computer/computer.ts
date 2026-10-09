@@ -83,6 +83,11 @@ export class KitchenComputer {
     return this.engineInUse;
   }
 
+  /** How many keys DOOM has been told are held down. */
+  get keysHeld(): number {
+    return this.held.size;
+  }
+
   /** Why the machine failed, when it did. */
   get error(): string | null {
     return this.failure;

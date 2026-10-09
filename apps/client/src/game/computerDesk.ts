@@ -39,6 +39,11 @@ export class ComputerDesk {
     return this.machine?.state ?? 'off';
   }
 
+  /** How many keys DOOM has been told are held down, for debugging and tests. */
+  get keysHeld(): number {
+    return this.machine?.keysHeld ?? 0;
+  }
+
   /** Whether `ray` points at the screen from within `reach` meters. */
   picked(ray: Ray, reach: number): boolean {
     const dx = COMPUTER.x - ray.origin.x;
