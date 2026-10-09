@@ -361,6 +361,8 @@ describe('room server', () => {
   });
 
   it('refuses a hello whose spawn hint is turned past any real turn', async () => {
+    // Refused by ignoring it, so the connection ends when its hello is overdue.
+    await restartWith({ helloTimeoutMs: 300 });
     const a = client();
     await a.opened();
     const spawn = { x: 0, z: 5.6, yaw: 1.7e308 };
@@ -469,6 +471,7 @@ describe('room server', () => {
   });
 
   it('keeps a connection that answered in time while the server itself was stalled', async () => {
+    await restartWith({ heartbeatMs: 200 });
     const a = client();
     await a.join('Patient');
     // Its pong is on its way when the process stops for a few heartbeats, as in a long GC pause
