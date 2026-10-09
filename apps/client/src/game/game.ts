@@ -38,6 +38,7 @@ import { CameraRig } from './cameraRig.ts';
 import { ComputerDesk } from './computerDesk.ts';
 import { CoolerControl } from './cooler.ts';
 import { Input } from './input.ts';
+import { LandingCamera } from './landingCamera.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
 import { addressForRoom, inviteLink, joinFailureMessage, roomName } from './party.ts';
@@ -46,7 +47,6 @@ import type { Quality } from '../util/capabilities.ts';
 
 export type Mode = 'landing' | 'entering' | 'playing' | 'chat' | 'paused' | 'panel' | 'computer';
 
-const ENTER_DURATION = 1.6;
 /** Seconds to glide between standing and sitting square in front of the computer. */
 const COMPUTER_GLIDE = 0.55;
 const MAX_CATCH_UP_TICKS = 5;
@@ -98,6 +98,8 @@ export class Game {
   private lastFrame = performance.now();
   private elapsed = 0;
   private accumulator = 0;
+  /** The slow walk round the kitchen behind the landing, and the swoop from it into the game. */
+  private readonly landingCamera = new LandingCamera();
   private enterProgress = 0;
   private readonly enterFrom = new Vector3();
   private readonly enterFromQuat = new Quaternion();
@@ -748,21 +750,23 @@ export class Game {
   private updateCamera(dt: number): void {
     const camera = this.world.camera;
     if (this.mode === 'landing') {
-      // An establishing shot from the south-east corner, a little above head height, looking along
-      // the room under the hood toward the islands and the garden windows. It drifts gently.
-      const t = this.elapsed;
-      camera.position.set(6.7 + Math.sin(t * 0.07) * 0.5, 2.25, 5.7);
-      camera.lookAt(-2.6 + Math.sin(t * 0.05) * 0.8, 1.15, -3.4);
+      this.landingCamera.update(camera, this.elapsed, this.settings.values.reduceMotion);
       return;
     }
     if (this.mode === 'entering') {
-      this.enterProgress = Math.min(1, this.enterProgress + dt / ENTER_DURATION);
-      const t = easeInOutCubic(this.enterProgress);
       const s = this.player.state;
-      camera.position.set(s.x, EYE_HEIGHT, s.z).lerp(this.enterFrom, 1 - t);
-      // Arc up a little so the swoop clears the counters, staying under the hood.
-      camera.position.y += Math.sin(t * Math.PI) * 0.5;
-      camera.quaternion.slerpQuaternions(this.enterFromQuat, this.enterToQuat, t);
+      // The first frame plans the swoop from wherever the landing left the camera.
+      if (this.enterProgress === 0) {
+        this.landingCamera.planSwoop(
+          this.enterFrom,
+          this.enterFromQuat,
+          s.x,
+          s.z,
+          this.enterToQuat,
+        );
+      }
+      this.enterProgress = Math.min(1, this.enterProgress + dt / this.landingCamera.swoopSeconds);
+      this.landingCamera.swoop(camera, this.enterProgress, s.x, s.z, this.enterToQuat);
       if (this.enterProgress >= 1) this.beginPlaying();
       return;
     }

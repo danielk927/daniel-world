@@ -65,7 +65,8 @@ const links: readonly LoreLink[] = [
 ];
 
 export const site = {
-  name: 'Daniel Kim',
+  name: 'Doyoon (Daniel) Kim',
+  headline: 'CS + Statistics @ UChicago',
   worldName: "Daniel's World",
   tagline:
     'I study computer science and statistics at UChicago and build everything from CUDA kernels to rehab games. Come cook with me.',
