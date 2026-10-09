@@ -32,6 +32,8 @@ export function world(page: Page): Promise<WorldDebugState> {
       punching: w.punching,
       computer: w.computer,
       knockedOut: w.knockedOut,
+      arm: w.arm,
+      labels: w.labels,
       knife: w.knife,
       knives: w.knives,
       cooler: w.cooler,

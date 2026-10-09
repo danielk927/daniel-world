@@ -25,6 +25,10 @@ export interface WorldDebugState {
   readonly computer: { state: string; frames: number };
   /** Knocked out by a knife, waiting to respawn. */
   readonly knockedOut: boolean;
+  /** The arm is on screen: in the world, standing, and no menu or panel over it. */
+  readonly arm: boolean;
+  /** Station labels and name tags show over the world, uncovered by a menu, panel or knockout. */
+  readonly labels: boolean;
   /** The knife this player carries, as the hand on screen holds it. */
   readonly knife: { skin: string; finish: string };
   /**
@@ -116,6 +120,12 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
     },
     get knockedOut() {
       return game.knockedOut;
+    },
+    get arm() {
+      return world.viewmodel.isShown;
+    },
+    get labels() {
+      return game.labelsShown;
     },
     get knife() {
       const { skin, finish } = world.viewmodel.look;

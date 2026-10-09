@@ -435,7 +435,7 @@ export class Game {
     this.multiplayer?.close();
     this.multiplayer = null;
     this.backOnFeet();
-    this.viewmodel.setShown(false);
+    this.showArm();
     this.world.knives.reset([]);
     this.cooler.reset([]);
     this.landing.setNotice(reason);
@@ -446,15 +446,28 @@ export class Game {
     this.labels.element.hidden = true;
   }
 
+  /** Whether station labels and name tags show over the world. */
+  get labelsShown(): boolean {
+    return !this.labels.element.hidden;
+  }
+
   /** Menus and panels cover the HUD and the labels, which would otherwise float over them. */
   private setCovered(covered: boolean): void {
     this.hud.setCovered(covered);
     this.labels.element.hidden = covered;
   }
 
+  /**
+   * The arm is in view only while playing or chatting on one's feet: never under a menu, a panel
+   * or DOOM, nor while knocked out. Called whenever any of those change.
+   */
+  private showArm(): void {
+    this.viewmodel.setShown((this.mode === 'playing' || this.mode === 'chat') && !this.knockedOut);
+  }
+
   private beginPlaying(): void {
     this.mode = 'playing';
-    this.viewmodel.setShown(!this.knockedOut);
+    this.showArm();
     this.input.enabled = true;
     this.hud.show();
     this.chat.show();
@@ -470,7 +483,7 @@ export class Game {
     this.setCovered(false);
     this.mode = 'playing';
     this.input.enabled = true;
-    this.viewmodel.setShown(!this.knockedOut);
+    this.showArm();
     if (look) await this.input.lock();
   }
 
@@ -492,7 +505,7 @@ export class Game {
     this.input.releaseAll();
     this.input.unlock();
     this.setCovered(true);
-    this.viewmodel.setShown(false);
+    this.showArm();
     this.pause.show(note);
   }
 
@@ -503,7 +516,7 @@ export class Game {
     this.hud.setPrompt(null);
     this.setCovered(true);
     // The arm would show, dimmed, under the card.
-    this.viewmodel.setShown(false);
+    this.showArm();
     this.input.unlock();
     this.panel.open(entry);
   }
@@ -558,7 +571,7 @@ export class Game {
     this.rig.hit();
     this.world.renderer.domElement.classList.add('is-dimmed');
     this.rig.setKnockedOut(true);
-    this.viewmodel.setShown(false);
+    this.showArm();
     // Station labels would float over the knockout card.
     this.labels.element.hidden = true;
     // The first time Chef Skinner gets this visitor, say he need not.
@@ -581,7 +594,8 @@ export class Game {
     this.world.renderer.domElement.classList.remove('is-dimmed');
     // Leaving the world is not waking up; only blink when play goes on.
     if (this.mode !== 'landing') this.impact.blink();
-    this.viewmodel.setShown(this.inWorld);
+    // Under a menu or a panel the arm waits for it to close.
+    this.showArm();
     this.labels.element.hidden = this.mode !== 'playing' && this.mode !== 'chat';
   }
 
@@ -802,7 +816,7 @@ export class Game {
     this.hud.setComputer('guide');
     this.computerGuide.show();
     this.labels.element.hidden = true;
-    this.viewmodel.setShown(false);
+    this.showArm();
     // The mouse turns the marine, so hold on to it; E is a key press, so the browser allows it.
     void this.input.lock();
     void this.desk.use();
@@ -816,7 +830,7 @@ export class Game {
     this.input.enabled = true;
     this.hud.setComputer('off');
     this.labels.element.hidden = false;
-    this.viewmodel.setShown(!this.knockedOut);
+    this.showArm();
   }
 
   /** At the computer, with the mouse held, its motion turns the marine. */

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import {
   EYE_HEIGHT,
   KNIFE_MAX_FLIGHT_SECONDS,
@@ -57,6 +57,49 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
     for (const page of [thrower, target]) {
       await expectWorld(page, (w) => w.knives.stuck === 1, 'a knife is stuck in the floor');
     }
+    await thrower.context().close();
+    await target.context().close();
+  } finally {
+    await server.close();
+  }
+});
+
+/**
+ * Two cooks in a fresh party, the second (by arrival, so always at the same spawn point) knocked
+ * out by the first, who throws from where they stand. Returns once the target is down.
+ */
+async function knockOutInParty(
+  browser: Browser,
+  room: string,
+): Promise<{ thrower: Page; target: Page }> {
+  const thrower = await enterWorld(browser, { name: 'Thrower', room });
+  const target = await enterWorld(browser, { name: 'Target', room });
+  await expectWorld(thrower, (w) => w.playerCount === 2, 'the thrower sees the target');
+  const a = await waitUntilStill(thrower);
+  const b = await waitUntilStill(target);
+  await turnTo(thrower, Math.atan2(-(b.player.x - a.player.x), -(b.player.z - a.player.z)));
+  await throwKnife(thrower);
+  const down = await expectWorld(target, (w) => w.knockedOut, 'the target is knocked out');
+  expect(down.arm).toBe(false);
+  expect(down.labels).toBe(false);
+  return { thrower, target };
+}
+
+test('a cook who gets back up with the menu open finds the arm only once it closes', async ({
+  browser,
+}) => {
+  const server = await startRoomServer();
+  try {
+    const { thrower, target } = await knockOutInParty(browser, 'e2e-up');
+    await target.keyboard.press('Escape');
+    await expectWorld(target, (w) => w.mode === 'paused', 'the menu opens');
+    // The respawn arrives under the menu: nothing comes up behind it.
+    const up = await expectWorld(target, (w) => !w.knockedOut, 'the target gets back up', 8000);
+    expect(up.mode).toBe('paused');
+    expect(up.arm).toBe(false);
+    expect(up.labels).toBe(false);
+    await target.keyboard.press('Escape');
+    await expectWorld(target, (w) => w.mode === 'playing' && w.arm && w.labels, 'up and armed');
     await thrower.context().close();
     await target.context().close();
   } finally {
