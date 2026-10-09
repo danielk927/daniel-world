@@ -323,7 +323,8 @@ export class Game {
     const current = this.multiplayer;
     if (!current || !this.inWorld || this.joining) return '';
     if (room === this.room) return `You are already in ${roomName(room)}.`;
-    if (!current.isOnline) {
+    // Turned away by a full room, the server still answers, so another room is worth a try.
+    if (!current.reachable) {
       if (room !== DEFAULT_ROOM) return joinFailureMessage('unreachable', room);
       this.moveInto(room);
       return null;
@@ -399,7 +400,7 @@ export class Game {
     this.pause.setPartyAvailability(
       !mp
         ? 'connecting'
-        : mp.status === 'online'
+        : mp.reachable
           ? 'online'
           : mp.status === 'connecting' && !mp.retrying
             ? 'connecting'

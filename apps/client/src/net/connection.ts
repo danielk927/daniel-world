@@ -17,7 +17,10 @@ export interface ConnectionHandlers {
   onStatus(status: ConnectionStatus, retryInMs: number | null): void;
   onWelcome(welcome: WelcomeMessage): void;
   onMessage(message: ServerMessage): void;
-  /** The server refused us for good (the room is full, taken, or empty). No more retries. */
+  /**
+   * The room refused the first hello, the one the visitor asked for (it is full, taken, or empty).
+   * No more retries. Refusals after that are only `refusal`, offline and retrying.
+   */
   onFatal(code: ErrorCode, message: string): void;
   /** Where to ask to stand on (re)joining, or undefined for a spawn point. */
   spawnHint(): { x: number; z: number; yaw: number } | undefined;
@@ -34,8 +37,11 @@ export interface ConnectionOptions {
   handlers: ConnectionHandlers;
 }
 
-/** Refusals that retrying cannot fix. */
-const FATAL_ERRORS: ReadonlySet<ErrorCode> = new Set(['room_full', 'room_taken', 'no_room']);
+/** The room turning a hello away: full, taken (starting a party), or nobody there (joining one). */
+export type Refusal = Extract<ErrorCode, 'room_full' | 'room_taken' | 'no_room'>;
+
+const REFUSALS: ReadonlySet<ErrorCode> = new Set<Refusal>(['room_full', 'room_taken', 'no_room']);
+const isRefusal = (code: ErrorCode): code is Refusal => REFUSALS.has(code);
 
 const BACKOFF_START_MS = 1000;
 const BACKOFF_MAX_MS = 15_000;
@@ -59,9 +65,20 @@ export class Connection {
    * deploys. Not fatal: the world stays playable solo, and retrying joins once both sides match.
    */
   versionMismatch = false;
+  /**
+   * Why the room turned the last attempt away, if it did, until it lets us in: full, say, when a
+   * restart filled it while we were out. Only the first hello's refusal is final (`onFatal`); once
+   * in the room, or solo after an attempt failed, it is offline like any other, and retrying can
+   * fix it (a cook leaves). Reconnects say no intent, so in practice only a full room does this.
+   */
+  refusal: Refusal | null = null;
 
   private ws: WebSocket | null = null;
   private closed = false;
+  /** Nothing has answered yet: the first hello, the one the visitor asked for, is still out. */
+  private firstTry = true;
+  /** How the room answered the current socket's hello, if it turned it away. */
+  private answer: Refusal | null = null;
   private attempt = 0;
   private retryTimer = 0;
   private welcomeTimer = 0;
@@ -193,6 +210,8 @@ export class Connection {
     this.ws = null;
     this.clearTimers();
     this.rtt = null;
+    this.refusal = this.answer;
+    this.answer = null;
     ws.close();
     this.scheduleRetry();
   }
@@ -202,8 +221,10 @@ export class Connection {
       case 'welcome':
         window.clearTimeout(this.welcomeTimer);
         this.attempt = 0;
+        this.firstTry = false;
         this.intent = undefined;
         this.versionMismatch = false;
+        this.refusal = null;
         this.setStatus('online');
         // Changed while we waited for the welcome: the hello had the old ones.
         this.syncPrefs();
@@ -222,11 +243,14 @@ export class Connection {
       case 'error':
         // The server closes the socket after this, which schedules the next attempt.
         if (message.code === 'version') this.versionMismatch = true;
-        if (FATAL_ERRORS.has(message.code)) {
-          this.closed = true;
-          this.clearTimers();
-          this.handlers.onFatal(message.code, message.message);
+        if (!isRefusal(message.code)) return;
+        if (!this.firstTry) {
+          this.answer = message.code;
+          return;
         }
+        this.closed = true;
+        this.clearTimers();
+        this.handlers.onFatal(message.code, message.message);
         return;
       default:
         if (this.status === 'online') this.handlers.onMessage(message);
@@ -253,6 +277,7 @@ export class Connection {
 
   private scheduleRetry(): void {
     if (this.closed) return;
+    this.firstTry = false;
     const base = Math.min(BACKOFF_MAX_MS, BACKOFF_START_MS * 2 ** this.attempt);
     // Jitter so a server restart is not hit by every client at the same instant.
     const delay = Math.round(base * (0.8 + Math.random() * 0.4));

@@ -126,6 +126,8 @@ export class Multiplayer {
   private hasBeenOnline = false;
   /** Whether the chat has explained the version mismatch, so it says so only once. */
   private toldAboutMismatch = false;
+  /** Whether the chat has said the room turned us away, since we were last in it. */
+  private toldAboutRefusal = false;
   private statusTimer = 0;
   /** This player, as far as Chef Skinner is concerned. */
   private readonly self: { prefs: Readonly<Prefs> };
@@ -195,6 +197,11 @@ export class Multiplayer {
   /** Offline because the server runs another version of the protocol. */
   get versionMismatch(): boolean {
     return this.connection.versionMismatch;
+  }
+
+  /** The server answers, even if this room has turned us away for now: other rooms can be tried. */
+  get reachable(): boolean {
+    return this.connection.isOnline || this.connection.refusal !== null;
   }
 
   /** Called once per simulation tick with the input that was just predicted. */
@@ -356,6 +363,16 @@ export class Multiplayer {
       chat.addSystem('Lost connection to the server. Playing solo until it is back.');
       this.wasOnline = false;
     }
+    const refusal = this.connection.refusal;
+    if (refusal && !this.toldAboutRefusal) {
+      const room = roomName(this.room);
+      chat.addSystem(
+        refusal === 'room_full'
+          ? `${room[0]!.toUpperCase()}${room.slice(1)} is full right now, so you are cooking solo. You will join the others as soon as a place frees up.`
+          : `The server turned you away from ${room} for now, so you are cooking solo. You will join the others as soon as it lets you in.`,
+      );
+      this.toldAboutRefusal = true;
+    }
     const mismatch = this.connection.versionMismatch;
     if (mismatch && !this.toldAboutMismatch) {
       chat.addSystem(
@@ -389,6 +406,7 @@ export class Multiplayer {
     if (this.hasBeenOnline) this.deps.notify('Reconnected');
     this.hasBeenOnline = true;
     this.wasOnline = true;
+    this.toldAboutRefusal = false;
   }
 
   private onMessage(message: ServerMessage): void {

@@ -1,7 +1,7 @@
 import { createServer, connect, type Socket } from 'node:net';
 import { expect, test } from '@playwright/test';
 import { WebSocketServer } from 'ws';
-import { CLOSE_BAD_HELLO, startServer } from '../apps/server/src/server.ts';
+import { CLOSE_BAD_HELLO, CLOSE_ROOM_FULL, startServer } from '../apps/server/src/server.ts';
 import { enterWorld, expectWorld, startRoomServer, walkUntil, world } from './helpers.ts';
 import { E2E_SERVER_PORT } from './ports.ts';
 
@@ -128,6 +128,61 @@ test('a room server on another protocol version still lets visitors in, solo', a
   } finally {
     await page.context().close();
     outdated.close();
+  }
+});
+
+test('a cook whose room fills up while the server was away keeps cooking solo until it has room', async ({
+  browser,
+}) => {
+  const server = await startRoomServer();
+  const page = await enterWorld(browser, { name: 'Regular' });
+  try {
+    // A blip: the server restarts, and the lobby fills up before this cook gets back in.
+    await server.close();
+    await expectWorld(page, (w) => w.connection === 'offline', 'solo while the server is away');
+    let refused = 0;
+    const full = new WebSocketServer({ port: E2E_SERVER_PORT, host: '127.0.0.1' });
+    full.on('connection', (socket) => {
+      socket.on('message', () => {
+        refused++;
+        const error = { t: 'error', code: 'room_full', message: 'Room "lobby" is full.' };
+        socket.send(JSON.stringify(error));
+        socket.close(CLOSE_ROOM_FULL, 'room full');
+      });
+    });
+    try {
+      // Turned away, and turned away again on the next try: still in the kitchen, solo, saying why.
+      await expect.poll(() => refused, { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
+      const state = await world(page);
+      expect(state.mode).toBe('playing');
+      expect(state.connection).not.toBe('online');
+      await expect(page.locator('.hud-status')).not.toContainText('Online');
+      const log = page.getByRole('list', { name: 'Chat history' });
+      await expect(log).toContainText('The lobby is full right now');
+      // The server answers, so a party can still be started rather than the menu calling it gone.
+      await page.keyboard.press('Escape');
+      const menu = page.getByRole('dialog', { name: 'Paused' });
+      await expect(menu.getByRole('button', { name: 'Start party' })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      );
+      await expect(menu.locator('#party-code-status')).not.toContainText('unreachable');
+      await page.keyboard.press('Escape');
+      await expectWorld(page, (w) => w.mode === 'playing', 'back to cooking');
+    } finally {
+      await new Promise<void>((resolve) => full.close(() => resolve()));
+    }
+
+    // A place frees up: the next try gets in.
+    const again = await startRoomServer();
+    try {
+      await expectWorld(page, (w) => w.connection === 'online', 'back in the lobby', 30_000);
+      expect((await world(page)).mode).toBe('playing');
+    } finally {
+      await again.close();
+    }
+  } finally {
+    await page.context().close();
   }
 });
 

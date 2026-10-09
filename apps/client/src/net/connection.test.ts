@@ -156,6 +156,52 @@ describe('Connection', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it.each(['room_full', 'room_taken', 'no_room'] as const)(
+    'is turned away with %s on a reconnect without giving up, and says so until let in',
+    (code) => {
+      const onFatal = vi.fn<ConnectionHandlers['onFatal']>();
+      const connection = new Connection({ ...options, handlers: { ...quiet, onFatal } });
+      latest().open();
+      latest().receive(welcome('friday'));
+      latest().close();
+      for (let i = 0; i < 2; i++) {
+        vi.runOnlyPendingTimers();
+        latest().open();
+        latest().receive({ t: 'error', code, message: 'no' });
+        latest().close();
+        expect(connection.status).toBe('offline');
+        expect(connection.refusal).toBe(code);
+      }
+      expect(onFatal).not.toHaveBeenCalled();
+      // Still trying; the room lets us in at last.
+      vi.runOnlyPendingTimers();
+      latest().open();
+      latest().receive(welcome('friday'));
+      expect(connection.status).toBe('online');
+      expect(connection.refusal).toBeNull();
+      connection.close();
+    },
+  );
+
+  it('is not turned away for good after a first attempt that failed, nor told of an old refusal', () => {
+    const onFatal = vi.fn<ConnectionHandlers['onFatal']>();
+    const connection = new Connection({ ...options, handlers: { ...quiet, onFatal } });
+    // The server is down as the visitor enters, so they are already cooking solo.
+    latest().close();
+    vi.runOnlyPendingTimers();
+    latest().open();
+    latest().receive({ t: 'error', code: 'room_full', message: 'full' });
+    latest().close();
+    expect(onFatal).not.toHaveBeenCalled();
+    expect(connection.refusal).toBe('room_full');
+    // Then the server goes away again: unreachable now, not full.
+    vi.runOnlyPendingTimers();
+    latest().close();
+    expect(connection.status).toBe('offline');
+    expect(connection.refusal).toBeNull();
+    connection.close();
+  });
+
   it('gives up on a socket gone silent at once, not when its closing handshake does', () => {
     const onStatus = vi.fn<ConnectionHandlers['onStatus']>();
     const onMessage = vi.fn<ConnectionHandlers['onMessage']>();

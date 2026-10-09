@@ -117,6 +117,27 @@ describe('Multiplayer', () => {
     mp.close();
   });
 
+  it('keeps a cook turned away by a full room on a reconnect, solo, saying why once', () => {
+    const { deps, addSystem } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().close();
+    const full = 'The lobby is full right now, so you are cooking solo.';
+    for (let i = 0; i < 2; i++) {
+      vi.runOnlyPendingTimers();
+      latestSocket().open();
+      latestSocket().receive({ t: 'error', code: 'room_full', message: 'full' });
+      latestSocket().close();
+    }
+    expect(deps.onFatal).not.toHaveBeenCalled();
+    expect(mp.status).toBe('offline');
+    // The server answered, so other rooms are worth trying.
+    expect(mp.reachable).toBe(true);
+    expect(addSystem.mock.calls.filter(([line]) => line.startsWith(full))).toHaveLength(1);
+    mp.close();
+  });
+
   it('plays solo, retrying, when the browser will not make a socket at all', async () => {
     FakeSocket.refuse = true;
     const { deps, setStatus } = setup('lobby');
