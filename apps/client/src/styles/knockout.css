@@ -11,10 +11,6 @@
   transition: background-color 0.6s ease 0.25s;
 }
 
-.knockout[hidden] {
-  display: none;
-}
-
 .knockout.is-shown {
   background: rgb(var(--night-rgb) / 0.5);
 }

@@ -48,12 +48,12 @@ All in `apps/client/src/styles/tokens.css` and `controls.css`; use them, do not 
 - `.kicker`: a small uppercase line in brass above a title, only where it adds information (a status, a count).
 - `.title`: the display face; each surface sets the size.
 - `.bar`: the brass mark.
-- `.button`: a word with the bar sliding in under it on hover, press or `aria-current`/`aria-pressed`; `.button-primary` always has the bar; `.button-large` is the screen's main action in the display face.
+- `.button`: a word with the bar sliding in under it on hover or `aria-current`; `.button-primary` always has the bar; `.button-large` is the screen's main action in the display face.
 - `.icon-button`: a ring.
 - `.field`, `.field-label`, `.field-help`, `.input`: a line to write on that turns brass while you type; labels in plain case.
 - `kbd`: a ring.
 
-The old navy tokens (`--navy`, `--panel`, `--panel-border`, `--radius*`, `--shadow`, `.card`) remain only until every surface has moved off them, then they go.
+The old navy tokens (`--navy`, `--panel`, `--panel-border`, `--radius*`, `--shadow`, `.card`) are gone; do not bring them back.
 
 ## Surfaces
 
