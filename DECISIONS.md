@@ -580,3 +580,41 @@ Judgment calls made during the unattended build, with reasons.
   The governor now steps between levels that look different on the screen at hand, always lands on the best of its kind, and never climbs back to one that draws like a level that fell behind.
 - **The screen's ratio is followed, not taken once.** Browser zoom and moving the window to a screen of another ratio change it; the canvas used to keep the old one (blurry on a retina screen, or four times the pixels after leaving one, which stepped quality down and saved that). Now every resize applies it, a media query catches a move that does not resize the window, and the governor judges afresh there.
 - **The string lights' shader compiles while loading**, by showing the bulbs for the compile: shown only toward dusk, a visitor arriving by day compiled it mid-play when they came on.
+
+### The room server after review (2026-10-09)
+
+- **A player's inputs must come numbered one after another, and a connection sending one that is not is ended** (close code 4006).
+  The cooldowns, the walk-in's door and the knife's spread all go by sequence numbers, and the only rule had been that they rise: inputs 42 apart threw on every input, 60 knives a second, burst the door in ten ticks, and picked whatever spread the sender liked.
+  The client numbers every tick it simulates and sends every one while online (in the menu, at the computer and knocked out too); catch-up ticks it drops are never numbered, and its count runs on through solo play, reconnects and room moves, so the first input on a connection may start anywhere.
+  A WebSocket keeps order, so an honest client's numbers never skip or repeat; the one way it could lose an input was the server's own rate limit.
+- **So the message limit now lets a stalled connection's burst through: 6 s of inputs at once** (360 messages, was 120), since a client waits up to 5 s on a silent server before reconnecting and sends everything it simulated meanwhile.
+  Before, a stall of 3 s had an honest client kicked as a flooder; with numbered inputs, losing one would end the connection instead.
+  It refills at 66 a second (was 90), just over the one input a tick and the ping a second a client sends, so a client sending inputs faster than there are ticks, to count its cooldowns down sooner, gains at most a tenth, and is cut off once its burst runs out.
+- **The cooldowns stay counted in sequence numbers, not in inputs the server simulated.**
+  Numbered one after another, the two differ only where the server drops inputs (its queue keeps the newest 0.4 s), which happens to honest clients after any network hiccup; counting simulated inputs would then refuse throws their screens had already drawn, to win back only the tenth the rate limit allows.
+- **Skipping ahead can no longer pick a knife's spread.**
+  A sender can still wait for an input whose spread they like, or aim against it, which the spread's own decision accepted: anyone who would can already aim with devtools.
+  The first input of a connection can start anywhere, so rejoining picks one throw's spread, and rejoining starts the cooldowns afresh, as it always has; both cost a rejoin the whole room sees.
+- **Behind CloudFront a client's address is the last entry of `X-Forwarded-For`, not the first.**
+  CloudFront appends the address it got the request from to whatever the viewer sent (AWS, "Request and response behavior for custom origins", Client IP addresses), so the first entry is the visitor's to write, and the 20 connections per address capped nothing.
+  Only CloudFront can reach the instance (its security group admits CloudFront's origin-facing prefix list alone) and nothing sits between them, so the last entry is always the address CloudFront saw.
+  `CloudFront-Viewer-Address` was the alternative, but it depends on the origin request policy forwarding it (AllViewerExceptHostHeader is documented to include the viewer location headers, without listing them), its port has to be parsed off IPv6 addresses, and AWS does not say whether a viewer's own copy is replaced; the appended entry is documented plainly.
+  Addresses are counted whole, so an IPv6 visitor could still spread sockets across their /64; capping per prefix is left until it is needed.
+- **Every socket gets its error listener first**, before the origin check or the connection cap can turn it away.
+  An oversized frame from a socket being turned away emitted an error nobody listened for, which Node throws, and the server process exited.
+  Turned-away sockets are also terminated after a second, like dropped ones, so sockets refused for being too many cannot pile up in their close handshakes.
+- **No catch-all for uncaught exceptions.**
+  Node's documentation says a process is not safe to resume after one, and a message handled halfway can leave a ghost cook in a room that then never empties; systemd restarts the server in 2 s and the stack lands in the log, which is the better failure.
+  The one known source, socket errors, is now always handled.
+- **The first knife to reach a cook on a tick knocks them out, and any other flies on through them**, sticking wherever it ends.
+  Both used to count as hits, the room dropped the second because its victim was already down, and that knife ended with no word: screens left it where their own flight had put it after 2 s, or nowhere.
+  "First" is the first thrown, not the first to arrive within the 17 ms tick: it is deterministic, and the rewind to what each thrower saw blurs arrival that finely anyway.
+- **On every screen, a knife the server says stuck flies through everyone**, since on the server it hit nobody.
+  One that had already gone into a cook drawn in its way (the thrower's own screen gets there before the word) comes back out and flies on, instead of hanging inside them and then jumping to where it stuck.
+  This also mends knives thrown through a cook still protected after respawning, which screens do not know about.
+- **Changes of prefs have their own allowance, 8 at once and 2 a second**, and past it the newest waits its turn, replacing any before it.
+  Each change goes to everyone in the room; dropping the extras would have been simpler, but the client does not send a change twice, so a visitor clicking quickly through the knives would have left the room showing one they had passed.
+- **A hello's spawn hint is bounded to a million radians of turn**, like an input: a hint turned 1.7e308 reached the welcome and every snapshot as a yaw of -2e292.
+  Its position needs no bound, being clamped to the play area, and the other open numbers (an input's view tick, ping ids) are clamped or only echoed back.
+- **The lobby's room over HTTP is 15 visitors with Chef Skinner** (16 without him), since he takes one of its places; the landing reads only the count.
+- None of this changes what an honest client sends or reads, so the protocol stays at version 8.

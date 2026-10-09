@@ -183,7 +183,7 @@ npm ci && npm run build -w @world/server
 PORT=8080 TRUST_PROXY=1 node apps/server/dist/index.js
 ```
 
-Environment variables (see [`apps/server/.env.example`](apps/server/.env.example)): `PORT`, `ALLOWED_ORIGINS` (comma-separated page origins; unset allows any), `TRUST_PROXY=1` behind a proxy, and `BASE_PATH` when a CDN forwards a path prefix such as `/ws`.
+Environment variables (see [`apps/server/.env.example`](apps/server/.env.example)): `PORT`, `ALLOWED_ORIGINS` (comma-separated page origins; unset allows any), `TRUST_PROXY=1` behind exactly one proxy that appends the address it got each request from to `X-Forwarded-For`, as CloudFront does (the server takes the last entry, since a visitor can write the ones before it), and `BASE_PATH` when a CDN forwards a path prefix such as `/ws`.
 Railway or Render work with build command `npm ci && npm run build -w @world/server`, start command `node apps/server/dist/index.js`, and health check `/health`.
 Build the client with `VITE_SERVER_URL` set to the server's `wss://` URL, or to a path like `/ws` when the same domain proxies to the server.
 

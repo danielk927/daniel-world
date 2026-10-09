@@ -24,6 +24,24 @@ describe('TokenBucket', () => {
   });
 });
 
+describe('TokenBucket.wait', () => {
+  it('says how long until a take would succeed', () => {
+    let now = 0;
+    const bucket = new TokenBucket(2, 4, () => now);
+    expect(bucket.wait()).toBe(0);
+    bucket.take();
+    bucket.take();
+    // Four a second: the next is a quarter of a second away, less whatever time has passed.
+    expect(bucket.wait()).toBeCloseTo(250, 9);
+    now = 100;
+    expect(bucket.wait()).toBeCloseTo(150, 9);
+    expect(bucket.take()).toBe(false);
+    now = 250;
+    expect(bucket.wait()).toBe(0);
+    expect(bucket.take()).toBe(true);
+  });
+});
+
 describe('StrikeCounter', () => {
   it('trips on sustained strikes but forgives slow ones', () => {
     let now = 0;
