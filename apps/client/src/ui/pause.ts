@@ -125,7 +125,7 @@ export class PauseMenu {
   ) {
     const leaveButton = el('button', {
       class: 'button',
-      text: 'Leave world',
+      text: 'Leave the kitchen',
       attrs: { type: 'button' },
     });
     this.party = new PartyPanel(handlers);
@@ -191,7 +191,7 @@ export class PauseMenu {
             leaveButton,
             el('a', {
               class: 'text-link pause-portfolio',
-              text: 'Plain portfolio page',
+              text: 'Plain portfolio',
               attrs: { href: '/portfolio.html' },
             }),
           ]),

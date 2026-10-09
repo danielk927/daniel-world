@@ -118,7 +118,7 @@ On `--dark-from-left`:
 - Sliders: a hairline track, a brass run and a ringed knob.
 - Switches stay `role="switch"` but read as "Off On" with the bar under the current word.
 - Choices (graphics) are words with the bar under the chosen one.
-- Bottom left: Resume with its Esc ring, Leave world, and the plain portfolio link.
+- Bottom left: Resume with its Esc ring, Leave the kitchen, and the Plain portfolio link.
 - Party, Knives and Controls follow the same rows, words and rings; the knife grid is icons and names with the bar under the equipped one, no tiles.
 - The dialog's accessible name stays "Paused".
 
