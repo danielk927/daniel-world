@@ -561,3 +561,10 @@ Judgment calls made during the unattended build, with reasons.
   `lighting.test.ts` now checks every dish sits inside the bright core of a heat lamp's cone.
 - **The cones narrowed from 0.5 to 0.35 radians**, the spread of the beams drawn under the lamps, so five lamps 1.5 m apart still make five pools on the pass, each round its plate, rather than one orange strip.
 - Two more spot lights cost nothing measurable on the high tier: 60 fps with 16 players at device pixel ratio 1, governor level 0, the same 76 draw calls.
+
+### Labels make way for the interface (2026-10-09)
+
+- **No label in the world shows over the HUD**: station labels, their leaders and name tags all hide where they would cover the room's name, the players, the controls, the loadout and map, the chat or a toast.
+  Words over words can be read as neither, and the house style puts nothing behind words to set them apart; looking along the pass, "Products" and "Experience" printed over the party's name, and "Research" over the player list.
+- **Even the pinned label gives way.** The prompt under the crosshair is not kept clear, since it names the very station whose label is pinned above it.
+- **The interface's boxes are measured only when they change size** (a `ResizeObserver`) or the window does, never in a frame; a part that is faded out or covered keeps its size, so each part says whether it shows, from its classes.

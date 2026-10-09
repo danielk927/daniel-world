@@ -163,6 +163,9 @@ export class Game {
       onClose: () => this.closeChat(),
     });
     this.toasts = new Toasts(overlay);
+    this.hud.keepLabelsClear(this.labels);
+    this.labels.keepClear(this.chat.element, () => this.chat.showing);
+    this.labels.keepClear(this.toasts.element);
     this.knockout = new Knockout(overlay);
     this.killFeed = new KillFeed(this.hud.feedSlot);
     this.impact = new Impact(overlay);

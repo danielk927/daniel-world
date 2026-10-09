@@ -1,6 +1,7 @@
 import { MAX_PLAYERS_PER_ROOM, DEFAULT_ROOM } from '@world/shared';
 import type { ConnectionStatus } from '../net/connection.ts';
 import { el } from './dom.ts';
+import type { LabelLayer } from './labels.ts';
 
 export interface HudPlayer {
   id: number;
@@ -100,23 +101,26 @@ export class Hud {
   private promptShown = '';
   private playersKey = '';
 
+  private readonly room = el('div', { class: 'hud-room' }, [
+    el('p', { class: 'hud-room-title' }, [this.roomKind, this.roomName]),
+    el('div', { class: 'hud-room-line' }, [this.status, this.fps]),
+    this.statusAnnouncement,
+  ]);
+  private readonly right = el('div', { class: 'hud-right' }, [
+    el('section', { class: 'hud-players', attrs: { 'aria-label': 'Players in this room' } }, [
+      this.playerCount,
+      this.playerList,
+    ]),
+    this.feedSlot,
+  ]);
+
   constructor(parent: HTMLElement) {
     this.element = el('div', { class: 'hud', attrs: { hidden: '' } }, [
       this.crosshair,
       this.prompt,
       this.lookCue,
-      el('div', { class: 'hud-room' }, [
-        el('p', { class: 'hud-room-title' }, [this.roomKind, this.roomName]),
-        el('div', { class: 'hud-room-line' }, [this.status, this.fps]),
-        this.statusAnnouncement,
-      ]),
-      el('div', { class: 'hud-right' }, [
-        el('section', { class: 'hud-players', attrs: { 'aria-label': 'Players in this room' } }, [
-          this.playerCount,
-          this.playerList,
-        ]),
-        this.feedSlot,
-      ]),
+      this.room,
+      this.right,
       this.hint,
       this.computerHint,
       this.corner,
@@ -133,6 +137,19 @@ export class Hud {
 
   hide(): void {
     this.element.hidden = true;
+  }
+
+  /** The world's labels never show over the room, the players, the controls or the corner. */
+  keepLabelsClear(labels: LabelLayer): void {
+    const covered = (): boolean =>
+      this.element.classList.contains('is-covered') ||
+      this.element.classList.contains('is-computer');
+    labels.keepClear(this.room);
+    labels.keepClear(this.right);
+    labels.keepClear(this.hint, () => !covered() && !this.hint.classList.contains('is-faded'));
+    // Shown only at the computer, and taking no room otherwise.
+    labels.keepClear(this.computerHint);
+    labels.keepClear(this.corner, () => !covered());
   }
 
   /** While a panel or menu covers the world, hide the parts that would peek out or mislead. */
