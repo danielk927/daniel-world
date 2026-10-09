@@ -48,3 +48,36 @@ test('Tab and Shift+Tab stay in the pause menu, and only on what the keyboard ca
   expect(stops.at(-1)).toBe('Plain portfolio');
   await page.context().close();
 });
+
+test('the arrow keys move straight up and down the knife grid, however many columns it has', async ({
+  browser,
+}) => {
+  const page = await enterWorld(browser, { name: 'Collector', online: false });
+  await page.keyboard.press('Escape');
+  const menu = page.getByRole('dialog', { name: 'Paused' });
+  await menu.getByRole('tab', { name: 'Knives' }).click();
+  const grid = menu.getByRole('radiogroup', { name: 'Knife' });
+
+  /** Where the focused knife sits in the grid, by its box. */
+  const focused = () =>
+    page.evaluate(() => {
+      const box = document.activeElement!.getBoundingClientRect();
+      return { x: Math.round(box.left), y: Math.round(box.top) };
+    });
+
+  // Four across in a window, three across on a phone, which the menu turns into as it narrows.
+  for (const width of [960, 600, 960]) {
+    await page.setViewportSize({ width, height: 800 });
+    const first = grid.getByRole('radio').first();
+    await first.click();
+    await expect(first).toBeFocused();
+    const start = await focused();
+    await page.keyboard.press('ArrowDown');
+    const below = await focused();
+    expect(below.x, `ArrowDown at ${width} px keeps to the column`).toBe(start.x);
+    expect(below.y).toBeGreaterThan(start.y);
+    await page.keyboard.press('ArrowUp');
+    expect(await focused(), `ArrowUp at ${width} px comes back`).toEqual(start);
+  }
+  await page.context().close();
+});
