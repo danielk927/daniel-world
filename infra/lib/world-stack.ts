@@ -54,6 +54,14 @@ const NODE_VERSION = 'v24.21.0';
 const NODE_SHA256 = '6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2';
 
 /**
+ * How long a deploy waits for a new instance to boot and answer its health check. A boot takes a
+ * minute or two (packages, Node.js); a failing step signals at once, so this only bounds a hang.
+ */
+export const BOOT_TIMEOUT = Duration.minutes(10);
+/** How long the boot script gives the freshly started server to answer its health check. */
+const HEALTH_WAIT_SECONDS = 60;
+
+/**
  * The whole site on AWS:
  *
  *   visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (private, Origin Access Control)
@@ -115,11 +123,12 @@ export class WorldStack extends Stack {
     serverBundle.grantRead(role);
 
     const userData = UserData.forLinux();
-    const bundleZip = userData.addS3DownloadCommand({
-      bucket: serverBundle.bucket,
-      bucketKey: serverBundle.s3ObjectKey,
-    });
-    userData.addCommands(...serverSetupCommands(bundleZip, logGroup.logGroupName));
+    userData.addCommands(
+      ...serverSetupCommands({
+        bundleUrl: serverBundle.s3ObjectUrl,
+        logGroupName: logGroup.logGroupName,
+      }),
+    );
 
     const instance = new Instance(this, 'Server', {
       vpc,
@@ -130,6 +139,8 @@ export class WorldStack extends Stack {
       role,
       userData,
       userDataCausesReplacement: true,
+      // CloudFormation holds the deploy until the boot script signals (see serverSetupCommands).
+      resourceSignalTimeout: BOOT_TIMEOUT,
       requireImdsv2: true,
       blockDevices: [
         {
@@ -141,6 +152,15 @@ export class WorldStack extends Stack {
         },
       ],
     });
+    // However the boot script ends, it tells CloudFormation: success only if every step ran and the
+    // server answered its health check. A failure, or no word within BOOT_TIMEOUT, rolls the deploy
+    // back, so the old instance keeps serving and the stack never reports a broken one as complete.
+    // On a failure it first gives the log agent a moment to ship the boot log, since the instance
+    // is deleted with the rollback.
+    userData.addOnExitCommands(
+      'if [ "$exitCode" -ne 0 ]; then sleep 15; fi',
+      `/opt/aws/bin/cfn-signal --stack ${this.stackName} --resource ${instance.instance.logicalId} --region ${this.region} -e $exitCode || echo 'Could not send the CloudFormation signal'`,
+    );
 
     // Self-healing: recover onto new hardware if the host fails, reboot if the OS stops responding.
     const statusCheck = (metricName: string): Metric =>
@@ -227,12 +247,45 @@ export class WorldStack extends Stack {
   }
 }
 
-/** Boot script: install a verified Node.js, unpack the server, run it under systemd, ship logs. */
-export function serverSetupCommands(bundleZip: string, logGroupName: string): string[] {
+export interface ServerSetup {
+  /** `s3://` URL of the zipped server bundle. */
+  bundleUrl: string;
+  /** CloudWatch log group for the boot log and the server log. */
+  logGroupName: string;
+}
+
+/**
+ * Boot script: ship logs, install a verified Node.js, unpack the server, run it under systemd, and
+ * finish only once the server answers its health check. Any failing step ends the script there, and
+ * the exit trap the stack adds signals CloudFormation with its exit code.
+ */
+export function serverSetupCommands({ bundleUrl, logGroupName }: ServerSetup): string[] {
   const nodeTarball = `node-${NODE_VERSION}-linux-arm64.tar.xz`;
+  // Through the same path prefix CloudFront forwards, so the check covers BASE_PATH too.
+  const healthUrl = `http://127.0.0.1:${SERVER_PORT}${SERVER_PATH}/health`;
   return [
     'set -euo pipefail',
-    'dnf install -y amazon-cloudwatch-agent logrotate',
+    // CloudFormation only hears that the boot failed; the boot log says which step.
+    `trap 'echo "Boot failed at line $LINENO: $BASH_COMMAND" >&2' ERR`,
+    'dnf install -y amazon-cloudwatch-agent aws-cfn-bootstrap logrotate',
+
+    // Logs ship first, so a boot that fails later still leaves its log after the rollback deletes
+    // the instance.
+    `cat > /opt/aws/amazon-cloudwatch-agent/etc/world.json <<'AGENT'
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          { "file_path": "/var/log/cloud-init-output.log", "log_group_name": "${logGroupName}", "log_stream_name": "{instance_id}-boot" },
+          { "file_path": "/var/log/world/server.log", "log_group_name": "${logGroupName}", "log_stream_name": "{instance_id}" }
+        ]
+      }
+    }
+  }
+}
+AGENT`,
+    '/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/world.json',
 
     // Node.js, pinned and checksum-verified.
     `curl -fsSL -o /tmp/${nodeTarball} https://nodejs.org/dist/${NODE_VERSION}/${nodeTarball}`,
@@ -243,7 +296,8 @@ export function serverSetupCommands(bundleZip: string, logGroupName: string): st
     // The server runs as an unprivileged user from a read-only location.
     'id world >/dev/null 2>&1 || useradd --system --no-create-home --shell /sbin/nologin world',
     'mkdir -p /opt/world /var/log/world',
-    `python3 -m zipfile -e ${bundleZip} /opt/world`,
+    `aws s3 cp '${bundleUrl}' /tmp/server.zip`,
+    'python3 -m zipfile -e /tmp/server.zip /opt/world',
     'chown -R root:root /opt/world && chown world:world /var/log/world',
 
     `cat > /etc/systemd/system/world.service <<'UNIT'
@@ -281,19 +335,8 @@ ROTATE`,
     'systemctl daemon-reload',
     'systemctl enable --now world.service',
 
-    `cat > /opt/aws/amazon-cloudwatch-agent/etc/world.json <<'AGENT'
-{
-  "logs": {
-    "logs_collected": {
-      "files": {
-        "collect_list": [
-          { "file_path": "/var/log/world/server.log", "log_group_name": "${logGroupName}", "log_stream_name": "{instance_id}" }
-        ]
-      }
-    }
-  }
-}
-AGENT`,
-    '/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/world.json',
+    // The deploy's gate: the script, and so the signal, succeeds only once the server answers.
+    `timeout ${HEALTH_WAIT_SECONDS} bash -c 'until curl -fsS -o /dev/null ${healthUrl}; do sleep 1; done'`,
+    'echo "Room server is up"',
   ];
 }

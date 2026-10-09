@@ -147,6 +147,8 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
 - **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
   Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
   A new server build replaces the instance (immutable deploys).
+  The deploy waits for the new instance to answer its health check; if a boot step fails or it never answers within 10 minutes, CloudFormation rolls back and the old instance keeps serving.
+  The boot log goes to the server's log group (stream `<instance id>-boot`), so a failed boot can still be read after the rollback deletes its instance.
 - **CloudWatch** receives the server logs (two-week retention) and two alarms self-heal the instance: host failure triggers EC2 auto-recovery, an unresponsive instance is rebooted.
 - **IAM** is least privilege: the instance role has Session Manager access, read access to its own code bundle, and write access to its own log group.
 - No NAT gateway and a single public subnet keep the cost to roughly the instance and its public IP (about $10/month, less on the AWS free tier).

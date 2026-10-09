@@ -8,6 +8,27 @@ import { SERVER_PATH, SERVER_PORT, WorldStack } from '../lib/world-stack.ts';
 
 let template: Template;
 
+/** A template value as text, with intrinsics shown as `{Ref X}` or `{X.Attr}` placeholders. */
+function render(value: unknown): string {
+  if (typeof value === 'string') return value;
+  const node = value as Record<string, unknown>;
+  if ('Fn::Join' in node) {
+    const [separator, parts] = node['Fn::Join'] as [string, unknown[]];
+    return parts.map(render).join(separator);
+  }
+  if ('Fn::Base64' in node) return render(node['Fn::Base64']);
+  if ('Ref' in node) return `{Ref ${String(node.Ref)}}`;
+  if ('Fn::GetAtt' in node) return `{${(node['Fn::GetAtt'] as string[]).join('.')}}`;
+  return JSON.stringify(value);
+}
+
+/** The room server instance: its logical ID, and the template entry. */
+function server(): [string, { Properties: Record<string, unknown>; [key: string]: unknown }] {
+  const instances = Object.entries(template.findResources('AWS::EC2::Instance'));
+  expect(instances).toHaveLength(1);
+  return instances[0]! as [string, { Properties: Record<string, unknown> }];
+}
+
 beforeAll(() => {
   // Stand-in build output; the real one comes from scripts/build-assets.ts.
   const dir = mkdtempSync(join(tmpdir(), 'world-infra-'));
@@ -132,6 +153,39 @@ describe('WorldStack', () => {
     expect(userData).toContain('User=world');
     expect(userData).toContain(`BASE_PATH=${SERVER_PATH}`);
     expect(userData).toContain('TRUST_PROXY=1');
+  });
+
+  it('holds a deploy until the new server answers its health check, and fails it otherwise', () => {
+    const [id, instance] = server();
+    // One signal (CloudFormation's default count) within ten minutes, or the deploy rolls back.
+    expect(instance.CreationPolicy).toEqual({ ResourceSignal: { Timeout: 'PT10M' } });
+    const script = render(instance.Properties.UserData);
+    // However the script ends, the exit trap signals this instance with the script's exit code.
+    expect(script).toMatch(/^#!\/bin\/bash\nfunction exitTrap\(\)\{\nexitCode=\$\?\n/);
+    expect(script).toContain('trap exitTrap EXIT');
+    expect(script).toContain(
+      `/opt/aws/bin/cfn-signal --stack Test --resource ${id} --region us-east-1 -e $exitCode`,
+    );
+    // Every step can fail the script, from the first download on.
+    expect(script.indexOf('set -euo pipefail')).toBeLessThan(script.indexOf('dnf install'));
+    expect(script.indexOf('set -euo pipefail')).toBeLessThan(script.indexOf('aws s3 cp'));
+    // The last step waits for the server's health check, through the path CloudFront forwards.
+    const steps = script.trimEnd().split('\n');
+    expect(steps.at(-2)).toMatch(
+      new RegExp(
+        `^timeout \\d+ bash -c 'until curl -fsS -o /dev/null http://127\\.0\\.0\\.1:${SERVER_PORT}${SERVER_PATH}/health; do sleep 1; done'$`,
+      ),
+    );
+    expect(steps.indexOf('systemctl enable --now world.service')).toBeLessThan(steps.length - 2);
+  });
+
+  it('ships the boot log before the steps that can fail, so a rolled back boot leaves it', () => {
+    const script = render(server()[1].Properties.UserData);
+    expect(script).toContain('"file_path": "/var/log/cloud-init-output.log"');
+    expect(script.indexOf('amazon-cloudwatch-agent-ctl')).toBeLessThan(script.indexOf('aws s3 cp'));
+    expect(script.indexOf('amazon-cloudwatch-agent-ctl')).toBeLessThan(
+      script.indexOf('https://nodejs.org'),
+    );
   });
 
   it('keeps server logs in CloudWatch for two weeks', () => {
