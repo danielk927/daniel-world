@@ -81,6 +81,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - The interface follows `docs/ui-revamp.md` (approved mockups in `docs/ui-revamp/`): no boxes, nothing behind or around words in the world (no outlines, glows or `text-shadow`), Gabarito for titles and Rubik for the rest, brass only for what is current, marked by the `.bar`, and keys as rings.
   Use the tokens in `styles/tokens.css` and the parts in `styles/controls.css`; each surface has its own stylesheet, imported in cascade order by `styles/app.css`.
   The fonts' latin subset has no arrows, so draw them.
+- The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 
 <!-- BEGIN AWS Agent Toolkit rules -->
