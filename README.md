@@ -146,8 +146,10 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
   Every deploy uploads the new build and invalidates the cache.
 - **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
   Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
+  CloudFront reaches it by an Elastic IP's public DNS name, which survives a stop and start (AWS maintenance included), unlike the instance's own address.
   A new server build replaces the instance (immutable deploys).
   The deploy waits for the new instance to answer its health check; if a boot step fails or it never answers within 10 minutes, CloudFormation rolls back and the old instance keeps serving.
+  Only then does the Elastic IP move to the new instance, so CloudFront's origin never changes.
   The boot log goes to the server's log group (stream `<instance id>-boot`), so a failed boot can still be read after the rollback deletes its instance.
 - **CloudWatch** receives the server logs (two-week retention) and two alarms self-heal the instance: host failure triggers EC2 auto-recovery, an unresponsive instance is rebooted.
 - **IAM** is least privilege: the instance role has Session Manager access, read access to its own code bundle, and write access to its own log group.
@@ -167,7 +169,7 @@ npm run deploy:aws
 ```
 
 The command builds the client (pointed at `/ws`) and the single-file server bundle, then runs `cdk deploy`.
-It prints `SiteUrl` (the site), `ServerUrl` (for a client hosted elsewhere), `ShellCommand` (Session Manager) and `ServerLogGroup`.
+It prints `SiteUrl` (the site), `ServerUrl` (for a client hosted elsewhere), `ShellCommand` (Session Manager), `ServerLogGroup` and `ServerOrigin` (the Elastic IP's DNS name that CloudFront forwards `/ws` to).
 `npm run diff -w @world/infra` previews changes; `npm run destroy -w @world/infra` removes everything.
 Rooms live in one process's memory, so keep exactly one instance.
 

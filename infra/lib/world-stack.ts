@@ -1,4 +1,4 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import { CfnOutput, Duration, Fn, RemovalPolicy, Stack, Token, type StackProps } from 'aws-cdk-lib';
 import { Alarm, ComparisonOperator, Metric, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
 import { Ec2Action, Ec2InstanceAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import {
@@ -15,6 +15,7 @@ import {
 import { HttpOrigin, S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import {
   BlockDeviceVolume,
+  CfnEIP,
   EbsDeviceVolumeType,
   Instance,
   InstanceClass,
@@ -168,6 +169,27 @@ export class WorldStack extends Stack {
       `/opt/aws/bin/cfn-signal --stack ${this.stackName} --resource ${instance.instance.logicalId} --region ${this.region} -e $exitCode || echo 'Could not send the CloudFormation signal'`,
     );
 
+    // A fixed address for CloudFront to reach the server by. An instance's own public IP, and the
+    // DNS name made from it, change on every stop and start (AWS maintenance included), which would
+    // leave the origin pointing nowhere until the next deploy. The Elastic IP stays through those,
+    // and a deploy that replaces the instance moves it to the new one once that one has passed its
+    // health check, so the origin never changes. (The instance still gets its own public IP at
+    // launch, to fetch what it needs while it boots; the Elastic IP takes its place.)
+    const serverIp = new CfnEIP(this, 'ServerIp', {
+      domain: 'vpc',
+      instanceId: instance.instanceId,
+      tags: [{ key: 'Name', value: `${this.stackName}-room-server` }],
+    });
+    const serverOrigin = publicDnsName(this, serverIp.attrPublicIp);
+    // Both need the subnet's route to the internet gateway, which depends on the gateway's
+    // attachment: the Elastic IP to be associated, and the boot to fetch packages, Node.js and the
+    // bundle and to signal (in a new stack, the instance could otherwise boot before the route).
+    const internet = vpc.selectSubnets({
+      subnetType: SubnetType.PUBLIC,
+    }).internetConnectivityEstablished;
+    instance.node.addDependency(internet);
+    serverIp.node.addDependency(internet);
+
     // Self-healing: recover onto new hardware if the host fails, reboot if the OS stops responding.
     const statusCheck = (metricName: string): Metric =>
       new Metric({
@@ -217,7 +239,7 @@ export class WorldStack extends Stack {
       },
       additionalBehaviors: {
         [`${SERVER_PATH}*`]: {
-          origin: new HttpOrigin(instance.instancePublicDnsName, {
+          origin: new HttpOrigin(serverOrigin, {
             protocolPolicy: OriginProtocolPolicy.HTTP_ONLY,
             httpPort: SERVER_PORT,
             readTimeout: Duration.seconds(30),
@@ -245,12 +267,30 @@ export class WorldStack extends Stack {
       description: 'Use as VITE_SERVER_URL for a client hosted elsewhere (e.g. Vercel)',
     });
     new CfnOutput(this, 'InstanceId', { value: instance.instanceId });
+    new CfnOutput(this, 'ServerOrigin', {
+      value: serverOrigin,
+      description: "CloudFront's way to the room server: the Elastic IP's public DNS name",
+    });
     new CfnOutput(this, 'ShellCommand', {
       value: `aws ssm start-session --target ${instance.instanceId} --region ${this.region}`,
       description: 'Shell on the room server (no SSH keys needed)',
     });
     new CfnOutput(this, 'ServerLogGroup', { value: logGroup.logGroupName });
   }
+}
+
+/**
+ * The public DNS name EC2 gives a public IPv4 address, for a CloudFront origin (which takes a name,
+ * not an address): `ec2-203-0-113-7.compute-1.amazonaws.com` in us-east-1, and
+ * `ec2-203-0-113-7.<region>.compute.amazonaws.com` elsewhere. Outside AWS it resolves to the address
+ * itself. CloudFormation offers no such attribute for an Elastic IP, so it is built from the address.
+ */
+export function publicDnsName(stack: Stack, ip: string): string {
+  if (Token.isUnresolved(stack.region)) {
+    throw new Error('The room server origin needs a stack with a concrete region (env.region)');
+  }
+  const domain = stack.region === 'us-east-1' ? 'compute-1' : `${stack.region}.compute`;
+  return `ec2-${Fn.join('-', Fn.split('.', ip))}.${domain}.${stack.urlSuffix}`;
 }
 
 export interface ServerSetup {

@@ -1,10 +1,10 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { App } from 'aws-cdk-lib';
+import { App, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { SERVER_PATH, SERVER_PORT, WorldStack } from '../lib/world-stack.ts';
+import { SERVER_PATH, SERVER_PORT, WorldStack, publicDnsName } from '../lib/world-stack.ts';
 
 let template: Template;
 
@@ -13,19 +13,33 @@ const AMI_CONTEXT_KEY =
   'ssm:account=123456789012:parameterName=/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-arm64:region=us-east-1';
 const CACHED_AMI = 'ami-0123456789abcdef0';
 
-/** A template value as text, with intrinsics shown as `{Ref X}` or `{X.Attr}` placeholders. */
-function render(value: unknown): string {
+/**
+ * Evaluates a template value the way CloudFormation would, taking Refs and GetAtts (`Id` or
+ * `Id.Attr`) from `values`, and showing any others as `{Ref Id}` or `{Id.Attr}` placeholders.
+ */
+function evaluate(value: unknown, values: Record<string, string> = {}): string | string[] {
   if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map((item) => String(evaluate(item, values)));
   const node = value as Record<string, unknown>;
   if ('Fn::Join' in node) {
-    const [separator, parts] = node['Fn::Join'] as [string, unknown[]];
-    return parts.map(render).join(separator);
+    const [separator, parts] = node['Fn::Join'] as [string, unknown];
+    return [evaluate(parts, values)].flat().join(separator);
   }
-  if ('Fn::Base64' in node) return render(node['Fn::Base64']);
-  if ('Ref' in node) return `{Ref ${String(node.Ref)}}`;
-  if ('Fn::GetAtt' in node) return `{${(node['Fn::GetAtt'] as string[]).join('.')}}`;
+  if ('Fn::Split' in node) {
+    const [separator, source] = node['Fn::Split'] as [string, unknown];
+    return String(evaluate(source, values)).split(separator);
+  }
+  if ('Fn::Base64' in node) return evaluate(node['Fn::Base64'], values);
+  if ('Ref' in node) return values[String(node.Ref)] ?? `{Ref ${String(node.Ref)}}`;
+  if ('Fn::GetAtt' in node) {
+    const name = (node['Fn::GetAtt'] as string[]).join('.');
+    return values[name] ?? `{${name}}`;
+  }
   return JSON.stringify(value);
 }
+
+/** A template value as text, with intrinsics shown as placeholders. */
+const render = (value: unknown): string => String(evaluate(value));
 
 /** The room server instance: its logical ID, and the template entry. */
 function server(): [string, { Properties: Record<string, unknown>; [key: string]: unknown }] {
@@ -92,6 +106,42 @@ describe('WorldStack', () => {
         ]),
       }),
     });
+  });
+
+  it('reaches the room server at an Elastic IP, by a name that survives stop, start and deploys', () => {
+    const [instanceId] = server();
+    const addresses = Object.entries(template.findResources('AWS::EC2::EIP'));
+    expect(addresses).toHaveLength(1);
+    const [addressId, address] = addresses[0]!;
+    expect(address.Properties).toMatchObject({ Domain: 'vpc', InstanceId: { Ref: instanceId } });
+
+    const distribution = Object.values(
+      template.findResources('AWS::CloudFront::Distribution'),
+    )[0] as { Properties: { DistributionConfig: { Origins: Record<string, unknown>[] } } };
+    const origin = distribution.Properties.DistributionConfig.Origins.find(
+      (o) => 'CustomOriginConfig' in o,
+    )!;
+    const sample = { [`${addressId}.PublicIp`]: '203.0.113.7', 'AWS::URLSuffix': 'amazonaws.com' };
+    expect(evaluate(origin.DomainName, sample)).toBe('ec2-203-0-113-7.compute-1.amazonaws.com');
+    // Nothing of the instance's own address or name, which change on every stop and start.
+    expect(JSON.stringify(origin)).not.toContain(instanceId);
+  });
+
+  it('names the address as EC2 does outside us-east-1 too', () => {
+    const stack = new Stack(new App(), 'Elsewhere', {
+      env: { account: '123456789012', region: 'eu-west-1' },
+    });
+    const name = stack.resolve(publicDnsName(stack, '203.0.113.7')) as unknown;
+    expect(evaluate(name, { 'AWS::URLSuffix': 'amazonaws.com' })).toBe(
+      'ec2-203-0-113-7.eu-west-1.compute.amazonaws.com',
+    );
+  });
+
+  it('associates the Elastic IP, and boots the server, only once the subnet has its way out', () => {
+    const route = Object.keys(template.findResources('AWS::EC2::Route'));
+    expect(route).toHaveLength(1);
+    template.hasResource('AWS::EC2::EIP', { DependsOn: Match.arrayWith(route) });
+    template.hasResource('AWS::EC2::Instance', { DependsOn: Match.arrayWith(route) });
   });
 
   it('lets only CloudFront reach the server, on the server port only', () => {
