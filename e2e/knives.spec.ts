@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import type { Browser, Page } from '@playwright/test';
 import {
   EYE_HEIGHT,
   KNIFE_MAX_FLIGHT_SECONDS,
@@ -9,9 +9,12 @@ import {
 import { knifeMoves } from '../apps/client/src/world/knifeMoves.ts';
 import {
   enterWorld,
+  expect,
   expectWorld,
   startRoomServer,
+  test,
   turnTo,
+  waitForFrames,
   waitUntilStill,
   world,
 } from './helpers.ts';
@@ -242,6 +245,53 @@ test('knives stick where they land when playing solo', async ({ browser }) => {
   await page.context().close();
 });
 
+test('holding the button down keeps throwing, a knife as each is drawn, until it is let go', async ({
+  browser,
+}) => {
+  const page = await enterWorld(browser, { name: 'Juggler', online: false });
+  await turnTo(page, 0, -1.2);
+  // A held button throws only with the pointer locked, as it is once a visitor clicks into the
+  // world. Headless Chromium never grants the lock, so stand in for the browser: lock on request,
+  // and say so the way the browser does.
+  await page.evaluate(() => {
+    let locked: Element | null = null;
+    Object.defineProperty(Document.prototype, 'pointerLockElement', { get: () => locked });
+    const change = (to: Element | null) => {
+      locked = to;
+      document.dispatchEvent(new Event('pointerlockchange'));
+    };
+    Element.prototype.requestPointerLock = function (this: Element) {
+      change(this);
+      return Promise.resolve();
+    };
+    Document.prototype.exitPointerLock = () => change(null);
+  });
+  // The click into the world takes the lock and throws nothing.
+  await page.mouse.click(480, 270);
+  await waitForFrames(page, 5);
+  expect((await world(page)).knives).toMatchObject({ flying: 0, stuck: 0 });
+
+  const thrown = async () => {
+    const { knives } = await world(page);
+    return knives.flying + knives.stuck;
+  };
+  await page.mouse.down();
+  try {
+    await expect
+      .poll(thrown, { message: 'a held button throws knife after knife', timeout: 15_000 })
+      .toBeGreaterThanOrEqual(3);
+  } finally {
+    await page.mouse.up();
+  }
+  // A knife already leaving the hand still goes; then no more, however long the game runs (a
+  // knife is drawn again within a second, a frame is at least a display refresh).
+  await waitForFrames(page, 30);
+  const after = await thrown();
+  await waitForFrames(page, 90);
+  expect(await thrown()).toBe(after);
+  await page.context().close();
+});
+
 /** Click until the bare hand punches; mid-switch, a click does nothing yet. */
 async function punch(page: Page): Promise<void> {
   await expect
@@ -293,7 +343,7 @@ test('I inspects the knife, a throw cuts it short, and the fist punches instead'
 
   // There is nothing to inspect on a bare hand.
   await page.keyboard.press('KeyI');
-  await page.waitForTimeout(300);
+  await waitForFrames(page, 10);
   expect((await world(page)).inspecting).toBe(false);
 
   await page.keyboard.press('KeyQ');

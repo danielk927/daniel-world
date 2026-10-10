@@ -1,5 +1,15 @@
 import { expect, test } from '@playwright/test';
-import { enterWorld, expectWorld, turnTo, waitUntilStill, walkUntil, world } from './helpers.ts';
+import {
+  column,
+  enterWorld,
+  expectWorld,
+  findWithCursor,
+  turnTo,
+  waitForFrames,
+  waitUntilStill,
+  walkUntil,
+  world,
+} from './helpers.ts';
 
 test('the kitchen computer runs DOOM, and pauses when the cook steps away', async ({ browser }) => {
   const page = await enterWorld(browser, { name: 'Gamer', online: false });
@@ -11,12 +21,8 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
 
   // Without pointer lock the game picks under the cursor: find the screen around the middle.
   const prompt = page.locator('.prompt-sentence');
-  let found = false;
-  for (let y = 200; y < 400 && !found; y += 8) {
-    await page.mouse.move(480, y);
-    found = (await prompt.textContent()) === 'Press E to play DOOM';
-  }
-  expect(found, 'the cursor should find the computer').toBe(true);
+  const found = await findWithCursor(page, column(480, 200, 400, 8), 'Press E to play DOOM');
+  expect(found, 'the cursor should find the computer').not.toBeNull();
 
   await page.keyboard.press('KeyE');
   const running = await expectWorld(
@@ -31,9 +37,10 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   await expect(guide).toContainText('Open doors and flip switches');
   await expect(page.locator('.computer-hint')).toBeHidden();
 
-  // At the computer the keys play DOOM: the cook stays where they are.
+  // At the computer the keys play DOOM: the cook stays where they are, however long the game runs
+  // with the key down (half a second of its clock: a frame is at least a display refresh).
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(500);
+  await waitForFrames(page, 30);
   await page.keyboard.up('KeyW');
   expect((await world(page)).player).toEqual(running.player);
   await expect(guide).toBeHidden();
@@ -59,7 +66,7 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   );
   await page.keyboard.down('KeyE');
   await page.keyboard.down('KeyE');
-  await page.waitForTimeout(200);
+  await waitForFrames(page, 10);
   await expect(guide).toBeVisible();
   expect((await world(page)).computer.keys).toBe(0);
   await page.keyboard.up('KeyE');

@@ -1,8 +1,16 @@
-import { expect, test, type Page } from '@playwright/test';
-import type { WorldServer } from '../apps/server/src/server.ts';
-import { enterWorld, expectWorld, startRoomServer, world } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import {
+  enterWorld,
+  expect,
+  expectWorld,
+  reenterWorld,
+  type RoomServer,
+  startRoomServer,
+  test,
+  world,
+} from './helpers.ts';
 
-let server: WorldServer;
+let server: RoomServer;
 
 test.beforeAll(async () => {
   server = await startRoomServer();
@@ -12,7 +20,11 @@ test.afterAll(async () => {
   await server.close();
 });
 
+/** Pacing until he throws can take up to a minute and a half, more than a body's usual time. */
+const PACING_MS = 180_000;
+
 test('Chef Skinner walks the lobby and throws at a cook on the move', async ({ browser }) => {
+  test.setTimeout(PACING_MS);
   const page = await enterWorld(browser, { name: 'Pacer' });
   const chef = await expectWorld(
     page,
@@ -35,24 +47,28 @@ test('Chef Skinner walks the lobby and throws at a cook on the move', async ({ b
     w.knives.stuck + w.knives.flying > 0 || w.knockedOut;
   // His wander is random and the hood or the pass can stand between us for a while, so allow up to
   // a minute and a half; it usually takes a quarter of that.
-  for (let i = 0; i < 150 && !thrown(await world(page)); i++) {
+  // Judge what each look saw: a knife in a cook does not stay, and a knockout is over in seconds.
+  let seen = await world(page);
+  for (let i = 0; i < 150 && !thrown(seen); i++) {
     const key = i % 2 === 0 ? 'KeyA' : 'KeyD';
     await page.keyboard.down(key);
     await page.waitForTimeout(600);
     await page.keyboard.up(key);
+    seen = await world(page);
   }
-  expect(thrown(await world(page))).toBe(true);
+  expect(thrown(seen), 'a knife of his lands').toBe(true);
   await page.context().close();
 });
 
 test('a visitor who switches him off is left alone while he throws at others', async ({
   browser,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(PACING_MS);
   /** What the room server knows about this page's visitor's choice. */
   const choice = async (page: Page) => {
     const { selfId } = await world(page);
-    return selfId === null ? undefined : server.rooms.get('lobby')?.players.get(selfId)?.prefs.chef;
+    const lobby = await server.room('lobby');
+    return lobby?.players.find((player) => player.id === selfId)?.prefs.chef;
   };
 
   // Off in the settings menu, with the keyboard; the server hears at once.
@@ -73,17 +89,12 @@ test('a visitor who switches him off is left alone while he throws at others', a
   await expect.poll(() => choice(reader)).toBe(false);
 
   // Still off after a reload: saved, and in the hello of the new connection.
-  await reader.reload();
-  await reader.getByRole('button', { name: 'Enter the kitchen' }).click({ timeout: 60_000 });
-  await expectWorld(
-    reader,
-    (w) => w.mode === 'playing' && w.connection === 'online',
-    'Reader is back',
-    30_000,
-  );
+  await reenterWorld(reader, { name: 'Reader' });
   expect(await choice(reader)).toBe(false);
 
   // Two cooks pace the aisle; he throws at the one who has not turned him off, never the other.
+  // The server writes down whom he winds up to throw at, every tick, so never is never.
+  expect(await server.watchChef('lobby')).toBe(true);
   const pacer = await enterWorld(browser, { name: 'Pacer' });
   // A knife of his landing anywhere, or in the pacer, shows he is throwing.
   const seen = { knives: 0, pacerDown: false };
@@ -98,5 +109,10 @@ test('a visitor who switches him off is left alone while he throws at others', a
     seen.knives = Math.max(seen.knives, r.knives.stuck + r.knives.flying);
   }
   expect(seen.pacerDown || seen.knives >= 3, 'he has been throwing').toBe(true);
+  const [readerId, pacerId] = [(await world(reader)).selfId, (await world(pacer)).selfId];
+  const picked = await server.chefTargets('lobby');
+  expect(picked?.watching, 'the same Chef Skinner throughout').toBe(true);
+  expect(picked?.targets, 'he picks the pacer').toContain(pacerId);
+  expect(picked?.targets, 'and never the reader').not.toContain(readerId);
   for (const page of [reader, pacer]) await page.context().close();
 });

@@ -1,15 +1,18 @@
-import { expect, test } from '@playwright/test';
-import type { WorldServer } from '../apps/server/src/server.ts';
 import {
   enterWorld,
+  expect,
   expectWorld,
+  faceStation,
+  type RoomServer,
   startRoomServer,
+  test,
+  waitForFrames,
   waitUntilStill,
   walkUntil,
   world,
 } from './helpers.ts';
 
-let server: WorldServer;
+let server: RoomServer;
 
 test.beforeAll(async () => {
   server = await startRoomServer();
@@ -32,6 +35,19 @@ test('two players join the lobby and see each other', async ({ browser }) => {
     (await world(page)).remotePlayers.map((p) => p.name).sort();
   expect(await names(a)).toEqual(['Bob', 'Chef Skinner']);
   expect(await names(b)).toEqual(['Alice', 'Chef Skinner']);
+  // Each of the others wears a name tag in the page, in their own color.
+  for (const page of [a, b]) {
+    const tags = await page.locator('.nametag').evaluateAll((tags) =>
+      tags.map((tag) => ({
+        name: tag.querySelector('.nametag-name')?.textContent,
+        color: (tag as HTMLElement).style.getPropertyValue('--player-color'),
+      })),
+    );
+    const remotes = (await world(page)).remotePlayers.map(({ name, color }) => ({ name, color }));
+    const byName = (p: { name?: string | null }, q: { name?: string | null }) =>
+      String(p.name).localeCompare(String(q.name));
+    expect(tags.sort(byName)).toEqual(remotes.sort(byName));
+  }
   await expect(b.getByRole('region', { name: 'Players in this room' })).toContainText('3 / 16');
   await expect(a.getByRole('img', { name: /Minimap/ })).toBeVisible();
 
@@ -105,11 +121,23 @@ test('a private room code isolates players', async ({ browser }) => {
   expect(yState.room).toBe('secret-base');
   expect(yState.remotePlayers.map((p) => p.name)).toEqual(['SecretOne']);
 
-  // Give the lobby a moment to (not) hear about them.
-  await lobby.waitForTimeout(500);
+  // The server keeps the party out of the lobby...
+  const inRoom = async (code: string) =>
+    (await server.room(code))?.players.map((p) => p.name).sort();
+  expect(await inRoom('lobby')).toEqual(['Chef Skinner', 'LobbyPerson']);
+  expect(await inRoom('secret-base')).toEqual(['SecretOne', 'SecretTwo']);
+  // ...and the lobby's screen has heard nothing of it. A line said in the lobby comes back after
+  // everything the server sent before it, so once it is in the chat, nothing more is on its way.
+  await lobby.keyboard.press('Enter');
+  await lobby.keyboard.type('anyone here?');
+  await lobby.keyboard.press('Enter');
+  const lobbyChat = lobby.getByRole('list', { name: 'Chat history' });
+  await expect(lobbyChat).toContainText('anyone here?');
+  await waitForFrames(lobby);
   const lobbyState = await world(lobby);
   expect(lobbyState.playerCount).toBe(2);
   expect(lobbyState.remotePlayers.map((p) => p.name)).toEqual(['Chef Skinner']);
+  await expect(lobbyChat).not.toContainText('Secret');
 
   for (const page of [lobby, x, y]) await page.context().close();
 });
@@ -118,11 +146,15 @@ test("closing A drops B's count to 1", async ({ browser }) => {
   const a = await enterWorld(browser, { name: 'Leaver', room: 'e2e-leave' });
   const b = await enterWorld(browser, { name: 'Stayer', room: 'e2e-leave' });
   await expectWorld(b, (w) => w.playerCount === 2, 'B sees A');
+  const tag = b.locator('.nametag-name', { hasText: 'Leaver' });
+  await expect(tag).toHaveCount(1);
 
   await a.context().close();
 
   await expectWorld(b, (w) => w.playerCount === 1, "B's count drops to 1");
   await expect(b.getByRole('list', { name: 'Chat history' })).toContainText('Leaver left');
+  // And their name tag goes with them.
+  await expect(tag).toHaveCount(0);
   await b.context().close();
 });
 
@@ -136,6 +168,7 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   await walkUntil(page, 'KeyD', (p) => p.x > -2.6);
   await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
   await waitUntilStill(page);
+  await faceStation(page, 'entremetier');
   await page.mouse.move(480, 270);
   await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Products');
 
@@ -161,7 +194,7 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expectWorld(page, (w) => w.mode === 'playing', 'back to playing');
-  await page.waitForTimeout(300);
+  await waitForFrames(page, 10);
   expect(await lockRequests()).toBe(0);
   await expect(paused).toBeHidden();
 
@@ -215,6 +248,7 @@ test('Esc closes the menu or a panel wherever in it the visitor last clicked', a
   await walkUntil(page, 'KeyD', (p) => p.x > -2.6);
   await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
   await waitUntilStill(page);
+  await faceStation(page, 'entremetier');
   const dialog = page.getByRole('dialog', { name: 'Products' });
   for (const click of [
     () => dialog.locator('.panel-title').click(),

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { enterWorld } from './helpers.ts';
+import { enterWorld, waitForFrames } from './helpers.ts';
 
 /** Where keyboard focus is: inside the pause menu, and the name of what holds it. */
 function focus(page: Page): Promise<{ inMenu: boolean; name: string }> {
@@ -101,6 +101,8 @@ test('the arrow keys move straight up and down the knife grid, however many colu
   // Four across in a window, three across on a phone, which the menu turns into as it narrows.
   for (const width of [960, 600, 960]) {
     await page.setViewportSize({ width, height: 800 });
+    // The grid counts its columns as it changes size, in the frame after the resize.
+    await waitForFrames(page, 2);
     const first = grid.getByRole('radio').first();
     await first.click();
     await expect(first).toBeFocused();

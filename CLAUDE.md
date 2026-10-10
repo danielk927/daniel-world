@@ -14,8 +14,10 @@ npm run format               # prettier --write
 npm run typecheck            # tsc in every workspace + root (e2e, scripts, configs)
 npm test                     # vitest (all workspaces)
 npx playwright install chromium
-npm run e2e                  # playwright, builds client in test mode, spawns its own server on :3101
-                             # (E2E_SERVER_PORT / E2E_CLIENT_PORT move it, to run two suites at once)
+npm run e2e                  # playwright: builds the client in test mode into apps/client/dist-test-<client port>,
+                             # serves it on :5174 and runs its own server on :3101; E2E_SERVER_PORT and
+                             # E2E_CLIENT_PORT move both, so two suites can run at once, even in one checkout;
+                             # E2E_CPU_THROTTLE=4 runs every page's CPU 4x slower, to see a spec holds when starved
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
 npm run bots                 # simulated players: fill the lobby but for one seat, yours
                              # (--count up to 15, --room <code>, --knives; Chef Skinner counts)
@@ -41,6 +43,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
+  `helpers.ts` has what they share; the room server they start runs in a process of its own (`roomServer.ts`).
 - `scripts` - dev tooling (bots, screenshots, perf); `processes.ts` starts what they need and stops it with them.
 
 ## Conventions
@@ -86,6 +89,10 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   The fonts' latin subset has no arrows, so draw them.
 - The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
+- E2E must hold on a busy machine, where a page can go seconds without a frame.
+  Check that something did not happen only once the game has run frames (`waitForFrames`), the server says so (`server.room`), or the page has heard back; never after a fixed wait.
+  Each `enterWorld` adds its own time to the test's (`ENTER_MS`), so set a long body's time with `test.setTimeout` before entering, and take `test` from `helpers.ts` in specs that start a room server, so a failure carries its log.
+  The test build draws pages nobody is driving four times a second (`src/testDrawing.ts`); `E2E_CPU_THROTTLE` checks a spec on a starved page.
 
 <!-- BEGIN AWS Agent Toolkit rules -->
 

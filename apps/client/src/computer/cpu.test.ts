@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createRandom } from '@world/shared';
 import * as A from './asm.ts';
 import { GuestFault, mulh, mulhsu, mulhu } from './cpu.ts';
 import { CODE, DATA, ENGINES, execute, makeCpu, run, TestBus } from './testRig.ts';
@@ -20,7 +21,9 @@ describe('64-bit products without BigInt', () => {
       0x12345678,
       -0x6789abcd,
     ];
-    for (let k = 0; k < 2000; k++) values.push((Math.random() * 2 ** 32) | 0);
+    // Seeded, so a failure comes back on every run, with the same operands.
+    const random = createRandom(0x6d756c68);
+    for (let k = 0; k < 2000; k++) values.push((random() * 2 ** 32) | 0);
     const high = (product: bigint) => Number(BigInt.asIntN(32, product >> 32n));
     for (let k = 0; k < values.length; k++) {
       const a = values[k]!;

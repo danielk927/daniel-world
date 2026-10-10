@@ -748,3 +748,41 @@ From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call w
 - **Dead content went**: the site's tagline and world name, the stations' French names and kickers, and the portfolio sections' kickers and colors, which nothing showed.
   A dish's restaurant is its `place`; the French names stay as a comment by each station; portfolio sections are `LoreSection`, and station and dish entries `LoreEntry`, which adds the light's color the world reads.
 - Left for Daniel: the two `TODO(daniel)` lines, and the "pending for NeurIPS and Nature" and "pending for AAAI and AISTATS" wording.
+
+### E2E that holds on a busy machine (2026-10-09)
+
+From a review after three multiplayer tests failed at a load of 13 to 15 on 10 cores, with pages stuck compiling shaders past a minute.
+Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests share one room server port.
+
+- **In the test build only, a page nobody is driving draws four times a second** (`apps/client/src/testDrawing.ts`).
+  Every page in the world drew SwiftShader frames flat out, so each starved the page being driven and, worse, the next one compiling its shaders.
+  Measured with three pages at a time: the third page took 10 s to load and 3 to 6 s to join, and the driven page ran at 9 to 14 fps; with the throttle, under 2 s and 2.3 s, at 27 to 41 fps.
+  At 4x CPU throttling the third page took 37 s against 5 s, and drew 5 fps against 41.
+  Driven means input in the last second, or a key or button held; every page still runs every frame of the game, so what `window.__world` says is as current as ever.
+  Chosen over a frame cap on every page, which would slow the driven page too and leave the others drawing.
+  `main.ts` imports it only when `import.meta.env.MODE === 'test'`, so the production bundle has no such chunk (checked after `npm run build`), and dev builds, which perf and screenshots use, draw every frame.
+- **Each page a test enters adds its own time to the test's**: `enterWorld` and `reenterWorld` add a minute to load and half a minute to join (`ENTER_MS`), on top of the body's 120 s (180 s for the chef's pacing).
+  A three-page test had 120 s for what three entries alone may take; adding as they go keeps the sum right when a page is added, which a number per test would not.
+- **The room server runs in a process of its own** (`e2e/roomServer.ts`), and a test that fails carries what it logged meanwhile.
+  In the test process it ticked only when Playwright let it: holding that process up for 6 s sent a page offline with the server in it, and kept it online with the server outside.
+  A child process over a worker thread: a crash or a leak stays in it, and Node runs its TypeScript as in dev.
+  Tests ask it who is in a room, and to note every tick whom Chef Skinner winds up on (it wraps his `think`; `WorldServer.chef(room)` is new for that), over the IPC channel.
+- **Failed tests keep a trace without the screencast**: filming every animating canvas made a three-page test take 23 to 31 s against 15 to 17 s.
+- **The game's frames are in `window.__world`**, with the player's speed for the sprint test, and `ready`, which was always true, is gone.
+  `waitUntilStill` wants frames between its two samples: with two other pages drawing at 4x throttling, the old one called a cook still mid-slide 6 times in 20, the new one never.
+  Hover sweeps read the prompt only after a frame with the cursor there.
+  That race could not be made to happen: Chrome answers a mouse move only once it has dispatched it, at the start of a frame, before the game's frame runs; the wait no longer leans on that.
+- **A check that something did not happen waits for the game, the server or an echo**, never a fixed time: frames for a held key or a refused inspect, the server's own rooms and a chat line coming back for the private room, a third hello for the old protocol, and Chef Skinner's targets for a visitor who turned him off.
+- **The invite's Copied state is noted as it changes**, from before the click.
+  Not reproduced even at 80x throttling, but two looks at a state that lasts 2.5 s can always fall either side of it.
+- **The room server's tests run on its real heartbeat and hello timeouts**, the short ones only in the four tests about them.
+  A 250 ms stall just after a ping dropped a live client under the 200 ms heartbeat; main's late heartbeat fix covers the server, and the tests no longer lean on it.
+- **The test build goes to `apps/client/dist-test-<client port>`**, since it bakes in its server's address, and results to `test-results/<client port>`, since a run clears its folder as it starts.
+  Two suites ran at once in this checkout, each page on its own server.
+  The client's `build:test` and `preview:test` scripts are gone, as a test build into `dist` would overwrite the production one.
+- **A held button is tested with pointer lock stood in for**: headless Chromium never grants it, and only a locked pointer keeps throwing.
+- **The CPU's 64-bit products are checked on operands from a fixed seed**, so a failure comes back on every run.
+- **At 4x throttling the pacing test once failed with its page gone solo**, while the attached server log had it still in the lobby: the page, held up, had judged the server silent (main's late ping fix that night covers it), and the test then looked a second time, after the knockout it had seen was over.
+  It now judges by the look that saw the throw.
+- **The client review's new tests got the same treatment**: the relay test's server runs in its own process, the refused socket test counts its tries instead of sleeping 2.5 s, and the DOOM key repeat waits for frames.
+- **The panel tests turn to face the station from wherever the walk stopped** (`faceStation`), instead of trusting the walk to end on its mark: on a busy machine a walk polled every 50 ms ran 0.7 m past, where the middle of the screen picks nothing (found in a full run, read from its trace).

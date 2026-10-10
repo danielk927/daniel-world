@@ -47,6 +47,8 @@ export interface ServerOptions {
 export interface WorldServer {
   readonly port: number;
   readonly rooms: ReadonlyMap<string, Room>;
+  /** Chef Skinner in the room with this code, if he is there (tests watch whom he picks). */
+  chef(room: string): Chef | undefined;
   close(): Promise<void>;
 }
 
@@ -491,6 +493,10 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       resolve({
         port,
         rooms,
+        chef: (code) => {
+          const room = rooms.get(code);
+          return room && chefs.get(room);
+        },
         close: () =>
           new Promise<void>((done) => {
             clearInterval(heartbeat);

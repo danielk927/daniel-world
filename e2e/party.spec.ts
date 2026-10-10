@@ -1,9 +1,16 @@
-import { expect, test, type Page } from '@playwright/test';
-import type { WorldServer } from '../apps/server/src/server.ts';
-import { enterWorld, expectWorld, startRoomServer, world } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import {
+  enterWorld,
+  expect,
+  expectWorld,
+  type RoomServer,
+  startRoomServer,
+  test,
+  world,
+} from './helpers.ts';
 import { E2E_CLIENT_URL } from './ports.ts';
 
-let server: WorldServer;
+let server: RoomServer;
 
 test.beforeAll(async () => {
   server = await startRoomServer();
@@ -56,11 +63,30 @@ test('a cook starts a private party from the menu, a friend follows the invite l
   await host.context().grantPermissions(['clipboard-read', 'clipboard-write'], {
     origin: E2E_CLIENT_URL,
   });
-  await menu.getByRole('button', { name: 'Copy link' }).click();
-  await expect(menu.getByRole('button', { name: 'Copied' })).toBeVisible();
-  await expect(menu.locator('#party-invite-status')).toHaveText(
-    'Link copied. Send it to your friends.',
-  );
+  // It says so for a couple of seconds, which a slow page can let pass between two looks, so write
+  // down everything the button and the line under it say from before the click.
+  const copyButton = menu.getByRole('button', { name: 'Copy link' });
+  await copyButton.evaluate((button) => {
+    const status = document.getElementById('party-invite-status')!;
+    const said: string[] = [];
+    (window as unknown as { copySaid: string[] }).copySaid = said;
+    new MutationObserver(() => {
+      const now = `${button.textContent} / ${status.textContent}`;
+      if (said.at(-1) !== now) said.push(now);
+    }).observe(button.closest('[role="dialog"]')!, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
+  const copySaid = () =>
+    host.evaluate(() => (window as unknown as { copySaid: string[] }).copySaid);
+  await copyButton.click();
+  await expect
+    .poll(copySaid, { message: 'the button and its line say the link is copied' })
+    .toContain('Copied / Link copied. Send it to your friends.');
+  // And then go back to offering it.
+  await expect(copyButton).toBeVisible();
   const link = await host.evaluate(() => navigator.clipboard.readText());
   expect(link).toBe(`${E2E_CLIENT_URL}/?room=friday-service`);
 

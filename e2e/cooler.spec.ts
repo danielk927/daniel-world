@@ -1,10 +1,13 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { COOLER, COOLER_HITS_TO_OPEN, ROOM_HALF_X } from '@world/shared';
 import {
   enterWorld,
+  expect,
   expectWorld,
   startRoomServer,
+  test,
   turnTo,
+  waitForFrames,
   waitUntilStill,
   walkUntil,
   world,
@@ -55,10 +58,11 @@ test("ten punches burst the walk-in's door, the puncher walks in, and everyone s
     expect((await world(boxer)).cooler).toEqual({ hits: 0, open: false, angle: 0 });
 
     await walkToWalkIn(boxer);
-    // The shut door is a wall.
+    // The shut door is a wall: walking on into it for half a second of the game's clock (a frame
+    // is at least a display refresh) gets the boxer no further.
     await walkUntil(boxer, 'KeyW', (p) => p.x >= ROOM_HALF_X - 0.45);
     await boxer.keyboard.down('KeyW');
-    await boxer.waitForTimeout(500);
+    await waitForFrames(boxer, 30);
     await boxer.keyboard.up('KeyW');
     expect((await world(boxer)).player.x).toBeLessThan(ROOM_HALF_X - 0.39);
 

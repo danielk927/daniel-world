@@ -1,5 +1,13 @@
-import { expect, test, type Page } from '@playwright/test';
-import { enterWorld, expectWorld, startRoomServer, turnTo, world } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import {
+  enterWorld,
+  expect,
+  expectWorld,
+  startRoomServer,
+  test,
+  turnTo,
+  world,
+} from './helpers.ts';
 
 const KARAMBIT = 'karambit/doppler';
 
@@ -35,7 +43,6 @@ async function equipKarambit(page: Page): Promise<void> {
 test('a cook equips the Karambit, and others see it thrown and stuck, late joiners too', async ({
   browser,
 }) => {
-  test.setTimeout(180_000);
   const server = await startRoomServer();
   try {
     const thrower = await enterWorld(browser, { name: 'Collector', room: 'e2e-skins' });

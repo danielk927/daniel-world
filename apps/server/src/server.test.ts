@@ -21,6 +21,7 @@ import {
   CLOSE_TRY_AGAIN_LATER,
   MAX_PAYLOAD_BYTES,
   startServer,
+  type ServerOptions,
   type WorldServer,
 } from './server.ts';
 
@@ -133,8 +134,19 @@ function client(options?: ClientOptions): TestClient {
   return c;
 }
 
+/**
+ * Swap the server for one with `options`, for the few tests about timeouts. Every other test runs
+ * with the real ones: under a 200 ms heartbeat, a stall of the worker just after a ping (a busy
+ * machine, garbage collection) lets the next heartbeat come round before the pong is read, and it
+ * drops a perfectly live client.
+ */
+async function restartWith(options: Partial<ServerOptions>): Promise<void> {
+  await server.close();
+  server = await startServer({ port: 0, host: '127.0.0.1', ...options });
+}
+
 beforeEach(async () => {
-  server = await startServer({ port: 0, host: '127.0.0.1', heartbeatMs: 200, helloTimeoutMs: 300 });
+  server = await startServer({ port: 0, host: '127.0.0.1' });
 });
 
 afterEach(async () => {
@@ -349,6 +361,8 @@ describe('room server', () => {
   });
 
   it('refuses a hello whose spawn hint is turned past any real turn', async () => {
+    // Refused by ignoring it, so the connection ends when its hello is overdue.
+    await restartWith({ helloTimeoutMs: 300 });
     const a = client();
     await a.opened();
     const spawn = { x: 0, z: 5.6, yaw: 1.7e308 };
@@ -441,12 +455,14 @@ describe('room server', () => {
   });
 
   it('closes connections that never say hello', async () => {
+    await restartWith({ helloTimeoutMs: 300 });
     const a = client();
     await a.opened();
     expect(await a.waitForClose()).toBe(CLOSE_HELLO_TIMEOUT);
   });
 
   it('drops connections that stop answering heartbeats', async () => {
+    await restartWith({ heartbeatMs: 200 });
     const a = client();
     const b = client({ autoPong: false });
     await a.join('Alive');
@@ -455,6 +471,7 @@ describe('room server', () => {
   });
 
   it('keeps a connection that answered in time while the server itself was stalled', async () => {
+    await restartWith({ heartbeatMs: 200 });
     const a = client();
     await a.join('Patient');
     // Its pong is on its way when the process stops for a few heartbeats, as in a long GC pause
@@ -582,6 +599,7 @@ describe('Chef Skinner in the lobby', () => {
     const welcome = await a.join('Alice', 'hideout', { prefs: { chef: false } });
     a.send({ t: 'prefs', prefs: { chef: true } });
     await a.waitFor(() => server.rooms.get('hideout')!.players.get(welcome.id)!.prefs.chef);
+    expect(server.chef('hideout')).toBeUndefined();
     a.send({ t: 'chat', text: 'still here' });
     expect((await a.waitForMessage('chat')).text).toBe('still here');
   });
@@ -589,10 +607,17 @@ describe('Chef Skinner in the lobby', () => {
   it('leaves with the last visitor, and is back for the next one', async () => {
     const a = client();
     await a.join('Alice');
+    const first = server.chef('lobby');
+    expect(first?.player.name).toBe('Chef Skinner');
     a.ws.close();
     await a.waitForClose();
     await a.waitFor(() => !server.rooms.has('lobby'));
+    expect(server.chef('lobby')).toBeUndefined();
     const welcome = await client().join('Bob');
     expect(welcome.players.map((p) => p.name).sort()).toEqual(['Bob', 'Chef Skinner']);
+    expect(server.chef('lobby')).not.toBe(first);
+    expect(server.chef('lobby')?.player.id).toBe(
+      welcome.players.find((p) => p.name === 'Chef Skinner')?.id,
+    );
   });
 });

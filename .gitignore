@@ -11,7 +11,7 @@ playwright/.cache/
 .env
 .env.*
 !.env.example
-dist-test/
+dist-test*/
 .vercel/
 .claude/worktrees/
 .claude/settings.local.json

@@ -1,22 +1,21 @@
 import { expect, test } from '@playwright/test';
-import { enterWorld, expectWorld, waitUntilStill } from './helpers.ts';
+import { column, enterWorld, expectWorld, findWithCursor, waitUntilStill } from './helpers.ts';
 
 test('each dish on the pass opens its own panel, with its photo', async ({ browser }) => {
   const page = await enterWorld(browser, { name: 'Diner', online: false });
   await waitUntilStill(page);
   // The roti sits on the pass straight ahead of the spawn, below eye level. Without pointer lock the
   // game picks under the cursor, so lower it from the middle of the screen until it finds the plate.
-  const prompt = page.locator('.prompt-sentence');
-  let y = 270;
-  for (; y < 540; y += 6) {
-    await page.mouse.move(480, y);
-    if ((await prompt.textContent()) === 'Press E to open Roti and dips') break;
-  }
-  expect(y, 'the cursor should find the roti').toBeLessThan(540);
+  const roti = await findWithCursor(
+    page,
+    column(480, 270, 540, 6),
+    'Press E to open Roti and dips',
+  );
+  expect(roti, 'the cursor should find the roti').not.toBeNull();
 
   // A click throws a knife, even at a station; E is what opens it.
   const dialog = page.getByRole('dialog', { name: 'Roti and dips' });
-  await page.mouse.click(480, y);
+  await page.mouse.click(roti!.x, roti!.y);
   await expectWorld(page, (w) => w.knives.flying + w.knives.stuck === 1, 'the click throws');
   await expect(dialog).toBeHidden();
   await page.keyboard.press('KeyE');

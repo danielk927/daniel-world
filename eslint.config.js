@@ -7,7 +7,7 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
-      '**/dist-test/**',
+      '**/dist-test*/**',
       'infra/build/**',
       'infra/cdk.out/**',
       '**/node_modules/**',
