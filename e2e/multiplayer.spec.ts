@@ -2,6 +2,7 @@ import {
   enterWorld,
   expect,
   expectWorld,
+  faceStation,
   type RoomServer,
   startRoomServer,
   test,
@@ -167,6 +168,7 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   await walkUntil(page, 'KeyD', (p) => p.x > -2.6);
   await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
   await waitUntilStill(page);
+  await faceStation(page, 'entremetier');
   await page.mouse.move(480, 270);
   await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Products');
 
@@ -246,6 +248,7 @@ test('Esc closes the menu or a panel wherever in it the visitor last clicked', a
   await walkUntil(page, 'KeyD', (p) => p.x > -2.6);
   await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
   await waitUntilStill(page);
+  await faceStation(page, 'entremetier');
   const dialog = page.getByRole('dialog', { name: 'Products' });
   for (const click of [
     () => dialog.locator('.panel-title').click(),

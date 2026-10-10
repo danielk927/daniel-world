@@ -1,4 +1,5 @@
 import { test as base, expect, type Browser, type Page } from '@playwright/test';
+import { EYE_HEIGHT, STATIONS, type StationId } from '@world/shared';
 import type { WorldDebugState } from '../apps/client/src/debug.ts';
 import { roomServers } from './roomServer.ts';
 
@@ -254,6 +255,19 @@ export async function walkUntil(
   } finally {
     await page.keyboard.up(key);
   }
+}
+
+/**
+ * Look straight at a station's centerpiece from wherever the cook stands, as a visitor turns to
+ * what they mean to open: a walk that stops a little late on a slow page still ends in front of it.
+ */
+export async function faceStation(page: Page, id: StationId): Promise<void> {
+  const station = STATIONS.find((s) => s.id === id)!;
+  const { player } = await world(page);
+  const dx = station.x - player.x;
+  const dz = station.z - player.z;
+  const up = station.y - (player.y + EYE_HEIGHT);
+  await turnTo(page, Math.atan2(-dx, -dz), Math.atan2(up, Math.hypot(dx, dz)));
 }
 
 /** Turn the view to a yaw by dragging the mouse, the way a visitor without pointer lock looks around. */
