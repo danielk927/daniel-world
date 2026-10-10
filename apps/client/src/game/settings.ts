@@ -17,7 +17,7 @@ export interface SettingsValues {
   showFps: boolean;
   /** No head bob, shake or screen effects that move. */
   reduceMotion: boolean;
-  /** Chef Skinner, the lobby's resident cook, may throw knives at this player. */
+  /** Chef Skinner, the kitchen's resident cook, may throw knives at this player. */
   chefThrows: boolean;
   /** The knife this player carries, chosen on the Knives page. */
   knife: KnifeLook;

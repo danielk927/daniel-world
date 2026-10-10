@@ -26,15 +26,15 @@ test('two players join the lobby and see each other', async ({ browser }) => {
   const a = await enterWorld(browser, { name: 'Alice' });
   const b = await enterWorld(browser, { name: 'Bob' });
 
-  // Chef Skinner keeps the lobby company.
+  // Just the two of them: Chef Skinner is locked in the walk-in.
   for (const page of [a, b]) {
-    const state = await expectWorld(page, (w) => w.playerCount === 3, 'both should see 3 cooks');
+    const state = await expectWorld(page, (w) => w.playerCount === 2, 'both should see 2 cooks');
     expect(state.room).toBe('lobby');
   }
   const names = async (page: typeof a) =>
     (await world(page)).remotePlayers.map((p) => p.name).sort();
-  expect(await names(a)).toEqual(['Bob', 'Chef Skinner']);
-  expect(await names(b)).toEqual(['Alice', 'Chef Skinner']);
+  expect(await names(a)).toEqual(['Bob']);
+  expect(await names(b)).toEqual(['Alice']);
   // Each of the others wears a name tag in the page, in their own color.
   for (const page of [a, b]) {
     const tags = await page.locator('.nametag').evaluateAll((tags) =>
@@ -48,7 +48,7 @@ test('two players join the lobby and see each other', async ({ browser }) => {
       String(p.name).localeCompare(String(q.name));
     expect(tags.sort(byName)).toEqual(remotes.sort(byName));
   }
-  await expect(b.getByRole('region', { name: 'Players in this room' })).toContainText('3 / 16');
+  await expect(b.getByRole('region', { name: 'Players in this room' })).toContainText('2 / 16');
   await expect(a.getByRole('img', { name: /Minimap/ })).toBeVisible();
 
   await a.context().close();
@@ -124,7 +124,7 @@ test('a private room code isolates players', async ({ browser }) => {
   // The server keeps the party out of the lobby...
   const inRoom = async (code: string) =>
     (await server.room(code))?.players.map((p) => p.name).sort();
-  expect(await inRoom('lobby')).toEqual(['Chef Skinner', 'LobbyPerson']);
+  expect(await inRoom('lobby')).toEqual(['LobbyPerson']);
   expect(await inRoom('secret-base')).toEqual(['SecretOne', 'SecretTwo']);
   // ...and the lobby's screen has heard nothing of it. A line said in the lobby comes back after
   // everything the server sent before it, so once it is in the chat, nothing more is on its way.
@@ -135,8 +135,8 @@ test('a private room code isolates players', async ({ browser }) => {
   await expect(lobbyChat).toContainText('anyone here?');
   await waitForFrames(lobby);
   const lobbyState = await world(lobby);
-  expect(lobbyState.playerCount).toBe(2);
-  expect(lobbyState.remotePlayers.map((p) => p.name)).toEqual(['Chef Skinner']);
+  expect(lobbyState.playerCount).toBe(1);
+  expect(lobbyState.remotePlayers).toEqual([]);
   await expect(lobbyChat).not.toContainText('Secret');
 
   for (const page of [lobby, x, y]) await page.context().close();

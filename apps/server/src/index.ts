@@ -9,7 +9,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',')
   .filter(Boolean);
 const basePath = process.env.BASE_PATH?.replace(/\/$/, '');
 const trustProxy = process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true';
-// Chef Skinner keeps the lobby company unless CHEF=off.
+// Chef Skinner waits in every room's walk-in unless CHEF=off.
 const chef = process.env.CHEF !== 'off';
 
 const server = await startServer({

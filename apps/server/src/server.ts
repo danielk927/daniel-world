@@ -18,7 +18,7 @@ import {
   type ServerMessage,
 } from '@world/shared';
 import { StrikeCounter, TokenBucket } from './rateLimit.ts';
-import { Chef } from './chef.ts';
+import { WalkInChef, type Chef } from './chef.ts';
 import { Room, type RoomPlayer } from './room.ts';
 
 export interface ServerOptions {
@@ -39,7 +39,10 @@ export interface ServerOptions {
   trustProxy?: boolean;
   /** Path prefix in front of the HTTP routes, e.g. `/ws` when a CDN routes `/ws*` here. */
   basePath?: string;
-  /** Keep Chef Skinner in the public lobby whenever anyone is there (see chef.ts). */
+  /**
+   * Lock Chef Skinner in every room's walk-in, to come out when its door bursts (see chef.ts). Each
+   * room keeps one of its places for him all along, so it takes one visitor fewer.
+   */
   chef?: boolean;
   log?: (message: string) => void;
 }
@@ -47,7 +50,7 @@ export interface ServerOptions {
 export interface WorldServer {
   readonly port: number;
   readonly rooms: ReadonlyMap<string, Room>;
-  /** Chef Skinner in the room with this code, if he is there (tests watch whom he picks). */
+  /** Chef Skinner in the room with this code, if he is out of its walk-in (tests watch him). */
   chef(room: string): Chef | undefined;
   close(): Promise<void>;
 }
@@ -161,9 +164,15 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
   const helloTimeoutMs = options.helloTimeoutMs ?? 10_000;
   const log = options.log ?? (() => {});
   const rooms = new Map<string, Room>();
-  const chefs = new Map<Room, Chef>();
+  /** Chef Skinner in each room's walk-in, and out of it once its door has burst. */
+  const chefs = new Map<Room, WalkInChef>();
   const connections = new Set<Connection>();
   let nextPlayerId = 1;
+  /**
+   * Visitors a room takes: all its places, but for the one it keeps for Chef Skinner, who may come
+   * out of the walk-in at any time.
+   */
+  const visitorCapacity = MAX_PLAYERS_PER_ROOM - (options.chef ? 1 : 0);
 
   const http: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -205,9 +214,9 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       }
       sendJson(res, 200, {
         room: code,
-        // Visitors only: Chef Skinner is always in, so he is not news, but he takes a place.
+        // Visitors only, and how many fit: Chef Skinner is a secret, though his place is kept.
         players: rooms.get(code)?.visitors ?? 0,
-        max: MAX_PLAYERS_PER_ROOM - (options.chef ? 1 : 0),
+        max: visitorCapacity,
       });
       return;
     }
@@ -271,7 +280,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       drop(conn, CLOSE_NO_ROOM, 'no such room');
       return;
     }
-    if (room?.isFull) {
+    if (room && room.visitors >= visitorCapacity) {
       send(conn, { t: 'error', code: 'room_full', message: `Room "${code}" is full.` });
       drop(conn, CLOSE_ROOM_FULL, 'room full');
       return;
@@ -279,7 +288,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
     if (!room) {
       room = new Room(code);
       rooms.set(code, room);
-      if (options.chef && code === DEFAULT_ROOM) addChef(room);
+      if (options.chef) chefs.set(room, new WalkInChef(room, () => nextPlayerId++));
     }
     const name = room.uniqueName(sanitizeName(message.name) || 'Guest');
     const player = room.add({
@@ -303,15 +312,6 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       cooler: room.coolerState(),
     });
     log(`${name} (#${player.id}) joined ${code} (${room.visitors} visitors)`);
-  };
-
-  const addChef = (room: Room): void => {
-    const chef = new Chef(room, nextPlayerId++);
-    chefs.set(room, chef);
-    room.onKnockout = (from, to) => {
-      if (from === chef.player.id) chef.onKnockout(to);
-      if (to === chef.player.id) chef.onKnockedOut();
-    };
   };
 
   /** Tell the room of the connection's newest prefs now, or as soon as their bucket allows. */
@@ -495,7 +495,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
         rooms,
         chef: (code) => {
           const room = rooms.get(code);
-          return room && chefs.get(room);
+          return (room && chefs.get(room)?.chef) ?? undefined;
         },
         close: () =>
           new Promise<void>((done) => {

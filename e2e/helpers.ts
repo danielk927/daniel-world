@@ -1,5 +1,5 @@
 import { test as base, expect, type Browser, type Page } from '@playwright/test';
-import { EYE_HEIGHT, STATIONS, type StationId } from '@world/shared';
+import { EYE_HEIGHT, ROOM_HALF_X, STATIONS, type StationId } from '@world/shared';
 import type { WorldDebugState } from '../apps/client/src/debug.ts';
 import { roomServers } from './roomServer.ts';
 
@@ -270,6 +270,40 @@ export async function faceStation(page: Page, id: StationId): Promise<void> {
   const dz = station.z - player.z;
   const up = station.y - (player.y + EYE_HEIGHT);
   await turnTo(page, Math.atan2(-dx, -dz), Math.atan2(up, Math.hypot(dx, dz)));
+}
+
+const EAST = -Math.PI / 2;
+const NORTH = 0;
+
+/**
+ * From a spawn by the dining room doors, the way a visitor finds the walk-in: east along the aisle
+ * past the end of the pass, north up the east aisle behind the garde manger, and turn to face the
+ * steel door in the east wall.
+ */
+export async function walkToWalkIn(page: Page): Promise<void> {
+  await turnTo(page, EAST);
+  await walkUntil(page, 'KeyW', (p) => p.x >= 6);
+  await turnTo(page, NORTH);
+  await walkUntil(page, 'KeyW', (p) => p.z <= -3);
+  await turnTo(page, EAST);
+  await walkUntil(page, 'KeyW', (p) => p.x >= ROOM_HALF_X - 1);
+  await waitUntilStill(page);
+}
+
+/** Punch the walk-in's door with the bare hand until it has taken `hits`. */
+export async function punchUntil(page: Page, hits: number): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const w = await world(page);
+        if (w.cooler.hits >= hits) return true;
+        // A click mid-jab does nothing yet; the next one lands once the fist is back.
+        if (!w.punching) await page.mouse.click(480, 270);
+        return false;
+      },
+      { message: `the door has taken ${hits} hits`, timeout: 15_000, intervals: [100] },
+    )
+    .toBe(true);
 }
 
 /** Turn the view to a yaw by dragging the mouse, the way a visitor without pointer lock looks around. */

@@ -35,7 +35,16 @@ try {
         const room = server.rooms.get(request.code);
         if (!room) return null;
         const players = [...room.players.values()];
-        return { players: players.map(({ id, name, prefs }) => ({ id, name, prefs })) };
+        return {
+          players: players.map(({ id, name, prefs, resident, state }) => ({
+            id,
+            name,
+            prefs,
+            resident,
+            x: state.x,
+            z: state.z,
+          })),
+        };
       }
       case 'watchChef': {
         const chef = server.chef(request.code);

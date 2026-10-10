@@ -32,7 +32,7 @@ const lookShape = {
 
 /** What a visitor has chosen about the room for themselves, in the hello and on every change. */
 export const prefsSchema = z.object({
-  /** Chef Skinner, the lobby's resident cook, may throw knives at this player. */
+  /** Chef Skinner, the kitchen's resident cook, may throw knives at this player. */
   chef: z.boolean(),
   /** The knife this player carries, which everyone sees in their hand and wherever it lands. */
   ...lookShape,

@@ -2,14 +2,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import {
   CHAT_MAX_LENGTH,
+  COOLER,
+  COOLER_HITS_TO_OPEN,
   KNIFE_COOLDOWN_INPUTS,
   Keys,
   MAX_PLAYERS_PER_ROOM,
   PROTOCOL_VERSION,
+  ROOM_HALF_X,
   TICK_RATE,
   parseServerMessage,
   type ServerMessage,
 } from '@world/shared';
+import { ENTRANCE_LINES, ENTRANCE_TICKS } from './chef.ts';
 import {
   CLOSE_BAD_HELLO,
   CLOSE_FLOOD,
@@ -89,9 +93,11 @@ class TestClient {
   waitForMessage<T extends ServerMessage['t']>(
     type: T,
     where: (m: Message<T>) => boolean = () => true,
+    timeoutMs?: number,
   ): Promise<Message<T>> {
-    return this.waitFor(() =>
-      this.messages.find((m): m is Message<T> => m.t === type && where(m as Message<T>)),
+    return this.waitFor(
+      () => this.messages.find((m): m is Message<T> => m.t === type && where(m as Message<T>)),
+      timeoutMs,
     );
   }
 
@@ -122,6 +128,15 @@ class TestClient {
       if (m.t === 'snap') return m;
     }
     return undefined;
+  }
+}
+
+/** Wait until `check` holds of the server, looking every few milliseconds. */
+async function eventually(check: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error('timed out waiting for the server');
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
 
@@ -299,7 +314,7 @@ describe('room server', () => {
     await b.waitFor(() => !server.rooms.has('tmp'));
   });
 
-  it('rejects the player after the room is full', async () => {
+  it('without Chef Skinner, takes all sixteen and turns the seventeenth away', async () => {
     for (let i = 0; i < MAX_PLAYERS_PER_ROOM; i++) await client().join(`P${i}`, 'packed');
     const extra = client();
     await extra.opened();
@@ -518,50 +533,148 @@ describe('room server', () => {
   });
 });
 
-describe('Chef Skinner in the lobby', () => {
+describe('Chef Skinner, locked in every walk-in', () => {
+  const EAST = -Math.PI / 2;
+  /** Where a cook stands to punch the walk-in's door, facing it. */
+  const AT_THE_DOOR = { x: ROOM_HALF_X - 0.7, z: -3, yaw: EAST };
+
   beforeEach(async () => {
     await server.close();
-    server = await startServer({ port: 0, host: '127.0.0.1', chef: true });
+    // These tests fill rooms, all from one address.
+    server = await startServer({ port: 0, host: '127.0.0.1', chef: true, maxConnectionsPerIp: 64 });
   });
 
-  it('is there to welcome the first visitor, walking about, but only in the lobby', async () => {
-    const a = client();
-    const welcome = await a.join('Alice');
-    const chef = welcome.players.find((p) => p.name === 'Chef Skinner');
-    expect(chef).toBeDefined();
-    const start = await a.waitFor(() => a.latestSnapshot()?.players.find((p) => p.id === chef!.id));
-    await a.waitFor(() => {
-      const now = a.latestSnapshot()?.players.find((p) => p.id === chef!.id);
-      return now && Math.hypot(now.x - start.x, now.z - start.z) > 1;
-    }, 5000);
-    // Visitors are counted without him, and private rooms do not get one.
-    const response = await fetch(`http://127.0.0.1:${server.port}/rooms/lobby`);
-    expect(((await response.json()) as { players: number }).players).toBe(1);
-    const hideout = await client().join('Bob', 'hideout');
-    expect(hideout.players.map((p) => p.name)).toEqual(['Bob']);
+  /** Ten cooks at the walk-in's door punch it once each, and it bursts. */
+  async function burstWalkIn(room: string): Promise<TestClient[]> {
+    const boxers: TestClient[] = [];
+    for (let i = 0; i < COOLER_HITS_TO_OPEN; i++) {
+      const boxer = client();
+      await boxer.join(`Boxer ${i + 1}`, room, { spawn: AT_THE_DOOR });
+      boxers.push(boxer);
+    }
+    for (const boxer of boxers) {
+      boxer.send({ t: 'input', seq: 0, keys: Keys.Punch, yaw: EAST, pitch: 0 });
+    }
+    await boxers[0]!.waitForMessage('cooler', (m) => m.openFrom !== undefined);
+    return boxers;
+  }
+
+  /** The tick of the newest snapshot `c` had been sent before its message `m`. */
+  const snapshotBefore = (c: TestClient, m: ServerMessage): number => {
+    const before = c.messages.slice(0, c.messages.indexOf(m));
+    return before.findLast((x): x is Message<'snap'> => x.t === 'snap')?.tick ?? -1;
+  };
+
+  const isChef = (m: Message<'join'>): boolean => m.player.resident === true;
+
+  it('is nowhere while the walk-in holds, in the lobby or a party', async () => {
+    for (const room of ['lobby', 'hideout']) {
+      const a = client();
+      const welcome = await a.join('Alice', room);
+      expect(welcome.players.map((p) => p.name)).toEqual(['Alice']);
+      // A second of the room's ticks later, still nobody else in it.
+      await a.waitFor(() => (a.latestSnapshot()?.tick ?? 0) >= welcome.tick + TICK_RATE, 5000);
+      expect(a.messages.some((m) => m.t === 'join' || m.t === 'chat')).toBe(false);
+      expect(a.latestSnapshot()!.players.map((p) => p.id)).toEqual([welcome.id]);
+      expect(server.chef(room)).toBeUndefined();
+    }
   });
 
-  it("takes one of the lobby's places, so the count says how many visitors fit", async () => {
+  it('comes out a second after its door bursts, in the lobby and a party alike, shouting', async () => {
+    for (const room of ['lobby', 'friday-service']) {
+      const boxers = await burstWalkIn(room);
+      const [ears, last] = [boxers[0]!, boxers.at(-1)!];
+      const burst = ears.messages.find((m) => m.t === 'cooler' && m.openFrom !== undefined)!;
+      const join = await ears.waitForMessage('join', isChef, 5000);
+      expect(join.player.name).toBe('Chef Skinner');
+      // A second of ticks after the burst (the snapshots go every third tick).
+      const waited = snapshotBefore(ears, join) - snapshotBefore(ears, burst);
+      expect(waited).toBeGreaterThanOrEqual(ENTRANCE_TICKS - 3);
+      expect(waited).toBeLessThanOrEqual(ENTRANCE_TICKS + 3);
+      // At the back of the cold room, and loud about it, to everyone.
+      const seen = await ears.waitFor(() =>
+        ears.messages
+          .slice(ears.messages.indexOf(join))
+          .find((m): m is Message<'snap'> => m.t === 'snap')
+          ?.players.find((p) => p.id === join.player.id),
+      );
+      expect(seen.x).toBeGreaterThan(COOLER.minX + 2);
+      const said = await ears.waitForMessage('chat', (m) => m.id === join.player.id);
+      expect(ENTRANCE_LINES).toContain(said.text);
+      await last.waitForMessage('chat', (m) => m.id === join.player.id);
+      expect(server.chef(room)?.player.id).toBe(join.player.id);
+      // He alone is the room's resident.
+      const welcome = ears.messages.find((m): m is Message<'welcome'> => m.t === 'welcome')!;
+      expect(welcome.players.some((p) => 'resident' in p)).toBe(false);
+      for (const boxer of boxers) boxer.ws.close();
+      await eventually(() => !server.rooms.has(room));
+    }
+  });
+
+  it('is counted out of the lobby, even once he is out, but keeps his place in it', async () => {
     const lobby = async () =>
       (await (await fetch(`http://127.0.0.1:${server.port}/rooms/lobby`)).json()) as {
         players: number;
         max: number;
       };
-    // Before anyone is there, and with them.
     expect(await lobby()).toEqual({ room: 'lobby', players: 0, max: MAX_PLAYERS_PER_ROOM - 1 });
-    for (let i = 0; i < MAX_PLAYERS_PER_ROOM - 1; i++) await client().join(`P${i}`);
-    const { players, max } = await lobby();
-    expect(players).toBe(max);
-    expect(await client().refused({ name: 'Late', room: 'lobby' }, 'room_full')).toBe(
-      CLOSE_ROOM_FULL,
-    );
+    const boxers = await burstWalkIn('lobby');
+    await boxers[0]!.waitForMessage('join', isChef, 5000);
+    expect(await lobby()).toEqual({
+      room: 'lobby',
+      players: COOLER_HITS_TO_OPEN,
+      max: MAX_PLAYERS_PER_ROOM - 1,
+    });
   });
 
-  it('is marked as the resident, and nobody else is', async () => {
-    const welcome = await client().join('Alice');
-    const chef = welcome.players.find((p) => p.name === 'Chef Skinner')!;
-    expect(chef.resident).toBe(true);
-    expect(welcome.players.find((p) => p.id === welcome.id)).not.toHaveProperty('resident');
+  it('never comes out of a room that empties before his second is up', async () => {
+    const boxers = await burstWalkIn('gone');
+    const old = server.rooms.get('gone')!;
+    for (const boxer of boxers) boxer.ws.close();
+    await eventually(() => !server.rooms.has('gone'));
+    // The same party, started again at once, is a new kitchen with its walk-in shut.
+    const late = client();
+    const welcome = await late.join('Late', 'gone');
+    expect(welcome.players.map((p) => p.name)).toEqual(['Late']);
+    expect(welcome.cooler).toEqual({ dents: [] });
+    await late.waitFor(
+      () => (late.latestSnapshot()?.tick ?? 0) >= welcome.tick + 2 * ENTRANCE_TICKS,
+      5000,
+    );
+    expect(late.messages.some((m) => m.t === 'join' || m.t === 'chat')).toBe(false);
+    expect(server.chef('gone')).toBeUndefined();
+    // Nobody in the room that emptied heard of him, and he never joined it.
+    for (const boxer of boxers) {
+      expect(boxer.messages.some((m) => m.t === 'join' && isChef(m))).toBe(false);
+    }
+    expect([...old.players.values()].some((p) => p.resident)).toBe(false);
+  });
+
+  it('leaves with the last visitor, and is locked in again for the next', async () => {
+    const boxers = await burstWalkIn('lobby');
+    const join = await boxers[0]!.waitForMessage('join', isChef, 5000);
+    expect(server.chef('lobby')?.player.id).toBe(join.player.id);
+    for (const boxer of boxers) boxer.ws.close();
+    await eventually(() => !server.rooms.has('lobby'));
+    expect(server.chef('lobby')).toBeUndefined();
+    const next = client();
+    const welcome = await next.join('Next');
+    expect(welcome.players.map((p) => p.name)).toEqual(['Next']);
+    expect(welcome.cooler).toEqual({ dents: [] });
+    await next.waitFor(
+      () => (next.latestSnapshot()?.tick ?? 0) >= welcome.tick + 2 * ENTRANCE_TICKS,
+      5000,
+    );
+    expect(next.messages.some((m) => m.t === 'join' || m.t === 'chat')).toBe(false);
+    expect(server.chef('lobby')).toBeUndefined();
+  });
+
+  it('keeps a place for him in every room, so the sixteenth visitor is turned away', async () => {
+    for (const room of ['lobby', 'packed']) {
+      for (let i = 0; i < MAX_PLAYERS_PER_ROOM - 1; i++) await client().join(`P${i}`, room);
+      expect(await client().refused({ name: 'Late', room }, 'room_full')).toBe(CLOSE_ROOM_FULL);
+      expect(server.rooms.get(room)?.visitors).toBe(MAX_PLAYERS_PER_ROOM - 1);
+    }
   });
 
   it("keeps each visitor's choice about him, from the hello and whenever it changes", async () => {
@@ -594,7 +707,7 @@ describe('Chef Skinner in the lobby', () => {
     expect(server.rooms.get('lobby')!.players.get(bWelcome.id)!.prefs).toEqual({ chef: true });
   });
 
-  it('takes the choice in a private room too, where he is not', async () => {
+  it('takes the choice in a party too, while he is still locked in', async () => {
     const a = client();
     const welcome = await a.join('Alice', 'hideout', { prefs: { chef: false } });
     a.send({ t: 'prefs', prefs: { chef: true } });
@@ -602,22 +715,5 @@ describe('Chef Skinner in the lobby', () => {
     expect(server.chef('hideout')).toBeUndefined();
     a.send({ t: 'chat', text: 'still here' });
     expect((await a.waitForMessage('chat')).text).toBe('still here');
-  });
-
-  it('leaves with the last visitor, and is back for the next one', async () => {
-    const a = client();
-    await a.join('Alice');
-    const first = server.chef('lobby');
-    expect(first?.player.name).toBe('Chef Skinner');
-    a.ws.close();
-    await a.waitForClose();
-    await a.waitFor(() => !server.rooms.has('lobby'));
-    expect(server.chef('lobby')).toBeUndefined();
-    const welcome = await client().join('Bob');
-    expect(welcome.players.map((p) => p.name).sort()).toEqual(['Bob', 'Chef Skinner']);
-    expect(server.chef('lobby')).not.toBe(first);
-    expect(server.chef('lobby')?.player.id).toBe(
-      welcome.players.find((p) => p.name === 'Chef Skinner')?.id,
-    );
   });
 });

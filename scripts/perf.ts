@@ -1,5 +1,7 @@
 /**
- * Performance check with a full room: 15 bots plus one real browser (16 players).
+ * Performance check with a full room: bots in every place but one, and one real browser in that.
+ * Its own room server has 16 places for visitors; a dev server's rooms keep one for Chef Skinner,
+ * locked in the walk-in, so against one the room is full at 15.
  *
  *   node scripts/perf.ts [--dpr 2] [--uncapped] [--params key=value&...]
  *
@@ -14,7 +16,7 @@
  */
 import { parseArgs } from 'node:util';
 import { chromium, type Browser } from '@playwright/test';
-import { DEFAULT_SERVER_PORT, MAX_PLAYERS_PER_ROOM } from '@world/shared';
+import { DEFAULT_ROOM, DEFAULT_SERVER_PORT } from '@world/shared';
 import { startServer, type WorldServer } from '../apps/server/src/server.ts';
 import { reachable, start, startClient, stopAll, waitFor } from './processes.ts';
 
@@ -43,10 +45,13 @@ try {
   if (!(await reachable(`http://localhost:${serverPort}/health`))) {
     ownServer = await startServer({ port: serverPort });
   }
+  // How many visitors a room takes, as the server says with the lobby's count.
+  const count = await fetch(`http://localhost:${serverPort}/rooms/${DEFAULT_ROOM}`);
+  const capacity = ((await count.json()) as { max: number }).max;
   start(process.execPath, [
     'scripts/bots.ts',
     '--count',
-    String(MAX_PLAYERS_PER_ROOM - 1),
+    String(capacity - 1),
     '--room',
     room,
     '--url',
@@ -75,7 +80,7 @@ try {
   await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   await page.waitForFunction(
     (expected) => window.__world?.mode === 'playing' && window.__world.playerCount === expected,
-    MAX_PLAYERS_PER_ROOM,
+    capacity,
     { timeout: 30_000 },
   );
   // Stay at the spawn, facing the piano with the bots wandering around it, and let things settle.

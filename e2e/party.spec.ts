@@ -27,7 +27,7 @@ test('a cook starts a private party from the menu, a friend follows the invite l
   browser,
 }) => {
   const host = await enterWorld(browser, { name: 'Host' });
-  await expectWorld(host, (w) => w.playerCount === 2, 'Chef Skinner keeps the lobby company');
+  expect((await world(host)).room).toBe('lobby');
 
   // The menu opens on the Party tab.
   await host.keyboard.press('Escape');
@@ -97,21 +97,21 @@ test('a cook starts a private party from the menu, a friend follows the invite l
     (w) => w.room === 'friday-service' && w.playerCount === 2,
     'the friend is in the party with the host',
   );
-  // Just the two of them: no lobby, no Chef Skinner.
+  // Just the two of them: nobody from the lobby.
   expect(friendState.remotePlayers.map((p) => p.name)).toEqual(['Host']);
   await expectWorld(host, (w) => w.playerCount === 2, 'the host sees the friend arrive');
   expect(await names(host)).toEqual(['Friend']);
 
-  // Back to the lobby, in place: Chef Skinner again, the party gone from the address.
+  // Back to the lobby, in place, alone there, the party gone from the address.
   await menu.getByRole('button', { name: 'Back to the lobby' }).click();
   await expectWorld(
     host,
-    (w) =>
-      w.room === 'lobby' &&
-      w.connection === 'online' &&
-      w.remotePlayers.some((p) => p.name === 'Chef Skinner'),
-    'the host is back in the lobby with Chef Skinner',
+    (w) => w.room === 'lobby' && w.connection === 'online' && w.playerCount === 1,
+    'the host is back in the lobby',
   );
+  await expect
+    .poll(async () => (await server.room('lobby'))?.players.map((p) => p.name))
+    .toEqual(['Host']);
   await expect(host).toHaveURL(`${E2E_CLIENT_URL}/`);
   await expect(menu.locator('.party-where')).toHaveText('The public lobby');
   await expectWorld(friend, (w) => w.playerCount === 1, 'the friend is left alone in the party');
@@ -123,7 +123,7 @@ test('a cook starts a private party from the menu, a friend follows the invite l
     'Someone is already using #friday-service. Join them, or pick another code.',
   );
   expect((await world(host)).room).toBe('lobby');
-  expect(await names(host)).toContain('Chef Skinner');
+  expect(await names(host)).toEqual([]);
 
   // Joining it works, and play goes on in the party.
   await menu.getByRole('button', { name: 'Join party' }).click();

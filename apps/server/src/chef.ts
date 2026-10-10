@@ -1,10 +1,12 @@
 import {
+  DOORS,
   EYE_HEIGHT,
   KNIFE_GRAVITY,
   KNIFE_MAX_FLIGHT_SECONDS,
   KNIFE_SPEED,
   Keys,
   MAX_PITCH,
+  ROOM_HALF_X,
   TICK_RATE,
   flyKnife,
   launchKnife,
@@ -14,10 +16,11 @@ import {
 import type { Room, RoomPlayer } from './room.ts';
 
 /**
- * Chef Skinner, the lobby's resident cook, so a quiet portfolio never feels empty. He is a player
- * like any other as far as the room is concerned: each tick he queues one input, which the room
- * simulates with the same movement, cooldowns and knife physics as everyone else's, and every
- * screen sees him through the same snapshots.
+ * Chef Skinner, the kitchen's resident cook, locked in the walk-in of every room until someone
+ * breaks its door down (`WalkInChef`). Out, he is a player like any other as far as the room is
+ * concerned: each tick he queues one input, which the room simulates with the same movement,
+ * cooldowns and knife physics as everyone else's, and every screen sees him through the same
+ * snapshots.
  *
  * He walks the aisles and pauses at stations. Every few seconds he picks a cook in view, stops,
  * turns to face them (long enough to see it coming), and throws, leading his target and not quite
@@ -27,11 +30,35 @@ import type { Room, RoomPlayer } from './room.ts';
  */
 
 export const CHEF_NAME = 'Chef Skinner';
-/** Where he starts: the far end of the kitchen, by the garden windows, facing the room. */
-export const CHEF_SPAWN = { x: 0, z: -5.3, yaw: Math.PI } as const;
+
+/** The middle of the walk-in's doorway, in the kitchen's east wall. */
+const DOORWAY = { x: ROOM_HALF_X, z: (DOORS.walkIn.from + DOORS.walkIn.to) / 2 } as const;
+
+/** The back of the cold room, south of the shelves along its east wall, which end 0.8 m north. */
+const BACK = { x: 10.9, z: -3.1 } as const;
+
+/**
+ * Where he starts: at the back of the cold room, clear of its shelves and of the door lying open
+ * along its south wall, facing the doorway, so whoever broke it in sees him across the cold room.
+ */
+export const CHEF_SPAWN = {
+  ...BACK,
+  yaw: Math.atan2(-(DOORWAY.x - BACK.x), -(DOORWAY.z - BACK.z)),
+} as const;
 
 const seconds = (s: number): number => Math.round(s * TICK_RATE);
-/** A newcomer gets this long to look around before he takes any interest. */
+/**
+ * He comes out this long after the walk-in's door bursts. The burst shows on each screen when the
+ * fist or knife that made it gets there, a little after the room decides it; by now it has shown
+ * on every screen, so nobody sees him in the room before they see the door give.
+ */
+export const ENTRANCE_TICKS = seconds(1);
+/** He stands his ground this long as he comes out, shouting, before he storms out. */
+const ENTRANCE_STAND_TICKS = seconds(1);
+/**
+ * A newcomer gets this long to look around before he takes any interest, and so does everyone in
+ * the room when he comes out of the walk-in.
+ */
 export const GRACE_TICKS = seconds(8);
 /** Only cooks who moved this recently are fair game; standing still means reading. */
 export const STILL_TICKS = seconds(3);
@@ -71,10 +98,20 @@ const LINES_ON_HIT = [
   'Again. From the top.',
 ];
 const LINES_ON_KNOCKED_OUT = ['Sacré bleu!', 'You will regret that.', 'My kitchen!'];
+/** What he shouts as he comes out of the walk-in. */
+export const ENTRANCE_LINES: readonly string[] = [
+  'Who locked me in the walk-in?!',
+  'Do you know how cold it is in there?',
+  'Finally! Who shut that door on me?',
+  'Somebody will pay for that door.',
+];
 
 /**
- * The aisles as a graph: rows between the fixtures and columns at the ends of the room. Every edge
- * is a straight walk that clears the fixtures by more than a player's radius.
+ * The aisles as a graph: rows between the fixtures and columns at the ends of the room, and a way
+ * out of the walk-in from the middle of the cold room, through its doorway, to the east column.
+ * He is only ever out with the walk-in open. Every edge is a straight walk that clears the fixtures
+ * (the cold room's shelves, the door lying open along its south wall and the doorway's frame among
+ * them) by more than a player's radius.
  */
 const ROWS: readonly (readonly [number, readonly number[]])[] = [
   // The aisle by the dining room doors, between the pass and the south wall.
@@ -86,6 +123,10 @@ const ROWS: readonly (readonly [number, readonly number[]])[] = [
   // Along the window counter.
   [-5.3, [-6.6, -3.2, 0, 3.2, 6.3]],
 ];
+/** The middle of the cold room's floor, between the shelves and the open door. */
+const COLD_ROOM = { x: 9.7, z: -3.7 } as const;
+/** Just inside the kitchen at the walk-in's doorway, beside the east column's two northern rows. */
+const AT_THE_DOORWAY = { x: 7.3, z: DOORWAY.z } as const;
 
 export interface Waypoint {
   readonly x: number;
@@ -117,6 +158,11 @@ function buildWaypoints(): Waypoint[] {
     for (let r = 1; r < ROWS.length; r++) link(at(x, ROWS[r - 1]![0]), at(x, ROWS[r]![0]));
   }
   link(at(0, -2.6), at(0, -5.3));
+  // Out of the walk-in, through the doorway, to the east column either side of it.
+  const doorway = at(AT_THE_DOORWAY.x, AT_THE_DOORWAY.z);
+  link(at(COLD_ROOM.x, COLD_ROOM.z), doorway);
+  link(doorway, at(6.3, -2.6));
+  link(doorway, at(6.3, -5.3));
   return points;
 }
 
@@ -129,7 +175,8 @@ export interface Aim {
 
 /**
  * The throw from `eye` that hits `target` (by its feet) if it keeps moving at its velocity, or
- * null if it is out of reach or something is in the way. Checked by flying the knife.
+ * null if it is out of reach or something is in the way. Checked by flying the knife, with the
+ * walk-in open, as it always is while he is out.
  */
 export function aimAt(
   eye: { x: number; y: number; z: number },
@@ -162,7 +209,7 @@ export function aimAt(
   // Fly it: anything between them (a counter, the hood) stops the knife first.
   const knife = launchKnife(eye.x, eye.y, eye.z, aim.yaw, aim.pitch);
   const at: KnifeTarget = { id, x, y: target.y, z };
-  const impact = flyKnife(knife, KNIFE_MAX_FLIGHT_SECONDS, [at], thrower);
+  const impact = flyKnife(knife, KNIFE_MAX_FLIGHT_SECONDS, [at], thrower, true);
   return impact?.kind === 'player' ? aim : null;
 }
 
@@ -190,6 +237,10 @@ export class Chef {
   private progressAt = 0;
   private progressDistance = Infinity;
 
+  /**
+   * He comes out of the walk-in into `room`, whose door has burst: at the back of the cold room,
+   * shouting about it, and he stands there a moment before he walks out.
+   */
   constructor(room: Room, id: number, random: () => number = Math.random) {
     this.room = room;
     this.random = random;
@@ -202,6 +253,8 @@ export class Chef {
     });
     this.to = this.nearestWaypoint();
     this.nextThrow = room.tick + this.rest();
+    this.plan = { kind: 'pause', until: room.tick + ENTRANCE_STAND_TICKS, look: CHEF_SPAWN.yaw };
+    this.say(ENTRANCE_LINES);
   }
 
   /** Whom he is winding up to throw at, if anyone. */
@@ -401,6 +454,53 @@ export class Chef {
     this.spokeAt = this.room.tick;
     const text = pick(lines, this.random);
     this.room.broadcast({ t: 'chat', id: this.player.id, name: this.player.name, text });
+  }
+}
+
+/**
+ * Chef Skinner as every room has him: locked in its walk-in while the door holds, so he is not in
+ * the room at all and nothing on any screen or on the wire gives him away. A second after the door
+ * bursts he comes out (`chef`), and stays until the room empties, which takes him and the room with
+ * it, so the next visitors find him locked in again. A room that empties in that second never has
+ * him. He keeps one of the room's places all along (see the server).
+ */
+export class WalkInChef {
+  /** He, once he is out of the walk-in. */
+  chef: Chef | null = null;
+  private readonly room: Room;
+  private readonly newId: () => number;
+  private readonly random: () => number;
+  /** The tick he comes out on, once the door has burst. */
+  private outAt: number | null = null;
+
+  /** `newId` gives him his player id as he comes out, from the server's own count. */
+  constructor(room: Room, newId: () => number, random: () => number = Math.random) {
+    this.room = room;
+    this.newId = newId;
+    this.random = random;
+    room.onCoolerBurst = () => {
+      this.outAt = room.tick + ENTRANCE_TICKS;
+    };
+    room.onKnockout = (from, to) => {
+      const chef = this.chef;
+      if (!chef) return;
+      if (from === chef.player.id) chef.onKnockout(to);
+      if (to === chef.player.id) chef.onKnockedOut();
+    };
+  }
+
+  /**
+   * Before each step of the room, as a visitor's input arrives before it: lets him out when it is
+   * time, and has him decide his input. That step is `room.tick + 1`, so on the tick he comes out
+   * on, his first input is in it.
+   */
+  think(): void {
+    // Nobody is left to come out to; the server drops a room as it empties anyway.
+    if (this.room.isEmpty) this.outAt = null;
+    if (!this.chef && this.outAt !== null && this.room.tick + 1 >= this.outAt) {
+      this.chef = new Chef(this.room, this.newId(), this.random);
+    }
+    this.chef?.think();
   }
 }
 

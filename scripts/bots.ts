@@ -8,13 +8,16 @@
  * seconds. Ctrl+C disconnects them all.
  *
  * Bots never take a room's last seat, so you can always join the room they fill: they ask the
- * server how many seats the room has free (it says for the lobby, not for private rooms), then join
- * one at a time and stop one short of full, counting everyone already there, Chef Skinner too.
+ * server how many visitors a room takes (it says so with the lobby's count, along with how many are
+ * in the lobby; private rooms' counts stay private), then join one at a time and stop one short of
+ * full, counting every visitor already there. Chef Skinner keeps a place of his own in every room,
+ * in its walk-in or out of it, which the server leaves out of the seats it offers.
  * --count is how many you would like, at most MAX_PLAYERS_PER_ROOM - 1 (15).
  */
 import { parseArgs } from 'node:util';
 import { WebSocket } from 'ws';
 import {
+  DEFAULT_ROOM,
   DEFAULT_SERVER_PORT,
   KNIFE_COOLDOWN_INPUTS,
   Keys,
@@ -23,6 +26,7 @@ import {
   TICK_MS,
   TICK_RATE,
   encode,
+  normalizeRoomCode,
   parseServerMessage,
   type ClientMessage,
 } from '@world/shared';
@@ -64,24 +68,23 @@ interface Bot {
   leaving: boolean;
 }
 
-/** In the room, with how many players it now holds (residents and this bot included), or not. */
-type Joined = { bot: Bot; roomSize: number } | { refused: string };
+/** In the room, with how many visitors it now holds (this bot included), or not. */
+type Joined = { bot: Bot; visitors: number } | { refused: string };
 
 /**
- * Seats the server says the room has free, or null if it does not say. It publishes the lobby's
- * count only, as `{ players, max }`; whether `max` leaves out Chef Skinner's seat or not, joining
- * checks the room's real size, so this only spares bots that could never get in.
+ * The server's count of the lobby: its visitors, and how many visitors a room takes (`max`, the
+ * same in every room), or null if it does not say.
  */
-async function freeSeats(): Promise<number | null> {
+async function lobbyCount(): Promise<{ players: number; max: number } | null> {
   const url = new URL(values.url);
   url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
-  url.pathname = `${url.pathname.replace(/\/$/, '')}/rooms/${encodeURIComponent(values.room)}`;
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/rooms/${DEFAULT_ROOM}`;
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
     if (!response.ok) return null;
     const body = (await response.json()) as { players?: unknown; max?: unknown };
     if (typeof body.players !== 'number' || typeof body.max !== 'number') return null;
-    return body.max - body.players;
+    return { players: body.players, max: body.max };
   } catch {
     return null;
   }
@@ -144,7 +147,7 @@ function join(index: number): Promise<Joined> {
         if (due - bot.seq > MAX_CATCH_UP) start = performance.now() - bot.seq * TICK_MS;
         else while (bot.seq < due) step();
       }, TICK_MS / 2);
-      settle({ bot, roomSize: message.players.length });
+      settle({ bot, visitors: message.players.filter((p) => !p.resident).length });
     });
     ws.on('close', (code: number) => {
       if (bot.timer) clearInterval(bot.timer);
@@ -171,8 +174,11 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
-const free = await freeSeats();
-const wanted = free === null ? asked : Math.min(asked, free - 1);
+const count = await lobbyCount();
+// Without a count, as many as the live site's rooms take: all their places but Chef Skinner's.
+const capacity = count?.max ?? MAX_PLAYERS_PER_ROOM - 1;
+const inLobby = normalizeRoomCode(values.room) === DEFAULT_ROOM ? (count?.players ?? 0) : 0;
+const wanted = Math.min(asked, capacity - inLobby - 1);
 let stopped = '';
 for (let i = 0; i < wanted; i++) {
   const joined = await join(i);
@@ -183,11 +189,11 @@ for (let i = 0; i < wanted; i++) {
     break;
   }
   bots.push(joined.bot);
-  if (joined.roomSize >= MAX_PLAYERS_PER_ROOM) {
+  if (joined.visitors >= capacity) {
     leave(bots.pop()); // it took the last seat
     break;
   }
-  if (joined.roomSize === MAX_PLAYERS_PER_ROOM - 1) break; // one seat left: yours
+  if (joined.visitors === capacity - 1) break; // one seat left: yours
 }
 
 const where = `"${values.room}" at ${values.url}`;

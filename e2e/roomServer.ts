@@ -3,9 +3,16 @@ import { resolve } from 'node:path';
 import type { Prefs } from '@world/shared';
 import { E2E_SERVER_PORT } from './ports.ts';
 
-/** Who is in a room, as the room server has it. */
+/** Who is in a room, and where each of them stands on the floor, as the room server has it. */
 export interface RoomView {
-  readonly players: readonly { id: number; name: string; prefs: Prefs }[];
+  readonly players: readonly {
+    id: number;
+    name: string;
+    prefs: Prefs;
+    resident: boolean;
+    x: number;
+    z: number;
+  }[];
 }
 
 export type ServerRequest =
@@ -19,7 +26,7 @@ export type ServerRequest =
 /** Whom Chef Skinner has wound up to throw at since he was watched, by player id. */
 export interface ChefTargets {
   readonly targets: readonly number[];
-  /** Whether he is still the one watched: a lobby that empties loses him, and a new one comes. */
+  /** Whether he is still the one watched: a room that empties loses him, and a new one comes. */
   readonly watching: boolean;
 }
 
@@ -30,9 +37,9 @@ export type ServerEvent =
   | { readonly kind: 'reply'; readonly id: number; readonly value: unknown };
 
 /**
- * The real room server, with Chef Skinner in the lobby as in production, run in a process of its
- * own (roomServerProcess.ts) so it keeps time however busy the test process is, and so tests can
- * stop and restart it.
+ * The real room server, with Chef Skinner locked in every room's walk-in as in production, run in a
+ * process of its own (roomServerProcess.ts) so it keeps time however busy the test process is, and
+ * so tests can stop and restart it.
  */
 export interface RoomServer {
   readonly port: number;
@@ -44,7 +51,7 @@ export interface RoomServer {
   room(code: string): Promise<RoomView | null>;
   /**
    * Start writing down, every tick, whom Chef Skinner in this room winds up to throw at; false if
-   * he is not there.
+   * he is not out of its walk-in.
    */
   watchChef(code: string): Promise<boolean>;
   /** Whom he has wound up to throw at since `watchChef`, or null if he was never watched. */
