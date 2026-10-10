@@ -7,7 +7,7 @@ When something is ambiguous, pick the option that best serves quality and simpli
 ## Goal
 
 A personal website for Daniel Kim that is a small 3D world explored in first person, like joining a game lobby.
-Visitors walk around, click floating objects to learn about Daniel, and see every other visitor in the same world as a moving avatar with a name tag, in real time.
+Visitors walk around, open the objects of the world (E) to learn about Daniel, and see every other visitor in the same world as a moving avatar with a name tag, in real time.
 It must run fully locally with no accounts, API keys, or paid services.
 
 Inspiration: world.kathirm.com (github.com/kathirmeyyappan/world).
@@ -16,8 +16,10 @@ Build an original implementation. Do not copy code, assets, or content from that
 ## Non-goals (for this run)
 
 - No deployment, no DNS, no pushing to any remote.
+  Superseded at Daniel's request: the site runs on AWS (CloudFront, S3 and an EC2 room server, through AWS CDK) and Vercel; see the README.
 - No accounts or authentication. No database; room state lives in server memory.
 - No real personal content. Use clearly marked placeholders that are easy to replace.
+  Superseded: `content.ts` holds Daniel's resume.
 - No external 3D model or texture downloads; build the world and avatars from primitives, procedural materials, and shaders.
 
 ## Stack
@@ -32,7 +34,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 
 ## Experience
 
-1. **Landing screen**: site title, short tagline, name input (prefilled with a random adjective + animal, saved in `localStorage`), private party field (empty = public `lobby`), "Enter world" button, live player count for the lobby, and a "Skip to portfolio" link.
+1. **Landing screen**: Daniel's name and headline, the cook's name (prefilled with a random adjective + animal, saved in `localStorage`), "Enter the kitchen", and a quiet row with the live player count for the lobby, "Private party" (opening a party code field; empty = public `lobby`) and "Plain portfolio". On a touch-only device "View the portfolio" is the main action instead.
 2. **World**: a three-star French kitchen at real scale, laid out after the French Laundry, where the players are the cooks: a stainless cooking suite with brass trim under a lit hood, charcoal-topped islands, white tiled walls under a barrel vault with skylights, garden windows, live flames and steam, and The Bear's "Every Second Counts" sign. The walls are the boundary.
    It is rendered to a cinematic standard, not low-poly: smooth and rounded forms, physically based materials whose detail is painted procedurally at its real size (brushed stainless, copper, glazed tile, stone, butcher block), reflections of the room itself, contact shadows, and props and dishes modeled to look good enough to eat.
    It is evening service, lit after Gusteau's kitchen in Ratatouille: the blue hour outside the windows and skylights, warm light from the kitchen's own lamps inside, in pools.
@@ -51,7 +53,7 @@ Build an original implementation. Do not copy code, assets, or content from that
    The bottom right corner shows both over the minimap, like a shooter's loadout: the one in hand bright, the other with its key, and the knife filling back in after each throw.
    A knife leaves the hand a little off the crosshair (up to 1.5°, any way), flies fast in a slight arc, tumbling, and sticks into whatever surface it hits; the newest 60 per room stay until the room empties, and newcomers see them.
    A knife that hits another cook knocks them out: they fall over, see "Knocked out by <name>" for 3 s, then respawn at a spawn point, protected for 2 s.
-   Kills show in the chat and as a toast; there are no scores and no game modes.
+   Kills show in the kill feed under the player list, and to the thrower and the cook knocked out on screen; there are no scores and no game modes.
 
 ## Networking
 

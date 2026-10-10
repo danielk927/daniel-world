@@ -57,7 +57,7 @@ The old navy tokens (`--navy`, `--panel`, `--panel-border`, `--radius*`, `--shad
 
 ## Surfaces
 
-### Landing (`ui/landing.ts`, `styles/landing.css`, `game/game.ts` landing camera)
+### Landing (`ui/landing.ts`, `styles/landing.css`, `game/landingCamera.ts`)
 
 Centered, over an even `--dim` of the whole view:
 
@@ -66,6 +66,7 @@ Centered, over an even `--dim` of the whole view:
 - One main action, "Enter the kitchen" (`.button-large`, no key ring beside it).
 - One quiet row at the bottom: the online count with a brass dot, "Private party" (a disclosure that opens the party code field; it opens by itself when the link carries a room), and the plain portfolio link.
 - Notices (touch devices, no WebGL, kicked back to the landing) are one plain line of text, not a box.
+- On a touch-only device, and where the world cannot run (no WebGL, or it failed to load), "View the portfolio" is the main action, in the display face with the bar; on a touch device "Enter the kitchen" stays, as a quiet button under the name.
 
 Behind it the camera moves slowly through the kitchen: a closed loop through the aisles round the cooking suite, at about head height, looking ahead and a little in toward the suite, about two minutes a lap.
 It must not allocate per frame, must not pass through fixtures, and holds the old still establishing shot when motion is reduced.

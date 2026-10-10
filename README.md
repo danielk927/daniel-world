@@ -1,7 +1,7 @@
 # Daniel's World
 
 A personal website that is a small multiplayer 3D world.
-Visitors walk a three-star kitchen, laid out after the French Laundry, in first person, click its stations to learn about Daniel, and see everyone else who is visiting as a cook in a toque with a name tag.
+Visitors walk a three-star kitchen, laid out after the French Laundry, in first person, open its stations to learn about Daniel, and see everyone else who is visiting as a cook in a toque with a name tag.
 There is also a plain [portfolio page](apps/client/portfolio.html) with the same content, for phones, browsers without WebGL, and anyone in a hurry.
 
 **Live:** https://d1ivv0s5bbzyx0.cloudfront.net (AWS: CloudFront, S3, EC2) and https://daniel-world-nine.vercel.app (Vercel front end on the same AWS room server).
@@ -210,4 +210,5 @@ Build the client with `VITE_SERVER_URL` set to the server's `wss://` URL, or to 
 
 - Unit and integration tests (Vitest) cover the simulation, protocol validation, rate limiting, rooms, the WebSocket server, prediction and interpolation.
 - End-to-end tests (Playwright, Chromium with SwiftShader software WebGL) open several browser contexts and assert on a read-only `window.__world` debug object that exists only in dev and test builds.
-  They cover lobby presence, movement replication, chat, private room isolation, leaving, the info panel, and offline play with automatic reconnection.
+  They cover the landing (on a phone, without WebGL, the live lobby count), lobby presence, movement replication, jumping and sprinting, name tags, chat, private parties and invite links, leaving, the stations' and dishes' panels, the menus' keyboard focus, knives (throwing, knockouts, the spread, skins, inspecting, holding to keep throwing, punches), Chef Skinner, the walk-in, the kitchen computer, the portfolio with JavaScript off, and offline play, reconnection and refusals.
+  On a busy machine they hold without retries: pages the test is not driving draw only a few times a second in the test build, the room server runs in its own process, and a failed test carries its log.

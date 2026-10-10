@@ -1,7 +1,7 @@
 # Daniel's World - project guide
 
 A first-person 3D multiplayer personal website.
-Visitors walk a classical French brigade kitchen as cooks, click its stations to learn about Daniel, and see each other in real time.
+Visitors walk a classical French brigade kitchen as cooks, open its stations to learn about Daniel, and see each other in real time.
 `SPEC.md` is the source of truth for scope, `DECISIONS.md` records judgment calls, `PROGRESS.md` tracks milestones.
 
 ## Commands
@@ -47,7 +47,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
   `helpers.ts` has what they share; the room server they start runs in a process of its own (`roomServer.ts`).
-- `scripts` - dev tooling (bots, screenshots, perf); `processes.ts` starts what they need and stops it with them.
+- `scripts` - dev tooling (bots, screenshots, perf, viewpoints, computer-bench); `processes.ts` starts what they need and stops it with them.
 
 ## Conventions
 
@@ -98,15 +98,20 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   `?time=20:00` pins the hour; screenshots use it, and so should anyone judging a lighting change (the evening look is the reference).
   In dev builds `?view=x,y,z,yaw,pitch` holds the camera behind the landing (`game/photoView.ts`), `&cooks=4` stands cooks in it facing the camera, and `&governor=off` holds the best render level.
 - The hand on screen is solved, not keyed: `world/hand.ts` wraps it round each knife's handle (`knifeHand` in `world/viewmodel.ts`), so a new knife needs no hand work; `viewmodelHand.test.ts` checks every knife's grip, ring and wrist in the scene as drawn.
+  Knives turn end over end only on the index finger, never in the fist, and fold through a hand that lets go; `viewmodelClearance*.test.ts` steps every knife through every move and cut and fails if it reaches deeper into the hand than its own grip does.
 - The interface follows `docs/ui-revamp.md` (approved mockups in `docs/ui-revamp/`): no boxes, nothing behind or around words in the world (no outlines, glows or `text-shadow`), Gabarito for titles and Rubik for the rest, brass only for what is current, marked by the `.bar`, and keys as rings.
   Use the tokens in `styles/tokens.css` and the parts in `styles/controls.css`; each surface has its own stylesheet, imported in cascade order by `styles/app.css`.
   The fonts' latin subset has no arrows, so draw them.
+- `portfolio.html` is written at build time from `content.ts` (a Vite plugin running `src/portfolioPage.ts`, through `ui/markup.ts`, which the station panel renders too), so the page works without JavaScript; change `content.ts`, never the built page.
 - The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 - E2E must hold on a busy machine, where a page can go seconds without a frame.
   Check that something did not happen only once the game has run frames (`waitForFrames`), the server says so (`server.room`), or the page has heard back; never after a fixed wait.
   Each `enterWorld` adds its own time to the test's (`ENTER_MS`), so set a long body's time with `test.setTimeout` before entering, and take `test` from `helpers.ts` in specs that start a room server, so a failure carries its log.
   The test build draws pages nobody is driving four times a second (`src/testDrawing.ts`); `E2E_CPU_THROTTLE` checks a spec on a starved page.
+- The kitchen computer's firmware (`apps/client/src/computer/assets/doom.elf`) is committed prebuilt, because the site's builds have no RISC-V toolchain; after changing anything in `firmware/`, rebuild it with `firmware/doom/build.sh` and commit the ELF.
+  `firmware/include/machine.h` and `src/computer/abi.ts` must agree (`abi.test.ts` checks).
+  At the computer every key goes to DOOM except Esc, which steps away (under pointer lock the browser takes Esc anyway); DOOM's menu is on the backquote key, and the mouse takes `movementX` in CSS pixels (`KitchenComputer.mouseMove` scales it to DOOM's counts).
 
 <!-- BEGIN AWS Agent Toolkit rules -->
 
@@ -140,7 +145,3 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   `asm-exec` so the secret resolves at runtime without entering context.
 
 <!-- END AWS Agent Toolkit rules -->
-
-- The kitchen computer's firmware (`apps/client/src/computer/assets/doom.elf`) is committed prebuilt, because the site's builds have no RISC-V toolchain; after changing anything in `firmware/`, rebuild it with `firmware/doom/build.sh` and commit the ELF.
-  `firmware/include/machine.h` and `src/computer/abi.ts` must agree (`abi.test.ts` checks).
-  At the computer every key goes to DOOM except Esc, which steps away (under pointer lock the browser takes Esc anyway); DOOM's menu is on the backquote key, and the mouse takes `movementX` in CSS pixels (`KitchenComputer.mouseMove` scales it to DOOM's counts).

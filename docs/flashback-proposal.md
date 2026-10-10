@@ -2,6 +2,7 @@
 
 Status: for Daniel's approval.
 Nothing here is built yet.
+It predates the interface's house style (`docs/ui-revamp.md`, approved 2026-10-08): built today, its lines would be in the house faces (no serif) and its critic's note plain words on an even dim (no card).
 
 ## The moment
 

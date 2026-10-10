@@ -1,20 +1,31 @@
 # Progress
 
-## Final summary
+## Where things stand (2026-10-10)
 
-All milestones (M0 to M6) are done and committed on `main`.
-The full definition of done passes from a fresh clone: `npm install`, `npm run lint`, `npm run typecheck`, `npm test` (84 tests), `npx playwright install chromium`, `npm run e2e` (10 tests, about 3 minutes), and `npm run build`.
+Daniel's World is a first-person, multiplayer French brigade kitchen: visitors are cooks, the eight stations serve the sections of Daniel's resume, his five favorite dishes wait on the pass under their heat lamps, and everyone in a room sees everyone else in real time.
+Around that: knives to throw (twelve CS2-style skins, a little spread on every throw), Chef Skinner walking the lobby, a walk-in cooler that bursts open after ten hits, and a RISC-V computer running DOOM.
+The plain portfolio page renders the same content, written into `portfolio.html` at build time so it works without JavaScript.
+
+The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and not yet pushed:
+
+- **Higher quality graphics**: the kitchen left the low-poly style (GPU-painted surfaces at real size, reflections from a probe of the room, rounded forms, modeled food and props, smoother cooks), and the knives reflect the room too.
+- **Knives clear of the hand**: every knife's moves were measured frame by frame and rebuilt so no knife passes through the hand.
+- **Every plate on the pass lit** by its own heat lamp.
+- **A review of every part of the code**, by area and then a second pass (server, client, interface, rendering, infrastructure, kitchen computer, docs, tests), and fixes for what it found: a socket that could crash the room server, cooldowns that could be skipped, a dead network still shown as online, the knockout card and menus, focus and contrast, the walk-in door's knives, the quality governor, a safer AWS stack, and an E2E suite that holds on a busy machine.
+- Not built: locking Chef Skinner in the walk-in, whose spec (`docs/superpowers/specs/2026-10-09-caged-chef-design.md`) waits for Daniel's review.
 
 ### Live deployment
 
 - **AWS (primary):** https://d1ivv0s5bbzyx0.cloudfront.net, stack `DanielWorld` in account 555300500704, `us-east-1`, deployed with `npm run deploy:aws`.
   CloudFront serves the S3 site and proxies `/ws` to EC2 instance `i-0d43c69c81a9b7a5f` (t4g.micro); logs go to CloudWatch log group `DanielWorld-ServerLogsD9948953-dzKBRdipDtL4`.
 - **Vercel:** https://daniel-world-nine.vercel.app, with `VITE_SERVER_URL=wss://d1ivv0s5bbzyx0.cloudfront.net/ws`, so both front ends share one room server.
-- Verified live: two browsers joined, saw each other, chatted and emoted (27 ms ping); the instance refuses direct connections and has no SSH.
+- Verified live: two browsers joined, saw each other and chatted (27 ms ping); the instance refuses direct connections and has no SSH.
+- `main` is ahead of the live site: protocol version 8 and a reworked stack.
+  Pushing redeploys the Vercel front end at once, while the room server follows only with `npm run deploy:aws` (see "What needs Daniel's input").
 - Cost is about $10/month (instance plus public IPv4), less on the free tier. `npm run destroy -w @world/infra` removes it all.
 - GitHub: https://github.com/danielk927/daniel-world (public).
 
-### What was built
+### The first build (a floating island, since replaced)
 
 - **A first-person 3D personal site**: a low-poly floating island at golden hour, built only from primitives and shaders.
   It has a sky, a cloud sea, fog, shadows, wind-swayed trees and grass, a fountain with a floating crystal, lanterns, drifting light motes, and distant islands.
@@ -35,7 +46,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - **Performance** on an Apple M5 with 16 players: a steady 60 fps, about 1 ms of main-thread time per frame, and 61 draw calls.
   Software renderers automatically get a lighter quality tier.
 
-### The kitchen (after the final summary)
+### The kitchen
 
 - The floating island was replaced with a classical French brigade kitchen, at Daniel's request: a navy and brass piano under a steel hood, white tile, walls of copper, live flames and steam, and Paris at dusk through the windows.
 - The eight stations (le passe, saucier, poissonnier, rôtisseur, entremetier, garde manger, pâtisserie, plonge) are the clickable objects, each with a placeholder panel describing the station.
@@ -128,7 +139,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - `viewmodelClearance*.test.ts` checks every knife, move and cut; it fails on the old animations.
 - Lint, typecheck, 966 unit tests, 40 E2E tests and the build pass.
 
-### The graphics upgrade (2026-10-10, on the `graphics-upgrade` branch)
+### The graphics upgrade (2026-10-10)
 
 - The kitchen leaves the low-poly style, at Daniel's request (`docs/graphics-upgrade.md` has the direction, the audit and the results; before and after frames from twelve viewpoints are in `docs/graphics-upgrade/`).
 - Every surface is painted on the GPU at load at its real size, from recipes in the code (stone floor tiles, large glazed wall tiles, plaster, brushed steel, cast iron, hammered copper, brass, stone, butcher block, cloth, food), with texture coordinates in meters and a finish per part; nothing is downloaded.
@@ -158,12 +169,10 @@ npm run bots -- --count 5   # optional: some company
   E2E runs the drag-to-look fallback, so the pointer-lock path was only reasoned about, not driven automatically.
 - On a real GPU the look was checked through headless-GPU screenshots (`docs/screenshots/`), not by a person in a headed browser.
   A quick manual pass would still be worthwhile.
-- The Dockerfile in the README deployment section is untested (Docker was not available here).
-  The Railway/Render and static-hosting steps only use commands that were run locally.
 - Rooms live in one server process's memory, so the server must run as a single instance.
 - Bit-exact prediction is guaranteed between V8 engines (Chrome, Edge, Node).
   Firefox and Safari may drift by tiny amounts, which reconciliation smooths out invisibly.
-- The E2E suite takes about 3 minutes because several software-rendered browsers share one CPU.
+- The E2E suite takes about 8 minutes, as several software-rendered browsers share one CPU.
 
 ### October 7 additions
 
@@ -177,10 +186,13 @@ npm run bots -- --count 5   # optional: some company
 
 ### What needs Daniel's input
 
-- **Real content**: done (Daniel's resume on every station and the portfolio). Remaining `TODO(daniel)`: a personal line on the NBA or fashion, and optional lines on the dishes.
-- **Deployment accounts and domains**: a host for the server (Fly.io, Railway, or Render) and for the static client (Vercel, Netlify, or GitHub Pages).
-  Then set `VITE_SERVER_URL` for the client build and `ALLOWED_ORIGINS` / `TRUST_PROXY` for the server.
-- **Optional taste calls**: site title and eyebrow text (`site` in `content.ts`), the palette in `apps/client/src/world/palette.ts`, and whether tag should also be allowed in the public lobby.
+- **Pushing and deploying.** Nothing from 2026-10-09 and 10 is pushed.
+  Protocol version 8 means the room server must be redeployed with the client: push, then `npm run deploy:aws`, or the Vercel front end plays solo until the deploy.
+  That deploy replaces the room server's instance once (rooms drop, players reconnect), gives it an Elastic IP and moves CloudFront's `/ws` origin to it; afterwards check that `dig +short` on the `ServerOrigin` output prints the Elastic IP, and commit `infra/cdk.context.json`, which it writes.
+- **The caged chef spec** (`docs/superpowers/specs/2026-10-09-caged-chef-design.md`): review it before it is built.
+- **Taste calls**: the landing's dim is deeper (for the small text's contrast); the new kitchen look; the bayonet, M9 and huntsman spins, whose blade the fist hides half of each turn.
+- **His words**: the two `TODO(daniel)` lines in `content.ts`, and whether "pending for NeurIPS and Nature" and "pending for AAAI and AISTATS" should read "under review at".
+- **`AGENTS.md`**: an untracked, out-of-date copy of an old `CLAUDE.md` in the checkout; delete it or regenerate it from `CLAUDE.md`.
 
 ## Milestones
 
@@ -257,4 +269,5 @@ Removed on 2026-10-03 in favor of knife throwing in every room.
 
 ## Next
 
-- Nothing required. See "What needs Daniel's input" above.
+- Push and deploy, after reviewing (see "What needs Daniel's input").
+- Lock Chef Skinner in the walk-in, once Daniel has reviewed its spec.
