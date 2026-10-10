@@ -885,3 +885,16 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   The uncapped frame costs about 2.4 ms more of GPU time at dpr 1, within the direction's "no worse than a third slower"; the 5.5 times as many triangles are not where it goes (toggling the shadows, the textures and the probe accounted for most of it), and the draw calls rose by ten: five new layers and the cooks' buttons and aprons, with their shadow passes.
 
 - **Texture filtering stays at 8x anisotropy**: 4x measured no faster (125 against 131 fps uncapped, within the noise), so the sharper filtering of the floor down the aisle stays.
+
+### The hand and knives at the kitchen's standard (2026-10-10)
+
+- **The hand on screen and the knives left the faceted look with the rest of the kitchen**, once the work keeping knives clear of the hand had landed.
+  The shapes the clearance and grip tests check did not move: every change is in normals and materials, over the same solids, so `viewmodelClearance*.test.ts` and `viewmodelHand.test.ts` pass unchanged.
+- **The hand is a satin glove in the player's color**, shading round over its six-sided finger solids, its palm rounding over its edges, reflecting the kitchen's probe; the arm wears a chef's sleeve of woven cotton falling in soft folds to a rolled hem over a rounded cuff (`sleeve.ts`).
+- **Knives are smooth where they are round and crisp where they are sharp**: normals split at a crease angle (`creaseNormals.ts`) keep the spine, grind and edge hard while handles, guards and rings round off; the chef's knife is ground to an edge inside its old outline.
+  Steel and the candy finishes have their own roughness and metalness and reflect the probe, box-projected, and handles are wood, micarta, G10, rubber or cord per knife.
+- **The Knives page lights its knife in a studio of its own**, since its renderer cannot use the world's probe.
+- **Knife materials are painted while the world loads**, and a newly seen finish sends only its new strip to the GPU; the knife in the hand draws in one call for its fixed parts and one per hinge instead of one per part.
+- `scripts/hands.ts` shoots the hand holding each knife at rest, mid-inspect and on the Knives page with the page's clock held, so the same frames can be compared before and after a change.
+- The agent doing this stalled twice before writing it up; the merge was checked by hand: lint, typecheck, 972 unit tests, the build and the frames.
+  Frame CPU with 16 players was the same just before and after it (2.81 and 2.72 ms on a machine running slower that day than the night before, when the same earlier commit measured 1.2 ms against 2.2 ms).

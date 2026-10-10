@@ -8,7 +8,7 @@ The plain portfolio page renders the same content, written into `portfolio.html`
 
 The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and not yet pushed:
 
-- **Higher quality graphics**: the kitchen left the low-poly style (GPU-painted surfaces at real size, reflections from a probe of the room, rounded forms, modeled food and props, smoother cooks), and the knives reflect the room too.
+- **Higher quality graphics**: the kitchen left the low-poly style (GPU-painted surfaces at real size, reflections from a probe of the room, rounded forms, modeled food and props, smoother cooks), and so did the hand on screen (a glove and a chef's sleeve) and the knives.
 - **Knives clear of the hand**: every knife's moves were measured frame by frame and rebuilt so no knife passes through the hand.
 - **Every plate on the pass lit** by its own heat lamp.
 - **A review of every part of the code**, by area and then a second pass (server, client, interface, rendering, infrastructure, kitchen computer, docs, tests), and fixes for what it found: a socket that could crash the room server, cooldowns that could be skipped, a dead network still shown as online, the knockout card and menus, focus and contrast, the walk-in door's knives, the quality governor, a safer AWS stack, and an E2E suite that holds on a busy machine.
@@ -150,6 +150,10 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - With 16 players it holds 60 fps at governor level 0 at dpr 1 and level 1 at dpr 2, at about 0.8 ms of frame CPU, 86 draw calls and 709 k triangles; uncapped it draws about 30 % fewer frames than before (131 against 185 fps); the high tier loads in 1.03 s instead of 0.90, the low tier in 0.96.
 - The low tier keeps plain paint on the same geometry, with fewer sides, and no textures, probe or post-processing.
 - Lint, typecheck, 960 unit tests, 40 E2E tests and the build pass.
+
+### The hand and knives at the kitchen's standard (2026-10-10)
+
+- The hand on screen is a satin glove in the player's color with a chef's sleeve, and the knives are smooth where round and crisp at spine and edge, with steel that reflects the kitchen and handles of wood, micarta, G10, rubber or cord; the shapes the clearance tests check did not move.
 
 ### How to run it
 
