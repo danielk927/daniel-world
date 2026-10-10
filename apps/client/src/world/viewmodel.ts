@@ -57,8 +57,13 @@ import {
   type KnifeMoves,
   type Offset,
 } from './knifeMoves.ts';
-import { handKnifeMaterial, knifeModel, knifePartGeometry, type KnifeModel } from './knifeModel.ts';
-import type { Joint, V2 } from './knifeShapes.ts';
+import {
+  handKnifeMaterial,
+  knifeModel,
+  knifePartsGeometry,
+  type KnifeModel,
+} from './knifeModel.ts';
+import type { Joint, KnifePart, V2 } from './knifeShapes.ts';
 import { cuffGeometry, sleeveGeometry } from './sleeve.ts';
 import { TexturePainter } from './surfaces/painter.ts';
 import { CLOTH } from './surfaces/recipes.ts';
@@ -834,10 +839,14 @@ export class Viewmodel {
       this.joints.push({ group: hinge, joint });
       return inner;
     };
+    // The parts that move together, drawn as one: the fixed parts, and each hinge's.
+    const together = new Map<Object3D, KnifePart[]>();
     for (const part of model.parts) {
-      const mesh = new Mesh(knifePartGeometry(look, part), handKnifeMaterial());
       const parent: Object3D = part.joint ? hingeFor(part.joint) : this.model;
-      parent.add(mesh);
+      together.set(parent, [...(together.get(parent) ?? []), part]);
+    }
+    for (const [parent, parts] of together) {
+      parent.add(new Mesh(knifePartsGeometry(look, parts), handKnifeMaterial()));
     }
     this.knifeHolder.quaternion.copy(HOLDS[model.hold]);
     this.toHolder.copy(HOLDS[model.hold]).invert();

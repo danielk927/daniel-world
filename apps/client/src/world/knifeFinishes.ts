@@ -427,8 +427,7 @@ const MATERIAL_PAINT: Readonly<Record<Material, (x: number, y: number, out: Texe
 
 // ---------- The textures ----------
 
-let colors: DataTexture | null = null;
-let surfaces: DataTexture | null = null;
+let shared: { colors: DataTexture; surfaces: DataTexture } | null = null;
 const painted = new Set<KnifeFinish | Material>();
 
 function texture(colorSpace: string): DataTexture {
@@ -445,23 +444,41 @@ function texture(colorSpace: string): DataTexture {
   return t;
 }
 
-/** The colors every knife shares. Starts white; strips are painted as needed. */
+/**
+ * The shared textures, made the first time anything asks. Every knife's handles and fittings are
+ * of the six materials, so they are painted then, while the world loads; a finish is painted the
+ * first time something wears it.
+ */
+function textures(): { colors: DataTexture; surfaces: DataTexture } {
+  if (!shared) {
+    shared = { colors: texture(SRGBColorSpace), surfaces: texture(NoColorSpace) };
+    for (const material of MATERIALS) paintMaterial(material);
+  }
+  return shared;
+}
+
+/** The colors every knife shares. */
 export function finishTexture(): DataTexture {
-  return (colors ??= texture(SRGBColorSpace));
+  return textures().colors;
 }
 
 /** Roughness (green) and metalness (blue) for every knife, laid out as the colors are. */
 export function surfaceTexture(): DataTexture {
-  return (surfaces ??= texture(NoColorSpace));
+  return textures().surfaces;
 }
 
 const texel: Texel = { color: [0, 0, 0], roughness: 0, metal: 0 };
 
 /** Paint strip `strip`, (u, v) across it from 0 to 1. */
 function paintStrip(strip: number, paint: (u: number, v: number, out: Texel) => void): void {
-  const color = finishTexture().image.data as Uint8Array;
-  const surface = surfaceTexture().image.data as Uint8Array;
+  const { colors, surfaces } = textures();
+  const color = colors.image.data as Uint8Array;
+  const surface = surfaces.image.data as Uint8Array;
   for (let row = 0; row < STRIP; row++) {
+    // Only the strip goes to the GPU again, a row at a time, not the whole of both textures.
+    const start = (strip * STRIP + row) * WIDTH * 4;
+    colors.addUpdateRange(start, WIDTH * 4);
+    surfaces.addUpdateRange(start, WIDTH * 4);
     // The margin rows repeat the pattern's own edge, so filtering never reaches another strip.
     const v = clamp01((row + 0.5 - MARGIN) / (STRIP - MARGIN * 2));
     for (let col = 0; col < WIDTH; col++) {
@@ -474,8 +491,8 @@ function paintStrip(strip: number, paint: (u: number, v: number, out: Texel) => 
       surface[i + 2] = Math.round(clamp01(texel.metal) * 255);
     }
   }
-  finishTexture().needsUpdate = true;
-  surfaceTexture().needsUpdate = true;
+  colors.needsUpdate = true;
+  surfaces.needsUpdate = true;
 }
 
 /** Paint a finish's strip, if it has not been yet. */

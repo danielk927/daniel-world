@@ -124,7 +124,7 @@ function paint(model: KnifeModel, part: KnifePart, look: KnifeLook): BufferGeome
 }
 
 const partGeometries = new Map<string, BufferGeometry>();
-const lookGeometries = new Map<string, BufferGeometry>();
+const groupGeometries = new Map<string, BufferGeometry>();
 
 /** One part of a knife in a look, for the hand on screen, which moves its parts. */
 export function knifePartGeometry(look: KnifeLook, part: KnifePart): BufferGeometry {
@@ -138,17 +138,19 @@ export function knifePartGeometry(look: KnifeLook, part: KnifePart): BufferGeome
   return geometry;
 }
 
-/** A whole knife in a look, open and in one piece: every knife of that look in the world shares it. */
-export function knifeGeometry(look: KnifeLook = DEFAULT_LOOK): BufferGeometry {
-  const key = lookKey(look);
-  let geometry = lookGeometries.get(key);
+/**
+ * Parts of a knife in a look as one geometry, drawn in one call: the whole knife, or the parts of
+ * the knife in the hand on screen that move together (all but its hinged parts, or one hinge's).
+ */
+export function knifePartsGeometry(look: KnifeLook, parts: readonly KnifePart[]): BufferGeometry {
+  const key = `${lookKey(look)}/${parts.map((part) => part.name).join('+')}`;
+  let geometry = groupGeometries.get(key);
   if (!geometry) {
-    const model = knifeModel(look.skin);
-    const parts = model.parts.map((part) => knifePartGeometry(look, part));
-    const merged = mergeNonIndexed(parts);
+    const painted = parts.map((part) => knifePartGeometry(look, part));
+    const merged = mergeNonIndexed(painted);
     const uv: number[] = [];
     const color: number[] = [];
-    for (const g of parts) {
+    for (const g of painted) {
       uv.push(...(g.getAttribute('uv').array as Float32Array));
       color.push(...(g.getAttribute('color').array as Float32Array));
     }
@@ -156,9 +158,14 @@ export function knifeGeometry(look: KnifeLook = DEFAULT_LOOK): BufferGeometry {
     merged.setAttribute('color', new Float32BufferAttribute(color, 3));
     merged.computeBoundingSphere();
     geometry = merged;
-    lookGeometries.set(key, geometry);
+    groupGeometries.set(key, geometry);
   }
   return geometry;
+}
+
+/** A whole knife in a look, open and in one piece: every knife of that look in the world shares it. */
+export function knifeGeometry(look: KnifeLook = DEFAULT_LOOK): BufferGeometry {
+  return knifePartsGeometry(look, knifeModel(look.skin).parts);
 }
 
 /**
