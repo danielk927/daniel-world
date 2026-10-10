@@ -24,6 +24,11 @@ export interface LayerOptions {
   readonly finish?: boolean;
   /** Draw order among meshes, for transparent layers that overlap (lower draws first). */
   readonly renderOrder?: number;
+  /**
+   * Its parts' texture coordinates: in meters (the default), or for a layer of pictures (a sign),
+   * the geometry's own, so the picture lies across each part from edge to edge.
+   */
+  readonly uv?: 'project' | 'own';
 }
 
 /** How one part is added, beyond its geometry, transform and paint. */
@@ -183,7 +188,8 @@ export class StaticBuilder {
     }
     const count = part.getAttribute('position').count;
     if (!part.getAttribute('normal')) part.computeVertexNormals();
-    if (options.uv !== 'own' || !part.getAttribute('uv')) projectUvs(part, matrix, indexed);
+    const uv = options.uv ?? layer.options.uv;
+    if (uv !== 'own' || !part.getAttribute('uv')) projectUvs(part, matrix, indexed);
     if (layer.options.finish) {
       part.setAttribute(
         'finish',

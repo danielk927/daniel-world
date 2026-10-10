@@ -356,11 +356,11 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
     },
     sign: {
       material: new MeshStandardMaterial({ map: everySecondCountsTexture(), roughness: 0.9 }),
-      options: {},
+      options: { uv: 'own' },
     },
     exit: {
       material: new MeshBasicMaterial({ map: exitSignTexture() }),
-      options: { receiveShadow: false },
+      options: { receiveShadow: false, uv: 'own' },
     },
   };
 }
