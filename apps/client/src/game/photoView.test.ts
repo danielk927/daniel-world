@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { photoView } from './photoView.ts';
+import { photoCooks, photoView } from './photoView.ts';
 
 describe('photoView', () => {
   it('reads a position and a look from the address', () => {
@@ -10,6 +10,13 @@ describe('photoView', () => {
       yaw: 0.4,
       pitch: -0.1,
     });
+  });
+
+  it('stands up to eight cooks in it when asked', () => {
+    expect(photoCooks('?view=1,2,3,0,0&cooks=3')).toBe(3);
+    expect(photoCooks('?cooks=20')).toBe(8);
+    expect(photoCooks('?cooks=x')).toBe(0);
+    expect(photoCooks('')).toBe(0);
   });
 
   it('asks for nothing without a view, or with a malformed one', () => {

@@ -12,6 +12,15 @@ export interface PhotoView {
   readonly pitch: number;
 }
 
+/**
+ * How many cooks to stand in the view, facing it (`?cooks=4`), so their look can be judged from the
+ * front: a room's real cooks walk where they like. At most 8.
+ */
+export function photoCooks(search: string): number {
+  const count = Number(new URLSearchParams(search).get('cooks'));
+  return Number.isInteger(count) ? Math.max(0, Math.min(8, count)) : 0;
+}
+
 /** The view a page address asks for, or null if it asks for none or gives it badly. */
 export function photoView(search: string): PhotoView | null {
   const raw = new URLSearchParams(search).get('view');

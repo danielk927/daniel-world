@@ -41,6 +41,8 @@ interface Viewpoint {
   readonly name: string;
   readonly eye: Point;
   readonly at: Point;
+  /** More for the page's address. */
+  readonly params?: string;
 }
 
 const E = EYE_HEIGHT;
@@ -67,6 +69,8 @@ export const VIEWPOINTS: readonly Viewpoint[] = [
   { name: 'dishes-west', eye: [-2.25, 1.42, 5.15], at: [-2.25, 0.93, 4.3] },
   { name: 'dishes-middle', eye: [0, 1.32, 4.95], at: [0, 0.95, 4.3] },
   { name: 'dishes-east', eye: [2.25, 1.42, 5.15], at: [2.25, 0.93, 4.3] },
+  // Four cooks stood facing the eye in the aisle between the suite and the pass (`cooks=4`).
+  { name: 'cooks', eye: [-3.4, 1.62, 2.7], at: [0, 1.15, 2.7], params: 'cooks=4' },
 ];
 
 /** The look along eye to target, as the player's yaw (0 north, toward -z) and pitch (up positive). */
@@ -106,6 +110,7 @@ async function main(): Promise<void> {
         governor: 'off',
         view: [...view.eye, yaw, pitch].map((n) => n.toFixed(4)).join(','),
       });
+      for (const [key, value] of new URLSearchParams(view.params ?? '')) params.set(key, value);
       for (const [key, value] of new URLSearchParams(values.params)) params.set(key, value);
       const started = Date.now();
       await page.goto(`${clientUrl}/?${params}`);

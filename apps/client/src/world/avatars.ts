@@ -1,6 +1,9 @@
 import {
   CapsuleGeometry,
+  MathUtils,
   Color,
+  CylinderGeometry,
+  DoubleSide,
   Group,
   InstancedMesh,
   LatheGeometry,
@@ -8,7 +11,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Quaternion,
-  IcosahedronGeometry,
+  SphereGeometry,
   Vector2,
   Vector3,
   Euler,
@@ -43,19 +46,54 @@ const PUNCH_DURATION = 0.36;
 /** The held knife points forward and a little up. */
 const KNIFE_TILT = 0.5;
 
+/** A chef's toque: a band, pleats running up its tall sides, and the puffed crown over them. */
 function toqueGeometry(): LatheGeometry {
   // Outside profile from the band's bottom edge up to the center of the crown.
   const profile = [
     [0.2, 0],
-    [0.205, 0.14],
-    [0.23, 0.18],
-    [0.27, 0.24],
+    [0.202, 0.05],
+    [0.207, 0.13],
+    [0.222, 0.17],
+    [0.245, 0.205],
+    [0.262, 0.235],
+    [0.272, 0.27],
     [0.27, 0.3],
+    [0.25, 0.33],
     [0.23, 0.345],
+    [0.17, 0.356],
     [0.12, HAT_HEIGHT],
     [0.001, HAT_HEIGHT],
   ].map(([x, y]) => new Vector2(x, y));
-  return new LatheGeometry(profile, 10);
+  const geometry = new LatheGeometry(profile, 48);
+  // The pleats: the cloth folded in and out round the sides above the band, fading into the crown.
+  const position = geometry.getAttribute('position');
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const z = position.getZ(i);
+    const pleat = MathUtils.smoothstep(y, 0.12, 0.17) * (1 - MathUtils.smoothstep(y, 0.3, 0.35));
+    const scale = 1 + 0.028 * pleat * Math.cos(Math.atan2(x, z) * 18);
+    position.setXYZ(i, x * scale, y, z * scale);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Where a jacket's buttons sit on the body, double-breasted: two columns of three, down the chest. */
+const BUTTONS: readonly Matrix4[] = [-1, 1].flatMap((side) =>
+  [0.27, 0.165, 0.06].map((y) =>
+    new Matrix4().makeTranslation(side * 0.11, y, -Math.sqrt(BODY_RADIUS ** 2 - 0.11 ** 2) + 0.004),
+  ),
+);
+/** The apron's middle: hanging from the waist down the straight of the body, where it lies flat. */
+const APRON = new Matrix4().makeTranslation(0, -0.125, 0);
+
+/** A cook's apron: a band of cloth round the front, from the waist down, close to the jacket. */
+function apronGeometry(): CylinderGeometry {
+  const front = Math.PI;
+  const width = 2.2;
+  const radius = BODY_RADIUS + 0.003;
+  return new CylinderGeometry(radius, radius, 0.25, 28, 1, true, front - width / 2, width);
 }
 
 export interface AvatarPose extends Pose {
@@ -84,9 +122,10 @@ const tmpColor = new Color();
 const white = new Color('#ffffff');
 
 /**
- * Every remote player, drawn with five instanced meshes in total (body, head, hands, eyes, and a
- * chef's toque; the ground shadow comes from the shadow map), and the knife in each cook's hand, one
- * instanced mesh per look carried. Per-frame updates only write instance matrices.
+ * Every remote player, drawn with seven instanced meshes in total (body, head, hands, eyes, a
+ * pleated toque, the jacket's buttons and an apron; the ground shadow comes from the shadow map),
+ * and the knife in each cook's hand, one instanced mesh per look carried. Per-frame updates only
+ * write instance matrices.
  */
 export class Avatars {
   readonly group = new Group();
@@ -95,6 +134,10 @@ export class Avatars {
   private readonly hands: InstancedMesh;
   private readonly eyes: InstancedMesh;
   private readonly hats: InstancedMesh;
+  /** Six white buttons down each jacket's front. */
+  private readonly buttons: InstancedMesh;
+  /** A white apron over each. */
+  private readonly aprons: InstancedMesh;
   /** The knife in each cook's right hand, in a mesh per look, at the cook's slot. */
   private readonly knives: (InstancedMesh | undefined)[] = [];
   /** How many cooks carry each look, so a look nobody carries is not drawn. */
@@ -107,6 +150,7 @@ export class Avatars {
   private readonly root = new Matrix4();
   private readonly part = new Matrix4();
   private readonly out = new Matrix4();
+  private readonly body = new Matrix4();
   private readonly q = new Quaternion();
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
   private readonly p = new Vector3();
@@ -115,28 +159,43 @@ export class Avatars {
 
   constructor(capacity: number = MAX_PLAYERS_PER_ROOM) {
     this.capacity = capacity;
-    // Faceted like the kitchen around them: flat shading on low-poly shapes.
-    const skin = new MeshStandardMaterial({ roughness: 0.7, flatShading: true });
+    // Smooth, rounded figures: a jacket in the cook's color, a pleated white toque, a white apron.
+    const skin = new MeshStandardMaterial({ roughness: 0.68 });
     this.bodies = new InstancedMesh(
-      new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 2, 8),
+      new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 8, 24),
       skin,
       capacity,
     );
-    this.heads = new InstancedMesh(new IcosahedronGeometry(HEAD_RADIUS, 1), skin, capacity);
-    this.hands = new InstancedMesh(new IcosahedronGeometry(HAND_RADIUS, 0), skin, capacity * 2);
+    this.heads = new InstancedMesh(new SphereGeometry(HEAD_RADIUS, 28, 18), skin, capacity);
+    this.hands = new InstancedMesh(new SphereGeometry(HAND_RADIUS, 14, 10), skin, capacity * 2);
     this.eyes = new InstancedMesh(
-      new IcosahedronGeometry(EYE_RADIUS, 0),
+      new SphereGeometry(EYE_RADIUS, 12, 8),
       new MeshBasicMaterial({ color: '#2a1f2d' }),
       capacity * 2,
     );
-    this.hats = new InstancedMesh(
-      toqueGeometry(),
-      new MeshStandardMaterial({ color: '#fbfaf7', roughness: 0.85, flatShading: true }),
+    const linen = new MeshStandardMaterial({ color: '#fbfaf7', roughness: 0.85 });
+    this.hats = new InstancedMesh(toqueGeometry(), linen, capacity);
+    this.buttons = new InstancedMesh(
+      new SphereGeometry(0.022, 10, 6).scale(1, 1, 0.45),
+      new MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.45 }),
+      capacity * BUTTONS.length,
+    );
+    this.aprons = new InstancedMesh(
+      apronGeometry(),
+      new MeshStandardMaterial({ color: '#f2efe8', roughness: 0.9, side: DoubleSide }),
       capacity,
     );
-    for (const mesh of [this.bodies, this.heads, this.hands, this.eyes, this.hats]) {
+    for (const mesh of [
+      this.bodies,
+      this.heads,
+      this.hands,
+      this.eyes,
+      this.hats,
+      this.buttons,
+      this.aprons,
+    ]) {
       mesh.frustumCulled = false;
-      mesh.castShadow = mesh !== this.eyes;
+      mesh.castShadow = mesh !== this.eyes && mesh !== this.buttons;
       for (let i = 0; i < mesh.count; i++) mesh.setMatrixAt(i, this.hidden);
       this.group.add(mesh);
     }
@@ -249,6 +308,10 @@ export class Avatars {
     this.bodies.setMatrixAt(slot, this.hidden);
     this.heads.setMatrixAt(slot, this.hidden);
     this.hats.setMatrixAt(slot, this.hidden);
+    this.aprons.setMatrixAt(slot, this.hidden);
+    for (let k = 0; k < BUTTONS.length; k++) {
+      this.buttons.setMatrixAt(slot * BUTTONS.length + k, this.hidden);
+    }
     for (let k = 0; k < 2; k++) {
       this.hands.setMatrixAt(slot * 2 + k, this.hidden);
       this.eyes.setMatrixAt(slot * 2 + k, this.hidden);
@@ -262,6 +325,8 @@ export class Avatars {
     this.hands.instanceMatrix.needsUpdate = true;
     this.eyes.instanceMatrix.needsUpdate = true;
     this.hats.instanceMatrix.needsUpdate = true;
+    this.buttons.instanceMatrix.needsUpdate = true;
+    this.aprons.instanceMatrix.needsUpdate = true;
   }
 
   /** Write the current part matrix (relative to the avatar root) into `mesh` at `index`. */
@@ -325,6 +390,14 @@ export class Avatars {
       1 / Math.sqrt(stretch),
     );
     this.place(this.bodies, slot);
+    // The jacket's buttons and the apron go with the body, squash, lean and all.
+    this.body.multiplyMatrices(this.root, this.part);
+    for (let k = 0; k < BUTTONS.length; k++) {
+      this.out.multiplyMatrices(this.body, BUTTONS[k]!);
+      this.buttons.setMatrixAt(slot * BUTTONS.length + k, this.out);
+    }
+    this.out.multiplyMatrices(this.body, APRON);
+    this.aprons.setMatrixAt(slot, this.out);
 
     // Head follows look pitch (softened) and bobs with the body.
     const headY = HEAD_Y + bob * 1.2 + idleBreath * 1.5 + avatar.airAmount * 0.05;
