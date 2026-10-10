@@ -740,7 +740,7 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   A child process over a worker thread: a crash or a leak stays in it, and Node runs its TypeScript as in dev.
   Tests ask it who is in a room, and to note every tick whom Chef Skinner winds up on (it wraps his `think`; `WorldServer.chef(room)` is new for that), over the IPC channel.
 - **Failed tests keep a trace without the screencast**: filming every animating canvas made a three-page test take 23 to 31 s against 15 to 17 s.
-- **The game's frames are in `window.__world`**, and `ready`, which was always true, is gone.
+- **The game's frames are in `window.__world`**, with the player's speed for the sprint test, and `ready`, which was always true, is gone.
   `waitUntilStill` wants frames between its two samples: with two other pages drawing at 4x throttling, the old one called a cook still mid-slide 6 times in 20, the new one never.
   Hover sweeps read the prompt only after a frame with the cursor there.
   That race could not be made to happen: Chrome answers a mouse move only once it has dispatched it, at the start of a frame, before the game's frame runs; the wait no longer leans on that.
@@ -754,3 +754,6 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   The client's `build:test` and `preview:test` scripts are gone, as a test build into `dist` would overwrite the production one.
 - **A held button is tested with pointer lock stood in for**: headless Chromium never grants it, and only a locked pointer keeps throwing.
 - **The CPU's 64-bit products are checked on operands from a fixed seed**, so a failure comes back on every run.
+- **At 4x throttling the pacing test once failed with its page gone solo**, while the attached server log had it still in the lobby: the page, held up, had judged the server silent (main's late ping fix that night covers it), and the test then looked a second time, after the knockout it had seen was over.
+  It now judges by the look that saw the throw.
+- **The client review's new tests got the same treatment**: the relay test's server runs in its own process, the refused socket test counts its tries instead of sleeping 2.5 s, and the DOOM key repeat waits for frames.
