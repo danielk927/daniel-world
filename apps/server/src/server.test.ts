@@ -525,6 +525,16 @@ describe('room server', () => {
     expect(response.status).toBe(404);
   });
 
+  it('without Chef Skinner, lets nobody out of a walk-in its door has burst', async () => {
+    const boxers = await burstWalkIn('lobby');
+    const ears = boxers[0]!;
+    const burst = ears.messages.find((m) => m.t === 'cooler' && m.openFrom !== undefined)!;
+    const tick = snapshotBefore(ears, burst);
+    await ears.waitFor(() => (ears.latestSnapshot()?.tick ?? 0) >= tick + 3 * TICK_RATE, 5000);
+    expect(ears.messages.some((m) => m.t === 'join' && m.player.resident)).toBe(false);
+    expect(server.chef('lobby')).toBeUndefined();
+  });
+
   it('survives malformed HTTP requests', async () => {
     const bad = await fetch(`http://127.0.0.1:${server.port}/rooms/%E0%A4%A`);
     expect(bad.status).toBe(400);
@@ -533,37 +543,37 @@ describe('room server', () => {
   });
 });
 
-describe('Chef Skinner, locked in every walk-in', () => {
-  const EAST = -Math.PI / 2;
-  /** Where a cook stands to punch the walk-in's door, facing it. */
-  const AT_THE_DOOR = { x: ROOM_HALF_X - 0.7, z: -3, yaw: EAST };
+const EAST = -Math.PI / 2;
+/** Where a cook stands to punch the walk-in's door, facing it. */
+const AT_THE_DOOR = { x: ROOM_HALF_X - 0.7, z: -3, yaw: EAST };
 
+/** Ten cooks at the walk-in's door of `room` punch it once each, and it bursts. */
+async function burstWalkIn(room: string): Promise<TestClient[]> {
+  const boxers: TestClient[] = [];
+  for (let i = 0; i < COOLER_HITS_TO_OPEN; i++) {
+    const boxer = client();
+    await boxer.join(`Boxer ${i + 1}`, room, { spawn: AT_THE_DOOR });
+    boxers.push(boxer);
+  }
+  for (const boxer of boxers) {
+    boxer.send({ t: 'input', seq: 0, keys: Keys.Punch, yaw: EAST, pitch: 0 });
+  }
+  await boxers[0]!.waitForMessage('cooler', (m) => m.openFrom !== undefined);
+  return boxers;
+}
+
+/** The tick of the newest snapshot `c` had been sent before its message `m`. */
+function snapshotBefore(c: TestClient, m: ServerMessage): number {
+  const before = c.messages.slice(0, c.messages.indexOf(m));
+  return before.findLast((x): x is Message<'snap'> => x.t === 'snap')?.tick ?? -1;
+}
+
+describe('Chef Skinner, locked in every walk-in', () => {
   beforeEach(async () => {
     await server.close();
     // These tests fill rooms, all from one address.
     server = await startServer({ port: 0, host: '127.0.0.1', chef: true, maxConnectionsPerIp: 64 });
   });
-
-  /** Ten cooks at the walk-in's door punch it once each, and it bursts. */
-  async function burstWalkIn(room: string): Promise<TestClient[]> {
-    const boxers: TestClient[] = [];
-    for (let i = 0; i < COOLER_HITS_TO_OPEN; i++) {
-      const boxer = client();
-      await boxer.join(`Boxer ${i + 1}`, room, { spawn: AT_THE_DOOR });
-      boxers.push(boxer);
-    }
-    for (const boxer of boxers) {
-      boxer.send({ t: 'input', seq: 0, keys: Keys.Punch, yaw: EAST, pitch: 0 });
-    }
-    await boxers[0]!.waitForMessage('cooler', (m) => m.openFrom !== undefined);
-    return boxers;
-  }
-
-  /** The tick of the newest snapshot `c` had been sent before its message `m`. */
-  const snapshotBefore = (c: TestClient, m: ServerMessage): number => {
-    const before = c.messages.slice(0, c.messages.indexOf(m));
-    return before.findLast((x): x is Message<'snap'> => x.t === 'snap')?.tick ?? -1;
-  };
 
   const isChef = (m: Message<'join'>): boolean => m.player.resident === true;
 
