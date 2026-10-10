@@ -105,7 +105,8 @@ const BEND = 2;
 const MIDDLE_JOINT = 3;
 const LAST_JOINT = 4;
 export const POSE_SIZE = FINGERS.length * FINGER_STRIDE + 5;
-const THUMB_AT = FINGERS.length * FINGER_STRIDE;
+/** Where the thumb's angles start in a pose. */
+export const THUMB_AT = FINGERS.length * FINGER_STRIDE;
 
 /** A pose: every joint's angle (see the module comment for the layout). */
 export type HandPose = Float32Array;

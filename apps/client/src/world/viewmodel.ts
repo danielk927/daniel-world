@@ -24,6 +24,8 @@ import {
   FINGERS,
   FINGER_STRIDE,
   POINT_POSE,
+  POSE_SIZE,
+  THUMB_AT,
   GRIP_SLANT,
   gripPose,
   handPose,
@@ -427,7 +429,8 @@ const HANG_ALONG = 0.88;
  * A knife on its way from the grip to the index finger, by how far along it is (`hang`): it stays
  * put while the hand opens, by `open`; swings out from the palm (as far as `lift`) and round to the
  * finger's line, `ahead` of where it hangs, by `round`, while the other fingers fold into a fist
- * behind it (from `fold` to `folded`); and comes onto the finger along it (in the arm's units). A
+ * behind it (from `fold` to `folded`, the thumb from `thumb` to `thumbFolded`); and comes onto
+ * the finger along it (in the arm's units). A
  * ring already on the finger turns the handle out of the fist by `round`, and the fingers fold
  * after it, by `threadFolded`.
  */
@@ -435,6 +438,8 @@ const HANG = {
   open: 0.15,
   fold: 0.2,
   folded: 0.45,
+  thumb: 0.35,
+  thumbFolded: 0.6,
   round: 0.6,
   threadFolded: 0.9,
   lift: 0.06,
@@ -1246,8 +1251,10 @@ export class Viewmodel {
       const rate = target > this.release ? 28 : 10;
       this.release += (target - this.release) * (1 - Math.exp(-dt * rate));
       const grip = held.grip.pose;
-      // Turned about its length, the hand holds it looser, round the widest it gets as it turns.
-      const turned = Math.abs(Math.sin(pose.spin)) * (1 - clamp01(pose.hang));
+      // Turned about its length, the hand holds it looser, round the widest it gets as it turns,
+      // until it is back the way it rests: a handle need not look the same upside down.
+      const off = Math.abs(turn(pose.spin, 0));
+      const turned = (off < Math.PI / 2 ? Math.sin(off) : 1) * (1 - clamp01(pose.hang));
       const roomy = held.turning;
       mixPose(this.handPose, grip, roomy.grip.pose, turned);
       // On its way to the index finger the knife leaves the open hand, which folds into a pointing
@@ -1259,7 +1266,14 @@ export class Viewmodel {
         ? [HANG.round, HANG.threadFolded]
         : [HANG.fold, HANG.folded];
       const point = smoothstep(clamp01((hang - fold) / (folded - fold)));
-      mixPose(this.handPose, this.handPose, POINT_POSE, point);
+      // The thumb, over the fist where the handle comes home, folds later and is out sooner.
+      const thumb = held.threaded
+        ? point
+        : smoothstep(clamp01((hang - HANG.thumb) / (HANG.thumbFolded - HANG.thumb)));
+      for (let i = 0; i < POSE_SIZE; i++) {
+        const k = i < THUMB_AT ? point : thumb;
+        this.handPose[i] = this.handPose[i]! + (POINT_POSE[i]! - this.handPose[i]!) * k;
+      }
       // A ring on the finger keeps it through the ring, straightening as the ring slides out.
       if (held.threaded) {
         for (let i = 0; i < FINGER_STRIDE; i++) {
