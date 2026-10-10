@@ -1,4 +1,10 @@
-import { BufferGeometry, Color, Float32BufferAttribute, MeshStandardMaterial } from 'three';
+import {
+  BufferGeometry,
+  Color,
+  Float32BufferAttribute,
+  MeshStandardMaterial,
+  type Texture,
+} from 'three';
 import { DEFAULT_LOOK, lookKey, type KnifeLook, type KnifeSkin } from '@world/shared';
 import { FINISHES, WHITE_UV, finishTexture, finishUv, paintFinish } from './knifeFinishes.ts';
 import { mergeNonIndexed, type KnifePart, type V2 } from './knifeShapes.ts';
@@ -148,9 +154,21 @@ export function knifeMaterial(): MeshStandardMaterial {
     metalness: 0.35,
     roughness: 0.45,
     map: finishTexture(),
-    // Steel shows the kitchen in it, like the counters (see the environment in lighting.ts).
-    envMapIntensity: 10,
+    // At full strength, like the kitchen's steel, once it has the kitchen's probe (`reflectKnives`).
+    envMapIntensity: 1,
   }));
+}
+
+/**
+ * The knives reflect the kitchen's probe, as its steel does. three.js honours a material's own
+ * reflection strength only with an `envMap` of its own: on the scene's faint environment instead,
+ * every blade reflected next to nothing.
+ */
+export function reflectKnives(probe: Texture): void {
+  for (const material of [knifeMaterial(), handKnifeMaterial()]) {
+    material.envMap = probe;
+    material.needsUpdate = true;
+  }
 }
 
 let handMaterial: MeshStandardMaterial | undefined;

@@ -142,6 +142,8 @@ export class KnifePreview {
     this.texture = texture;
     const material = knifeMaterial().clone();
     material.map = texture;
+    // The kitchen's probe belongs to the world's renderer, not this one.
+    material.envMap = null;
     material.envMapIntensity = 2.2;
     this.material = material;
     this.mesh = new Mesh(undefined, material);

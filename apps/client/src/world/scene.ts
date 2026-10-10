@@ -25,6 +25,7 @@ import { QualityGovernor, RENDER_LEVELS } from './governor.ts';
 import type { PostProcessing } from './post.ts';
 import { OutsideView } from './outside.ts';
 import { buildStationProps } from './props.ts';
+import { reflectKnives } from './knifeModel.ts';
 import { ReflectionProbe } from './reflections.ts';
 import { dressKitchen } from './surfaces/dress.ts';
 import { lookAt, pinnedHour, visitorHour } from './timeOfDay.ts';
@@ -124,6 +125,7 @@ export class WorldScene {
     this.computer = new ComputerScreen(high);
     this.cooler = new CoolerDoor(high);
     if (this.probe) this.cooler.reflect(this.probe.texture);
+    if (this.probe) reflectKnives(this.probe.texture);
 
     this.stations = new Stations(content, dishes, high);
     const kitchen = kit.builder.build();
