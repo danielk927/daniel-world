@@ -69,7 +69,7 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   glaze *= mix(vec3(1.0), vec3(1.01, 1.0, 0.98), h.x);
   float dirt = 0.5 + 0.5 * fbm(uv, vec2(6.0), 3, 0.5);
   color = mix(glaze, vec3(0.8, 0.78, 0.74) * (0.94 + 0.08 * dirt), grout);
-  roughness = mix(0.16 + 0.05 * h.y + 0.02 * glazeNoise, 0.8, grout);
+  roughness = mix(0.26 + 0.06 * h.y + 0.02 * glazeNoise, 0.8, grout);
 }
 `,
 };

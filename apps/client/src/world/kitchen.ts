@@ -619,6 +619,7 @@ interface CounterLook {
   readonly topFinish?: number;
   readonly body: LayerName;
   readonly bodyColor?: string;
+  readonly bodyFinish?: number;
 }
 
 /**
@@ -650,6 +651,7 @@ function counter(kit: Kit, f: Fixture, look: CounterLook): void {
     f.maxZ,
     0.006,
     look.bodyColor,
+    look.bodyFinish,
   );
   roundedBox(
     kit,
@@ -1247,7 +1249,7 @@ function sink(kit: Kit, cx: number, z0: number, z1: number, halfWidth: number, t
 function createCounters(kit: Kit): void {
   const { pass, gardeManger, pastryIsland, windowCounter, plonge, fridge, shelving, panRack } =
     KITCHEN;
-  counter(kit, pass, { top: 'steel', topFinish: 0.85, body: 'steel' });
+  counter(kit, pass, { top: 'steel', topFinish: 1.2, body: 'steel', bodyFinish: 1.4 });
   cabinetFront(kit, pass, 'north', 6, 'steel', undefined, 1.05);
 
   island(kit, gardeManger);
