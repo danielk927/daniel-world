@@ -47,13 +47,16 @@ test('Chef Skinner walks the lobby and throws at a cook on the move', async ({ b
     w.knives.stuck + w.knives.flying > 0 || w.knockedOut;
   // His wander is random and the hood or the pass can stand between us for a while, so allow up to
   // a minute and a half; it usually takes a quarter of that.
-  for (let i = 0; i < 150 && !thrown(await world(page)); i++) {
+  // Judge what each look saw: a knife in a cook does not stay, and a knockout is over in seconds.
+  let seen = await world(page);
+  for (let i = 0; i < 150 && !thrown(seen); i++) {
     const key = i % 2 === 0 ? 'KeyA' : 'KeyD';
     await page.keyboard.down(key);
     await page.waitForTimeout(600);
     await page.keyboard.up(key);
+    seen = await world(page);
   }
-  expect(thrown(await world(page))).toBe(true);
+  expect(thrown(seen), 'a knife of his lands').toBe(true);
   await page.context().close();
 });
 
