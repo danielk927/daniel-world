@@ -1,6 +1,5 @@
 import {
   Color,
-  CylinderGeometry,
   DirectionalLight,
   Euler,
   Group,
@@ -58,8 +57,17 @@ import {
   type KnifeMoves,
   type Offset,
 } from './knifeMoves.ts';
-import { handKnifeMaterial, knifeModel, knifePartGeometry, type KnifeModel } from './knifeModel.ts';
-import type { Joint, V2 } from './knifeShapes.ts';
+import {
+  handKnifeMaterial,
+  knifeModel,
+  knifePartsGeometry,
+  type KnifeModel,
+} from './knifeModel.ts';
+import type { Joint, KnifePart, V2 } from './knifeShapes.ts';
+import { cuffGeometry, sleeveGeometry } from './sleeve.ts';
+import { TexturePainter } from './surfaces/painter.ts';
+import { CLOTH } from './surfaces/recipes.ts';
+import { reflectProbe } from './surfaces/shading.ts';
 
 /**
  * The player's own arm, in the style of a CS2 view model: a white chef's sleeve and a hand coming
@@ -658,11 +666,13 @@ export class Viewmodel {
   private readonly toPivot = new Vector3();
   private currentLook: KnifeLook = DEFAULT_LOOK;
   private moves: KnifeMoves = KITCHEN;
-  private readonly skin = new MeshStandardMaterial({
-    color: '#ff7a59',
-    roughness: 0.7,
-    flatShading: true,
-  });
+  /**
+   * The hand is gloved, in the player's color as their cook's hands are: the nitrile gloves a line
+   * cook wears, smooth, with a soft satin sheen.
+   */
+  private readonly skin = new MeshStandardMaterial({ color: '#ff7a59', roughness: 0.5 });
+  private readonly sleeveMaterial = new MeshStandardMaterial({ color: SLEEVE, roughness: 0.9 });
+  private readonly cuffMaterial = new MeshStandardMaterial({ color: CUFF, roughness: 0.9 });
 
   /** Lit like the kitchen around it; see matchLighting. */
   private readonly fill = new HemisphereLight('#f5f8fc', '#d6d2ca', 1.9);
@@ -724,25 +734,9 @@ export class Viewmodel {
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
 
   constructor() {
-    const sleeveMaterial = new MeshStandardMaterial({
-      color: SLEEVE,
-      roughness: 0.9,
-      flatShading: true,
-    });
-    const cuffMaterial = new MeshStandardMaterial({
-      color: CUFF,
-      roughness: 0.9,
-      flatShading: true,
-    });
     // The forearm runs along +Z, from the wrist back toward the elbow.
-    this.sleeve = new Mesh(
-      new CylinderGeometry(0.036, 0.05, 0.36, 8).rotateX(Math.PI / 2),
-      sleeveMaterial,
-    );
-    this.cuff = new Mesh(
-      new CylinderGeometry(0.041, 0.041, 0.035, 8).rotateX(Math.PI / 2),
-      cuffMaterial,
-    );
+    this.sleeve = new Mesh(sleeveGeometry(), this.sleeveMaterial);
+    this.cuff = new Mesh(cuffGeometry(), this.cuffMaterial);
     this.hand = new HandRig(this.skin);
 
     // The knife, gripped in the fist. The holder turns it to the grip; the rest animate it.
@@ -774,6 +768,27 @@ export class Viewmodel {
     this.key.color.set('#ffd6a8');
     this.key.intensity = 1.5;
     this.key.position.set(2, 8, 5);
+  }
+
+  /**
+   * Dress the arm for the high tier, before its shaders compile: the sleeve and cuff in the
+   * kitchen's woven cloth, painted on the GPU, and the glove reflecting the kitchen's probe as the
+   * knife in it does, box-projected and taking little light from it.
+   */
+  dress(renderer: WebGLRenderer, probe: Texture): void {
+    const painter = new TexturePainter(renderer);
+    const cloth = painter.paint(CLOTH);
+    painter.dispose();
+    for (const material of [this.sleeveMaterial, this.cuffMaterial]) {
+      material.map = cloth.map;
+      material.normalMap = cloth.normalRoughness;
+      // Finer threads lie flatter.
+      material.normalScale.setScalar(0.6);
+      material.needsUpdate = true;
+    }
+    this.skin.envMap = probe;
+    reflectProbe(this.skin, 'glove');
+    this.skin.needsUpdate = true;
   }
 
   /** The hand takes the player's color, like their cook's hands. */
@@ -824,10 +839,14 @@ export class Viewmodel {
       this.joints.push({ group: hinge, joint });
       return inner;
     };
+    // The parts that move together, drawn as one: the fixed parts, and each hinge's.
+    const together = new Map<Object3D, KnifePart[]>();
     for (const part of model.parts) {
-      const mesh = new Mesh(knifePartGeometry(look, part), handKnifeMaterial());
       const parent: Object3D = part.joint ? hingeFor(part.joint) : this.model;
-      parent.add(mesh);
+      together.set(parent, [...(together.get(parent) ?? []), part]);
+    }
+    for (const [parent, parts] of together) {
+      parent.add(new Mesh(knifePartsGeometry(look, parts), handKnifeMaterial()));
     }
     this.knifeHolder.quaternion.copy(HOLDS[model.hold]);
     this.toHolder.copy(HOLDS[model.hold]).invert();

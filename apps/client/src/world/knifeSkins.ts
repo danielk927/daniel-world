@@ -1,10 +1,9 @@
-import { BoxGeometry, type BufferGeometry } from 'three';
 import type { KnifeSkin } from '@world/shared';
+import type { Material } from './knifeFinishes.ts';
 import {
-  arc,
   blade,
   box,
-  mergeNonIndexed,
+  hole,
   muzzleRing,
   pin,
   ring,
@@ -18,8 +17,8 @@ import {
 } from './knifeShapes.ts';
 
 /**
- * The knives, each an original low-poly model after the knives CS2 players love most, built from
- * the shapes in knifeShapes.ts. Each reads by its silhouette: the karambit's claw and finger ring,
+ * The knives, each an original model after the knives CS2 players love most, built from the
+ * shapes in knifeShapes.ts, its handle of wood, micarta, G10, rubber or cord. Each reads by its silhouette: the karambit's claw and finger ring,
  * the butterfly's slotted handles, the M9's saw back and guard, the bayonet's muzzle ring, the flip
  * knife's thumb hole, the gut knife's hook, and so on.
  *
@@ -53,7 +52,7 @@ function part(
   name: string,
   kind: PartKind,
   shape: PartShape,
-  options: { color?: string; joint?: Joint } = {},
+  options: { color?: string; joint?: Joint; material?: Material } = {},
 ): KnifePart {
   return { name, kind, ...shape, ...options };
 }
@@ -78,47 +77,30 @@ function bands(
   y1: number,
   thickness: number,
   color: string,
+  material: Material,
 ): KnifePart[] {
   return zs.map((z, i) =>
     part(`${name}${i}`, 'accent', box(z, z + width, y0, y1, thickness, { bevel: 0.0008 }), {
       color,
+      material,
     }),
   );
 }
 
-// ---------- The kitchen's chef's knife, as it always was ----------
+// ---------- The kitchen's chef's knife ----------
 
-/** A box part from three's BoxGeometry, as the chef's knife was first built. */
-function boxShape(geometry: BufferGeometry, outline: readonly V2[]): PartShape {
-  const flat = geometry.toNonIndexed();
-  geometry.dispose();
-  flat.deleteAttribute('uv');
-  flat.computeVertexNormals();
-  const merged = mergeNonIndexed([flat]);
-  flat.dispose();
-  return { geometry: merged, outline: [{ points: outline, hole: false }] };
-}
-
+/**
+ * The kitchen's own chef's knife, in the outline it always had (its icon is drawn from it): a wedge
+ * of a blade, ground to an edge and thinning toward its point, a steel bolster, and a wooden
+ * handle with a steel cap at its butt, every edge eased.
+ */
 function kitchen(): KnifeModel {
   const BLADE_LENGTH = 0.19;
   const HANDLE_LENGTH = 0.11;
-  // The blade: a thin wedge, full height at the bolster, running to a point at the tip.
-  const bladeBox = new BoxGeometry(0.006, 0.042, BLADE_LENGTH, 1, 1, 1);
-  const position = bladeBox.getAttribute('position');
-  for (let i = 0; i < position.count; i++) {
-    const z = position.getZ(i);
-    const y = position.getY(i);
-    if (z < 0) {
-      position.setY(i, y > 0 ? -0.012 : -0.021);
-      position.setX(i, position.getX(i) * 0.4);
-    }
-  }
-  bladeBox.translate(0, 0, BLADE_LENGTH / 2);
-  const bolster = new BoxGeometry(0.014, 0.048, 0.015);
-  bolster.translate(0, 0.002, BLADE_LENGTH + 0.0075);
-  const handle = new BoxGeometry(0.02, 0.028, HANDLE_LENGTH);
-  handle.translate(0, 0.004, BLADE_LENGTH + 0.015 + HANDLE_LENGTH / 2);
   const h0 = BLADE_LENGTH + 0.015;
+  const butt = h0 + HANDLE_LENGTH;
+  const cap = butt - 0.006;
+  const steel = '#9aa3ab';
   return {
     skin: 'kitchen',
     name: 'Chef’s Knife',
@@ -126,34 +108,64 @@ function kitchen(): KnifeModel {
       part(
         'blade',
         'blade',
-        boxShape(bladeBox, [
-          [0, -0.021],
-          [BLADE_LENGTH, -0.021],
-          [BLADE_LENGTH, 0.021],
-          [0, -0.012],
-        ]),
+        blade({
+          spine: [
+            [0, -0.012],
+            [BLADE_LENGTH, 0.021],
+          ],
+          edge: [
+            [0, -0.021],
+            [BLADE_LENGTH, -0.021],
+          ],
+          thickness: 0.0045,
+          grind: 0.5,
+          taper: 0.45,
+        }),
       ),
       part(
         'bolster',
         'steel',
-        boxShape(bolster, [
-          [BLADE_LENGTH, -0.022],
-          [h0, -0.022],
-          [h0, 0.026],
-          [BLADE_LENGTH, 0.026],
-        ]),
-        { color: '#9aa3ab' },
+        slab(
+          [
+            [BLADE_LENGTH, -0.022],
+            [h0, -0.022],
+            [h0, 0.026],
+            [BLADE_LENGTH, 0.026],
+          ],
+          0.014,
+          { bevel: 0.0028 },
+        ),
+        { color: steel },
       ),
       part(
         'handle',
         'grip',
-        boxShape(handle, [
-          [h0, -0.01],
-          [h0 + HANDLE_LENGTH, -0.01],
-          [h0 + HANDLE_LENGTH, 0.018],
-          [h0, 0.018],
-        ]),
-        { color: '#3a2a21' },
+        slab(
+          [
+            [h0, -0.01],
+            [cap, -0.01],
+            [cap, 0.018],
+            [h0, 0.018],
+          ],
+          0.02,
+          { bevel: 0.005 },
+        ),
+        { color: '#3a2a21', material: 'wood' },
+      ),
+      part(
+        'cap',
+        'steel',
+        slab(
+          [
+            [cap, -0.01],
+            [butt, -0.01],
+            [butt, 0.018],
+            [cap, 0.018],
+          ],
+          0.02,
+          { bevel: 0.005 },
+        ),
+        { color: steel },
       ),
     ],
     grip: [h0 + HANDLE_LENGTH * 0.5, 0],
@@ -224,9 +236,9 @@ function karambit(): KnifeModel {
           0.016,
           { bevel: 0.0025 },
         ),
-        { color: grip },
+        { color: grip, material: 'g10' },
       ),
-      part('ring', 'metal', ring([0.226, 0.071], 0.024, 0.015, 0.011)),
+      part('ring', 'metal', ring([0.226, 0.071], 0.0234, 0.0151, 0.011)),
       part('pin0', 'steel', pin([0.122, 0.066], 0.0026, 0.018), { color: STEEL }),
       part('pin1', 'steel', pin([0.18, 0.071], 0.0026, 0.018), { color: STEEL }),
     ],
@@ -398,9 +410,18 @@ function m9(): KnifeModel {
           0.022,
           { bevel: 0.0035 },
         ),
-        { color: grip },
+        { color: grip, material: 'rubber' },
       ),
-      ...bands('band', [0.206, 0.226, 0.246, 0.266], 0.0042, -0.0193, 0.0183, 0.0235, '#161811'),
+      ...bands(
+        'band',
+        [0.206, 0.226, 0.246, 0.266],
+        0.0042,
+        -0.0193,
+        0.0183,
+        0.0235,
+        '#161811',
+        'rubber',
+      ),
       part(
         'pommel',
         'steel',
@@ -491,7 +512,7 @@ function bayonet(): KnifeModel {
           0.021,
           { bevel: 0.0035 },
         ),
-        { color: grip },
+        { color: grip, material: 'wood' },
       ),
       ...bands(
         'groove',
@@ -501,6 +522,7 @@ function bayonet(): KnifeModel {
         0.0172,
         0.0225,
         '#17130f',
+        'wood',
       ),
       part(
         'pommel',
@@ -584,7 +606,7 @@ function flip(): KnifeModel {
           thickness: BLADE,
           grind: 0.3,
           // The thumb hole the knife is flipped open by.
-          holes: [arc([0.092, 0.0062], 0.0062, 12).reverse()],
+          holes: [hole([0.092, 0.0062], 0.0063)],
         }),
         { joint: bladeJoint },
       ),
@@ -605,8 +627,8 @@ function flip(): KnifeModel {
         ),
         { joint: bladeJoint },
       ),
-      part('scaleL', 'grip', scale(0.0062), { color: grip }),
-      part('scaleR', 'grip', scale(-0.0062), { color: grip }),
+      part('scaleL', 'grip', scale(0.0062), { color: grip, material: 'micarta' }),
+      part('scaleR', 'grip', scale(-0.0062), { color: grip, material: 'micarta' }),
       part('spacer', 'steel', box(0.172, 0.234, -0.0165, -0.0125, 0.0068, { bevel: 0.0008 }), {
         color: DARK_STEEL,
       }),
@@ -697,7 +719,7 @@ function huntsman(): KnifeModel {
           0.024,
           { bevel: 0.004 },
         ),
-        { color: grip },
+        { color: grip, material: 'rubber' },
       ),
       part(
         'pommel',
@@ -797,9 +819,18 @@ function falchion(): KnifeModel {
           0.022,
           { bevel: 0.0035 },
         ),
-        { color: grip },
+        { color: grip, material: 'g10' },
       ),
-      ...bands('ridge', [0.2, 0.218, 0.236, 0.254], 0.0034, -0.0205, 0.0175, 0.0235, '#2c2d31'),
+      ...bands(
+        'ridge',
+        [0.2, 0.218, 0.236, 0.254],
+        0.0034,
+        -0.0205,
+        0.0175,
+        0.0235,
+        '#2c2d31',
+        'g10',
+      ),
       part('pommelPin', 'steel', pin([0.284, -0.016], 0.0034, 0.0235), { color: STEEL }),
     ],
     grip: [0.236, -0.002],
@@ -887,9 +918,9 @@ function gut(): KnifeModel {
             [0.142, -0.0165],
           ],
           0.02,
-          { bevel: 0.0032, holes: [arc([0.244, 0], 0.0036, 8).reverse()] },
+          { bevel: 0.0032, holes: [hole([0.244, 0], 0.0037)] },
         ),
-        { color: grip },
+        { color: grip, material: 'g10' },
       ),
       part('pin0', 'steel', pin([0.158, 0], 0.0022, 0.0205), { color: STEEL }),
       part('pin1', 'steel', pin([0.222, 0.002], 0.0022, 0.0205), { color: STEEL }),
@@ -975,7 +1006,7 @@ function talon(): KnifeModel {
           0.017,
           { bevel: 0.0026 },
         ),
-        { color: grip },
+        { color: grip, material: 'micarta' },
       ),
       part(
         'liner',
@@ -993,7 +1024,7 @@ function talon(): KnifeModel {
           { bevel: 0.0008 },
         ),
       ),
-      part('ring', 'metal', ring([0.258, 0.053], 0.026, 0.0168, 0.012, 16)),
+      part('ring', 'metal', ring([0.258, 0.053], 0.0255, 0.0169, 0.012)),
       part('pin0', 'steel', pin([0.135, 0.05], 0.0032, 0.019), { color: STEEL }),
       part('pin1', 'steel', pin([0.214, 0.055], 0.0024, 0.019), { color: STEEL }),
     ],
@@ -1055,7 +1086,7 @@ function skeleton(): KnifeModel {
           {
             bevel: 0.0012,
             // The loop takes a finger, which the knife hangs from when spun.
-            holes: [slot(0.134, 0.206, -0.0075, 0.0065), arc([0.231, 0], 0.0102, 12).reverse()],
+            holes: [slot(0.134, 0.206, -0.0075, 0.0065), hole([0.231, 0], 0.0104)],
           },
         ),
       ),
@@ -1073,7 +1104,7 @@ function skeleton(): KnifeModel {
             0.0115,
             { bevel: 0.0016 },
           ),
-          { color: cord },
+          { color: cord, material: 'cord' },
         ),
       ),
     ],
@@ -1154,7 +1185,7 @@ function stiletto(): KnifeModel {
           0.015,
           { bevel: 0.003 },
         ),
-        { color: grip },
+        { color: grip, material: 'wood' },
       ),
       part(
         'cap',

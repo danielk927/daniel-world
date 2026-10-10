@@ -157,6 +157,47 @@ ${floor ? FLOOR_OCCLUSION : ''}`,
   };
 }
 
+/** The probe's reflections for a surface anywhere in the room, outside it unprojected. */
+const PROBE_FRAGMENT = /* glsl */ `
+#include <common>
+varying vec3 vSurfaceWorld;
+uniform vec3 probePosition;
+uniform vec3 probeBoxMin;
+uniform vec3 probeBoxMax;
+uniform float probeDiffuse;
+vec3 boxProject(vec3 direction) {
+  vec3 toMax = (probeBoxMax - vSurfaceWorld) / direction;
+  vec3 toMin = (probeBoxMin - vSurfaceWorld) / direction;
+  vec3 far = max(toMax, toMin);
+  float distance = min(min(far.x, far.y), far.z);
+  // Out of the room (in the walk-in) the box says nothing; the room as the probe saw it will do.
+  return distance > 0.0 ? vSurfaceWorld + direction * distance - probePosition : direction;
+}
+`;
+
+/**
+ * Reflect the kitchen's probe as the kitchen's own materials do, on a material drawn outside the
+ * Kit that has the probe as its `envMap` (the knives, the hand on screen): box-projected from
+ * wherever it is in the room, instanced or skinned, at full strength, and taking only probeDiffuse
+ * of it as light. `key` tells its programs apart from other materials' of the same class.
+ */
+export function reflectProbe(material: Material, key: string): void {
+  material.customProgramCacheKey = () => `probe:${key}`;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, probeUniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfaceWorld;')
+      .replace(
+        '#include <worldpos_vertex>',
+        '#include <worldpos_vertex>\n  vSurfaceWorld = worldPosition.xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', PROBE_FRAGMENT)
+      .replace('#include <envmap_physical_pars_fragment>', BOX_PROJECTED_RADIANCE)
+      .replace('#include <lights_fragment_maps>', DIM_IRRADIANCE);
+  };
+}
+
 /** Where the floor's shade is read, and what it does to the floor's color. */
 const FLOOR_SHADE = /* glsl */ `
   vec4 floorTexel = texture2D( floorShade, ( vSurfaceWorld.xz - floorShadeMin ) / floorShadeSize );
