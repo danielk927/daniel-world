@@ -443,7 +443,7 @@ const HANG = {
   round: 0.6,
   threadFolded: 0.9,
   lift: 0.06,
-  ahead: 0.055,
+  ahead: 0.075,
 } as const;
 
 /**
@@ -527,9 +527,9 @@ function spinePivot(model: KnifeModel, z: number, radius: number): Vector3 {
 
 /**
  * The grip a knife turned about its length needs: each finger wrapped round the circle about the
- * handle's axis that holds the handle's section where that finger wraps it, however it is turned
- * (an index finger by a guard wraps the guard), and the handle that much further off the palm as
- * its widest under the other fingers needs.
+ * handle's axis that holds the handle across the finger's width, however it is turned (an index
+ * finger by a guard clears the guard), and the handle that much further off the palm as its widest
+ * under the other fingers needs.
  */
 function turningGrip(
   model: KnifeModel,
@@ -541,11 +541,17 @@ function turningGrip(
   const middle = handleAt(model, gz).y;
   const along = model.hold === 'reverse' ? 1 : -1;
   const radii = FINGERS.map((finger) => {
-    // Where the handle's axis crosses this finger's plane, along the knife from the grip.
+    // Where the handle's axis crosses this finger's plane, along the knife from the grip, and the
+    // handle across the finger's width there, a guard beside it included.
     const s = (finger.base[1] - grip.center.y) / grip.axis.y;
-    const section = handleAt(model, gz + (along * s) / KNIFE_SIZE);
-    const reach = Math.abs(section.y - middle) + section.depth;
-    return Math.max(grip.radius, Math.hypot(section.width, reach) * KNIFE_SIZE);
+    let widest = grip.radius;
+    for (let k = -2; k <= 2; k++) {
+      const z = gz + (along * (s + (k / 2) * finger.radius)) / KNIFE_SIZE;
+      const section = handleAt(model, z);
+      const reach = Math.abs(section.y - middle) + section.depth;
+      widest = Math.max(widest, Math.hypot(section.width, reach) * KNIFE_SIZE);
+    }
+    return widest;
   });
   const roomy = gripPose(Math.max(...radii.slice(1)), GRIP_SLANT, radii);
   return { grip: roomy, placement: placeHand(roomy.axis, roomy.center, axis, point, FOREARM) };
