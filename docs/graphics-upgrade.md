@@ -2,9 +2,9 @@
 
 The kitchen was built low-poly on purpose: flat-shaded facets, matte paint in vertex colors, no textures and no reflections.
 Daniel asked on 2026-10-09 to take it to a much higher standard and steer away from that style.
-This is the direction, written before the work, and what each stage is judged against.
+This is the direction, written before the work, and what each stage was judged against; what was done and what it cost are at the end.
 
-The frames in `graphics-upgrade/before/` and `graphics-upgrade/after/` are shot by `node scripts/viewpoints.ts` from eight fixed viewpoints, on the real GPU, at 8 p.m., with the interface hidden.
+The frames in `graphics-upgrade/before/` and `graphics-upgrade/after/` are shot by `node scripts/viewpoints.ts` from twelve fixed viewpoints, on the real GPU, at 8 p.m., with the interface hidden.
 
 ## What reads as cheap today
 
@@ -98,19 +98,24 @@ Glass, the night windows, the lamps and signs, and the walk-in's baked room keep
 - **A reflection probe of the kitchen**: a cube map of the room captured once at load (and again when the hour's light moves on), filtered for roughness, and box-projected onto the room's box, so the floor, the steel, the copper and the night windows reflect the lamps, the light lines, the windows and the walls where they really are.
   Every kitchen material reflects it at full strength (Fresnel decides how much), and takes only the tiny environment intensity from it as light, as before.
 - **Contact shadows**: the ambient occlusion pass stays, retuned; the floor and the foot of the walls darken under and beside the fixtures from a map painted from the layout at load.
-- **The lamps over the pass and the islands cast shadows**, rendered once, since what they light does not move: the counter stops their light reaching the floor.
+- **The lamps over the islands cast shadows**, rendered once, since what they light does not move.
+  The heat lamps over the pass were meant to as well, so the pass would stop their light reaching the floor; five shadow maps cost too much for that, and their reach ends above the floor instead.
 
 ## Performance budget
 
 Measured with `node scripts/perf.ts` (16 players, bots throwing), `--dpr 2`, and `--uncapped` for the real cost of a frame.
 
-|                                                | Before                                             | Budget                                  |
-| ---------------------------------------------- | -------------------------------------------------- | --------------------------------------- |
-| dpr 1, capped                                  | 60 fps, governor 0, 76 draw calls, 130 k triangles | 60 fps, governor 0, about 80 draw calls |
-| dpr 1, uncapped                                | 104 to 183 fps (the GPU is shared, so it varies)   | no worse than a third slower            |
-| dpr 2, capped                                  | 58 fps, governor 1                                 | playable, governor at most 2            |
-| Load to "Enter the kitchen" (production build) | about 0.9 s                                        | within 0.2 s of before                  |
-| Texture memory                                 | none                                               | under 64 MB                             |
+|                                                | Before                                             | Budget                                  | After                                              |
+| ---------------------------------------------- | -------------------------------------------------- | --------------------------------------- | -------------------------------------------------- |
+| dpr 1, capped                                  | 60 fps, governor 0, 76 draw calls, 130 k triangles | 60 fps, governor 0, about 80 draw calls | 60 fps, governor 0, 86 draw calls, 709 k triangles |
+| dpr 1, uncapped                                | 182 to 189 fps on a quiet machine                  | no worse than a third slower            | 125 to 131 fps (about 30 % slower)                 |
+| dpr 2, capped                                  | 59 to 60 fps, governor 1                           | playable, governor at most 2            | 60 fps, governor 1                                 |
+| dpr 2, uncapped                                | 48 to 53 fps                                       |                                         | 40 to 41 fps                                       |
+| Load to "Enter the kitchen" (production build) | 0.90 s high tier, 0.90 s low                       | within 0.2 s of before                  | 1.03 s high tier, 0.96 s low                       |
+| Texture memory                                 | none                                               | under 64 MB                             | about 79 MB                                        |
+
+The before column was measured again at the end, alternating with the after build on the same machine (`DECISIONS.md` has the runs).
+Draw calls and texture memory went over budget, each by a little: ten more draw calls for five new layers and the cooks' buttons and aprons, and texture memory for the floor's and the walls' full-size maps.
 
 ## The low tier
 
@@ -122,3 +127,33 @@ The texture painter, the probe and the extra shadows exist only on the high tier
 - `node scripts/viewpoints.ts` after every stage, compared with the before frames at full size and at device pixel ratio 2.
 - `node scripts/perf.ts` and `--dpr 2` after every stage, plus `--uncapped`.
 - `npm run lint && npm run typecheck && npm test`, and `knifeSolids.test.ts` and `outside.test.ts` in particular.
+
+## What was done
+
+Four stages, each judged against the before frames and measured before and after (`DECISIONS.md` records the calls in each).
+
+1. **Materials and reflections**: textures painted on the GPU at their real sizes for every layer in the table, texture coordinates in meters from the builder, a finish per part, smooth shading everywhere, and the box-projected probe as every kitchen material's own `envMap`.
+2. **Real forms**: rounded edges, a true barrel vault, a French range with brass bands, rails and bezelled knobs, baffle filters in the hood, marble on the window counter, round island legs, wire shelving, turned plates, bottles and knobs, and the desk rebuilt.
+3. **Grounding**: the floor's contact shade and wear painted from the layout, the islands' lamps casting shadows drawn once, the heat lamps' reach ending above the floor, and the hood lit by three downlights instead of one area light.
+4. **Props, dishes, the view outside and the cooks**: pots and pans turned from profiles, the stations' food modeled, the five dishes on the pass remade under softer lamps, the view outside lit per corner, and smooth cooks with a pleated toque, buttons and an apron.
+
+The last look found the pass reading black from the dining room (now brushed satin), the wall tiles looking wet (now a satin glaze), and both signs blank, their pictures stretched by texture coordinates in meters (`builder.test.ts` now checks they show whole).
+
+## Before and after
+
+Twelve viewpoints, the same names in `before/` and `after/`: `suite`, `pass`, `islands`, `window-counter`, `vault`, `floor`, `walk-in`, `desk`, `dishes-west`, `dishes-middle`, `dishes-east` and `cooks` (four cooks stood facing the camera with `&cooks=4`).
+The last four were added during the work; their before frames were shot from the commit that wrote this direction, with only `?cooks` added to it.
+
+## The low tier, as built
+
+It gets the same geometry with fewer sides (a facet may stray 2.5 mm from the circle instead of 0.6), smooth shading and the same paint, with plain materials and no textures, probe, extra shadows or post-processing.
+It loads in 0.96 s instead of 0.90 s, the extra spent building the finer geometry, and the E2E suite runs on it as before.
+
+## Where it falls short
+
+- **Sinks are not recessed**: a basin deeper than 2 cm would leave knives sticking in the air over it unless the knife solids changed, which changes the shared simulation and `PROTOCOL_VERSION`, for a detail seen from above.
+- **No anisotropic highlights on the brushed steel**: three.js derives their direction from screen derivatives that come out degenerate on rounded edges, and threw sparks; the brushing is in the normal and roughness maps.
+- **One probe for the whole room**: box projection puts reflections of the walls, lamps and windows where they are, but things in the middle of the room (the hood, the suite) are reflected as if on the walls; cooks and knives are never in it.
+- **The islands' lamps shadow only what does not move**: cooks under them cast no shadow from them.
+- **The hand and the knives on screen are as they were**: another agent owns them.
+- **The view outside is still made of simple shapes**, now lit smoothly; trees with real crowns and leaves would be its own piece of work.

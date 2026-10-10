@@ -792,3 +792,29 @@ From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call w
 - **The view outside is lit per corner, not per face**: hills by their slope, crowns by their own normals and dark underneath, firs in two tiers. It paints in about 22 ms instead of 13, still once at load and in an idle callback each quarter hour.
 - **The cooks are smooth and rounder, with a pleated toque, a double-breasted row of buttons and an apron**, still colored by player and still seven instanced meshes in all (two more than before, three more draw calls with the shadow pass).
 - **`?cooks=4` stands cooks in the fixed view facing the camera** (dev builds only): a room's real cooks walk away from the spawn, so their faces could not otherwise be judged.
+
+### The graphics upgrade: what it costs, and the last looks (2026-10-10)
+
+- **The pass's steel is brushed satin** (finish 1.2 on its top, 1.4 on its front, roughness about 0.4), not polished: from the dining room, where a visitor first sees it, a polished top reflected the dark far end of the room and read as black stone.
+  Satin still carries the lamps' reflections up close, and the pools of light under the heat lamps show again.
+- **The wall tiles' glaze is satin** (roughness about 0.29, from 0.19): with the probe's reflections, a glossier glaze threw streaks of the vault's light lines across every wall, which read as wet.
+- **Texture memory is about 79 MB, over the 64 MB budget the direction set**: 59 MB of painted textures, 4 MB of floor shade and 16 MB for the probe and its filtering.
+  The floor and the walls fill most of every frame and keep 1024-texel maps so their grout stays crisp up close; the high tier only runs on real GPUs with memory to spare, and phones get the low tier with none of it.
+- **Loading builds no default shapes**: the builder copied each part with three.js's `clone()`, which first builds a default shape of the part's own class (a 32-sided cylinder, a sphere, a rounded box) and then overwrites it, and the Kit's helpers cloned some parts twice: 80 ms of the load.
+  Parts are copied plainly now, and fresh shapes have their texture coordinates scaled in place.
+- **Perf, before and after, measured on the same machine in alternating runs** (`node scripts/perf.ts`, 16 players with bots throwing knives; Apple M5; the GPU is shared with other work, so the quietest runs are given):
+
+  |                                        | Before                                                                | After                                                                 |
+  | -------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+  | dpr 1, capped                          | 60 fps, governor 0, 0.67 ms frame CPU, 76 draw calls, 130 k triangles | 60 fps, governor 0, 0.81 ms frame CPU, 86 draw calls, 709 k triangles |
+  | dpr 2, capped                          | 59 to 60 fps, governor 1                                              | 60 fps, governor 1                                                    |
+  | dpr 1, uncapped                        | 182 to 189 fps (about 5.4 ms a frame)                                 | 125 to 131 fps (about 7.8 ms a frame)                                 |
+  | dpr 2, uncapped                        | 48 to 53 fps (about 20 ms a frame)                                    | 40 to 41 fps (about 25 ms a frame)                                    |
+  | Load to "Enter the kitchen", high tier | 902 ms                                                                | 1,031 ms                                                              |
+  | Load to "Enter the kitchen", low tier  | 897 ms                                                                | 962 ms                                                                |
+
+  Load times are medians of 15 loads of each production build, served by `vite preview` and alternated.
+  Under load from other processes both builds stepped the governor further down at dpr 2 (to level 4 in the same noisy run), and once the after build settled at level 2 at dpr 1 where the before build settled at 1; on a quiet machine both hold level 0 at dpr 1 and level 1 at dpr 2.
+  The uncapped frame costs about 2.4 ms more of GPU time at dpr 1, within the direction's "no worse than a third slower"; the 5.5 times as many triangles are not where it goes (toggling the shadows, the textures and the probe accounted for most of it), and the draw calls rose by ten: five new layers and the cooks' buttons and aprons, with their shadow passes.
+
+- **Texture filtering stays at 8x anisotropy**: 4x measured no faster (125 against 131 fps uncapped, within the noise), so the sharper filtering of the floor down the aisle stays.

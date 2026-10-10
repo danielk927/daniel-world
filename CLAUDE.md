@@ -63,7 +63,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
 4. For visual changes, run `node scripts/viewpoints.ts` (and `node scripts/screenshots.ts`) and look at the frames, at device pixel ratio 2 for detail.
-5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 2 ms frame CPU, about 76 draw calls with 16 players and bots throwing knives; about 30 of the calls are post-processing passes).
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps at governor level 0, about 1 ms frame CPU, about 86 draw calls and 710 k triangles with 16 players and bots throwing knives; about 30 of the calls are post-processing passes), and `--dpr 2` (60 fps, governor level 1 or 2).
 
 ## Gotchas
 
@@ -72,7 +72,9 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - The kitchen is not low-poly any more (`docs/graphics-upgrade.md`): round things get their sides from `kit.sides()` (a facet strays at most 0.6 mm from the circle), edges seen up close are `kit.rounded()`, and pots, plates and bottles are `kit.lathe()` profiles.
   Texture coordinates are meters, made by the builder: flat parts projected along their normal, round parts unrolled by the Kit's helpers (`uv: 'own'`).
   A layer is a material class; parts differ by vertex color (paint) and `finish` (a roughness multiplier).
-  To add a material: a layer in `surfaces()` in `kit.ts` (and `LayerName`), a texture recipe in `world/surfaces/recipes.ts` (GLSL painting color, height in meters and roughness, tiling over one repeat) mapped in `LAYER_RECIPES` (`surfaces/dress.ts`); `shadeSurface` gives it the finish, the probe's box-projected reflections and tile variation. Textures are painted on the GPU at load, high tier only; the low tier keeps plain paint.
+  To add a material: a layer in `surfaces()` in `kit.ts` (and `LayerName`), a texture recipe in `world/surfaces/recipes.ts` (GLSL painting color, height in meters and roughness, tiling over one repeat) mapped in `LAYER_RECIPES` (`surfaces/dress.ts`); `shadeSurface` gives it the finish, the probe's box-projected reflections and tile variation.
+  Textures are painted on the GPU at load, high tier only; the low tier keeps plain paint.
+  A surface outside the Kit that should reflect the kitchen (the walk-in's door) takes `shadeSurface` and the probe as its `envMap` itself (`CoolerDoor.reflect`).
   Each new layer is a draw call (and one more if it casts shadows): reuse a layer with a different paint and finish before adding one.
 - Drawn surfaces must stay within 2 cm of the knife solids in `packages/shared/src/world.ts` (`knifeSolids.test.ts`): round inward from a solid's box, stand trim at most a centimeter or so proud, keep rods and wires thin enough to pass, and draw a round shade's outside round its solid's circle, not inside it.
   Changing the solids changes the shared simulation (and `PROTOCOL_VERSION`).
