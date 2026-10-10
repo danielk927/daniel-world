@@ -26,7 +26,12 @@ function step(vm: Viewmodel, seconds: number): void {
 }
 
 const parts = (vm: Viewmodel) =>
-  vm as unknown as { model: Object3D; hand: { mesh: SkinnedMesh }; arm: Object3D };
+  vm as unknown as {
+    model: Object3D;
+    knifeHolder: Object3D;
+    hand: { mesh: SkinnedMesh };
+    arm: Object3D;
+  };
 
 /** The index finger's proximal phalanx, in world space: its knuckle and middle joint's bones. */
 function indexProximal(vm: Viewmodel): [Vector3, Vector3] {
@@ -76,7 +81,7 @@ describe('the hand round each knife', () => {
         .applyQuaternion(placement.quaternion)
         .add(placement.position);
       const knifeAxis = new Vector3(0, 0, 1).applyQuaternion(
-        (parts(holding(skin)).model.parent!.parent!.parent as Object3D).quaternion,
+        parts(holding(skin)).knifeHolder.quaternion,
       );
       expect(Math.abs(axis.dot(knifeAxis))).toBeGreaterThan(Math.cos(0.01));
       const vm = holding(skin);

@@ -121,6 +121,13 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - New end-to-end checks: the no-WebGL landing, the landing's live lobby count, jumping and sprinting, remote name tags, holding the button to keep throwing, and a private party finding itself again after a server restart.
 - Lint, typecheck, 954 unit tests and the build pass; the 45 E2E tests passed twice in a row in 8.3 minutes each at a load of 8 to 14 on 10 cores (29 tests took 10.3 minutes before, at 20 to 28), and the multiplayer, Karambit and Chef Skinner specs pass with every page's CPU 4x slower.
 
+### The knife clear of the hand (2026-10-10)
+
+- Knives no longer pass through the hand on screen: measured every frame of every knife's moves and cuts, the knife reached up to 13 mm into the hand, through the palm, for 11 of 12 knives; now 6.8 mm at most, never more than 2.3 mm past the knife's own grip.
+- Every knife turns end over end on the index finger, the hand pointing, by its ring or its spine; folding blades and the butterfly's handle swing as hinges through a hand that lets go; a knife cut short mid-spin settles upright on the finger before coming back; a knife turned in the hand is held looser; the skeleton knife's loop takes the finger.
+- `viewmodelClearance*.test.ts` checks every knife, move and cut; it fails on the old animations.
+- Lint, typecheck, 966 unit tests, 40 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash

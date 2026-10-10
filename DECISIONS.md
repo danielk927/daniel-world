@@ -786,3 +786,32 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   It now judges by the look that saw the throw.
 - **The client review's new tests got the same treatment**: the relay test's server runs in its own process, the refused socket test counts its tries instead of sleeping 2.5 s, and the DOOM key repeat waits for frames.
 - **The panel tests turn to face the station from wherever the walk stopped** (`faceStation`), instead of trusting the walk to end on its mark: on a busy machine a walk polled every 50 ms ran 0.7 m past, where the middle of the screen picks nothing (found in a full run, read from its trace).
+
+### The knife clear of the hand (2026-10-10)
+
+- **Daniel saw knives phase through the hand in their animations, and they did, through its middle.**
+  Every knife was stepped through its draw, idle, inspect, throw and redraw, a switch to the fist and back, and every way one cuts another short, and each frame measured how deep the knife as drawn reaches into the hand as skinned: up to 13 mm, through the middle of the palm, for 11 of the 12 knives.
+  Rendered on the real GPU at those frames, the karambit's and the bayonet's handles lay inside the open palm, and folding blades crossed the fingers.
+- **Every knife turns end over end only on the index finger, the hand pointing and the other fingers folded into a fist behind it**, by its ring, or by its spine above the grip a finger's thickness off it.
+  The flips had turned about the grip, inside the fist, where a blade's plane holds the palm, so no opening of the fingers could clear it; `knifeMoves.ts` already said the bayonet and the M9 flip "about the fingers".
+  A knife spinning on a finger turns across it, so a fist behind the spin is clear of it.
+  `hang` is now the knife's way from its place in the grip onto the index finger as the finger is this frame: it waits while the hand opens, swings out from the palm and round to the finger's line in front of the fingertip as the fingers fold, the thumb later, and comes onto the finger along it, a ring over the fingertip.
+  The karambit's ring, on its finger already, slides out along it as the finger straightens, its handle turning out of the fist before the fingers fold.
+  Keys turn a knife end over end only on the finger and carry it between the grip and the finger only upright; the idles' small rocks of the knife in the fist are rocks of the wrist now.
+- **Folding blades and the butterfly's handle are hinges, not turns.**
+  A cut unwound them the shorter way round, which for a blade shut at half a turn is through the palm, and carried a blade flicked open on past its stop; hinges blend by position only now.
+  The hand lets go while a hinge is open, the thumb lifted straight off the fist, where it had swung toward the palm, into the handle.
+  The butterfly shuts the way round that opens away from the palm and swings its free handle back the way it went; the flip knife and the stiletto turn back before folding in their inspects, and the butterfly opens before it is turned over, so nothing folds round through the thumb.
+- **A cut gives the knife half a second, in two halves when it moves between the grip and the finger**: off the finger it settles upright on it, from wherever its spin coasts to, and then comes back into the hand; onto it, it gets there and then turns.
+  A knife thrown or put away mid-spin goes from the finger, and one on the finger headed back onto it stays there.
+  Each cut aims at where the arm is actually going once blended, worked out after what follows is set up, so a knife drawn back up mid-switch goes onto the finger before it spins.
+- **Turned about its length, a knife is held looser**: each finger round the widest its part of the handle gets as it turns, a guard beside it included, and the hand set back to suit, from a quarter turn until it is back the way it rests.
+  A handle deeper than it is wide had turned its corners into the palm and fingers; riding the knife out from the palm instead only moved them into the fingers.
+- **The skeleton knife's loop takes the finger it is spun on**: its hole was 8.2 mm across the hand's scale, under the index finger's 8.5, and is 9.5 now.
+- **Tried and dropped**: turning the arm while a knife spins on the finger, to show the spin face on.
+  The finger points into the screen, so the spin is a pinwheel behind the fist, its blade above it half of each turn; turned, the spin was seen edge on.
+- **The deepest a knife reaches into the hand is now 6.8 mm, and no knife reaches more than 2.3 mm deeper than its own grip at rest**, measured at 120 Hz.
+  The grips themselves sit up to 6.1 mm into the inside of the fist (the chef's knife's bolster under the index finger), unseen: fingers solved round a circle between a handle's depth and width press into a handle that is not round, and into the bands and guards proud of it; that is each knife's floor, and is unchanged.
+  `viewmodelClearance*.test.ts` checks every knife, move and cut at 60 Hz, counting what is in view: never more than 2.5 mm deeper than its grip at rest, nor 7 mm anywhere; on the old animations 11 of the 12 knives fail it, the deepest 12.9 mm.
+  What is left is brief: a trip to the finger can brush a finger it passes for a frame or two (the karambit's ring past the middle finger), and a closed flip knife floats in the opened hand while it folds.
+- Nothing networked changed; other cooks never saw the inspect.
