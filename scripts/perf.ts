@@ -12,14 +12,12 @@
  * `--params` adds to the page's address (say `time=12:00`), to measure another hour or setting.
  * WORLD_CLIENT_PORT and WORLD_SERVER_PORT move both off their usual ports, to run beside another copy.
  */
-import { spawn, type ChildProcess } from 'node:child_process';
-import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { chromium } from '@playwright/test';
+import { chromium, type Browser } from '@playwright/test';
 import { DEFAULT_SERVER_PORT, MAX_PLAYERS_PER_ROOM } from '@world/shared';
-import { startServer } from '../apps/server/src/server.ts';
+import { startServer, type WorldServer } from '../apps/server/src/server.ts';
+import { reachable, start, startClient, stopAll, waitFor } from './processes.ts';
 
-const root = resolve(import.meta.dirname, '..');
 const { values } = parseArgs({
   options: {
     dpr: { type: 'string', default: '1' },
@@ -36,38 +34,16 @@ const serverUrl = `ws://localhost:${serverPort}`;
 const room = 'perf';
 const sampleSeconds = 12;
 
-async function reachable(url: string): Promise<boolean> {
-  try {
-    await fetch(url, { signal: AbortSignal.timeout(1000) });
-    return true;
-  } catch {
-    return false;
+let ownServer: WorldServer | null = null;
+let browser: Browser | null = null;
+try {
+  if (!(await reachable(clientUrl))) {
+    await waitFor(clientUrl, 30_000, startClient(clientPort, serverUrl));
   }
-}
-
-async function waitFor(url: string, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!(await reachable(url))) {
-    if (Date.now() > deadline) throw new Error(`${url} did not come up`);
-    await new Promise((r) => setTimeout(r, 300));
+  if (!(await reachable(`http://localhost:${serverPort}/health`))) {
+    ownServer = await startServer({ port: serverPort });
   }
-}
-
-let client: ChildProcess | null = null;
-if (!(await reachable(clientUrl))) {
-  client = spawn('npm', ['run', 'dev', '-w', '@world/client', '--', '--port', String(clientPort)], {
-    cwd: root,
-    stdio: 'ignore',
-    env: { ...process.env, VITE_SERVER_URL: serverUrl },
-  });
-  await waitFor(clientUrl, 30_000);
-}
-const ownServer = (await reachable(`http://localhost:${serverPort}/health`))
-  ? null
-  : await startServer({ port: serverPort });
-const bots = spawn(
-  'node',
-  [
+  start(process.execPath, [
     'scripts/bots.ts',
     '--count',
     String(MAX_PLAYERS_PER_ROOM - 1),
@@ -77,21 +53,18 @@ const bots = spawn(
     serverUrl,
     '--chat',
     '--knives',
-  ],
-  { cwd: root, stdio: 'ignore' },
-);
+  ]);
 
-const browser = await chromium.launch({
-  // Real GPU; precise memory info so heap growth is measured, not bucketed.
-  args: [
-    '--use-angle=metal',
-    '--enable-gpu',
-    '--ignore-gpu-blocklist',
-    '--enable-precise-memory-info',
-    ...(uncapped ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : []),
-  ],
-});
-try {
+  browser = await chromium.launch({
+    // Real GPU; precise memory info so heap growth is measured, not bucketed.
+    args: [
+      '--use-angle=metal',
+      '--enable-gpu',
+      '--ignore-gpu-blocklist',
+      '--enable-precise-memory-info',
+      ...(uncapped ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : []),
+    ],
+  });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor });
   await page.goto(
     `${clientUrl}/?quality=high&time=20:00${uncapped ? '&governor=off' : ''}${values.params ? `&${values.params}` : ''}`,
@@ -153,8 +126,7 @@ try {
   };
   console.log(JSON.stringify(report, null, 2));
 } finally {
-  await browser.close();
-  bots.kill('SIGINT');
-  client?.kill('SIGINT');
+  await browser?.close();
+  await stopAll();
   await ownServer?.close();
 }

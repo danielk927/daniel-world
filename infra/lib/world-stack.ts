@@ -1,4 +1,5 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import { join } from 'node:path';
+import { CfnOutput, Duration, Fn, RemovalPolicy, Stack, Token, type StackProps } from 'aws-cdk-lib';
 import { Alarm, ComparisonOperator, Metric, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
 import { Ec2Action, Ec2InstanceAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import {
@@ -15,6 +16,7 @@ import {
 import { HttpOrigin, S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import {
   BlockDeviceVolume,
+  CfnEIP,
   EbsDeviceVolumeType,
   Instance,
   InstanceClass,
@@ -34,7 +36,7 @@ import { ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
-import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
+import { BucketDeployment, CacheControl, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import type { Construct } from 'constructs';
 
 export interface WorldStackProps extends StackProps {
@@ -48,10 +50,24 @@ export interface WorldStackProps extends StackProps {
 export const SERVER_PORT = 3001;
 /** CloudFront forwards this path prefix (WebSocket and HTTP) to the room server. */
 export const SERVER_PATH = '/ws';
+/** Where Vite puts the files it names by their content (its default `build.assetsDir`). */
+export const SITE_ASSETS_DIR = 'assets';
 
 // Pinned Node.js runtime for the instance, verified by checksum before it is used.
 const NODE_VERSION = 'v24.21.0';
 const NODE_SHA256 = '6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2';
+
+/**
+ * How long a deploy waits for a new instance to boot and answer its health check. A boot takes a
+ * minute or two (packages, Node.js); a failing step signals at once, so this only bounds a hang.
+ */
+export const BOOT_TIMEOUT = Duration.minutes(10);
+/** How long the boot script gives the freshly started server to answer its health check. */
+const HEALTH_WAIT_SECONDS = 60;
+/** The server log on the instance is rotated once it passes this size (checked hourly)... */
+export const LOG_MAX_SIZE = '50M';
+/** ...and this many compressed rotations are kept, so logs stay within a few hundred MB of 8 GB. */
+export const LOG_ROTATIONS = 7;
 
 /**
  * The whole site on AWS:
@@ -112,24 +128,39 @@ export class WorldStack extends Stack {
 
     // The server bundle travels as a CDK asset; a new bundle means a new instance (immutable deploys).
     const serverBundle = new Asset(this, 'ServerBundle', { path: props.serverDir });
-    serverBundle.grantRead(role);
+    // Only this bundle, not the whole CDK assets bucket (every asset of every stack in the account).
+    role.addToPolicy(
+      new PolicyStatement({
+        actions: ['s3:GetObject'],
+        resources: [serverBundle.bucket.arnForObjects(serverBundle.s3ObjectKey)],
+      }),
+    );
 
     const userData = UserData.forLinux();
-    const bundleZip = userData.addS3DownloadCommand({
-      bucket: serverBundle.bucket,
-      bucketKey: serverBundle.s3ObjectKey,
-    });
-    userData.addCommands(...serverSetupCommands(bundleZip, logGroup.logGroupName));
+    userData.addCommands(
+      ...serverSetupCommands({
+        bundleUrl: serverBundle.s3ObjectUrl,
+        logGroupName: logGroup.logGroupName,
+      }),
+    );
 
     const instance = new Instance(this, 'Server', {
       vpc,
       vpcSubnets: { subnetType: SubnetType.PUBLIC },
       instanceType: InstanceType.of(InstanceClass.T4G, InstanceSize.MICRO),
-      machineImage: MachineImage.latestAmazonLinux2023({ cpuType: AmazonLinuxCpuType.ARM_64 }),
+      // The AMI is looked up once and kept in cdk.context.json, so a new Amazon Linux release
+      // never replaces the instance (and drops every room) on a deploy that changed nothing here.
+      // README's deployment section says how to move to a newer one on purpose.
+      machineImage: MachineImage.latestAmazonLinux2023({
+        cpuType: AmazonLinuxCpuType.ARM_64,
+        cachedInContext: true,
+      }),
       securityGroup: serverSecurityGroup,
       role,
       userData,
       userDataCausesReplacement: true,
+      // CloudFormation holds the deploy until the boot script signals (see serverSetupCommands).
+      resourceSignalTimeout: BOOT_TIMEOUT,
       requireImdsv2: true,
       blockDevices: [
         {
@@ -141,6 +172,36 @@ export class WorldStack extends Stack {
         },
       ],
     });
+    // However the boot script ends, it tells CloudFormation: success only if every step ran and the
+    // server answered its health check. A failure, or no word within BOOT_TIMEOUT, rolls the deploy
+    // back, so the old instance keeps serving and the stack never reports a broken one as complete.
+    // On a failure it first gives the log agent a moment to ship the boot log, since the instance
+    // is deleted with the rollback.
+    userData.addOnExitCommands(
+      'if [ "$exitCode" -ne 0 ]; then sleep 15; fi',
+      `/opt/aws/bin/cfn-signal --stack ${this.stackName} --resource ${instance.instance.logicalId} --region ${this.region} -e $exitCode || echo 'Could not send the CloudFormation signal'`,
+    );
+
+    // A fixed address for CloudFront to reach the server by. An instance's own public IP, and the
+    // DNS name made from it, change on every stop and start (AWS maintenance included), which would
+    // leave the origin pointing nowhere until the next deploy. The Elastic IP stays through those,
+    // and a deploy that replaces the instance moves it to the new one once that one has passed its
+    // health check, so the origin never changes. (The instance still gets its own public IP at
+    // launch, to fetch what it needs while it boots; the Elastic IP takes its place.)
+    const serverIp = new CfnEIP(this, 'ServerIp', {
+      domain: 'vpc',
+      instanceId: instance.instanceId,
+      tags: [{ key: 'Name', value: `${this.stackName}-room-server` }],
+    });
+    const serverOrigin = publicDnsName(this, serverIp.attrPublicIp);
+    // Both need the subnet's route to the internet gateway, which depends on the gateway's
+    // attachment: the Elastic IP to be associated, and the boot to fetch packages, Node.js and the
+    // bundle and to signal (in a new stack, the instance could otherwise boot before the route).
+    const internet = vpc.selectSubnets({
+      subnetType: SubnetType.PUBLIC,
+    }).internetConnectivityEstablished;
+    instance.node.addDependency(internet);
+    serverIp.node.addDependency(internet);
 
     // Self-healing: recover onto new hardware if the host fails, reboot if the OS stops responding.
     const statusCheck = (metricName: string): Metric =>
@@ -191,7 +252,7 @@ export class WorldStack extends Stack {
       },
       additionalBehaviors: {
         [`${SERVER_PATH}*`]: {
-          origin: new HttpOrigin(instance.instancePublicDnsName, {
+          origin: new HttpOrigin(serverOrigin, {
             protocolPolicy: OriginProtocolPolicy.HTTP_ONLY,
             httpPort: SERVER_PORT,
             readTimeout: Duration.seconds(30),
@@ -205,13 +266,34 @@ export class WorldStack extends Stack {
       },
     });
 
-    new BucketDeployment(this, 'DeploySite', {
-      sources: [Source.asset(props.clientDir)],
+    // The site goes up in two parts with different caching. Vite names everything in assets/ by
+    // its content (the chunks, the computer's worker, the DOOM ELF and WAD, fonts, images), so a
+    // name there never means two things: those are cached for good, and never deleted, since a tab
+    // opened before a deploy keeps lazy-loading the build it started with.
+    const hashedFiles = new BucketDeployment(this, 'DeploySiteAssets', {
+      sources: [Source.asset(join(props.clientDir, SITE_ASSETS_DIR))],
       destinationBucket: siteBucket,
+      destinationKeyPrefix: `${SITE_ASSETS_DIR}/`,
+      cacheControl: [
+        CacheControl.setPublic(),
+        CacheControl.maxAge(Duration.days(365)),
+        CacheControl.immutable(),
+      ],
+      prune: false,
+    });
+    // The pages, and the few files kept under their own names (the favicon), are checked again on
+    // every visit. They go up only once every file they name is in place; any the build no longer
+    // has are removed, but never anything under assets/.
+    const pages = new BucketDeployment(this, 'DeploySitePages', {
+      sources: [Source.asset(props.clientDir, { exclude: [SITE_ASSETS_DIR] })],
+      destinationBucket: siteBucket,
+      exclude: [`${SITE_ASSETS_DIR}/*`],
+      cacheControl: [CacheControl.noCache()],
       distribution,
       distributionPaths: ['/*'],
       prune: true,
     });
+    pages.node.addDependency(hashedFiles);
 
     new CfnOutput(this, 'SiteUrl', { value: `https://${distribution.distributionDomainName}` });
     new CfnOutput(this, 'ServerUrl', {
@@ -219,6 +301,10 @@ export class WorldStack extends Stack {
       description: 'Use as VITE_SERVER_URL for a client hosted elsewhere (e.g. Vercel)',
     });
     new CfnOutput(this, 'InstanceId', { value: instance.instanceId });
+    new CfnOutput(this, 'ServerOrigin', {
+      value: serverOrigin,
+      description: "CloudFront's way to the room server: the Elastic IP's public DNS name",
+    });
     new CfnOutput(this, 'ShellCommand', {
       value: `aws ssm start-session --target ${instance.instanceId} --region ${this.region}`,
       description: 'Shell on the room server (no SSH keys needed)',
@@ -227,12 +313,59 @@ export class WorldStack extends Stack {
   }
 }
 
-/** Boot script: install a verified Node.js, unpack the server, run it under systemd, ship logs. */
-export function serverSetupCommands(bundleZip: string, logGroupName: string): string[] {
+/**
+ * The public DNS name EC2 gives a public IPv4 address, for a CloudFront origin (which takes a name,
+ * not an address): `ec2-203-0-113-7.compute-1.amazonaws.com` in us-east-1, and
+ * `ec2-203-0-113-7.<region>.compute.amazonaws.com` elsewhere. Outside AWS it resolves to the address
+ * itself. CloudFormation offers no such attribute for an Elastic IP, so it is built from the address.
+ */
+export function publicDnsName(stack: Stack, ip: string): string {
+  if (Token.isUnresolved(stack.region)) {
+    throw new Error('The room server origin needs a stack with a concrete region (env.region)');
+  }
+  const domain = stack.region === 'us-east-1' ? 'compute-1' : `${stack.region}.compute`;
+  return `ec2-${Fn.join('-', Fn.split('.', ip))}.${domain}.${stack.urlSuffix}`;
+}
+
+export interface ServerSetup {
+  /** `s3://` URL of the zipped server bundle. */
+  bundleUrl: string;
+  /** CloudWatch log group for the boot log and the server log. */
+  logGroupName: string;
+}
+
+/**
+ * Boot script: ship logs, install a verified Node.js, unpack the server, run it under systemd, and
+ * finish only once the server answers its health check. Any failing step ends the script there, and
+ * the exit trap the stack adds signals CloudFormation with its exit code.
+ */
+export function serverSetupCommands({ bundleUrl, logGroupName }: ServerSetup): string[] {
   const nodeTarball = `node-${NODE_VERSION}-linux-arm64.tar.xz`;
+  // Through the same path prefix CloudFront forwards, so the check covers BASE_PATH too.
+  const healthUrl = `http://127.0.0.1:${SERVER_PORT}${SERVER_PATH}/health`;
   return [
     'set -euo pipefail',
-    'dnf install -y amazon-cloudwatch-agent logrotate',
+    // CloudFormation only hears that the boot failed; the boot log says which step.
+    `trap 'echo "Boot failed at line $LINENO: $BASH_COMMAND" >&2' ERR`,
+    'dnf install -y amazon-cloudwatch-agent aws-cfn-bootstrap logrotate',
+
+    // Logs ship first, so a boot that fails later still leaves its log after the rollback deletes
+    // the instance.
+    `cat > /opt/aws/amazon-cloudwatch-agent/etc/world.json <<'AGENT'
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          { "file_path": "/var/log/cloud-init-output.log", "log_group_name": "${logGroupName}", "log_stream_name": "{instance_id}-boot" },
+          { "file_path": "/var/log/world/server.log", "log_group_name": "${logGroupName}", "log_stream_name": "{instance_id}" }
+        ]
+      }
+    }
+  }
+}
+AGENT`,
+    '/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/world.json',
 
     // Node.js, pinned and checksum-verified.
     `curl -fsSL -o /tmp/${nodeTarball} https://nodejs.org/dist/${NODE_VERSION}/${nodeTarball}`,
@@ -243,7 +376,8 @@ export function serverSetupCommands(bundleZip: string, logGroupName: string): st
     // The server runs as an unprivileged user from a read-only location.
     'id world >/dev/null 2>&1 || useradd --system --no-create-home --shell /sbin/nologin world',
     'mkdir -p /opt/world /var/log/world',
-    `python3 -m zipfile -e ${bundleZip} /opt/world`,
+    `aws s3 cp '${bundleUrl}' /tmp/server.zip`,
+    'python3 -m zipfile -e /tmp/server.zip /opt/world',
     'chown -R root:root /opt/world && chown world:world /var/log/world',
 
     `cat > /etc/systemd/system/world.service <<'UNIT'
@@ -269,31 +403,33 @@ ReadWritePaths=/var/log/world
 [Install]
 WantedBy=multi-user.target
 UNIT`,
+    // The log is bounded by size as well as age, since a flood of joins can write it fast and the
+    // disk is 8 GB: rotated daily, or within the hour once it passes LOG_MAX_SIZE, keeping
+    // LOG_ROTATIONS compressed. CloudWatch keeps the history; these are only the local copy.
     `cat > /etc/logrotate.d/world <<'ROTATE'
 /var/log/world/server.log {
-  weekly
-  rotate 4
+  daily
+  maxsize ${LOG_MAX_SIZE}
+  rotate ${LOG_ROTATIONS}
   compress
   missingok
+  notifempty
   copytruncate
 }
 ROTATE`,
+    // logrotate runs from a systemd timer, daily by default; hourly lets maxsize act within the hour.
+    'mkdir -p /etc/systemd/system/logrotate.timer.d',
+    `cat > /etc/systemd/system/logrotate.timer.d/hourly.conf <<'TIMER'
+[Timer]
+OnCalendar=
+OnCalendar=hourly
+TIMER`,
     'systemctl daemon-reload',
+    'systemctl enable --now logrotate.timer',
     'systemctl enable --now world.service',
 
-    `cat > /opt/aws/amazon-cloudwatch-agent/etc/world.json <<'AGENT'
-{
-  "logs": {
-    "logs_collected": {
-      "files": {
-        "collect_list": [
-          { "file_path": "/var/log/world/server.log", "log_group_name": "${logGroupName}", "log_stream_name": "{instance_id}" }
-        ]
-      }
-    }
-  }
-}
-AGENT`,
-    '/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/world.json',
+    // The deploy's gate: the script, and so the signal, succeeds only once the server answers.
+    `timeout ${HEALTH_WAIT_SECONDS} bash -c 'until curl -fsS -o /dev/null ${healthUrl}; do sleep 1; done'`,
+    'echo "Room server is up"',
   ];
 }

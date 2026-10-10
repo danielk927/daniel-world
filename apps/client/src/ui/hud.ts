@@ -139,13 +139,18 @@ export class Hud {
     this.element.hidden = true;
   }
 
-  /** The world's labels never show over the room, the players, the controls or the corner. */
+  /**
+   * The world's labels never show over the room, the players, the cue to click, the controls or the
+   * corner.
+   */
   keepLabelsClear(labels: LabelLayer): void {
     const covered = (): boolean =>
       this.element.classList.contains('is-covered') ||
       this.element.classList.contains('is-computer');
     labels.keepClear(this.room);
     labels.keepClear(this.right);
+    // Under the crosshair while the mouse is free; it fades, keeping its size.
+    labels.keepClear(this.lookCue, () => this.lookCueShown && !covered());
     labels.keepClear(this.hint, () => !covered() && !this.hint.classList.contains('is-faded'));
     // Shown only at the computer, and taking no room otherwise.
     labels.keepClear(this.computerHint);

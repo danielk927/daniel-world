@@ -17,7 +17,8 @@ npx playwright install chromium
 npm run e2e                  # playwright, builds client in test mode, spawns its own server on :3101
                              # (E2E_SERVER_PORT / E2E_CLIENT_PORT move it, to run two suites at once)
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
-npm run bots -- --count 15   # simulated players for load testing
+npm run bots                 # simulated players: fill the lobby but for one seat, yours
+                             # (--count up to 15, --room <code>, --knives; Chef Skinner counts)
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
 node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU;
                              # WORLD_CLIENT_PORT / WORLD_SERVER_PORT move it off :5173 / :3001)
@@ -40,7 +41,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
-- `scripts` - dev tooling (bots, screenshots).
+- `scripts` - dev tooling (bots, screenshots, perf); `processes.ts` starts what they need and stops it with them.
 
 ## Conventions
 
@@ -68,6 +69,8 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - Fixture footprints, stations and doors live in `packages/shared/src/world.ts`; colliders, the minimap and the renderer all read them, so move things there, not in the client.
 - E2E uses SwiftShader, which gets the low quality tier automatically; screenshots and perf use the real GPU and `?quality=high`.
 - A protocol or shared-simulation change bumps `PROTOCOL_VERSION`; Vercel deploys the client on every push to `main`, but the AWS room server only with `npm run deploy:aws`, so until then visitors play solo.
+- `infra/cdk.context.json` records the stack's lookups, the room server's AMI among them; commit it after a deploy writes it, and move to a newer AMI only on purpose (README's deployment section), since a new AMI replaces the instance.
+  A server deploy succeeds only once the new instance answers `/ws/health`; keep the boot script's last step that check (`infra/test` asserts it).
 - The look (evening service, after Ratatouille) is split by quality tier: `world/lighting.ts` has the lights for both, and the high tier adds shadows, the practical lights and `world/post.ts` (N8AO, bloom, AgX, the grade).
   Lamps and glowing things are the `light` layer, which shines past white on the high tier so bloom catches it; keep new glowing paint dim, or it blows out.
   Reflections come from a probe of the kitchen (`world/reflections.ts`), captured at load and when the hour's light moves on, box-projected in the shader (`world/surfaces/shading.ts`): every kitchen material has it as its own `envMap`, reflecting it at full strength and taking only `probeDiffuse` (0.05) of it as light, since a brighter environment lights everything from every side and flattens the room.
