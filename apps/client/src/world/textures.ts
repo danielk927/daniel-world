@@ -2,7 +2,8 @@ import { CanvasTexture, SRGBColorSpace, type Texture } from 'three';
 
 /**
  * The few textures (the signs, steam) are painted on a canvas at startup,
- * once, and shared. Nothing is downloaded. Everything else is plain color on faceted geometry.
+ * once, and shared. Nothing is downloaded. The materials' textures are painted on the GPU instead
+ * (see surfaces/).
  */
 
 function canvas(width: number, height: number): [HTMLCanvasElement, CanvasRenderingContext2D] {

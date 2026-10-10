@@ -128,6 +128,18 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - `viewmodelClearance*.test.ts` checks every knife, move and cut; it fails on the old animations.
 - Lint, typecheck, 966 unit tests, 40 E2E tests and the build pass.
 
+### The graphics upgrade (2026-10-10, on the `graphics-upgrade` branch)
+
+- The kitchen leaves the low-poly style, at Daniel's request (`docs/graphics-upgrade.md` has the direction, the audit and the results; before and after frames from twelve viewpoints are in `docs/graphics-upgrade/`).
+- Every surface is painted on the GPU at load at its real size, from recipes in the code (stone floor tiles, large glazed wall tiles, plaster, brushed steel, cast iron, hammered copper, brass, stone, butcher block, cloth, food), with texture coordinates in meters and a finish per part; nothing is downloaded.
+- Every kitchen material reflects a probe of the kitchen, box-projected so a lamp's reflection lands under the lamp; three.js had been ignoring the metals' reflection strength, which is much of why the steel read as grey paint.
+- Real forms: rounded edges, a true barrel vault, a French range with brass bands and knobs, baffle filters, turned pots, pans, plates and bottles, modeled food and five remade dishes, smooth cooks with a pleated toque, buttons and an apron.
+- Grounding: contact shade and wear on the floor painted from the layout, the islands' lamps casting shadows drawn once, the heat lamps kept off the floor, the hood lit by three downlights.
+- Found on the way: both signs had gone blank (their pictures stretched by meter coordinates), and loading cloned a default shape for every part; both fixed.
+- With 16 players it holds 60 fps at governor level 0 at dpr 1 and level 1 at dpr 2, at about 0.8 ms of frame CPU, 86 draw calls and 709 k triangles; uncapped it draws about 30 % fewer frames than before (131 against 185 fps); the high tier loads in 1.03 s instead of 0.90, the low tier in 0.96.
+- The low tier keeps plain paint on the same geometry, with fewer sides, and no textures, probe or post-processing.
+- Lint, typecheck, 960 unit tests, 40 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash

@@ -1,20 +1,13 @@
+import type { Scene } from 'three';
 import {
-  BackSide,
-  BoxGeometry,
-  Color,
   DirectionalLight,
   FogExp2,
   HemisphereLight,
-  Mesh,
-  MeshBasicMaterial,
-  PlaneGeometry,
-  PMREMGenerator,
   PointLight,
   RectAreaLight,
-  Scene,
   SpotLight,
   Vector3,
-  type WebGLRenderer,
+  type Texture,
 } from 'three';
 import { KITCHEN, PASS_DISHES, ROOM_HALF_X, ROOM_HALF_Z, ROOM_HEIGHT } from '@world/shared';
 import { createLightCones } from './effects.ts';
@@ -37,7 +30,11 @@ const OVERHEAD = '#ffe4c8';
 /** The light strips where the vault springs from the long walls, washing the arch above. */
 const COVE = '#ffdcb2';
 const DOWNLIGHT = '#ffd6a6';
-const HEAT_LAMP = '#ff9447';
+/**
+ * The heat lamps: amber, but not so deep that the food under them loses its own colors (a deeper
+ * orange turned beetroot salmon and golden roti pink).
+ */
+export const HEAT_LAMP = '#ffad72';
 const FIRE = '#ff9a5c';
 /** The blue hour outside: what comes in through the windows and skylights. */
 const DUSK = '#7f9dc9';
@@ -57,39 +54,15 @@ export interface Lighting {
 }
 
 /**
- * A small room for reflections, so steel and copper show the kitchen: warm dark walls, the lit
- * hood and downlights overhead, and a strip of blue-hour window to the north.
+ * Light the kitchen for its quality tier. `reflections` is the kitchen's reflection probe (see
+ * reflections.ts), on the high tier: the environment of everything that is not the kitchen itself
+ * (cooks, knives), since the kitchen's own materials each reflect it in full.
  */
-function environmentScene(): Scene {
-  const scene = new Scene();
-  const room = new Mesh(
-    new BoxGeometry(20, 8, 16),
-    new MeshBasicMaterial({ color: '#3a2f2a', side: BackSide }),
-  );
-  room.position.y = 3;
-  const panel = (color: string, intensity: number, w: number, h: number) =>
-    new Mesh(
-      new PlaneGeometry(w, h),
-      new MeshBasicMaterial({ color: new Color(color).multiplyScalar(intensity) }),
-    );
-  const window = panel(DUSK, 2.2, 14, 1.6);
-  window.position.set(0, 2, -7.9);
-  const hood = panel(HOOD, 5, 10, 3);
-  hood.position.set(0, 2.7, 0);
-  hood.rotation.x = Math.PI / 2;
-  const downlights = [-3.2, 3.2].map((x) => {
-    const p = panel(DOWNLIGHT, 4, 1.2, 1.2);
-    p.position.set(x, 3.5, -4.2);
-    p.rotation.x = Math.PI / 2;
-    return p;
-  });
-  const floor = panel('#7a6658', 0.5, 20, 16);
-  floor.rotation.x = -Math.PI / 2;
-  scene.add(room, window, hood, ...downlights, floor);
-  return scene;
-}
-
-export function createLighting(scene: Scene, renderer: WebGLRenderer, quality: Quality): Lighting {
+export function createLighting(
+  scene: Scene,
+  quality: Quality,
+  reflections: Texture | null = null,
+): Lighting {
   const high = quality === 'high';
 
   // Without shadows, occlusion or the warm practical lights to balance it, the low tier gets a
@@ -129,9 +102,6 @@ export function createLighting(scene: Scene, renderer: WebGLRenderer, quality: Q
   // frame, so its lookup tables only download for the high tier.
   if (high) {
     const h = KITCHEN.hood;
-    const hood = new RectAreaLight(HOOD, 1.8, h.maxX - h.minX - 0.6, h.maxZ - h.minZ - 0.6);
-    hood.position.set(0, h.bottom - 0.02, 0);
-    hood.lookAt(0, 0, 0);
 
     const spot = (
       color: string,
@@ -142,22 +112,43 @@ export function createLighting(scene: Scene, renderer: WebGLRenderer, quality: Q
       reach: number,
       angle: number,
       surface: number,
+      shadowSize = 0,
     ): SpotLight => {
       const light = new SpotLight(color, intensity, reach, angle, 0.65, 2);
       light.position.set(x, y, z);
       light.target.position.set(x, surface, z);
+      if (shadowSize > 0) {
+        // What a lamp lights stands still, so its shadow is drawn once, not every frame.
+        light.castShadow = true;
+        light.shadow.mapSize.set(shadowSize, shadowSize);
+        light.shadow.camera.near = 0.1;
+        light.shadow.camera.far = reach;
+        light.shadow.bias = -0.0006;
+        light.shadow.normalBias = 0.02;
+        light.shadow.radius = 3;
+        light.shadow.autoUpdate = false;
+        light.shadow.needsUpdate = true;
+      }
       scene.add(light.target);
       return light;
     };
     const pass = KITCHEN.pass;
     const passZ = (pass.minZ + pass.maxZ) / 2;
-    // A heat lamp over each plate, as drawn: amber pools on the plates, short enough not to wash
-    // the walls orange.
-    const heat = PASS_DISHES.map(({ x }) => spot(HEAT_LAMP, 17, x, 2.05, passZ, 3.2, 0.35, 0));
-    // One light for each pair of pendants, between them, wide enough to cover the island.
+    // A heat lamp over each plate, as drawn: amber pools on the plates. Their reach ends just
+    // short of the floor, so no pool spills past the pass's top onto the floor beside it, as it
+    // would through a counter that casts no shadow; five shadow maps cost far more than this.
+    const heat = PASS_DISHES.map(({ x }) => spot(HEAT_LAMP, 24, x, 2.05, passZ, 1.45, 0.35, 0));
+    // One light for each pair of pendants, between them, wide enough to cover the island, and
+    // shadowed by it, so the floor under the island's shelves is dark.
     const islands = [KITCHEN.pastryIsland, KITCHEN.gardeManger].map((f) =>
-      spot(DOWNLIGHT, 22, (f.minX + f.maxX) / 2, 2.98, (f.minZ + f.maxZ) / 2, 5, 0.78, 0),
+      spot(DOWNLIGHT, 22, (f.minX + f.maxX) / 2, 2.98, (f.minZ + f.maxZ) / 2, 5, 0.78, 0, 1024),
     );
+    // The hood's light: three wide downlights in its underside, warm over the stoves and spilling
+    // out over the aisles either side. (One area light the size of the hood made the same pool,
+    // but three.js's area lights, approximated where a surface sees them at a low angle, laid dark
+    // blotches over everything round, a cook's toque most of all, once nothing was faceted.)
+    const hood = [-3.4, 0, 3.4].map((x) => spot(HOOD, 34, x, h.bottom - 0.03, 0, 7, 1.3, 0));
+    for (const light of hood) light.penumbra = 0.9;
     fire = new PointLight(FIRE, 0.9, 2.6, 2);
     fire.position.set(0, 1.05, 0);
     // Cove light: each strip along a long wall throws a warm wash up into the vault, so the
@@ -178,14 +169,13 @@ export function createLighting(scene: Scene, renderer: WebGLRenderer, quality: Q
       })),
       ...PENDANTS.map((p) => ({ apex: p.clone(), height: 1.95, radius: 0.85, color: DOWNLIGHT })),
     ]);
-    scene.add(hood, ...heat, ...islands, fire, ...coves, beams);
+    scene.add(...hood, ...heat, ...islands, fire, ...coves, beams);
 
-    const pmrem = new PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(environmentScene(), 0.04).texture;
-    pmrem.dispose();
+    scene.environment = reflections;
     // Reflections only, barely any light: an environment bright enough to light the painted
-    // surfaces lights them from every side at once and flattens the room. Metals and glass turn
-    // theirs up per material.
+    // surfaces lights them from every side at once and flattens the room. The kitchen's materials
+    // have the probe as their own envMap, reflecting it in full and taking little light from it
+    // (see surfaces/shading.ts); this is for the rest.
     scene.environmentIntensity = 0.05;
   }
 

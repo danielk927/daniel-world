@@ -5,6 +5,7 @@ import {
   EYE_HEIGHT,
   KNIFE_COOLDOWN_INPUTS,
   Keys,
+  PLAYER_COLORS,
   SPAWN,
   TICK_SECONDS,
   coolerWallBetween,
@@ -42,6 +43,7 @@ import { Input } from './input.ts';
 import { LandingCamera } from './landingCamera.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer } from './multiplayer.ts';
+import { photoCooks, photoView, type PhotoView } from './photoView.ts';
 import { addressForRoom, inviteLink, joinFailureMessage, roomName } from './party.ts';
 import { prefsOf, type Settings } from './settings.ts';
 import type { Quality } from '../util/capabilities.ts';
@@ -101,6 +103,11 @@ export class Game {
   private accumulator = 0;
   /** The slow walk round the kitchen behind the landing, and the swoop from it into the game. */
   private readonly landingCamera = new LandingCamera();
+  /** A fixed camera behind the landing, for judging the look (dev and test builds only). */
+  private readonly photo: PhotoView | null =
+    import.meta.env.MODE !== 'production' ? photoView(location.search) : null;
+  /** Cooks stood in the fixed view, facing it, to judge their look; see photoView.ts. */
+  private readonly photoCooks = this.photo ? photoCooks(location.search) : 0;
   private enterProgress = 0;
   private readonly enterFrom = new Vector3();
   private readonly enterFromQuat = new Quaternion();
@@ -770,6 +777,13 @@ export class Game {
   private updateCamera(dt: number): void {
     const camera = this.world.camera;
     if (this.mode === 'landing') {
+      if (this.photo) {
+        const { x, y, z, yaw, pitch } = this.photo;
+        camera.position.set(x, y, z);
+        camera.quaternion.setFromEuler(this.euler.set(pitch, yaw, 0));
+        this.standPhotoCooks(dt);
+        return;
+      }
       this.landingCamera.update(camera, this.elapsed, this.settings.values.reduceMotion);
       return;
     }
@@ -801,6 +815,35 @@ export class Game {
       s.grounded,
     );
     this.followComputer(dt);
+  }
+
+  /** The fixed view's cooks, in a row a couple of meters ahead of it, each turned to face it. */
+  private standPhotoCooks(dt: number): void {
+    const photo = this.photo!;
+    for (let i = 0; i < this.photoCooks; i++) {
+      const id = 1_000_000 + i;
+      this.world.avatars.add(id, PLAYER_COLORS[(i * 3) % PLAYER_COLORS.length]!);
+      const across = (i - (this.photoCooks - 1) / 2) * 0.95;
+      const ahead = 2.2 + (i % 2) * 0.5;
+      const x = photo.x - Math.sin(photo.yaw) * ahead + Math.cos(photo.yaw) * across;
+      const z = photo.z - Math.cos(photo.yaw) * ahead - Math.sin(photo.yaw) * across;
+      this.world.avatars.update(
+        id,
+        {
+          x,
+          y: 0,
+          z,
+          yaw: Math.atan2(photo.x - x, photo.z - z) + Math.PI,
+          pitch: 0,
+          grounded: true,
+          dead: false,
+          armed: i % 2 === 0,
+          speed: 0,
+        },
+        this.elapsed,
+        dt,
+      );
+    }
   }
 
   /** Glide to the computer's screen while it is in use, and back afterwards. */

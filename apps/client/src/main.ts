@@ -77,7 +77,12 @@ async function boot(): Promise<void> {
     loading.setText('Compiling shaders…');
     loading.setProgress(0.6);
     await world.compile();
-    world.startGovernor(await refresh);
+    // `?governor=off` holds the best level whatever the frame rate, so a check with the frame rate
+    // uncapped (`scripts/perf.ts --uncapped`) measures how fast it draws. Dev and test builds only.
+    const ungoverned =
+      import.meta.env.MODE !== 'production' &&
+      new URLSearchParams(location.search).get('governor') === 'off';
+    if (!ungoverned) world.startGovernor(await refresh);
     loading.setProgress(1);
 
     game = new Game(world, overlay, landing, settings, pickQuality(webgl));

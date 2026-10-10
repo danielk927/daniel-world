@@ -1,21 +1,8 @@
-import { Color, Light, Scene, SpotLight, Vector3, type WebGLRenderer } from 'three';
-import type * as Three from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { Color, Light, Scene, SpotLight, Vector3 } from 'three';
+import { describe, expect, it } from 'vitest';
 import { PASS_DISHES } from '@world/shared';
 import { createLightCones } from './effects.ts';
-import { createLighting } from './lighting.ts';
-
-// Prefiltering the environment needs a GPU; the lights themselves do not.
-vi.mock('three', async (importOriginal) => {
-  const three = await importOriginal<typeof Three>();
-  class PMREMGenerator {
-    fromScene(): { texture: null } {
-      return { texture: null };
-    }
-    dispose(): void {}
-  }
-  return { ...three, PMREMGenerator };
-});
+import { HEAT_LAMP, createLighting } from './lighting.ts';
 
 function lightsIn(scene: Scene): Light[] {
   const lights: Light[] = [];
@@ -28,8 +15,7 @@ function lightsIn(scene: Scene): Light[] {
 describe('the low quality lighting', () => {
   it('is cheap enough for a software renderer: no shadows and no practical lights', () => {
     const scene = new Scene();
-    // The low tier never touches the renderer (no environment map to prefilter).
-    createLighting(scene, null as unknown as WebGLRenderer, 'low');
+    createLighting(scene, 'low');
     const lights = lightsIn(scene);
     expect(lights.length).toBeLessThanOrEqual(3);
     expect(lights.some((l) => l.castShadow)).toBe(false);
@@ -42,8 +28,8 @@ describe('the low quality lighting', () => {
 describe('the high quality lighting', () => {
   it('lights every dish on the pass with a heat lamp, inside the bright core of its pool', () => {
     const scene = new Scene();
-    createLighting(scene, null as unknown as WebGLRenderer, 'high');
-    const amber = new Color('#ff9447').getHex();
+    createLighting(scene, 'high');
+    const amber = new Color(HEAT_LAMP).getHex();
     const heat = lightsIn(scene).filter(
       (l): l is SpotLight => l instanceof SpotLight && l.color.getHex() === amber,
     );

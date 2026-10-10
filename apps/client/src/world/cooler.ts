@@ -15,6 +15,7 @@ import {
   SRGBColorSpace,
   ShaderMaterial,
   Vector3,
+  type Texture,
 } from 'three';
 import {
   COOLER,
@@ -28,6 +29,7 @@ import {
 import { at } from './builder.ts';
 import { worldTime } from './clock.ts';
 import { COLD_LIGHT, COOLER_LAMPS, READOUT } from './coolerRoom.ts';
+import { shadeSurface } from './surfaces/shading.ts';
 import { softTexture } from './textures.ts';
 
 /**
@@ -372,13 +374,9 @@ export class CoolerDoor {
       geometry,
       // Brushed steel like the kitchen's, painted per vertex so scuffs can darken it. Smooth
       // shaded, unlike the kitchen's flat facets: a dent reads by the light rolling across it.
-      new MeshStandardMaterial({
-        vertexColors: true,
-        metalness: 0.55,
-        roughness: 0.38,
-        envMapIntensity: 12,
-      }),
+      new MeshStandardMaterial({ vertexColors: true, metalness: 0.55, roughness: 0.38 }),
     );
+    shadeSurface(this.leaf.material);
     this.leaf.name = 'cooler-door';
     this.leaf.receiveShadow = true;
     this.leaf.position.set(COOLER_DOOR.hingeX, 0, COOLER_DOOR.hingeZ);
@@ -414,6 +412,20 @@ export class CoolerDoor {
     this.light.visible = false;
     this.light.position.set((COOLER.minX + COOLER.maxX) / 2, COOLER.height - 0.3, COOLER_LAMPS.z);
     this.group.add(this.leaf, this.readout, this.mist, this.light);
+  }
+
+  /**
+   * On the high tier: reflect the kitchen's probe, as the kitchen's own steel does, fully metal and
+   * box-projected (see surfaces/shading.ts), its paint the steel's color.
+   */
+  reflect(probe: Texture): void {
+    const material = this.leaf.material;
+    material.envMap = probe;
+    material.envMapIntensity = 1;
+    material.metalness = 1;
+    material.roughness = 0.34;
+    material.color.set('#b4b7b8');
+    material.needsUpdate = true;
   }
 
   /** Hits taken so far, as shown. */

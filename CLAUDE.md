@@ -26,6 +26,9 @@ node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs
                              # WORLD_CLIENT_PORT / WORLD_SERVER_PORT move it off :5173 / :3001)
 node scripts/perf.ts         # 16-player perf report (starts what it needs, real GPU; --dpr 2 for retina;
                              # the same WORLD_* ports move it, and governorLevel above 0 means the GPU fell behind)
+                             # (--uncapped lifts the frame rate cap to show real cost; --params adds to the URL)
+node scripts/viewpoints.ts   # the kitchen from fixed viewpoints, real GPU, interface hidden (--out, --dpr,
+                             # --only, --time, --params); before/after frames in docs/graphics-upgrade/
 node scripts/computer-bench.ts  # kitchen computer: DOOM timedemo, guest MIPS (--engine jit|interpreter)
 firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install llvm lld`)
 ```
@@ -62,13 +65,22 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 1. `npm run lint && npm run typecheck && npm test`
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
-4. For visual changes, run `node scripts/screenshots.ts` and look at `docs/screenshots/`.
-5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps, about 2 ms frame CPU, about 76 draw calls with 16 players and bots throwing knives; about 30 of the calls are post-processing passes).
+4. For visual changes, run `node scripts/viewpoints.ts` (and `node scripts/screenshots.ts`) and look at the frames, at device pixel ratio 2 for detail.
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps at governor level 0, about 1 ms frame CPU, about 86 draw calls and 710 k triangles with 16 players and bots throwing knives; about 30 of the calls are post-processing passes), and `--dpr 2` (60 fps, governor level 1 or 2).
 
 ## Gotchas
 
 - Shadow-casting `InstancedMesh`es need `assignShadowDepthMaterials` (done in `WorldScene`), or three.js re-derives shader parameters every frame.
 - Static kitchen geometry goes through `Kit` (`apps/client/src/world/kit.ts`), which merges it into one mesh per material; do not add standalone meshes for static props.
+- The kitchen is not low-poly any more (`docs/graphics-upgrade.md`): round things get their sides from `kit.sides()` (a facet strays at most 0.6 mm from the circle), edges seen up close are `kit.rounded()`, and pots, plates and bottles are `kit.lathe()` profiles.
+  Texture coordinates are meters, made by the builder: flat parts projected along their normal, round parts unrolled by the Kit's helpers (`uv: 'own'`).
+  A layer is a material class; parts differ by vertex color (paint) and `finish` (a roughness multiplier).
+  To add a material: a layer in `surfaces()` in `kit.ts` (and `LayerName`), a texture recipe in `world/surfaces/recipes.ts` (GLSL painting color, height in meters and roughness, tiling over one repeat) mapped in `LAYER_RECIPES` (`surfaces/dress.ts`); `shadeSurface` gives it the finish, the probe's box-projected reflections and tile variation.
+  Textures are painted on the GPU at load, high tier only; the low tier keeps plain paint.
+  A surface outside the Kit that should reflect the kitchen (the walk-in's door) takes `shadeSurface` and the probe as its `envMap` itself (`CoolerDoor.reflect`).
+  Each new layer is a draw call (and one more if it casts shadows): reuse a layer with a different paint and finish before adding one.
+- Drawn surfaces must stay within 2 cm of the knife solids in `packages/shared/src/world.ts` (`knifeSolids.test.ts`): round inward from a solid's box, stand trim at most a centimeter or so proud, keep rods and wires thin enough to pass, and draw a round shade's outside round its solid's circle, not inside it.
+  Changing the solids changes the shared simulation (and `PROTOCOL_VERSION`).
 - Fixture footprints, stations and doors live in `packages/shared/src/world.ts`; colliders, the minimap and the renderer all read them, so move things there, not in the client.
 - E2E uses SwiftShader, which gets the low quality tier automatically; screenshots and perf use the real GPU and `?quality=high`.
 - A protocol or shared-simulation change bumps `PROTOCOL_VERSION`; Vercel deploys the client on every push to `main`, but the AWS room server only with `npm run deploy:aws`, so until then visitors play solo.
@@ -76,13 +88,15 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   A server deploy succeeds only once the new instance answers `/ws/health`; keep the boot script's last step that check (`infra/test` asserts it).
 - The look (evening service, after Ratatouille) is split by quality tier: `world/lighting.ts` has the lights for both, and the high tier adds shadows, the practical lights and `world/post.ts` (N8AO, bloom, AgX, the grade).
   Lamps and glowing things are the `light` layer, which shines past white on the high tier so bloom catches it; keep new glowing paint dim, or it blows out.
-  Keep `scene.environmentIntensity` tiny and raise `envMapIntensity` on metals instead; a brighter environment lights everything from every side and flattens the room.
+  Reflections come from a probe of the kitchen (`world/reflections.ts`), captured at load and when the hour's light moves on, box-projected in the shader (`world/surfaces/shading.ts`): every kitchen material has it as its own `envMap`, reflecting it at full strength and taking only `probeDiffuse` (0.05) of it as light, since a brighter environment lights everything from every side and flattens the room.
+  Keep `scene.environmentIntensity` tiny too; it is what the cooks and knives get. three.js ignores a material's `envMapIntensity` whenever it reflects `scene.environment`, so set `envMap` on a material if its intensity should count.
 - A GPU-bound frame is input lag, not just a lower frame rate (the browser queues frames). `world/governor.ts` steps the high tier's resolution, MSAA and AO down to keep up with the display; the level it settles on is stored in `localStorage` (`world.renderLevel`), so clear it when judging a visual change.
   Perf and screenshots run at device pixel ratio 1; check retina (ratio 2) too, where the high tier costs four times the pixels.
-- The view outside the windows is real geometry in `world/outside.ts` (`OutsideView`, one unlit mesh), its light and haze baked into vertex colors.
+- The view outside the windows is real geometry in `world/outside.ts` (`OutsideView`, one unlit mesh), its light and haze baked into vertex colors, per corner (`smoothSolid`, `smoothFace`) so hills and crowns shade smoothly.
   `outside.test.ts` raycasts every pane and skylight; keep it passing when moving the land, the sky or the windows, or a visitor will see an edge.
 - The light follows the visitor's local time (`world/timeOfDay.ts`): looks at hours of the day, blended between, repainted every quarter hour.
   `?time=20:00` pins the hour; screenshots use it, and so should anyone judging a lighting change (the evening look is the reference).
+  In dev builds `?view=x,y,z,yaw,pitch` holds the camera behind the landing (`game/photoView.ts`), `&cooks=4` stands cooks in it facing the camera, and `&governor=off` holds the best render level.
 - The hand on screen is solved, not keyed: `world/hand.ts` wraps it round each knife's handle (`knifeHand` in `world/viewmodel.ts`), so a new knife needs no hand work; `viewmodelHand.test.ts` checks every knife's grip, ring and wrist in the scene as drawn.
 - The interface follows `docs/ui-revamp.md` (approved mockups in `docs/ui-revamp/`): no boxes, nothing behind or around words in the world (no outlines, glows or `text-shadow`), Gabarito for titles and Rubik for the rest, brass only for what is current, marked by the `.bar`, and keys as rings.
   Use the tokens in `styles/tokens.css` and the parts in `styles/controls.css`; each surface has its own stylesheet, imported in cascade order by `styles/app.css`.

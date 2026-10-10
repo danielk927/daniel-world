@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  Matrix3,
   BufferGeometry,
   Color,
   ConeGeometry,
@@ -15,7 +16,7 @@ import {
 } from 'three';
 import { ROOM_HALF_Z, createRandom } from '@world/shared';
 import { at } from './builder.ts';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SKY_ELEVATIONS, skyward, type SkyLook } from './timeOfDay.ts';
 
 /**
@@ -118,6 +119,8 @@ const centroid = new Vector3();
 const toward = new Vector3();
 const shaded = new Color();
 const haze = new Color();
+const normalMatrix = new Matrix3();
+const cornerColors = [new Color(), new Color(), new Color()];
 
 /**
  * Collects the view as one triangle soup with a color per corner. Faces are lit by the dusk once,
@@ -157,6 +160,18 @@ class Painter {
     }
   }
 
+  /** `base` at `point`, facing `n`, in the dusk light and the haze. */
+  private shade(point: Vector3, n: Vector3, base: Color, out: Color): Color {
+    const look = this.look;
+    const sky = look.ambient + look.skylight * Math.max(0, n.y);
+    const sun = Math.max(0, n.dot(look.sun)) * look.sunlight;
+    out.copy(base).multiplyScalar(sky);
+    out.r += look.sunTint.r * base.r * sun;
+    out.g += look.sunTint.g * base.g * sun;
+    out.b += look.sunTint.b * base.b * sun;
+    return hazed(out, point, 1, look);
+  }
+
   /** A flat face of `base`, in the dusk light and the haze. */
   face(p0: Vector3, p1: Vector3, p2: Vector3, base: Color, facing?: Vector3): void {
     edge1.subVectors(p1, p0);
@@ -164,15 +179,60 @@ class Painter {
     normal.crossVectors(edge1, edge2).normalize();
     if (facing && normal.dot(facing) < 0) normal.negate();
     centroid.copy(p0).add(p1).add(p2).divideScalar(3);
-    const look = this.look;
-    const sky = look.ambient + look.skylight * Math.max(0, normal.y);
-    const sun = Math.max(0, normal.dot(look.sun)) * look.sunlight;
-    shaded.copy(base).multiplyScalar(sky);
-    shaded.r += look.sunTint.r * base.r * sun;
-    shaded.g += look.sunTint.g * base.g * sun;
-    shaded.b += look.sunTint.b * base.b * sun;
-    hazed(shaded, centroid, 1, look);
+    this.shade(centroid, normal, base, shaded);
     this.triangle(p0, p1, p2, shaded, shaded, shaded, facing);
+  }
+
+  /**
+   * A face lit at each corner by the normal there, so a round thing shades smoothly across its
+   * faces; `occlusion` darkens corners facing down, as the underside of a crown is in its own
+   * shadow.
+   */
+  smoothFace(
+    corners: readonly Vector3[],
+    normals: readonly Vector3[],
+    base: Color,
+    occlusion = 0,
+    facing?: Vector3,
+  ): void {
+    for (let i = 0; i < 3; i++) {
+      this.shade(corners[i]!, normals[i]!, base, cornerColors[i]!);
+      cornerColors[i]!.multiplyScalar(1 - occlusion * (0.5 - 0.5 * normals[i]!.y));
+    }
+    this.triangle(
+      corners[0]!,
+      corners[1]!,
+      corners[2]!,
+      cornerColors[0]!,
+      cornerColors[1]!,
+      cornerColors[2]!,
+      facing,
+    );
+  }
+
+  /** Every face of a smooth three.js geometry, placed by `matrix`, lit by its own normals. */
+  smoothSolid(geometry: BufferGeometry, matrix: Matrix4, base: Color, occlusion = 0): void {
+    const position = geometry.getAttribute('position');
+    const normals = geometry.getAttribute('normal');
+    const index = geometry.index;
+    normalMatrix.getNormalMatrix(matrix);
+    // Each corner is lit once, however many faces share it.
+    const points: Vector3[] = [];
+    const colors: Color[] = [];
+    for (let v = 0; v < position.count; v++) {
+      const point = new Vector3().fromBufferAttribute(position, v).applyMatrix4(matrix);
+      normal.fromBufferAttribute(normals, v).applyMatrix3(normalMatrix).normalize();
+      const color = this.shade(point, normal, base, new Color());
+      colors.push(color.multiplyScalar(1 - occlusion * (0.5 - 0.5 * normal.y)));
+      points.push(point);
+    }
+    const count = index ? index.count : position.count;
+    for (let i = 0; i < count; i += 3) {
+      const [i0, i1, i2] = index
+        ? [index.getX(i), index.getX(i + 1), index.getX(i + 2)]
+        : [i, i + 1, i + 2];
+      this.triangle(points[i0]!, points[i1]!, points[i2]!, colors[i0]!, colors[i1]!, colors[i2]!);
+    }
   }
 
   /** A flat quad (corners in order around it), in the dusk light. */
@@ -269,11 +329,37 @@ const PALETTE = {
 } as const;
 
 const unitBox = new BoxGeometry(1, 1, 1);
-const crown = new IcosahedronGeometry(1, 0);
-const fineCrown = new IcosahedronGeometry(1, 1);
-const unitCone = new ConeGeometry(1, 1, 6);
+/**
+ * A tree's crown: an icosphere pushed in and out in lumps, so it reads as foliage, not a ball, and
+ * smooth-shaded. A few of them, so neighbors differ.
+ */
+function lumpyCrown(detail: number, seed: number): BufferGeometry {
+  const geometry = new IcosahedronGeometry(1, detail);
+  const position = geometry.getAttribute('position');
+  const p = new Vector3();
+  const random = createRandom(seed);
+  const lumps = Array.from({ length: 7 }, () =>
+    new Vector3(random() - 0.5, random() - 0.4, random() - 0.5).normalize(),
+  );
+  for (let i = 0; i < position.count; i++) {
+    p.fromBufferAttribute(position, i);
+    let push = 0;
+    for (const lump of lumps) push += Math.max(0, p.dot(lump) - 0.55) * 0.5;
+    p.multiplyScalar(0.88 + push);
+    position.setXYZ(i, p.x, p.y, p.z);
+  }
+  // Shared corners, so the lumps shade smoothly across faces.
+  const merged = mergeVertices(geometry.deleteAttribute('normal').deleteAttribute('uv'));
+  merged.computeVertexNormals();
+  return merged;
+}
+const crowns = [lumpyCrown(1, 3), lumpyCrown(1, 7), lumpyCrown(1, 11)];
+const fineCrowns = [lumpyCrown(2, 5), lumpyCrown(2, 13)];
+/** Small plants in the beds: a few faces, smooth. */
+const sprig = lumpyCrown(0, 17);
+const unitCone = new ConeGeometry(1, 1, 12);
 unitCone.translate(0, 0.5, 0);
-const trunk = new CylinderGeometry(0.7, 1, 1, 5);
+const trunk = new CylinderGeometry(0.7, 1, 1, 8);
 trunk.translate(0, 0.5, 0);
 
 /** A point on the ground. */
@@ -413,7 +499,7 @@ function paintMoon(painter: Painter, look: SkyLook, inward: Vector3): void {
 }
 
 /**
- * The land: a fan of faceted ground around the windows, half a circle wide, so that even a glance
+ * The land: a fan of ground around the windows, half a circle wide, so that even a glance
  * along the wall lands on it. Near the kitchen it is lawn; further out a patchwork of fields over
  * the hills, then bare rock on the mountains.
  */
@@ -453,6 +539,9 @@ function paintLand(painter: Painter): void {
     return new Vector3(x, landHeight(x, z), z);
   };
   const up = new Vector3(0, 1, 0);
+  const slopes = rings.map((_, ring) =>
+    Array.from({ length: sectors + 1 }, (_, sector) => slope(point(ring, sector))),
+  );
   for (let ring = 0; ring < rings.length - 1; ring++) {
     for (let sector = 0; sector < sectors; sector++) {
       const p0 = point(ring, sector);
@@ -466,9 +555,25 @@ function paintLand(painter: Painter): void {
       else if (height > 30) base = PALETTE.scree;
       else if (height > 14) base = PALETTE.rock;
       else base = pick(PALETTE.fields, random);
-      painter.quad(p0, p1, p2, p3, base, up);
+      // Lit by the slope at each corner, so the hills roll instead of breaking into facets.
+      const n0 = slopes[ring]![sector]!;
+      const n1 = slopes[ring]![sector + 1]!;
+      const n2 = slopes[ring + 1]![sector + 1]!;
+      const n3 = slopes[ring + 1]![sector]!;
+      painter.smoothFace([p0, p1, p2], [n0, n1, n2], base, 0, up);
+      painter.smoothFace([p0, p2, p3], [n0, n2, n3], base, 0, up);
     }
   }
+}
+
+/** Which way the land faces at a point on it, from its height either side. */
+function slope(p: Vector3): Vector3 {
+  const e = 0.5;
+  return new Vector3(
+    landHeight(p.x - e, p.z) - landHeight(p.x + e, p.z),
+    2 * e,
+    landHeight(p.x, p.z - e) - landHeight(p.x, p.z + e),
+  ).normalize();
 }
 
 /** The lane along the front of the garden; past the garden it bends away into the hills. */
@@ -591,21 +696,21 @@ function paintGarden(painter: Painter, bulbs: Vector3[]): void {
           const v = z + row;
           if (crop === 2) {
             // Leeks: thin upright tufts.
-            painter.solid(
-              crown,
+            painter.smoothSolid(
+              sprig,
               at(u, y + 0.2, v, { sx: 0.07, sy: 0.22 + random() * 0.06, sz: 0.07, ry: random() }),
               color,
             );
           } else if (crop === 3) {
             // Runner beans, grown up canes into leafy columns.
-            painter.solid(
-              crown,
+            painter.smoothSolid(
+              sprig,
               at(u, y + 0.5, v, { sx: 0.24, sy: 0.5 + random() * 0.1, sz: 0.24, ry: random() * 3 }),
               color,
             );
           } else {
-            painter.solid(
-              crown,
+            painter.smoothSolid(
+              sprig,
               at(u, y + s * 0.6, v, { sx: s * 1.3, sy: s, sz: s * 1.3, ry: random() * 3 }),
               color,
             );
@@ -728,10 +833,11 @@ function tree(painter: Painter, x: number, z: number, size: number, random: () =
     at(x, y - 0.2, z, { sx: 0.18 * size, sy: size * 1.4, sz: 0.18 * size }),
     PALETTE.bark,
   );
-  painter.solid(
-    size > 2.2 ? fineCrown : crown,
+  painter.smoothSolid(
+    pick(size > 2.2 ? fineCrowns : crowns, random),
     at(x, y + size * 1.9, z, { sx: size * 1.25, sy: size, sz: size * 1.2, ry: random() * 3 }),
     pick(PALETTE.leaves, random),
+    0.45,
   );
 }
 
@@ -740,20 +846,31 @@ function poplar(painter: Painter, x: number, z: number, random: () => number): v
   const y = landHeight(x, z);
   const h = 8 + random() * 3;
   painter.solid(trunk, at(x, y - 0.2, z, { sx: 0.25, sy: 1.6, sz: 0.25 }), PALETTE.bark);
-  painter.solid(
-    crown,
+  painter.smoothSolid(
+    pick(crowns, random),
     at(x, y + h * 0.55, z, { sx: 1.3, sy: h * 0.5, sz: 1.3, ry: random() * 3 }),
     pick(PALETTE.pine, random),
+    0.4,
   );
 }
 
-/** A fir on the mountainside. */
+/** A fir on the mountainside: two tiers of boughs, the lower wider, the top a spire. */
 function fir(painter: Painter, x: number, z: number, random: () => number): void {
   const h = 6 + random() * 5;
-  painter.solid(
+  const y = landHeight(x, z) - 0.5;
+  const color = pick(PALETTE.pine, random);
+  const ry = random() * 3;
+  painter.smoothSolid(
     unitCone,
-    at(x, landHeight(x, z) - 0.5, z, { sx: h * 0.28, sy: h, sz: h * 0.28, ry: random() * 3 }),
-    pick(PALETTE.pine, random),
+    at(x, y, z, { sx: h * 0.3, sy: h * 0.62, sz: h * 0.3, ry }),
+    color,
+    0.4,
+  );
+  painter.smoothSolid(
+    unitCone,
+    at(x, y + h * 0.36, z, { sx: h * 0.2, sy: h * 0.64, sz: h * 0.2, ry: ry + 0.3 }),
+    color,
+    0.35,
   );
 }
 
@@ -939,8 +1056,8 @@ function paintPlanters(painter: Painter): void {
     block(painter, x, WALL_Z - 0.6, 3, 0.55, 0.7, PALETTE.terracotta, { y: GROUND });
     for (let u = x - 1.2; u <= x + 1.25; u += 0.4) {
       const s = 0.2 + random() * 0.08;
-      painter.solid(
-        crown,
+      painter.smoothSolid(
+        crowns[1]!,
         at(u, GROUND + 0.6, WALL_Z - 0.6 + (random() - 0.5) * 0.2, {
           sx: s,
           sy: s * 1.2,

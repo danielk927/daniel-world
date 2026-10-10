@@ -815,3 +815,73 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   `viewmodelClearance*.test.ts` checks every knife, move and cut at 60 Hz, counting what is in view: never more than 2.5 mm deeper than its grip at rest, nor 7 mm anywhere; on the old animations 11 of the 12 knives fail it, the deepest 12.9 mm.
   What is left is brief: a trip to the finger can brush a finger it passes for a frame or two (the karambit's ring past the middle finger), and a closed flip knife floats in the opened hand while it folds.
 - Nothing networked changed; other cooks never saw the inspect.
+
+### The graphics upgrade: materials and reflections (2026-10-09)
+
+- **The kitchen leaves the low-poly style, at Daniel's request.** The direction, the audit of what read as cheap and the before and after frames are in `docs/graphics-upgrade.md`; this records the calls made on the way.
+- **Textures are painted on the GPU at load, from recipes in the code** (`world/surfaces/`): a fragment shader per surface draws its color, its height (made into a normal map) and its roughness into repeating, mipmapped, anisotropically filtered render targets.
+  The spec forbids downloaded textures; a committed generator's images would have added megabytes to the repository and the download and could not be changed without rerunning it, while the GPU paints all of them in a few milliseconds behind the loading screen.
+  Roughness rides in the normal map's alpha, so a surface costs two textures, or one when its paint is its color.
+- **Texture coordinates are meters**, made by the builder as it merges each part: flat faces projected along their normal (with grain along a board's longer side), round parts unrolled to their circumference by the Kit's helpers.
+  So a tile is the same size on every wall, and one material can carry any number of parts at their real scale.
+- **Per-part finish**: the builder can write a roughness multiplier per vertex, so a polished marble slab and a honed charcoal top share the stone material, and glazed and crusty food share one too.
+- **Wall tiles are large, 60 by 30 cm, stacked, with grout nearly their own color**, not subway tile: 15 by 7.5 cm in running bond read as a brick wall at the length of this room, and its grout grid fought everything in front of it.
+  The walls should be calm, so the steel, the copper and the food carry the room; the French Laundry's renovated kitchen is plain white too.
+- **Every kitchen material reflects a probe of the kitchen itself**: a cube map captured once the shaders have compiled (and again when the hour's light moves on), PMREM-filtered, and box-projected onto the room in the shader, so a lamp's reflection in the floor or the steel lands under the lamp.
+  It replaces the small painted room the environment map used to be, and it is the scene's environment for the cooks and knives too.
+- **The environment is still for reflections only**: the kitchen's materials take its specular reflection at full strength (Fresnel decides how much shows) and its diffuse light at 0.05, the old `environmentIntensity`.
+- **Found on the way: three.js r186 ignores a material's `envMapIntensity` when it reflects `scene.environment`**; `WebGLRenderer.setProgram` puts `scene.environmentIntensity` in its place. The metals' 12 to 14 had never applied, so every metal reflected at 0.05, which is much of why the steel read as grey paint.
+  The kitchen's materials and the walk-in's door now have the probe as their own `envMap`, which makes their intensity count.
+- **Metals are fully metal on the high tier** (stainless, copper, brass), their colors what they reflect; the low tier has no probe to reflect, so its metals stay partly metal in their old deeper colors.
+- **The low tier keeps plain paint**: the same smooth geometry and colors, no textures, no probe, so software renderers draw as cheaply as before.
+
+### The graphics upgrade: real forms (2026-10-09)
+
+- **Every edge seen up close is rounded and smooth-shaded** (three's `RoundedBoxGeometry`, two facets of arc under 12 mm and four above, with normals that roll round the edge), and round things have enough sides that a facet never strays from the circle by more than 0.6 mm on the high tier (2.5 mm on the low).
+- **The knife solids did not move, so the protocol did not either.** Every drawn face stays within the 2 cm `knifeSolids.test.ts` allows: rounded edges sit inside the solids' boxes, door panels and trim stand at most 1.2 cm proud, and rods, knobs, wire and slats are thin enough to let a knife through as before.
+  The vault is drawn as its true arc over the 12 facets that stay its solid; the two never part by more than 1.3 cm.
+- **Lamp shades are drawn round their solid, not inside it**: a smooth shade's facets drawn inside the solid's circle met a slanting knife a few millimeters short of where it stuck. The outside is circumscribed and the inside drawn 4 mm in.
+- **The cooking suite became a French range**: a thick top with a rounded edge, a brass band under it carrying rows of black knobs on brass bezels, brushed oven doors on brass rails, for the brass and steel of Gusteau's kitchen.
+- **The window counter is white enamel under honed Carrara**, top, splash and sill, with its sinks set in steel rims; the islands stand on round tube legs with bullet feet, and storage is real wire shelving.
+- **No anisotropic highlights on the steel.** Three's anisotropy takes its direction from the texture coordinates' screen derivatives, which on the narrow facets of a rounded edge come out degenerate and threw rows of white sparks along every door frame and counter edge; the brushing is in the normal and roughness maps instead.
+- **The hood's baffle filters are a texture, not slats**: 600 slats a few millimeters across glittered at any distance; one painted filter per panel is crisp up close and quiet far away. Wire shelving is dulled for the same reason.
+- **Plates under others in a stack are turned as their foot and rim only**, since nothing else of them shows; it halved the kitchen's triangles.
+
+### The graphics upgrade: grounding, dishes, the view outside and the cooks (2026-10-10)
+
+- **The heat lamps keep off the floor by their reach, not by shadows.** Their pools spilled through the pass's top onto the floor beside it, since lamps cast no shadow; five shadow maps for the five lamps fixed it but cost every lit pixel up to five more shadow lookups, so each lamp's reach now ends just short of the floor (1.45 m), its intensity raised to light the plate as before.
+- **The two lamps over the islands do cast shadows, drawn once** (`shadow.autoUpdate` off): what they light does not move, and the dark under an island's shelves is most of what grounds it. Cooks walking under them cast no shadow from them; the overhead light still shadows them.
+- **The floor's contact shade is painted once from the layout** (`world/surfaces/floorShade.ts`): dark under the counters' toe kicks, at the foot of the walls and round every plinth, softer under the open islands, and worn smoother where cooks stand to work. Screen-space occlusion still does the small things; this holds what it cannot see, steady.
+- **The hood is lit by three wide downlights, not one area light the size of the hood.** Once nothing was faceted, three.js's area lights, approximated where a surface sees them at a low angle, laid dark blotches over every smooth thing round the hood, a cook's toque most of all. Three spot lights make the same warm stage, and pools on the floor by the stoves. The coves stay area lights, out of sight of anything but the vault.
+- **The heat lamps are a softer amber** (`#ffad72` for `#ff9447`) **at 24 within their shorter reach, and the pass's plates a shade off white**: under the deeper orange the beetroot read salmon and the roti pink, and white plates under a lamp glowed brighter than the food on them.
+- **The dishes are modeled, not assembled from boxes**: char siu shingled flat with its lacquered rim and charred corners; the beetroot crimson, its halves glazed and its cut wedges magenta, in a pool of its dark reduction (the pool was a pale tan); the roti crumpled flatbread blistered from the tawa; the ricotta piped through a star tip; the croissant a crescent of laminated rolls, browned on its crests, under pearl sugar. Shapes primitives cannot make are in `world/foodShapes.ts`, with their own vertex colors.
+- **Pots and pans are turned from profiles** with a rolled rim, an inside and a base; copper is lined with bright tin; contents sit within a centimeter or two of the pot's top, where its knife solid closes it.
+- **The view outside is lit per corner, not per face**: hills by their slope, crowns by their own normals and dark underneath, firs in two tiers. It paints in about 22 ms instead of 13, still once at load and in an idle callback each quarter hour.
+- **The cooks are smooth and rounder, with a pleated toque, a double-breasted row of buttons and an apron**, still colored by player and still seven instanced meshes in all (two more than before, three more draw calls with the shadow pass).
+- **`?cooks=4` stands cooks in the fixed view facing the camera** (dev builds only): a room's real cooks walk away from the spawn, so their faces could not otherwise be judged.
+
+### The graphics upgrade: what it costs, and the last looks (2026-10-10)
+
+- **The pass's steel is brushed satin** (finish 1.2 on its top, 1.4 on its front, roughness about 0.4), not polished: from the dining room, where a visitor first sees it, a polished top reflected the dark far end of the room and read as black stone.
+  Satin still carries the lamps' reflections up close, and the pools of light under the heat lamps show again.
+- **The wall tiles' glaze is satin** (roughness about 0.29, from 0.19): with the probe's reflections, a glossier glaze threw streaks of the vault's light lines across every wall, which read as wet.
+- **Texture memory is about 79 MB, over the 64 MB budget the direction set**: 59 MB of painted textures, 4 MB of floor shade and 16 MB for the probe and its filtering.
+  The floor and the walls fill most of every frame and keep 1024-texel maps so their grout stays crisp up close; the high tier only runs on real GPUs with memory to spare, and phones get the low tier with none of it.
+- **Loading builds no default shapes**: the builder copied each part with three.js's `clone()`, which first builds a default shape of the part's own class (a 32-sided cylinder, a sphere, a rounded box) and then overwrites it, and the Kit's helpers cloned some parts twice: 80 ms of the load.
+  Parts are copied plainly now, and fresh shapes have their texture coordinates scaled in place.
+- **Perf, before and after, measured on the same machine in alternating runs** (`node scripts/perf.ts`, 16 players with bots throwing knives; Apple M5; the GPU is shared with other work, so the quietest runs are given):
+
+  |                                        | Before                                                                | After                                                                 |
+  | -------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+  | dpr 1, capped                          | 60 fps, governor 0, 0.67 ms frame CPU, 76 draw calls, 130 k triangles | 60 fps, governor 0, 0.81 ms frame CPU, 86 draw calls, 709 k triangles |
+  | dpr 2, capped                          | 59 to 60 fps, governor 1                                              | 60 fps, governor 1                                                    |
+  | dpr 1, uncapped                        | 182 to 189 fps (about 5.4 ms a frame)                                 | 125 to 131 fps (about 7.8 ms a frame)                                 |
+  | dpr 2, uncapped                        | 48 to 53 fps (about 20 ms a frame)                                    | 40 to 41 fps (about 25 ms a frame)                                    |
+  | Load to "Enter the kitchen", high tier | 902 ms                                                                | 1,031 ms                                                              |
+  | Load to "Enter the kitchen", low tier  | 897 ms                                                                | 962 ms                                                                |
+
+  Load times are medians of 15 loads of each production build, served by `vite preview` and alternated.
+  Under load from other processes both builds stepped the governor further down at dpr 2 (to level 4 in the same noisy run), and once the after build settled at level 2 at dpr 1 where the before build settled at 1; on a quiet machine both hold level 0 at dpr 1 and level 1 at dpr 2.
+  The uncapped frame costs about 2.4 ms more of GPU time at dpr 1, within the direction's "no worse than a third slower"; the 5.5 times as many triangles are not where it goes (toggling the shadows, the textures and the probe accounted for most of it), and the draw calls rose by ten: five new layers and the cooks' buttons and aprons, with their shadow passes.
+
+- **Texture filtering stays at 8x anisotropy**: 4x measured no faster (125 against 131 fps uncapped, within the noise), so the sharper filtering of the floor down the aisle stays.

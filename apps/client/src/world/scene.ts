@@ -25,6 +25,8 @@ import { QualityGovernor, RENDER_LEVELS } from './governor.ts';
 import type { PostProcessing } from './post.ts';
 import { OutsideView } from './outside.ts';
 import { buildStationProps } from './props.ts';
+import { ReflectionProbe } from './reflections.ts';
+import { dressKitchen } from './surfaces/dress.ts';
 import { lookAt, pinnedHour, visitorHour } from './timeOfDay.ts';
 import { assignShadowDepthMaterials } from './shadowDepth.ts';
 import { Stations } from './stations.ts';
@@ -52,6 +54,8 @@ export class WorldScene {
   /** The cold room behind it, only drawn when something of it can be seen. */
   private coolerRoom: Object3D | null = null;
   private readonly lighting: Lighting;
+  /** The kitchen photographed for its own reflections. High quality only. */
+  private readonly probe: ReflectionProbe | null;
   /** Ambient occlusion, bloom, tone mapping and the grade. High quality only. */
   private post: PostProcessing | null = null;
   /** Steps the high tier's cost down when the GPU falls behind; see governor.ts. */
@@ -92,7 +96,8 @@ export class WorldScene {
 
     // The sky outside covers every opening; this is the night above it, should a seam ever show.
     this.scene.background = new Color('#151f38');
-    this.lighting = createLighting(this.scene, this.renderer, quality);
+    this.probe = high ? new ReflectionProbe(this.renderer) : null;
+    this.lighting = createLighting(this.scene, quality, this.probe?.texture ?? null);
     this.viewmodel.matchLighting(high, this.scene.environment, this.scene.environmentIntensity);
 
     const hour = visitorHour(new Date(), location.search);
@@ -114,8 +119,11 @@ export class WorldScene {
     buildKitchen(kit);
     buildStationProps(kit);
     buildComputerDesk(kit);
+    // The high tier paints its surfaces and reflects the room; the low tier stays plain paint.
+    if (this.probe) dressKitchen(kit.materials, this.renderer, this.probe.texture);
     this.computer = new ComputerScreen(high);
     this.cooler = new CoolerDoor(high);
+    if (this.probe) this.cooler.reflect(this.probe.texture);
 
     this.stations = new Stations(content, dishes, high);
     const kitchen = kit.builder.build();
@@ -226,6 +234,8 @@ export class WorldScene {
     await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
     this.outside.showForCompile(false);
     this.showCooler();
+    // With every shader ready, photograph the room for its reflections, as the visitor will see it.
+    this.probe?.capture(this.scene);
   }
 
   /**
@@ -271,6 +281,7 @@ export class WorldScene {
       const look = lookAt(hour);
       this.outside.repaint(look);
       this.lighting.applyLook(look);
+      this.probe?.capture(this.scene);
     };
     if ('requestIdleCallback' in window) requestIdleCallback(repaint, { timeout: 2000 });
     else setTimeout(repaint, 0);

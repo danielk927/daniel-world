@@ -48,16 +48,27 @@ export const COOLER_LAMPS = {
 export function buildCooler(kit: Kit): void {
   const { from, to, height } = DOORWAY;
   // A heavy steel frame on the kitchen face, and linings through the wall's thickness.
-  kit.box('steel', FACE - CASING_DEPTH, FACE, 0, height + CASING, from - CASING, from);
-  kit.box('steel', FACE - CASING_DEPTH, FACE, 0, height + CASING, to, to + CASING);
-  kit.box('steel', FACE - CASING_DEPTH, FACE, height, height + CASING, from, to);
+  const casing = (minZ: number, maxZ: number, minY: number, maxY: number): void =>
+    kit.rounded(
+      'steel',
+      FACE - CASING_DEPTH / 2,
+      (minY + maxY) / 2,
+      (minZ + maxZ) / 2,
+      CASING_DEPTH,
+      maxY - minY,
+      maxZ - minZ,
+      0.008,
+    );
+  casing(from - CASING, from, 0, height + CASING);
+  casing(to, to + CASING, 0, height + CASING);
+  casing(from, to, height, height + CASING);
   kit.box('steel', FACE, COOLER.minX, 0, height, from - 0.01, from);
   kit.box('steel', FACE, COOLER.minX, height, height + 0.01, from, to);
   kit.box('steel', FACE, COOLER.minX, 0, height, to, to + 0.01);
   kit.box('steel', FACE - CASING_DEPTH, COOLER.minX, 0, 0.012, from, to);
   // The temperature controller on the wall beside the door; CoolerDoor draws its readout.
   const r = READOUT;
-  kit.box('iron', FACE - 0.05, FACE, r.y - 0.06, r.y + 0.06, r.z - 0.11, r.z + 0.11);
+  kit.rounded('gloss', FACE - 0.025, r.y, r.z, 0.05, 0.12, 0.22, 0.008, '#2a2b2c', { finish: 2.5 });
   buildRoom(kit);
 }
 
