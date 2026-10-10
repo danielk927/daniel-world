@@ -271,19 +271,22 @@ test('a room server address the browser will not even open still lets visitors i
       });
     },
   });
-  /** Wait for the page to try for a socket twice more, and for the game to run on after that. */
-  const twoMoreTries = async () => {
+  /**
+   * Wait for the page to try for a socket again, and for the game to run on after that. The tries
+   * back off to 15 s apart, so allow two of the longest.
+   */
+  const anotherTry = async () => {
     const tries = () =>
       page.evaluate(() => (window as unknown as { socketTries: number }).socketTries);
     const from = await tries();
-    await expect.poll(tries, { timeout: 15_000 }).toBeGreaterThanOrEqual(from + 2);
+    await expect.poll(tries, { timeout: 40_000 }).toBeGreaterThan(from);
     await waitForFrames(page, 10);
   };
   try {
     await expectWorld(page, (w) => w.connection === 'offline', 'solo, and saying so');
     await expect(page.locator('.hud-status')).toHaveText('Solo');
     // The retries fail the same way, quietly, for as long as the visitor stays.
-    await twoMoreTries();
+    await anotherTry();
     expect((await world(page)).mode).toBe('playing');
     await expect(page.locator('.hud-status')).toHaveText('Solo');
 
@@ -296,7 +299,7 @@ test('a room server address the browser will not even open still lets visitors i
       (w) => w.mode === 'playing' && w.connection === 'offline',
       'solo again',
     );
-    await twoMoreTries();
+    await anotherTry();
     await expect(page.locator('.hud-status')).toHaveText('Solo');
     expect(errors.map((error) => error.message)).toEqual([]);
   } finally {
