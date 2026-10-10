@@ -580,3 +580,143 @@ Judgment calls made during the unattended build, with reasons.
   The governor now steps between levels that look different on the screen at hand, always lands on the best of its kind, and never climbs back to one that draws like a level that fell behind.
 - **The screen's ratio is followed, not taken once.** Browser zoom and moving the window to a screen of another ratio change it; the canvas used to keep the old one (blurry on a retina screen, or four times the pixels after leaving one, which stepped quality down and saved that). Now every resize applies it, a media query catches a move that does not resize the window, and the governor judges afresh there.
 - **The string lights' shader compiles while loading**, by showing the bulbs for the compile: shown only toward dusk, a visitor arriving by day compiled it mid-play when they came on.
+
+### The room server after review (2026-10-09)
+
+- **A player's inputs must come numbered one after another, and a connection sending one that is not is ended** (close code 4006).
+  The cooldowns, the walk-in's door and the knife's spread all go by sequence numbers, and the only rule had been that they rise: inputs 42 apart threw on every input, 60 knives a second, burst the door in ten ticks, and picked whatever spread the sender liked.
+  The client numbers every tick it simulates and sends every one while online (in the menu, at the computer and knocked out too); catch-up ticks it drops are never numbered, and its count runs on through solo play, reconnects and room moves, so the first input on a connection may start anywhere.
+  A WebSocket keeps order, so an honest client's numbers never skip or repeat; the one way it could lose an input was the server's own rate limit.
+- **So the message limit now lets a stalled connection's burst through: 6 s of inputs at once** (360 messages, was 120), since a client waits up to 5 s on a silent server before reconnecting and sends everything it simulated meanwhile.
+  Before, a stall of 3 s had an honest client kicked as a flooder; with numbered inputs, losing one would end the connection instead.
+  It refills at 66 a second (was 90), just over the one input a tick and the ping a second a client sends, so a client sending inputs faster than there are ticks, to count its cooldowns down sooner, gains at most a tenth, and is cut off once its burst runs out.
+- **The cooldowns stay counted in sequence numbers, not in inputs the server simulated.**
+  Numbered one after another, the two differ only where the server drops inputs (its queue keeps the newest 0.4 s), which happens to honest clients after any network hiccup; counting simulated inputs would then refuse throws their screens had already drawn, to win back only the tenth the rate limit allows.
+- **Skipping ahead can no longer pick a knife's spread.**
+  A sender can still wait for an input whose spread they like, or aim against it, which the spread's own decision accepted: anyone who would can already aim with devtools.
+  The first input of a connection can start anywhere, so rejoining picks one throw's spread, and rejoining starts the cooldowns afresh, as it always has; both cost a rejoin the whole room sees.
+- **Behind CloudFront a client's address is the last entry of `X-Forwarded-For`, not the first.**
+  CloudFront appends the address it got the request from to whatever the viewer sent (AWS, "Request and response behavior for custom origins", Client IP addresses), so the first entry is the visitor's to write, and the 20 connections per address capped nothing.
+  Only CloudFront can reach the instance (its security group admits CloudFront's origin-facing prefix list alone) and nothing sits between them, so the last entry is always the address CloudFront saw.
+  `CloudFront-Viewer-Address` was the alternative, but it depends on the origin request policy forwarding it (AllViewerExceptHostHeader is documented to include the viewer location headers, without listing them), its port has to be parsed off IPv6 addresses, and AWS does not say whether a viewer's own copy is replaced; the appended entry is documented plainly.
+  Addresses are counted whole, so an IPv6 visitor could still spread sockets across their /64; capping per prefix is left until it is needed.
+- **Every socket gets its error listener first**, before the origin check or the connection cap can turn it away.
+  An oversized frame from a socket being turned away emitted an error nobody listened for, which Node throws, and the server process exited.
+  Turned-away sockets are also terminated after a second, like dropped ones, so sockets refused for being too many cannot pile up in their close handshakes.
+- **No catch-all for uncaught exceptions.**
+  Node's documentation says a process is not safe to resume after one, and a message handled halfway can leave a ghost cook in a room that then never empties; systemd restarts the server in 2 s and the stack lands in the log, which is the better failure.
+  The one known source, socket errors, is now always handled.
+- **The first knife to reach a cook on a tick knocks them out, and any other flies on through them**, sticking wherever it ends.
+  Both used to count as hits, the room dropped the second because its victim was already down, and that knife ended with no word: screens left it where their own flight had put it after 2 s, or nowhere.
+  "First" is the first thrown, not the first to arrive within the 17 ms tick: it is deterministic, and the rewind to what each thrower saw blurs arrival that finely anyway.
+- **On every screen, a knife the server says stuck flies through everyone**, since on the server it hit nobody.
+  One that had already gone into a cook drawn in its way (the thrower's own screen gets there before the word) comes back out and flies on, instead of hanging inside them and then jumping to where it stuck.
+  This also mends knives thrown through a cook still protected after respawning, which screens do not know about.
+- **Changes of prefs have their own allowance, 8 at once and 2 a second**, and past it the newest waits its turn, replacing any before it.
+  Each change goes to everyone in the room; dropping the extras would have been simpler, but the client does not send a change twice, so a visitor clicking quickly through the knives would have left the room showing one they had passed.
+- **A hello's spawn hint is bounded to a million radians of turn**, like an input: a hint turned 1.7e308 reached the welcome and every snapshot as a yaw of -2e292.
+  Its position needs no bound, being clamped to the play area, and the other open numbers (an input's view tick, ping ids) are clamped or only echoed back.
+- **The lobby's room over HTTP is 15 visitors with Chef Skinner** (16 without him), since he takes one of its places; the landing reads only the count.
+- None of this changes what an honest client sends or reads, so the protocol stays at version 8.
+
+### A late heartbeat judges nobody (2026-10-09)
+
+- **When the server's heartbeat comes late, the process itself was held up, and it only pings.** Node runs timers before it reads sockets, so after a pause of a few heartbeats (a long garbage collection, a busy host) the overdue beat found every pong that came meanwhile still unread, and dropped clients that had answered in time.
+  `server.test.ts` holds the process for 700 ms while a pong is on its way, and the connection stays; one that stops answering is still dropped at the next beat on time.
+- Found chasing an E2E run on a heavily loaded machine that went "Offline, playing solo" mid-test with nothing in the room's log; a stalled test process, which runs the room server in-process, fits it, though that one run could not be reproduced.
+
+### A safer AWS stack and dev scripts that clean up (2026-10-09)
+
+From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call was made, so the stack was checked by local synth (dummy account, no credentials) and template tests only.
+
+- **A server deploy waits for the new instance to answer its health check.**
+  The instance has a CreationPolicy (one signal within 10 minutes; CloudFormation's documented default count is 1, so only the timeout is set).
+  The boot script signals from its exit trap with its own exit code, and its last step waits up to 60 s for `/ws/health` on the instance, through the prefix CloudFront forwards.
+  A failing step or a hang rolls the deploy back and the old instance keeps serving; before, a failed boot still ended `UPDATE_COMPLETE` with the old instance deleted.
+  `cfn-signal` needs no credentials (CloudFormation checks the instance belongs to the stack); the helper scripts are documented as preinstalled on Amazon Linux AMIs, and the boot installs `aws-cfn-bootstrap` anyway.
+  The shell flow was run locally against the real server bundle, with `cfn-signal` stubbed: success signals 0 only once `/ws/health` answers, a failing step signals 1 and names itself in the log, a server that never answers signals 124.
+- **The boot log ships to CloudWatch before any step that can fail** (stream `<instance id>-boot`), and a failed boot waits 15 s before signalling.
+  `cfn-signal --reason` only works for wait condition handles, so the stack event cannot say which step failed, and the rollback deletes the instance with its local log.
+  Not verified on AWS: that the agent reads `cloud-init-output.log` from its start and ships it within those 15 s.
+- **The instance and its Elastic IP depend on the public subnet's route to the internet gateway.**
+  In a new stack the instance could otherwise boot before its route existed, which used to fail silently and would now fail the deploy.
+  CloudFormation's EIP docs ask for a dependency on the gateway attachment; CDK's VPC-wide dependable is only the gateway, while the subnet's default route depends on the attachment.
+- **The AMI is looked up once and kept in `infra/cdk.context.json`** (`cachedInContext`), which git now tracks; it was gitignored, so the availability zone and prefix list lookups lived only on Daniel's machine too.
+  Before, CloudFormation resolved the AMI's SSM parameter on every deploy, so the first deploy after an Amazon Linux release replaced the instance and dropped every room, whatever the deploy was for.
+  Considered: `resolveSsmParameterAtLaunch` (the newest AMI whenever an instance launches, never a replacement on its own), which patches the OS on every server deploy but keeps the AMI out of the template and `cdk diff`; and a hand-pinned AMI per region, which needs a lookup anyway.
+  A recorded lookup keeps synth reproducible, as the CDK guidance asks, and moving on is a deliberate `cdk context --reset` (README).
+  No entry is committed: a lookup needs credentials, so the first deploy writes it and Daniel commits the file.
+  AL2023 locks its package repository to the AMI's release, so packages stay as they were until the AMI is refreshed; monthly is suggested.
+- **CloudFront reaches the room server by an Elastic IP's public DNS name.**
+  An instance's own public IP, and the name made from it, change on every stop and start, AWS maintenance included, which left the origin pointing nowhere until the next deploy.
+  CloudFormation has no DNS name attribute for an Elastic IP, so it is built from `PublicIp`: `ec2-a-b-c-d.compute-1.amazonaws.com` in us-east-1, `ec2-a-b-c-d.<region>.compute.amazonaws.com` elsewhere.
+  EC2's docs give the regional form and say a public DNS name resolves to the public address, Elastic IP included, from outside the VPC; the us-east-1 form comes from AWS's examples and from how the Terraform AWS provider derives `aws_eip.public_dns`, not from one stated rule, so `dig +short` the new `ServerOrigin` output once after the first deploy (it should print the Elastic IP).
+  `AWS::EC2::EIP`'s `InstanceId` updates without replacement (it reassociates), so a server deploy moves the address only once the new instance has signalled, and the origin itself never changes.
+  The instance still gets its own public IP at launch, for its boot downloads with no NAT gateway; EC2 releases it when the Elastic IP is associated, so the cost stays one public IPv4.
+  Considered: CloudFront VPC origins, with no public address at all, which would need private egress (NAT or endpoints) for the boot.
+- **The instance role reads only its bundle's object** (`s3:GetObject` on that key), instead of `Asset.grantRead`'s read and list on the whole CDK assets bucket.
+  `aws s3 cp` makes a HeadObject first, which `s3:GetObject` covers; the default bootstrap key policy lets account principals decrypt through S3, so no KMS grant is needed (the old grant had none either).
+- **The site goes up in two uploads.**
+  `assets/`, where Vite puts everything it names by content (chunks, the computer's worker, the DOOM ELF and WAD, fonts, images), is cached `public, max-age=31536000, immutable` and never pruned, so a tab opened before a deploy can still lazy-load its own build instead of getting 403s.
+  The pages and the favicon go up after it, with `no-cache` (CloudFront keeps them for the cache policy's 1 s minimum TTL; browsers revalidate each load), pruned except for `assets/*` (a BucketDeployment `exclude` also spares files from pruning), and with the `/*` invalidation.
+  Old hashed files pile up, a few MB per build that changes them; removing the old single deployment deletes nothing, since `retainOnDelete` defaults to true.
+- **The server log on the instance is bounded by size**: rotated daily, or once past 50 MB, keeping seven compressed copies.
+  logrotate runs from `logrotate.timer` on AL2023, daily by default, so a drop-in makes it hourly for `maxsize` to act in time, and the boot enables the timer outright (an Amazon Linux maintainer says it is on in their AMIs; enabling it again is harmless).
+  logrotate was not available here to dry-run the file; the directives are standard (`maxsize` since 3.8.1).
+  The log group already kept two weeks; a flood still costs CloudWatch ingestion, and limiting what the server logs belongs in `apps/server`.
+- **Bots never take a room's last seat.**
+  `npm run bots -- --count 15` in the lobby made 16 with Chef Skinner, and the developer's own browser got `room_full`, while `/rooms/lobby` said 15 of 16.
+  The bots read `/rooms/<code>` (lobby only) for a first count, then join one at a time and stop when the welcome's player list reaches one short of `MAX_PLAYERS_PER_ROOM`; a bot whose join fills the room leaves again, and a refused join gives one seat back.
+  That holds whether `/rooms` counts Chef Skinner's seat in `max` or not; the room server's review now leaves it out (15 with him in), and the bots were checked against the version that counted it.
+  They number their inputs one after another, as the server now requires: skipping ahead after a stall moves their clock, not their count.
+  `--count` defaults to and stops at 15, one room's worth less a seat; the old cap of 64 predates the 16 player rooms and the 20 sockets per address.
+- **Bots keep time in seconds at the 60 Hz tick.**
+  Their odds were per tick from the 20 Hz days, so at 60 Hz they threw a knife about every 2 s (said 2 to 6), changed their minds every 0.3 to 1 s (said 1 to 3), and jumped and chatted three times as often.
+  They also sent inputs off a timer that drifts (59.4 a second, measured from the server's acks); now each sends one input per tick of time gone by, 60.0 measured, and skips ahead rather than bursting after a stall.
+- **The screenshots' own server has Chef Skinner in**, as the live site and `npm run dev` have him, so the lobby shots no longer depend on whether a dev server was already up (the committed ones were taken without him).
+  He leaves newcomers alone for 8 s and anyone standing still, so he never knocks out the visitor in a shot.
+  If the caged chef design is built, he will be in the walk-in in these shots too, as on the live site.
+- **perf and screenshots stop what they start, however they end** (`scripts/processes.ts`).
+  Vite and the bots were spawned before the `try`, so a failure (a port in use, a timeout, Chromium not launching) left them running, and the next run quietly reused a Vite built for another server; reproduced with a port that accepts and never answers, which left Vite on its port.
+  Children now start inside the `try`, Vite directly rather than through npm, each in a process group of its own, and the whole groups are stopped on finishing, on an error, and on Ctrl+C (which no longer reaches them by itself, so the script passes it on and exits 130).
+
+### The client game after review (2026-10-09)
+
+- **A connection that goes quiet goes solo at once.**
+  Four seconds without a message used to ask the socket to close and wait for its close event, which on a network that drops packets silently waits out the closing handshake, up to a minute in Chromium: all that time the HUD said Online, chat went nowhere without a word, and solo play never started.
+  Now the socket is given up on the spot (offline, the next attempt on its way) and told to close in the background, and nothing it says after that is heard; a socket the server never welcomes goes the same way.
+  `offline.spec.ts` reproduces it with a TCP relay that can go quiet like a dead network, passing nothing either way and closing nothing.
+- **A ping that comes late judges no silence**, as the server's heartbeat does since "A late heartbeat judges nobody": the page itself was held up (a long frame, a hidden tab, a collection), and what the server sent meanwhile may still be queued behind the timer.
+  Over a second late, the silence starts over and is judged on the next run on time, so a network gone quiet is still found within about five seconds.
+- **A connection never calls its owner from inside its own constructor.**
+  When the browser would not make the socket at all (a ws:// address on an https page, a malformed one), it reported offline before the game had it, which threw out of entering the world and left the connection retrying forever with nobody holding it; each entry added another.
+  The failure now comes a microtask later, as a refused socket's would.
+- **Only the answer to the hello the visitor asked for is final.**
+  Turned away later, by a room that filled while the server was away, the cook stays in the kitchen solo, retrying, and the chat says why once, instead of being thrown back to the landing against the spec's offline mode.
+  This counts a first attempt that failed too: a cook who entered while the server was down is already cooking solo.
+  Reconnects carry no intent (see "Private parties"), so in practice only a full room can turn one away, but taken and empty rooms are treated the same should they ever.
+  The server answered, so the menu still offers parties then rather than calling it unreachable.
+- **A new connection sends no view with its inputs until its own snapshots set the clock**; the reused input carried the last session's, so after a reconnect or a room move the server checked the first knives against a meaningless past.
+- **The arm and the labels show by one rule each**, applied wherever play changes, rather than decided again at every call: the arm only while playing or chatting on one's feet, the labels and name tags only while in the world on one's feet.
+  The respawn arriving under the menu had brought the arm up behind it, and closing the menu or a panel while still down had put the labels over the knockout card.
+- **Nothing is picked while knocked out, and E does nothing then.**
+  A cook on the floor could still open a station they saw from there, over the knockout card; being down is a few seconds of watching, like the computer, which it already refused.
+- **The pause menu and the station panel take focus themselves when clicked** (`tabindex="-1"`), and the panel's dark side catches clicks instead of passing them to the world, so Esc still closes either after a click on its words or the dark beside it.
+  The review said the panel was safe; it was not: a click on its title, or on the kitchen beside it, lost Esc just the same.
+  The focus trap now counts only what Tab can reach, so Shift+Tab from the menu's words or from a tab past the first no longer leaves it.
+- **Leaving the window or the tab at the computer steps away from it**, rather than only releasing DOOM's keys.
+  Under pointer lock that already happened, since the browser takes the mouse back; without it, a key held into DOOM stayed held with its release gone to another window, the marine kept going, and the next real press of it was taken for a repeat.
+  Stepping away also pauses DOOM, so nothing kills the marine while the visitor is elsewhere.
+- **Auto-repeat at the computer goes nowhere**: DOOM keeps track of held keys itself, and the E that sat the cook down, still held, used and put the controls away before the first real key.
+- **DOOM fires on the left click only, and strafes on A and D only.**
+  This replaces "Ctrl and the left button fire" from the kitchen computer's decisions (2026-10-07).
+  A page cannot cancel Chrome's own shortcuts (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+PageUp and Ctrl+PageDown, and their Shift forms), even under pointer lock, so holding Ctrl to fire while walking on W closed the tab, and firing while opening the map on Tab switched tabs.
+  Checking every held modifier found Alt, DOOM's strafe, as bad: with Tab, Space, F4 or Esc it makes the window shortcuts Windows and Linux desktops keep (switch, window menu, close).
+  Shift, DOOM's run, makes none with DOOM's keys alone, so it stays; `keys.test.ts` checks no such shortcut can be made from them.
+- **A crash after boot shows the standby screen and says so** ("The kitchen computer crashed. Step away and sit down again to restart it."); the machine had no boot left to reject, so the cook sat at a frozen frame with every key going nowhere.
+  It does not restart by itself, since a crash that comes again would loop; sitting down again boots it afresh.
+- **A kitchen that fails to load shows the landing's way into the portfolio**, saying so and suggesting a reload, the same path as no WebGL, instead of a loading screen up forever; it covers a code chunk gone in a deploy that landed mid-load and a renderer that will not start after the probe said it could, and logs the error.
+- **A knockout is said to screen readers once**, from a region always in the page: who did it, when the cook is back up, and any advice.
+  It stays assertive, being said once and about the visitor themselves.
+  The card itself is hidden from them, since its countdown, rewritten five times a second, was read out at every tick.
+- The debug state gained `arm`, `labels` and `computer.keys` (the keys DOOM has been told are held), for the tests above.

@@ -21,10 +21,17 @@ export interface WorldDebugState {
   readonly inspectTime: number | null;
   /** Mid-punch with the bare hand. */
   readonly punching: boolean;
-  /** The kitchen computer: its machine's state, and how many DOOM frames it has shown. */
-  readonly computer: { state: string; frames: number };
+  /**
+   * The kitchen computer: its machine's state, how many DOOM frames it has shown, and how many keys
+   * DOOM has been told are held down.
+   */
+  readonly computer: { state: string; frames: number; keys: number };
   /** Knocked out by a knife, waiting to respawn. */
   readonly knockedOut: boolean;
+  /** The arm is on screen: in the world, standing, and no menu or panel over it. */
+  readonly arm: boolean;
+  /** Station labels and name tags show over the world, uncovered by a menu, panel or knockout. */
+  readonly labels: boolean;
   /** The knife this player carries, as the hand on screen holds it. */
   readonly knife: { skin: string; finish: string };
   /**
@@ -112,10 +119,16 @@ export function installDebugHooks(game: Game, world: WorldScene, fps: () => numb
       return world.viewmodel.punching;
     },
     get computer() {
-      return { state: game.desk.state, frames: game.desk.frames };
+      return { state: game.desk.state, frames: game.desk.frames, keys: game.desk.keysHeld };
     },
     get knockedOut() {
       return game.knockedOut;
+    },
+    get arm() {
+      return world.viewmodel.isShown;
+    },
+    get labels() {
+      return game.labelsShown;
     },
     get knife() {
       const { skin, finish } = world.viewmodel.look;

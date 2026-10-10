@@ -58,6 +58,7 @@ export class KitchenComputer {
   private pauseAfterBoot = false;
   private frameCallback: ((screen: DoomScreen) => void) | null = null;
   private consoleCallback: ((line: string) => void) | null = null;
+  private crashCallback: ((message: string) => void) | null = null;
   /** Codes held down, to drop auto-repeat; and how many hold each DOOM key (W and Up are one). */
   private readonly held = new Set<string>();
   private readonly holding = new Uint8Array(256);
@@ -80,6 +81,11 @@ export class KitchenComputer {
   /** Which engine the machine runs on, once booted: the JIT, or the interpreter under a strict CSP. */
   get engine(): Engine | null {
     return this.engineInUse;
+  }
+
+  /** How many keys DOOM has been told are held down. */
+  get keysHeld(): number {
+    return this.held.size;
   }
 
   /** Why the machine failed, when it did. */
@@ -170,6 +176,14 @@ export class KitchenComputer {
     this.consoleCallback = callback;
   }
 
+  /**
+   * The machine stopped after it had started, saying why (a guest fault or trap, the worker
+   * dying). A boot that fails rejects powerOn() instead. The next powerOn() boots afresh.
+   */
+  onCrash(callback: (message: string) => void): void {
+    this.crashCallback = callback;
+  }
+
   dispose(): void {
     this.worker?.terminate();
     this.worker = null;
@@ -241,14 +255,19 @@ export class KitchenComputer {
   }
 
   private fail(message: string): void {
+    const boot = this.settleBoot;
     this.failure = message;
     this.worker?.terminate();
     this.worker = null;
     this.currentState = 'failed';
-    this.settleBoot?.reject(new Error(message));
+    this.held.clear();
+    this.holding.fill(0);
     this.settleBoot = null;
     this.booting = null;
     this.pauseAfterBoot = false;
+    // A boot has its promise to reject; after it, nothing would hear of the failure but this.
+    if (boot) boot.reject(new Error(message));
+    else this.crashCallback?.(message);
   }
 
   private post(message: ToWorker): void {

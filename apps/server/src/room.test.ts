@@ -111,16 +111,23 @@ describe('Room', () => {
     expect(p.state.grounded).toBe(true);
   });
 
-  it('ignores duplicate and out-of-order inputs', () => {
+  it('takes inputs only numbered one after another, from wherever the first starts', () => {
     const { room, join } = makeRoom();
     const p = join();
-    room.enqueueInput(p, { seq: 5, keys: 0, yaw: 0, pitch: 0 });
-    room.enqueueInput(p, { seq: 5, keys: Keys.Forward, yaw: 0, pitch: 0 });
-    room.enqueueInput(p, { seq: 3, keys: Keys.Forward, yaw: 0, pitch: 0 });
+    const input = (seq: number) => ({ seq, keys: Keys.Forward, yaw: 0, pitch: 0 });
+    expect(room.enqueueInput(p, input(5))).toBe(true);
+    // Again, back, or skipping ahead: refused.
+    expect(room.enqueueInput(p, input(5))).toBe(false);
+    expect(room.enqueueInput(p, input(3))).toBe(false);
+    expect(room.enqueueInput(p, input(7))).toBe(false);
     expect(p.queue.map((q) => q.seq)).toEqual([5]);
     room.step();
-    room.enqueueInput(p, { seq: 4, keys: Keys.Forward, yaw: 0, pitch: 0 });
-    expect(p.queue).toHaveLength(0);
+    expect(room.enqueueInput(p, input(4))).toBe(false);
+    expect(room.enqueueInput(p, input(6))).toBe(true);
+    // Inputs the queue drops still count: the next is the one after the newest received.
+    for (let seq = 7; seq < 7 + MAX_QUEUED_INPUTS * 2; seq++) room.enqueueInput(p, input(seq));
+    expect(p.received).toBe(6 + MAX_QUEUED_INPUTS * 2);
+    expect(room.enqueueInput(p, input(7 + MAX_QUEUED_INPUTS * 2))).toBe(true);
   });
 
   it('simulates bit-identically to a client running the shared sim on the same inputs', () => {

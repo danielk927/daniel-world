@@ -93,6 +93,8 @@ export class RoomKnives {
   /** Scratch targets, reused across ticks, and the ones one knife can hit. */
   private readonly pool: { id: number; x: number; y: number; z: number }[] = [];
   private readonly targets: KnifeTarget[] = [];
+  /** Who a knife has hit this step, so no other knife can hit them again. */
+  private readonly struck: number[] = [];
 
   /** Start a knife's flight. Returns its id. `rewind` is clamped to what the server allows. */
   launch(thrower: Cook & { readonly id: number }, state: KnifeState, rewind: number): number {
@@ -115,10 +117,13 @@ export class RoomKnives {
   /**
    * Fly every knife one tick. `candidates` are the players who can be hit right now; each knife is
    * checked against where its thrower saw them. Knives that land or hit someone are reported.
-   * `coolerOpen`: the walk-in's doorway lets knives through.
+   * A player is hit once: the first knife (the first thrown) to reach them this tick knocks them
+   * out, and any other flies on through them, as it would through anyone already down, so every
+   * knife still ends with a verdict. `coolerOpen`: the walk-in's doorway lets knives through.
    */
   step(tick: number, candidates: readonly KnifeCandidate[], coolerOpen = false): KnifeEvent[] {
     const events: KnifeEvent[] = [];
+    this.struck.length = 0;
     for (let i = 0; i < this.flying.length; i++) {
       const knife = this.flying[i]!;
       const impact = flyKnife(
@@ -129,6 +134,7 @@ export class RoomKnives {
         coolerOpen,
       );
       if (impact) {
+        if (impact.kind === 'player') this.struck.push(impact.id);
         events.push(this.land(knife, impact));
       } else if (knife.state.t < KNIFE_MAX_FLIGHT_SECONDS) {
         continue;
@@ -139,7 +145,10 @@ export class RoomKnives {
     return events;
   }
 
-  /** Who `knife` can hit, where its thrower saw them; never someone it spares (`chefSpares`). */
+  /**
+   * Who `knife` can hit, where its thrower saw them; never someone it spares (`chefSpares`), nor
+   * someone another knife hit this step.
+   */
   private targetsFor(
     knife: Flying,
     tick: number,
@@ -148,7 +157,7 @@ export class RoomKnives {
     const { pool, targets } = this;
     targets.length = 0;
     for (const candidate of candidates) {
-      if (chefSpares(knife.thrower, candidate)) continue;
+      if (chefSpares(knife.thrower, candidate) || this.struck.includes(candidate.id)) continue;
       if (pool.length === targets.length) pool.push({ id: 0, x: 0, y: 0, z: 0 });
       const target = pool[targets.length]!;
       target.id = candidate.id;
