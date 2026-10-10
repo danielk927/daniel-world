@@ -679,3 +679,44 @@ From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call w
 - **perf and screenshots stop what they start, however they end** (`scripts/processes.ts`).
   Vite and the bots were spawned before the `try`, so a failure (a port in use, a timeout, Chromium not launching) left them running, and the next run quietly reused a Vite built for another server; reproduced with a port that accepts and never answers, which left Vite on its port.
   Children now start inside the `try`, Vite directly rather than through npm, each in a process group of its own, and the whole groups are stopped on finishing, on an error, and on Ctrl+C (which no longer reaches them by itself, so the script passes it on and exits 130).
+
+### The client game after review (2026-10-09)
+
+- **A connection that goes quiet goes solo at once.**
+  Four seconds without a message used to ask the socket to close and wait for its close event, which on a network that drops packets silently waits out the closing handshake, up to a minute in Chromium: all that time the HUD said Online, chat went nowhere without a word, and solo play never started.
+  Now the socket is given up on the spot (offline, the next attempt on its way) and told to close in the background, and nothing it says after that is heard; a socket the server never welcomes goes the same way.
+  `offline.spec.ts` reproduces it with a TCP relay that can go quiet like a dead network, passing nothing either way and closing nothing.
+- **A ping that comes late judges no silence**, as the server's heartbeat does since "A late heartbeat judges nobody": the page itself was held up (a long frame, a hidden tab, a collection), and what the server sent meanwhile may still be queued behind the timer.
+  Over a second late, the silence starts over and is judged on the next run on time, so a network gone quiet is still found within about five seconds.
+- **A connection never calls its owner from inside its own constructor.**
+  When the browser would not make the socket at all (a ws:// address on an https page, a malformed one), it reported offline before the game had it, which threw out of entering the world and left the connection retrying forever with nobody holding it; each entry added another.
+  The failure now comes a microtask later, as a refused socket's would.
+- **Only the answer to the hello the visitor asked for is final.**
+  Turned away later, by a room that filled while the server was away, the cook stays in the kitchen solo, retrying, and the chat says why once, instead of being thrown back to the landing against the spec's offline mode.
+  This counts a first attempt that failed too: a cook who entered while the server was down is already cooking solo.
+  Reconnects carry no intent (see "Private parties"), so in practice only a full room can turn one away, but taken and empty rooms are treated the same should they ever.
+  The server answered, so the menu still offers parties then rather than calling it unreachable.
+- **A new connection sends no view with its inputs until its own snapshots set the clock**; the reused input carried the last session's, so after a reconnect or a room move the server checked the first knives against a meaningless past.
+- **The arm and the labels show by one rule each**, applied wherever play changes, rather than decided again at every call: the arm only while playing or chatting on one's feet, the labels and name tags only while in the world on one's feet.
+  The respawn arriving under the menu had brought the arm up behind it, and closing the menu or a panel while still down had put the labels over the knockout card.
+- **Nothing is picked while knocked out, and E does nothing then.**
+  A cook on the floor could still open a station they saw from there, over the knockout card; being down is a few seconds of watching, like the computer, which it already refused.
+- **The pause menu and the station panel take focus themselves when clicked** (`tabindex="-1"`), and the panel's dark side catches clicks instead of passing them to the world, so Esc still closes either after a click on its words or the dark beside it.
+  The review said the panel was safe; it was not: a click on its title, or on the kitchen beside it, lost Esc just the same.
+  The focus trap now counts only what Tab can reach, so Shift+Tab from the menu's words or from a tab past the first no longer leaves it.
+- **Leaving the window or the tab at the computer steps away from it**, rather than only releasing DOOM's keys.
+  Under pointer lock that already happened, since the browser takes the mouse back; without it, a key held into DOOM stayed held with its release gone to another window, the marine kept going, and the next real press of it was taken for a repeat.
+  Stepping away also pauses DOOM, so nothing kills the marine while the visitor is elsewhere.
+- **Auto-repeat at the computer goes nowhere**: DOOM keeps track of held keys itself, and the E that sat the cook down, still held, used and put the controls away before the first real key.
+- **DOOM fires on the left click only, and strafes on A and D only.**
+  This replaces "Ctrl and the left button fire" from the kitchen computer's decisions (2026-10-07).
+  A page cannot cancel Chrome's own shortcuts (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+PageUp and Ctrl+PageDown, and their Shift forms), even under pointer lock, so holding Ctrl to fire while walking on W closed the tab, and firing while opening the map on Tab switched tabs.
+  Checking every held modifier found Alt, DOOM's strafe, as bad: with Tab, Space, F4 or Esc it makes the window shortcuts Windows and Linux desktops keep (switch, window menu, close).
+  Shift, DOOM's run, makes none with DOOM's keys alone, so it stays; `keys.test.ts` checks no such shortcut can be made from them.
+- **A crash after boot shows the standby screen and says so** ("The kitchen computer crashed. Step away and sit down again to restart it."); the machine had no boot left to reject, so the cook sat at a frozen frame with every key going nowhere.
+  It does not restart by itself, since a crash that comes again would loop; sitting down again boots it afresh.
+- **A kitchen that fails to load shows the landing's way into the portfolio**, saying so and suggesting a reload, the same path as no WebGL, instead of a loading screen up forever; it covers a code chunk gone in a deploy that landed mid-load and a renderer that will not start after the probe said it could, and logs the error.
+- **A knockout is said to screen readers once**, from a region always in the page: who did it, when the cook is back up, and any advice.
+  It stays assertive, being said once and about the visitor themselves.
+  The card itself is hidden from them, since its countdown, rewritten five times a second, was read out at every tick.
+- The debug state gained `arm`, `labels` and `computer.keys` (the keys DOOM has been told are held), for the tests above.
