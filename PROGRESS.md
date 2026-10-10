@@ -119,6 +119,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 
 - The suite holds on a loaded machine with no retries: in the test build pages nobody drives draw four times a second, each page a test enters adds its own time, the room server runs in its own process and a failed test carries its log, traces skip the screencast, and a check that nothing happened waits for the game, the server or an echo instead of a fixed time.
 - New end-to-end checks: the no-WebGL landing, the landing's live lobby count, jumping and sprinting, remote name tags, holding the button to keep throwing, and a private party finding itself again after a server restart.
+- Lint, typecheck, 954 unit tests and the build pass; the 45 E2E tests passed twice in a row in 8.3 minutes each at a load of 8 to 14 on 10 cores (29 tests took 10.3 minutes before, at 20 to 28), and the multiplayer, Karambit and Chef Skinner specs pass with every page's CPU 4x slower.
 
 ### How to run it
 
