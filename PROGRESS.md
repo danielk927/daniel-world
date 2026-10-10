@@ -81,6 +81,20 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Protocol version 8; the AWS room server needs `npm run deploy:aws` for multiplayer to match the client.
 - Lint, typecheck, 889 unit tests, 28 E2E tests and the build pass.
 
+### The room server after review (2026-10-09)
+
+- Seven findings from a review of the room server, each reproduced by a failing test first: a turned-away socket's oversized frame crashed the server; inputs numbered out of turn skipped every cooldown and picked the knife's spread; the first `X-Forwarded-For` entry let anyone past the per-address cap behind CloudFront; a second knife into a cook on the same tick vanished; prefs changes went to everyone unlimited; a spawn hint's turn was unbounded; and the lobby's HTTP maximum counted Chef Skinner's place.
+- Found on the way: a connection that stalled for 3 s was kicked as a flooder when its inputs arrived together; the message limit now takes 6 s of them at once.
+- Still protocol version 8.
+- Lint, typecheck, 916 unit tests, 29 E2E tests and the build pass.
+
+### A safer AWS stack (2026-10-09, not deployed)
+
+- A server deploy now waits for the new instance's health check and rolls back if it fails; CloudFront reaches the server by an Elastic IP that survives a stop and start; the AMI stays as recorded in `infra/cdk.context.json`; the instance reads only its own bundle; the site's hashed files stay cached and are never deleted under open tabs; the server log is bounded by size.
+- The bots always leave a seat for the developer and keep their timings in seconds at 60 Hz; perf and screenshots stop everything they start, however they end; the screenshots' own server has Chef Skinner in.
+- Before the next `npm run deploy:aws`: it replaces the instance once (rooms drop, players reconnect), creates the Elastic IP and moves CloudFront's `/ws` origin to it (a distribution update, several minutes); afterwards commit `infra/cdk.context.json` and check `dig +short <ServerOrigin output>` prints the Elastic IP.
+- Lint, typecheck, 926 unit tests and the build pass; a local synth shows the changes; `node scripts/perf.ts` on spare ports reports 16 players at 60 fps and leaves nothing running.
+
 ### How to run it
 
 ```bash

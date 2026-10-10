@@ -17,7 +17,8 @@ npx playwright install chromium
 npm run e2e                  # playwright, builds client in test mode, spawns its own server on :3101
                              # (E2E_SERVER_PORT / E2E_CLIENT_PORT move it, to run two suites at once)
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
-npm run bots -- --count 15   # simulated players for load testing
+npm run bots                 # simulated players: fill the lobby but for one seat, yours
+                             # (--count up to 15, --room <code>, --knives; Chef Skinner counts)
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
 node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU;
                              # WORLD_CLIENT_PORT / WORLD_SERVER_PORT move it off :5173 / :3001)
@@ -40,7 +41,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
-- `scripts` - dev tooling (bots, screenshots).
+- `scripts` - dev tooling (bots, screenshots, perf); `processes.ts` starts what they need and stops it with them.
 
 ## Conventions
 
@@ -68,6 +69,8 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - Fixture footprints, stations and doors live in `packages/shared/src/world.ts`; colliders, the minimap and the renderer all read them, so move things there, not in the client.
 - E2E uses SwiftShader, which gets the low quality tier automatically; screenshots and perf use the real GPU and `?quality=high`.
 - A protocol or shared-simulation change bumps `PROTOCOL_VERSION`; Vercel deploys the client on every push to `main`, but the AWS room server only with `npm run deploy:aws`, so until then visitors play solo.
+- `infra/cdk.context.json` records the stack's lookups, the room server's AMI among them; commit it after a deploy writes it, and move to a newer AMI only on purpose (README's deployment section), since a new AMI replaces the instance.
+  A server deploy succeeds only once the new instance answers `/ws/health`; keep the boot script's last step that check (`infra/test` asserts it).
 - The look (evening service, after Ratatouille) is split by quality tier: `world/lighting.ts` has the lights for both, and the high tier adds shadows, the practical lights and `world/post.ts` (N8AO, bloom, AgX, the grade).
   Lamps and glowing things are the `light` layer, which shines past white on the high tier so bloom catches it; keep new glowing paint dim, or it blows out.
   Keep `scene.environmentIntensity` tiny and raise `envMapIntensity` on metals instead; a brighter environment lights everything from every side and flattens the room.
@@ -81,6 +84,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - The interface follows `docs/ui-revamp.md` (approved mockups in `docs/ui-revamp/`): no boxes, nothing behind or around words in the world (no outlines, glows or `text-shadow`), Gabarito for titles and Rubik for the rest, brass only for what is current, marked by the `.bar`, and keys as rings.
   Use the tokens in `styles/tokens.css` and the parts in `styles/controls.css`; each surface has its own stylesheet, imported in cascade order by `styles/app.css`.
   The fonts' latin subset has no arrows, so draw them.
+- The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 
 <!-- BEGIN AWS Agent Toolkit rules -->

@@ -165,6 +165,51 @@ describe('Knives', () => {
     expect(knives.drawnCount).toBe(1);
   });
 
+  describe('a knife the server says flew on past a cook drawn in its way', () => {
+    // On the server another knife hit the cook first, that tick, so this one went on through.
+    const throwAt = () => launchKnife(0, 1.62, 5.6, 0, -0.1);
+    const cook = [{ id: 2, x: 0, y: 0, z: 3.2 }];
+    /** Where the server, flying a tick at a time through nobody, has the knife stick. */
+    const verdict = (id: number) => {
+      const knife = throwAt();
+      for (;;) {
+        const impact = flyKnife(knife, TICK_SECONDS, [], 1);
+        if (impact?.kind === 'surface') {
+          const { x, y, z, dx, dy, dz, t } = impact;
+          return { kind: 'stuck' as const, knife: { id, x, y, z, dx, dy, dz }, at: t };
+        }
+      }
+    };
+
+    it('comes back out of them, if it had gone in here before the word came', () => {
+      const knives = new Knives();
+      knives.throwOwn(5, 1, throwAt(), true);
+      knives.launch(9, 1, 5, throwAt(), true, 0);
+      for (let i = 0; i < 6; i++) knives.update(1 / 60, cook);
+      expect(knives.drawnCount).toBe(0);
+      knives.resolve(9, verdict(9));
+      knives.update(1 / 60, cook);
+      expect(knives.drawnCount).toBe(1);
+      for (let i = 0; i < 60; i++) knives.update(1 / 60, cook);
+      expect(knives.stuckKnives().map((k) => k.id)).toEqual([9]);
+      expect(knives.maxCorrection).toBeLessThan(1e-3);
+    });
+
+    it('flies straight through them, if the word came first', () => {
+      const knives = new Knives();
+      // Someone else's knife, drawn as far in the past as they are.
+      knives.launch(9, 1, 0, throwAt(), false, 0.1);
+      knives.resolve(9, verdict(9));
+      for (let i = 0; i < 6; i++) knives.update(1 / 60, cook);
+      for (let i = 0; i < 60 && knives.flyingCount > 0; i++) {
+        knives.update(1 / 60, cook);
+        expect(knives.drawnCount).toBe(1);
+      }
+      expect(knives.stuckKnives().map((k) => k.id)).toEqual([9]);
+      expect(knives.maxCorrection).toBeLessThan(1e-3);
+    });
+  });
+
   it('asks afresh every frame, so a change of mind mid-flight shows at once', () => {
     const knives = new Knives();
     let spared = false;

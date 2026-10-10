@@ -72,9 +72,9 @@ The build writes the portfolio page into `portfolio.html` from it (`src/portfoli
 | `npm run typecheck`              | TypeScript in every workspace                                                 |
 | `npm test`                       | Vitest unit and integration tests                                             |
 | `npm run e2e`                    | Playwright end-to-end tests (run `npx playwright install chromium` once)      |
-| `npm run bots -- --count 15`     | Simulated players wandering the lobby                                         |
+| `npm run bots`                   | Simulated players filling the lobby but for your seat (`--count`, `--room`)   |
 | `node scripts/screenshots.ts`    | Regenerate `docs/screenshots/`                                                |
-| `node scripts/perf.ts`           | 16-player performance check (needs the dev client running)                    |
+| `node scripts/perf.ts`           | 16-player performance check (starts what it needs, and stops it after)        |
 | `node scripts/computer-bench.ts` | Kitchen computer benchmark: DOOM's timedemo, guest MIPS and frames per second |
 
 ## How it works
@@ -145,11 +145,17 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
   It serves the site and proxies WebSocket traffic on the same domain, so the page connects to `wss://<same host>/ws` with CloudFront's TLS certificate and no custom domain is required.
 - **S3** holds the built client; the bucket is private, encrypted, and readable only by the distribution.
   Every deploy uploads the new build and invalidates the cache.
+  The files Vite names by their content (everything under `assets/`) are cached for a year and never deleted, so a tab opened before a deploy can still lazy-load the build it started with (the kitchen computer, DOOM, the post-processing); the pages and the favicon are revalidated on every visit, and go up only after the files they name.
 - **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
   Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
+  CloudFront reaches it by an Elastic IP's public DNS name, which survives a stop and start (AWS maintenance included), unlike the instance's own address.
   A new server build replaces the instance (immutable deploys).
+  The deploy waits for the new instance to answer its health check; if a boot step fails or it never answers within 10 minutes, CloudFormation rolls back and the old instance keeps serving.
+  Only then does the Elastic IP move to the new instance, so CloudFront's origin never changes.
+  The boot log goes to the server's log group (stream `<instance id>-boot`), so a failed boot can still be read after the rollback deletes its instance.
 - **CloudWatch** receives the server logs (two-week retention) and two alarms self-heal the instance: host failure triggers EC2 auto-recovery, an unresponsive instance is rebooted.
-- **IAM** is least privilege: the instance role has Session Manager access, read access to its own code bundle, and write access to its own log group.
+  On the instance the log is rotated daily, or within the hour once it passes 50 MB, keeping seven compressed copies, so a flood of connections cannot fill the disk.
+- **IAM** is least privilege: the instance role has Session Manager access, read access to its own code bundle (that one object, not the CDK assets bucket), and write access to its own log group.
 - No NAT gateway and a single public subnet keep the cost to roughly the instance and its public IP (about $10/month, less on the AWS free tier).
 
 First time only:
@@ -166,9 +172,21 @@ npm run deploy:aws
 ```
 
 The command builds the client (pointed at `/ws`) and the single-file server bundle, then runs `cdk deploy`.
-It prints `SiteUrl` (the site), `ServerUrl` (for a client hosted elsewhere), `ShellCommand` (Session Manager) and `ServerLogGroup`.
+It prints `SiteUrl` (the site), `ServerUrl` (for a client hosted elsewhere), `ShellCommand` (Session Manager), `ServerLogGroup` and `ServerOrigin` (the Elastic IP's DNS name that CloudFront forwards `/ws` to).
 `npm run diff -w @world/infra` previews changes; `npm run destroy -w @world/infra` removes everything.
 Rooms live in one process's memory, so keep exactly one instance.
+
+The stack looks a few things up in the account: the availability zone, CloudFront's origin-facing prefix list, and the Amazon Linux 2023 AMI.
+A deploy with credentials records them in `infra/cdk.context.json`; commit that file, so every later deploy, from any checkout, builds the same instance.
+The AMI in particular stays put: a new Amazon Linux release no longer replaces the instance (and drops every room) on a deploy that changed nothing on the server.
+To move the server to a newer AMI on purpose, for example monthly for OS patches, list the cached values and reset the AMI's, then deploy, which replaces the instance:
+
+```bash
+cd infra
+npx cdk context                                   # the AMI's key starts with ssm: and names al2023-ami
+npx cdk context --reset <number of that key>
+cd .. && npm run deploy:aws
+```
 
 ### Vercel (optional second front end)
 
@@ -184,7 +202,7 @@ npm ci && npm run build -w @world/server
 PORT=8080 TRUST_PROXY=1 node apps/server/dist/index.js
 ```
 
-Environment variables (see [`apps/server/.env.example`](apps/server/.env.example)): `PORT`, `ALLOWED_ORIGINS` (comma-separated page origins; unset allows any), `TRUST_PROXY=1` behind a proxy, and `BASE_PATH` when a CDN forwards a path prefix such as `/ws`.
+Environment variables (see [`apps/server/.env.example`](apps/server/.env.example)): `PORT`, `ALLOWED_ORIGINS` (comma-separated page origins; unset allows any), `TRUST_PROXY=1` behind exactly one proxy that appends the address it got each request from to `X-Forwarded-For`, as CloudFront does (the server takes the last entry, since a visitor can write the ones before it), and `BASE_PATH` when a CDN forwards a path prefix such as `/ws`.
 Railway or Render work with build command `npm ci && npm run build -w @world/server`, start command `node apps/server/dist/index.js`, and health check `/health`.
 Build the client with `VITE_SERVER_URL` set to the server's `wss://` URL, or to a path like `/ws` when the same domain proxies to the server.
 
