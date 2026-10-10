@@ -102,9 +102,6 @@ export function createLighting(
   // frame, so its lookup tables only download for the high tier.
   if (high) {
     const h = KITCHEN.hood;
-    const hood = new RectAreaLight(HOOD, 1.8, h.maxX - h.minX - 0.6, h.maxZ - h.minZ - 0.6);
-    hood.position.set(0, h.bottom - 0.02, 0);
-    hood.lookAt(0, 0, 0);
 
     const spot = (
       color: string,
@@ -146,6 +143,12 @@ export function createLighting(
     const islands = [KITCHEN.pastryIsland, KITCHEN.gardeManger].map((f) =>
       spot(DOWNLIGHT, 22, (f.minX + f.maxX) / 2, 2.98, (f.minZ + f.maxZ) / 2, 5, 0.78, 0, 1024),
     );
+    // The hood's light: three wide downlights in its underside, warm over the stoves and spilling
+    // out over the aisles either side. (One area light the size of the hood made the same pool,
+    // but three.js's area lights, approximated where a surface sees them at a low angle, laid dark
+    // blotches over everything round, a cook's toque most of all, once nothing was faceted.)
+    const hood = [-3.4, 0, 3.4].map((x) => spot(HOOD, 34, x, h.bottom - 0.03, 0, 7, 1.3, 0));
+    for (const light of hood) light.penumbra = 0.9;
     fire = new PointLight(FIRE, 0.9, 2.6, 2);
     fire.position.set(0, 1.05, 0);
     // Cove light: each strip along a long wall throws a warm wash up into the vault, so the
@@ -166,7 +169,7 @@ export function createLighting(
       })),
       ...PENDANTS.map((p) => ({ apex: p.clone(), height: 1.95, radius: 0.85, color: DOWNLIGHT })),
     ]);
-    scene.add(hood, ...heat, ...islands, fire, ...coves, beams);
+    scene.add(...hood, ...heat, ...islands, fire, ...coves, beams);
 
     scene.environment = reflections;
     // Reflections only, barely any light: an environment bright enough to light the painted
