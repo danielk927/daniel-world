@@ -499,7 +499,7 @@ function paintMoon(painter: Painter, look: SkyLook, inward: Vector3): void {
 }
 
 /**
- * The land: a fan of faceted ground around the windows, half a circle wide, so that even a glance
+ * The land: a fan of ground around the windows, half a circle wide, so that even a glance
  * along the wall lands on it. Near the kitchen it is lawn; further out a patchwork of fields over
  * the hills, then bare rock on the mountains.
  */

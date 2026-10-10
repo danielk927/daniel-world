@@ -1,7 +1,7 @@
 # Daniel's World
 
 A personal website that is a small multiplayer 3D world.
-Visitors walk a low-poly three-star kitchen, laid out after the French Laundry, in first person, click its stations to learn about Daniel, and see everyone else who is visiting as a cook in a toque with a name tag.
+Visitors walk a three-star kitchen, laid out after the French Laundry, in first person, click its stations to learn about Daniel, and see everyone else who is visiting as a cook in a toque with a name tag.
 There is also a plain [portfolio page](apps/client/portfolio.html) with the same content, for phones, browsers without WebGL, and anyone in a hurry.
 
 **Live:** https://d1ivv0s5bbzyx0.cloudfront.net (AWS: CloudFront, S3, EC2) and https://daniel-world-nine.vercel.app (Vercel front end on the same AWS room server).
@@ -101,7 +101,7 @@ Rendering is built for a smooth 60 fps with a full room:
 
 - The static kitchen is merged into one mesh per material, about a dozen draw calls for every pot, knob and tile.
 - Avatars are instanced, and ambient motion (gas flames, steam) runs in shaders.
-- The look is low-poly: flat-shaded facets and plain colors, with no textures to sample and no reflections to compute.
+- Surfaces are textured procedurally: the GPU paints every material's color, normal and roughness at load, at its real size, so nothing is downloaded, and a probe of the kitchen captured at load gives every material its reflections.
 - Name tags are DOM elements rather than extra draw calls.
 - Software renderers (no GPU) automatically get a lighter quality tier without shadows or accent lights.
   `?quality=high` or `?quality=low` overrides the choice.
