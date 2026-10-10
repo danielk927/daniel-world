@@ -1028,7 +1028,12 @@ export class Viewmodel {
     this.idleTime += ahead;
     if (this.sinceSwitch >= SWITCH.lower) this.holding = this.armed ? 'knife' : 'hand';
     this.poseNow(out);
-    Object.assign(this, { sinceInspect, sincePunch, sinceSwitch, sinceThrow, idleTime, holding });
+    this.sinceInspect = sinceInspect;
+    this.sincePunch = sincePunch;
+    this.sinceSwitch = sinceSwitch;
+    this.sinceThrow = sinceThrow;
+    this.idleTime = idleTime;
+    this.holding = holding;
     return out;
   }
 
@@ -1268,9 +1273,8 @@ export class Viewmodel {
       const hang = clamp01(pose.hang);
       const open = Math.max(this.release, smoothstep(clamp01(hang / HANG.open)));
       mixPose(this.handPose, this.handPose, held.open, open);
-      const [fold, folded] = held.threaded
-        ? [HANG.round, HANG.threadFolded]
-        : [HANG.fold, HANG.folded];
+      const fold = held.threaded ? HANG.round : HANG.fold;
+      const folded = held.threaded ? HANG.threadFolded : HANG.folded;
       const point = smoothstep(clamp01((hang - fold) / (folded - fold)));
       // The thumb, over the fist where the handle comes home, folds later and is out sooner.
       const thumb = held.threaded
