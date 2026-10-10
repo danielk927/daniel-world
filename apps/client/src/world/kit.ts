@@ -156,7 +156,8 @@ function metricCylinder(
   height: number,
   taper: number,
 ): BufferGeometry {
-  const copy = geometry.clone();
+  // A plain copy, since cloning a CylinderGeometry builds a default one first.
+  const copy = new BufferGeometry().copy(geometry);
   const uv = copy.getAttribute('uv');
   const around = Math.PI * radius * (1 + taper);
   for (const group of copy.groups) {
@@ -179,12 +180,11 @@ function metricCylinder(
   return copy;
 }
 
-/** A copy of `geometry` with its own texture coordinates scaled to meters. */
-function scaledUvs(geometry: BufferGeometry, su: number, sv: number): BufferGeometry {
-  const copy = geometry.clone();
-  const uv = copy.getAttribute('uv');
+/** `geometry` with its own texture coordinates scaled to meters, in place. */
+function scaledUvs<T extends BufferGeometry>(geometry: T, su: number, sv: number): T {
+  const uv = geometry.getAttribute('uv');
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
-  return copy;
+  return geometry;
 }
 
 export interface CylinderOptions {
@@ -567,7 +567,7 @@ export class Kit {
     const reach = radius * Math.max(options.sx ?? 1, options.sy ?? 1, options.sz ?? 1);
     const geometry = scaledUvs(
       // Spheres are mostly small things seen from a meter or more: twice the facet's leeway.
-      unitSphere(roundSides(reach, options.segments, this.sagitta * 2)),
+      new BufferGeometry().copy(unitSphere(roundSides(reach, options.segments, this.sagitta * 2))),
       2 * Math.PI * reach,
       Math.PI * reach,
     );

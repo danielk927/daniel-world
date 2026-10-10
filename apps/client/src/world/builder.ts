@@ -1,5 +1,6 @@
 import {
   BufferAttribute,
+  BufferGeometry,
   Color,
   Euler,
   Group,
@@ -7,7 +8,6 @@ import {
   Mesh,
   Quaternion,
   Vector3,
-  type BufferGeometry,
   type Material,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -156,11 +156,14 @@ export class StaticBuilder {
     if (!layer) throw new Error(`Unknown layer ${name}`);
     // Every part gets the same attribute set and an index, so any mix of three.js geometries can be
     // merged while shared vertices stay shared (a third of the vertex work of unindexed triangles).
-    const part = geometry.clone();
+    // A plain copy: cloning one of three.js's shapes first builds a default one of its own.
+    const part = new BufferGeometry().copy(geometry);
     const indexed = part.index !== null;
     if (!part.index) {
       const vertices = part.getAttribute('position').count;
-      part.setIndex(Array.from({ length: vertices }, (_, i) => i));
+      const order = vertices > 65535 ? new Uint32Array(vertices) : new Uint16Array(vertices);
+      for (let i = 0; i < vertices; i++) order[i] = i;
+      part.setIndex(new BufferAttribute(order, 1));
     }
     // Geometry that brings its own vertex colors keeps them, unless the caller paints over them.
     const ownColors =
