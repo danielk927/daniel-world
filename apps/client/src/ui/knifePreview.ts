@@ -1,12 +1,18 @@
 import {
   AgXToneMapping,
   Box3,
+  Color,
   DataTexture,
   DirectionalLight,
+  DoubleSide,
   HemisphereLight,
+  LinearMipmapLinearFilter,
   Mesh,
+  MeshBasicMaterial,
+  NoColorSpace,
   PMREMGenerator,
   PerspectiveCamera,
+  PlaneGeometry,
   RGBAFormat,
   SRGBColorSpace,
   Scene,
@@ -16,10 +22,41 @@ import {
   type MeshStandardMaterial,
   type Texture,
 } from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { KnifeLook } from '@world/shared';
 import { finishPixels } from '../world/knifeFinishes.ts';
-import { knifeGeometry, knifeMaterial } from '../world/knifeModel.ts';
+import { createKnifeMaterial, knifeGeometry } from '../world/knifeModel.ts';
+
+/**
+ * A photographer's studio for the knife to reflect: dark all round, as the menu behind it is, with
+ * a softbox above, a large one to the front left where the key light is, and a cool strip behind
+ * for the rim, so a turning blade catches bands of light and its steel reads as steel.
+ */
+function studio(): Scene {
+  const room = new Scene();
+  room.background = new Color('#0d1018');
+  const softbox = (
+    width: number,
+    height: number,
+    color: string,
+    strength: number,
+    at: readonly [number, number, number],
+  ): void => {
+    const panel = new Mesh(
+      new PlaneGeometry(width, height),
+      new MeshBasicMaterial({
+        color: new Color(color).multiplyScalar(strength),
+        side: DoubleSide,
+      }),
+    );
+    panel.position.set(...at);
+    panel.lookAt(0, 0, 0);
+    room.add(panel);
+  };
+  softbox(4, 2.4, '#fff4e6', 2.2, [0, 3, 0.6]);
+  softbox(2.2, 2.6, '#fff1de', 3.2, [-2.6, 1.4, 2.6]);
+  softbox(0.5, 3, '#c9d6ff', 2.6, [2.4, 0.8, -2.6]);
+  return room;
+}
 
 /** How far the knife rocks either way on its turntable, and how fast. */
 const ROCK = 0.42;
@@ -40,7 +77,8 @@ export class KnifePreview {
   private camera: PerspectiveCamera | null = null;
   private mesh: Mesh | null = null;
   private material: MeshStandardMaterial | null = null;
-  private texture: DataTexture | null = null;
+  /** Its own copies of the knives' color and surface textures. */
+  private textures: [DataTexture, DataTexture] | null = null;
   private environment: Texture | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private frame = 0;
@@ -67,7 +105,7 @@ export class KnifePreview {
     mesh.geometry.dispose();
     // The world's geometry paints the finish into the shared pixels; this copy uploads them again.
     mesh.geometry = knifeGeometry(look).clone();
-    this.texture!.needsUpdate = true;
+    for (const texture of this.textures!) texture.needsUpdate = true;
     this.fit();
   }
 
@@ -79,7 +117,7 @@ export class KnifePreview {
     if (this.renderer) {
       this.mesh?.geometry.dispose();
       this.material?.dispose();
-      this.texture?.dispose();
+      for (const texture of this.textures ?? []) texture.dispose();
       this.environment?.dispose();
       this.renderer.dispose();
       this.renderer.forceContextLoss();
@@ -91,7 +129,7 @@ export class KnifePreview {
     this.camera = null;
     this.mesh = null;
     this.material = null;
-    this.texture = null;
+    this.textures = null;
     this.environment = null;
     this.look = null;
   }
@@ -120,12 +158,15 @@ export class KnifePreview {
 
     const scene = new Scene();
     const pmrem = new PMREMGenerator(renderer);
-    const room = new RoomEnvironment();
-    this.environment = pmrem.fromScene(room, 0.04).texture;
-    room.dispose();
+    const room = studio();
+    this.environment = pmrem.fromScene(room, 0.02).texture;
+    room.traverse((o) => {
+      const panel = o as Mesh<PlaneGeometry, MeshBasicMaterial>;
+      if (!panel.isMesh) return;
+      panel.geometry.dispose();
+      panel.material.dispose();
+    });
     pmrem.dispose();
-    scene.environment = this.environment;
-    scene.environmentIntensity = 0.35;
     // Lit like a knife on a display: a warm key, a cool rim behind, a soft fill from below.
     scene.add(new HemisphereLight('#dfe6f5', '#3b3029', 1.1));
     const key = new DirectionalLight('#fff1de', 2.6);
@@ -134,17 +175,22 @@ export class KnifePreview {
     rim.position.set(1, 1.5, -3);
     scene.add(key, rim);
 
-    const { data, width, height } = finishPixels();
-    const texture = new DataTexture(data, width, height, RGBAFormat, UnsignedByteType);
-    texture.colorSpace = SRGBColorSpace;
-    texture.generateMipmaps = true;
-    texture.needsUpdate = true;
-    this.texture = texture;
-    const material = knifeMaterial().clone();
-    material.map = texture;
-    // The kitchen's probe belongs to the world's renderer, not this one.
-    material.envMap = null;
-    material.envMapIntensity = 2.2;
+    const { color, surface, width, height } = finishPixels();
+    const copy = (data: Uint8Array, colorSpace: string): DataTexture => {
+      const texture = new DataTexture(data, width, height, RGBAFormat, UnsignedByteType);
+      texture.colorSpace = colorSpace;
+      texture.generateMipmaps = true;
+      texture.minFilter = LinearMipmapLinearFilter;
+      texture.anisotropy = 8;
+      texture.needsUpdate = true;
+      return texture;
+    };
+    this.textures = [copy(color, SRGBColorSpace), copy(surface, NoColorSpace)];
+    const material = createKnifeMaterial(...this.textures);
+    // Metal as in the kitchen, reflecting the studio: the kitchen's probe belongs to the world's
+    // renderer, not this one.
+    material.metalness = 1;
+    material.envMap = this.environment;
     this.material = material;
     this.mesh = new Mesh(undefined, material);
     scene.add(this.mesh);

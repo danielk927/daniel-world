@@ -9,9 +9,15 @@ import {
   Vector2,
   Vector3,
 } from 'three';
+import { creaseNormals } from './creaseNormals.ts';
+import type { Material } from './knifeFinishes.ts';
 
 /**
- * A small kit for modeling knives out of primitives, low-poly and faceted like the kitchen.
+ * A small kit for modeling knives out of primitives.
+ *
+ * Shading is smooth where a knife is round and sharp where it is creased (creaseNormals): faces
+ * meeting at less than CREASE shade as one curved surface, and a chamfer between two faces shades as
+ * a rounded edge, while a blade's spine, its grind line and its edge stay crisp.
  *
  * Everything is drawn in side view: a point is `[z, y]`, with the knife lying along +Z from its tip
  * (at the origin) to its butt, the spine up (+Y) and the edge down, and the flat of the blade
@@ -21,9 +27,12 @@ import {
 
 export type V2 = readonly [z: number, y: number];
 
+/** Faces meeting at less than this shade as one surface; at more, as a crease. */
+export const CREASE = (50 * Math.PI) / 180;
+
 /**
  * How a part is colored. `blade` and `metal` parts wear the finish (a strip of the shared finish
- * texture); `grip`, `steel` and `accent` parts are one plain color each.
+ * texture); `grip`, `steel` and `accent` parts are one color each, shaded by what they are made of.
  */
 export type PartKind = 'blade' | 'metal' | 'grip' | 'steel' | 'accent';
 
@@ -48,6 +57,8 @@ export interface KnifePart {
   readonly kind: PartKind;
   /** The color of a grip, steel or accent part (sRGB hex). */
   readonly color?: string;
+  /** What a grip or accent part is made of; steel parts are steel. */
+  readonly material?: Material;
   /** Model space, non-indexed: position and normal. Finishes add uv and color. */
   readonly geometry: BufferGeometry;
   /** Side silhouette, for the knife's icon. */
@@ -92,7 +103,7 @@ class TriangleSoup {
   geometry(): BufferGeometry {
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(this.positions, 3));
-    geometry.computeVertexNormals();
+    creaseNormals(geometry, CREASE);
     return geometry;
   }
 }
@@ -139,7 +150,7 @@ export function slab(
   extruded.translate(options.x ?? 0, 0, 0);
   const geometry = unindexed(extruded);
   geometry.deleteAttribute('uv');
-  geometry.computeVertexNormals();
+  creaseNormals(geometry, CREASE);
   return {
     geometry,
     outline: [{ points, hole: false }, ...holes.map((hole) => ({ points: hole, hole: true }))],
@@ -185,22 +196,24 @@ export function arc(
   return points;
 }
 
+/** Sides round a ring or a hole: enough that its outline reads as a circle in the hand. */
+const ROUND = 40;
+
 /** A flat ring in side view, like a karambit's finger ring. */
-export function ring(
-  center: V2,
-  outer: number,
-  inner: number,
-  thickness: number,
-  segments = 14,
-): PartShape {
-  return slab(arc(center, outer, segments), thickness, {
-    holes: [arc(center, inner, segments).reverse()],
+export function ring(center: V2, outer: number, inner: number, thickness: number): PartShape {
+  return slab(arc(center, outer, ROUND), thickness, {
+    holes: [arc(center, inner, ROUND).reverse()],
     bevel: Math.min(0.0018, (outer - inner) * 0.25),
   });
 }
 
+/** A round hole of `radius` through a part, for `holes`. */
+export function hole(center: V2, radius: number): V2[] {
+  return arc(center, radius, ROUND / 2).reverse();
+}
+
 /** A rounded slot, from `z0` to `z1` and `y0` to `y1`, for holes. */
-export function slot(z0: number, z1: number, y0: number, y1: number, segments = 4): V2[] {
+export function slot(z0: number, z1: number, y0: number, y1: number, segments = 8): V2[] {
   const r = (y1 - y0) / 2;
   const y = (y0 + y1) / 2;
   return [
@@ -211,10 +224,10 @@ export function slot(z0: number, z1: number, y0: number, y1: number, segments = 
 
 /** A ring whose axis runs along the knife, like a bayonet's muzzle ring. */
 export function muzzleRing(center: V2, radius: number, tube: number): PartShape {
-  const geometry = unindexed(new TorusGeometry(radius, tube, 4, 10));
+  // Round in section and round about the knife, its own smooth normals kept.
+  const geometry = unindexed(new TorusGeometry(radius, tube, 10, 32));
   geometry.deleteAttribute('uv');
   geometry.translate(0, center[1], center[0]);
-  geometry.computeVertexNormals();
   const [z, y] = center;
   const r = radius + tube;
   return {
@@ -233,13 +246,15 @@ export function muzzleRing(center: V2, radius: number, tube: number): PartShape 
   };
 }
 
-/** A pin through the handle, across X. */
+/**
+ * A pin through the handle, across X: a few sides, shaded round (its own smooth normals), since its
+ * head is a few pixels across in the hand.
+ */
 export function pin(center: V2, radius: number, length: number): PartShape {
   const geometry = unindexed(new CylinderGeometry(radius, radius, length, 6));
   geometry.deleteAttribute('uv');
   geometry.rotateZ(Math.PI / 2);
   geometry.translate(0, center[1], center[0]);
-  geometry.computeVertexNormals();
   return { geometry, outline: [{ points: arc(center, radius, 6), hole: false }] };
 }
 
@@ -253,6 +268,8 @@ export interface BladeSpec {
   readonly grind?: number;
   /** Holes through the flat of the blade (above the grind), like a thumb hole. */
   readonly holes?: readonly (readonly V2[])[];
+  /** How thick it is at the tip, as a share of its thickness at the base (a distal taper). */
+  readonly taper?: number;
 }
 
 /**
@@ -324,6 +341,18 @@ export function blade(spec: BladeSpec): PartShape {
     out,
   );
   const bevel = soup.geometry();
+
+  // Thinner toward the tip, if it tapers: the flat and the bevel squeezed across X with its length.
+  const taper = spec.taper ?? 1;
+  if (taper !== 1) {
+    for (const g of [flat.geometry, bevel]) {
+      const p = g.getAttribute('position');
+      for (let i = 0; i < p.count; i++) {
+        p.setX(i, p.getX(i) * (taper + (1 - taper) * Math.min(1, Math.max(0, p.getZ(i) / end))));
+      }
+      creaseNormals(g, CREASE);
+    }
+  }
 
   const geometry = mergeNonIndexed([flat.geometry, bevel]);
   flat.geometry.dispose();

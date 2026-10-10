@@ -6,16 +6,26 @@ import {
   type Texture,
 } from 'three';
 import { DEFAULT_LOOK, lookKey, type KnifeLook, type KnifeSkin } from '@world/shared';
-import { FINISHES, WHITE_UV, finishTexture, finishUv, paintFinish } from './knifeFinishes.ts';
+import {
+  FINISHES,
+  finishTexture,
+  finishUv,
+  materialUv,
+  paintFinish,
+  paintMaterial,
+  surfaceTexture,
+  type Material,
+} from './knifeFinishes.ts';
 import { mergeNonIndexed, type KnifePart, type V2 } from './knifeShapes.ts';
 import { knifeModel, type KnifeModel } from './knifeSkins.ts';
+import { reflectProbe } from './surfaces/shading.ts';
 
 /**
  * Knives as the renderer sees them: every model (knifeSkins.ts) painted in each of its finishes
  * (knifeFinishes.ts), as one vertex-colored geometry per look so every knife of a look in the world
  * is one draw call, and as separate parts for the hand on screen, whose knife can open and fold.
- * Geometries are built the first time a look is seen and shared after that; one material and one
- * small texture serve them all.
+ * Geometries are built the first time a look is seen and shared after that; one material and two
+ * small textures (color, and roughness with metalness) serve them all.
  *
  * Local space: the tip is at the origin and the knife lies along +Z, handle last, with the blade's
  * flat facing ±X and its edge down. So a knife whose blade points along `d` (tip first) is the model
@@ -73,12 +83,20 @@ function paint(model: KnifeModel, part: KnifePart, look: KnifeLook): BufferGeome
   const blade = bladeExtent(model);
   const length = Math.max(1e-6, blade.z1 - blade.z0);
   const height = Math.max(1e-6, blade.y1 - blade.y0);
-  const own = part.kind === 'metal' ? bounds([source]) : blade;
+  const own = part.kind === 'blade' ? blade : bounds([source]);
   const tint = new Color(
     part.kind === 'grip' ? (finish.grip ?? part.color ?? '#ffffff') : (part.color ?? '#ffffff'),
   );
   if (part.kind === 'metal') tint.setScalar(METAL_SHADE);
   if (part.kind === 'blade') tint.setScalar(1);
+  // What a part that does not wear the finish is made of, laid on at its real size.
+  const material: Material | null =
+    part.kind === 'steel'
+      ? 'steel'
+      : part.kind === 'grip' || part.kind === 'accent'
+        ? (part.material ?? 'g10')
+        : null;
+  if (material) paintMaterial(material);
   const at: [number, number] = [0, 0];
   for (let i = 0; i < p.count; i++) {
     const y = p.getY(i);
@@ -89,8 +107,7 @@ function paint(model: KnifeModel, part: KnifePart, look: KnifeLook): BufferGeome
       // Hardware takes the finish as it is at the blade's base, running on away from the blade.
       finishUv(look.finish, 1 - (z - own.z0) / length, (y - own.y0) / height, at);
     } else {
-      at[0] = WHITE_UV[0];
-      at[1] = WHITE_UV[1];
+      materialUv(material!, z - own.z0, y - own.y0, at);
     }
     uv[i * 2] = at[0];
     uv[i * 2 + 1] = at[1];
@@ -144,32 +161,60 @@ export function knifeGeometry(look: KnifeLook = DEFAULT_LOOK): BufferGeometry {
   return geometry;
 }
 
+/**
+ * How metal the steel is on the low tier, which has no probe to reflect: fully metal, it would
+ * reflect nothing and go black, so it stays partly metal, lit by the lamps.
+ */
+const LOW_TIER_METAL = 0.4;
+
+/**
+ * A material for knives: smooth, each texel's color, roughness and metalness from the shared
+ * textures (or copies of them, for a renderer of its own), its paint from the vertex colors.
+ */
+export function createKnifeMaterial(
+  map: Texture = finishTexture(),
+  surface: Texture = surfaceTexture(),
+): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    vertexColors: true,
+    map,
+    roughnessMap: surface,
+    metalnessMap: surface,
+    roughness: 1,
+    metalness: LOW_TIER_METAL,
+    envMapIntensity: 1,
+  });
+}
+
 let material: MeshStandardMaterial | null = null;
 
-/** The one knife material: faceted, with a little sheen on the steel, and the finishes' texture. */
+/** The one material every knife in the kitchen shares, whatever its look. */
 export function knifeMaterial(): MeshStandardMaterial {
-  return (material ??= new MeshStandardMaterial({
-    vertexColors: true,
-    flatShading: true,
-    metalness: 0.35,
-    roughness: 0.45,
-    map: finishTexture(),
-    // At full strength, like the kitchen's steel, once it has the kitchen's probe (`reflectKnives`).
-    envMapIntensity: 1,
-  }));
+  return (material ??= createKnifeMaterial());
 }
 
 /**
- * The knives reflect the kitchen's probe, as its steel does. three.js honours a material's own
- * reflection strength only with an `envMap` of its own: on the scene's faint environment instead,
- * every blade reflected next to nothing.
+ * The knives on the high tier: fully metal steel reflecting the kitchen's probe as its own steel
+ * does, at full strength and box-projected, taking little light from it. three.js honours a
+ * material's own reflection strength only with an `envMap` of its own: on the scene's faint
+ * environment instead, every blade reflected next to nothing.
  */
-export function reflectKnives(probe: Texture): void {
-  for (const material of [knifeMaterial(), handKnifeMaterial()]) {
-    material.envMap = probe;
-    material.needsUpdate = true;
+export function dressKnives(probe: Texture): void {
+  for (const knife of [knifeMaterial(), handKnifeMaterial()]) {
+    knife.envMap = probe;
+    knife.metalness = 1;
+    reflectProbe(knife, 'knife');
+    knife.needsUpdate = true;
   }
+  handKnifeMaterial().envMapIntensity = HAND_REFLECTION;
 }
+
+/**
+ * How brightly the knife in the player's own hand reflects the room. The arm on screen is lit by
+ * lights of its own, a little brighter than the room round it so the hand reads; steel takes no
+ * light from them but where they glint, so it reflects the room as much brighter to match.
+ */
+const HAND_REFLECTION = 1.6;
 
 let handMaterial: MeshStandardMaterial | undefined;
 

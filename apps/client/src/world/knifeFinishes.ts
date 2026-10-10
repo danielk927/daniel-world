@@ -3,6 +3,7 @@ import {
   DataTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
+  NoColorSpace,
   RGBAFormat,
   SRGBColorSpace,
   UnsignedByteType,
@@ -10,32 +11,53 @@ import {
 import { KNIFE_FINISHES, type KnifeFinish } from '@world/shared';
 
 /**
- * Knife finishes, after the most loved paints on CS2's knives, painted by code into one small
- * shared texture: a strip per finish, and a white strip for parts that take their color from the
- * vertex colors instead. Painting is deterministic, so every visitor sees the same knife, and each
- * strip is painted only once something wears it.
+ * Knife finishes, after the most loved paints on CS2's knives, and what the rest of a knife is made
+ * of, painted by code into two shared textures: the color, and the surface (roughness in green and
+ * metalness in blue, as three.js reads them). A strip per finish, then a strip per material.
+ * Painting is deterministic, so every visitor sees the same knife, and each strip is painted only
+ * once something wears it.
  *
- * In a strip, u runs along the blade from the tip (0) to the base (1) and v across it from the edge
- * (0) to the spine (1).
+ * In a finish's strip, u runs along the blade from the tip (0) to the base (1) and v across it from
+ * the edge (0) to the spine (1). A material's strip is in meters instead (`materialUv`): along the
+ * part from its end nearest the tip, and up from its lowest point.
  */
+
+/** A texel of a finish or a material: its color (sRGB, 0 to 1), roughness and metalness. */
+export interface Texel {
+  readonly color: Rgb;
+  roughness: number;
+  metal: number;
+}
 
 export interface Finish {
   readonly name: string;
   /** A grip in this finish: Doppler's and Marble Fade's are black. Otherwise the knife's own. */
   readonly grip?: string;
-  /** The color at (u, v), sRGB 0 to 1, written into `out`. */
-  paint(u: number, v: number, out: Rgb): void;
+  /** The finish at (u, v), written into `out`. */
+  paint(u: number, v: number, out: Texel): void;
 }
+
+/**
+ * What a part that does not wear the finish is made of. A handle's color is the knife's own (a
+ * vertex color), which its material's pattern shades; `steel` is the bare brushed steel of
+ * bolsters, pommels and pins.
+ */
+export type Material = 'wood' | 'micarta' | 'g10' | 'rubber' | 'cord' | 'steel';
+const MATERIALS: readonly Material[] = ['wood', 'micarta', 'g10', 'rubber', 'cord', 'steel'];
 
 type Rgb = [number, number, number];
 
-const WIDTH = 256;
+/** Texels along a strip: about as many as a blade covers on a retina screen, in the hand. */
+const WIDTH = 512;
 const STRIP = 64;
 /** Rows of a strip that a blade maps onto; the rest is margin, so mipmaps do not bleed. */
 const MARGIN = 4;
-const HEIGHT = STRIP * (KNIFE_FINISHES.length + 1);
+const HEIGHT = STRIP * (KNIFE_FINISHES.length + MATERIALS.length);
 /** A blade is about five times as long as it is tall; patterns are drawn to that scale. */
 const ASPECT = 5;
+/** How much of a part a material's strip covers, in meters: more than any handle. */
+const MATERIAL_LENGTH = 0.16;
+const MATERIAL_HEIGHT = 0.06;
 
 // ---------- Noise ----------
 
@@ -112,6 +134,16 @@ function scale(out: Rgb, k: number): Rgb {
   return out;
 }
 
+function grey(out: Rgb, k: number): Rgb {
+  out[0] = out[1] = out[2] = clamp01(k);
+  return out;
+}
+
+/** Steel brushed along its length: a streak per texel row, 0 to 1. */
+function brushed(x: number, v: number): number {
+  return noise(x * 0.8, v * 60) * 0.6 + noise(x * 0.2 + 4, v * 140) * 0.4;
+}
+
 // ---------- The finishes ----------
 
 const STEEL = hex('#d5dbe0');
@@ -176,11 +208,29 @@ function webDistance(x: number, y: number, cx: number, cy: number, seed: number)
   return r < 0.04 ? 0 : Math.min(toSpoke, toRing);
 }
 
+/**
+ * How metal a finish is. Bare steel reflects the room and takes a little of the lamps' light on
+ * its body, so it reads as steel in the dim evening room too, where wholly metal it went black.
+ * Color laid over polished steel (candy paint, anodizing) shows in any light, its gloss over it;
+ * tempered colors are in the steel; prints sit on top of it.
+ */
+const BARE = 0.9;
+const CANDY = 0.6;
+const TEMPERED = 0.8;
+const PRINT = 0.55;
+
+/**
+ * The finishes: glossy under candy paint (Doppler, Fade, Marble Fade), satin where the steel is
+ * brushed, duller where it is etched or printed on.
+ */
 export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
   stock: {
     name: 'Stock',
-    paint(_u, _v, out) {
-      mix(out, STEEL, STEEL, 0);
+    paint(u, v, out) {
+      mix(out.color, STEEL, STEEL, 0);
+      // Satin, brushed along the blade.
+      out.metal = BARE;
+      out.roughness = 0.26 + 0.1 * brushed(u * ASPECT, v);
     },
   },
   damascus: {
@@ -191,7 +241,11 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       const f = x * 4.2 + 0.8 * Math.sin(v * 6 + x * 1.3) + 1.8 * fbm(x * 1.1, v * 2.2, 4);
       // Thin darker folds over light steel, not stripes.
       const fold = 0.5 + 0.5 * Math.sin(f * Math.PI * 2);
-      mix(out, LIGHT_STEEL, DARK_STEEL, smoothstep(0.62, 0.95, fold) * 0.8);
+      const dark = smoothstep(0.62, 0.95, fold) * 0.8;
+      mix(out.color, LIGHT_STEEL, DARK_STEEL, dark);
+      // The etch leaves the dark folds dull and the light ones polished.
+      out.metal = BARE;
+      out.roughness = 0.2 + 0.3 * dark;
     },
   },
   doppler: {
@@ -202,7 +256,9 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       // Candy paint over a mirror: dark swirls through pink and violet.
       const w = fbm(x * 0.55 + 3, v * 1.2, 3);
       const n = fbm(x * 0.7 + w * 2.2, v * 1.6 + w * 1.4, 5);
-      ramp(DOPPLER, clamp01((n - 0.22) * 2.1), out);
+      ramp(DOPPLER, clamp01((n - 0.22) * 2.1), out.color);
+      out.metal = CANDY;
+      out.roughness = 0.12 + 0.05 * n;
     },
   },
   fade: {
@@ -210,7 +266,9 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
     paint(u, v, out) {
       // Gold at the base through pink to violet at the tip, the line of it a little aslant.
       const t = clamp01(u * 1.12 - (v - 0.5) * 0.32 + (fbm(u * 6, v * 2, 2) - 0.5) * 0.06);
-      ramp(FADE, t, out);
+      ramp(FADE, t, out.color);
+      out.metal = CANDY;
+      out.roughness = 0.15;
     },
   },
   marble: {
@@ -223,11 +281,13 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       const t = fract(f) * MARBLE.length;
       const i = Math.floor(t);
       mix(
-        out,
+        out.color,
         MARBLE[i % MARBLE.length]!,
         MARBLE[(i + 1) % MARBLE.length]!,
         smoothstep(0.3, 1, t - i),
       );
+      out.metal = CANDY;
+      out.roughness = 0.14;
     },
   },
   tiger: {
@@ -238,8 +298,11 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       const f = x * 2.1 + v * 0.7 + 0.22 * Math.sin(v * 7 + x * 2.3) + 0.5 * fbm(x * 1.3, v * 2, 3);
       const p = fract(f);
       const stripe = smoothstep(0.52, 0.6, p) * (1 - smoothstep(0.82, 0.9, p));
-      mix(out, TIGER, TIGER_STRIPE, stripe);
-      scale(out, 0.92 + 0.16 * fbm(x * 3, v * 5, 2));
+      mix(out.color, TIGER, TIGER_STRIPE, stripe);
+      scale(out.color, 0.92 + 0.16 * fbm(x * 3, v * 5, 2));
+      // Anodized: polished gold, the stripes a little duller.
+      out.metal = CANDY;
+      out.roughness = 0.17 + 0.1 * stripe;
     },
   },
   web: {
@@ -252,7 +315,10 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       const line = 1 - smoothstep(0.012, 0.03, d);
       mix(tmpA, CRIMSON, CRIMSON, 0);
       scale(tmpA, 0.85 + 0.3 * fbm(x * 1.5, v * 2.5, 3));
-      mix(out, tmpA, WEB_LINE, line * 0.92);
+      mix(out.color, tmpA, WEB_LINE, line * 0.92);
+      // A satin red over the steel, its black strands printed on, matte.
+      out.metal = PRINT * (1 - 0.6 * line);
+      out.roughness = 0.3 + 0.28 * line;
     },
   },
   case: {
@@ -263,10 +329,14 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       const blue = smoothstep(0.5, 0.62, fbm(x * 0.9, v * 1.8, 4));
       const gold = smoothstep(0.54, 0.66, fbm(x * 1.1 + 11, v * 2.1 + 5, 4));
       const purple = smoothstep(0.6, 0.7, fbm(x * 1.6 + 23, v * 2.6 + 9, 3));
-      mix(out, CASE_STEEL, CASE_BLUE, blue);
-      mix(out, out, CASE_GOLD, gold * (1 - blue * 0.6));
-      mix(out, out, CASE_PURPLE, purple * 0.7);
-      scale(out, 0.9 + 0.2 * fbm(x * 4, v * 6, 2));
+      const mottle = fbm(x * 4, v * 6, 2);
+      mix(out.color, CASE_STEEL, CASE_BLUE, blue);
+      mix(out.color, out.color, CASE_GOLD, gold * (1 - blue * 0.6));
+      mix(out.color, out.color, CASE_PURPLE, purple * 0.7);
+      scale(out.color, 0.9 + 0.2 * mottle);
+      // Tempered steel keeps its polish under the colors, mottled where the heat bloomed.
+      out.metal = TEMPERED;
+      out.roughness = 0.22 + 0.14 * mottle;
     },
   },
   slaughter: {
@@ -278,7 +348,9 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
       const patch = smoothstep(0.55, 0.62, n);
       mix(tmpB, SLAUGHTER, SLAUGHTER, 0);
       scale(tmpB, 0.82 + 0.3 * fbm(x * 2.2, v * 3.4, 3));
-      mix(out, tmpB, SLAUGHTER_LIGHT, patch * 0.9);
+      mix(out.color, tmpB, SLAUGHTER_LIGHT, patch * 0.9);
+      out.metal = PRINT;
+      out.roughness = 0.2 + 0.12 * patch;
     },
   },
   vanilla: {
@@ -286,73 +358,179 @@ export const FINISHES: Readonly<Record<KnifeFinish, Finish>> = {
     paint(u, v, out) {
       const x = u * ASPECT;
       // Satin steel, brushed along its length.
-      const streak = noise(x * 0.8, v * 60) * 0.6 + noise(x * 0.2 + 4, v * 140) * 0.4;
-      mix(out, SATIN, SATIN, 0);
-      scale(out, 0.93 + streak * 0.12);
+      const streak = brushed(x, v);
+      mix(out.color, SATIN, SATIN, 0);
+      scale(out.color, 0.93 + streak * 0.12);
+      out.metal = BARE;
+      out.roughness = 0.28 + 0.1 * streak;
     },
   },
 };
 
-// ---------- The texture ----------
+// ---------- The materials ----------
 
-let texture: DataTexture | null = null;
-const painted = new Set<KnifeFinish>();
+/**
+ * What the rest of a knife is made of, painted at its real size (x along the part and y up it, in
+ * millimetres) as a shade of the part's own color, about 1, and its roughness. Detail across a
+ * handle is no finer than about 3 mm, the most its strip can hold.
+ */
+const MATERIAL_PAINT: Readonly<Record<Material, (x: number, y: number, out: Texel) => void>> = {
+  wood: (x, y, out) => {
+    // Straight grain along the handle, wandering a little: darker late wood, and open pores.
+    const g = y / 3.2 + 1.3 * fbm(x * 0.012, y * 0.07, 3) + 0.12 * Math.sin(x * 0.045);
+    const late = smoothstep(0.45, 0.95, 0.5 + 0.5 * Math.sin(g * Math.PI * 2));
+    const pores = smoothstep(0.62, 0.85, noise(x * 0.9, y * 0.35));
+    grey(out.color, 1 - 0.2 * late - 0.08 * pores - 0.06 * fbm(x * 0.05, y * 0.2, 2));
+    // Oiled: a soft sheen, the pores dull.
+    out.roughness = 0.46 + 0.1 * late + 0.12 * pores;
+    out.metal = 0;
+  },
+  micarta: (x, y, out) => {
+    // Linen layers pressed in resin: a soft mottle of fibres.
+    const m = fbm(x * 0.35, y * 0.3, 4);
+    const fibre = noise(x * 1.6, y * 0.5);
+    grey(out.color, 0.86 + 0.12 * m + 0.04 * fibre);
+    out.roughness = 0.5 + 0.12 * (1 - m);
+    out.metal = 0;
+  },
+  g10: (x, y, out) => {
+    // Glass fibre cut into a grip: a fine diamond texture over faint layers.
+    const p = Math.abs(fract(x / 3 + y / 6) - 0.5) + Math.abs(fract(x / 3 - y / 6) - 0.5);
+    const layer = 0.5 + 0.5 * Math.sin(y * 0.9 + 2 * fbm(x * 0.03, y * 0.1, 2));
+    grey(out.color, 0.9 + 0.08 * p + 0.04 * layer);
+    out.roughness = 0.52 + 0.18 * p;
+    out.metal = 0;
+  },
+  rubber: (x, y, out) => {
+    // Moulded rubber: matte, a fine stipple in its sheen.
+    const stipple = noise(x * 1.3, y * 0.45);
+    grey(out.color, 0.95 + 0.05 * fbm(x * 0.1, y * 0.1, 2));
+    out.roughness = 0.76 + 0.14 * stipple;
+    out.metal = 0;
+  },
+  cord: (x, y, out) => {
+    // A paracord sheath, wound across the handle: its strands in a herringbone along the cord.
+    const s = fract(y / 3.2 + Math.abs(fract(x / 2.4) - 0.5) * 1.2);
+    const strand = smoothstep(0.1, 0.5, s) * (1 - smoothstep(0.6, 0.95, s));
+    grey(out.color, 0.7 + 0.3 * strand);
+    out.roughness = 0.82 + 0.12 * (1 - strand);
+    out.metal = 0;
+  },
+  steel: (x, y, out) => {
+    // Bare steel, brushed along the part.
+    const streak = noise(x * 0.06, y * 3) * 0.6 + noise(x * 0.02 + 4, y * 7) * 0.4;
+    grey(out.color, 0.95 + 0.05 * streak);
+    out.roughness = 0.26 + 0.1 * streak;
+    out.metal = BARE;
+  },
+};
 
-/** The one finish texture every knife shares. Starts white; strips are painted as needed. */
-export function finishTexture(): DataTexture {
-  if (texture) return texture;
+// ---------- The textures ----------
+
+let colors: DataTexture | null = null;
+let surfaces: DataTexture | null = null;
+const painted = new Set<KnifeFinish | Material>();
+
+function texture(colorSpace: string): DataTexture {
   const data = new Uint8Array(WIDTH * HEIGHT * 4).fill(255);
-  texture = new DataTexture(data, WIDTH, HEIGHT, RGBAFormat, UnsignedByteType);
-  texture.colorSpace = SRGBColorSpace;
-  texture.wrapS = ClampToEdgeWrapping;
-  texture.wrapT = ClampToEdgeWrapping;
-  texture.magFilter = LinearFilter;
-  texture.minFilter = LinearMipmapLinearFilter;
-  texture.generateMipmaps = true;
-  texture.anisotropy = 4;
-  texture.needsUpdate = true;
-  return texture;
+  const t = new DataTexture(data, WIDTH, HEIGHT, RGBAFormat, UnsignedByteType);
+  t.colorSpace = colorSpace;
+  t.wrapS = ClampToEdgeWrapping;
+  t.wrapT = ClampToEdgeWrapping;
+  t.magFilter = LinearFilter;
+  t.minFilter = LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = 8;
+  t.needsUpdate = true;
+  return t;
+}
+
+/** The colors every knife shares. Starts white; strips are painted as needed. */
+export function finishTexture(): DataTexture {
+  return (colors ??= texture(SRGBColorSpace));
+}
+
+/** Roughness (green) and metalness (blue) for every knife, laid out as the colors are. */
+export function surfaceTexture(): DataTexture {
+  return (surfaces ??= texture(NoColorSpace));
+}
+
+const texel: Texel = { color: [0, 0, 0], roughness: 0, metal: 0 };
+
+/** Paint strip `strip`, (u, v) across it from 0 to 1. */
+function paintStrip(strip: number, paint: (u: number, v: number, out: Texel) => void): void {
+  const color = finishTexture().image.data as Uint8Array;
+  const surface = surfaceTexture().image.data as Uint8Array;
+  for (let row = 0; row < STRIP; row++) {
+    // The margin rows repeat the pattern's own edge, so filtering never reaches another strip.
+    const v = clamp01((row + 0.5 - MARGIN) / (STRIP - MARGIN * 2));
+    for (let col = 0; col < WIDTH; col++) {
+      paint(col / (WIDTH - 1), v, texel);
+      const i = ((strip * STRIP + row) * WIDTH + col) * 4;
+      color[i] = Math.round(texel.color[0] * 255);
+      color[i + 1] = Math.round(texel.color[1] * 255);
+      color[i + 2] = Math.round(texel.color[2] * 255);
+      surface[i + 1] = Math.round(clamp01(texel.roughness) * 255);
+      surface[i + 2] = Math.round(clamp01(texel.metal) * 255);
+    }
+  }
+  finishTexture().needsUpdate = true;
+  surfaceTexture().needsUpdate = true;
 }
 
 /** Paint a finish's strip, if it has not been yet. */
 export function paintFinish(finish: KnifeFinish): void {
   if (painted.has(finish)) return;
   painted.add(finish);
-  const tex = finishTexture();
-  const data = tex.image.data as Uint8Array;
-  const strip = KNIFE_FINISHES.indexOf(finish) + 1;
   const style = FINISHES[finish];
-  const color: Rgb = [0, 0, 0];
-  for (let row = 0; row < STRIP; row++) {
-    // The margin rows repeat the pattern's own edge, so filtering never reaches another strip.
-    const v = clamp01((row + 0.5 - MARGIN) / (STRIP - MARGIN * 2));
-    for (let col = 0; col < WIDTH; col++) {
-      const u = col / (WIDTH - 1);
-      style.paint(u, v, color);
-      const i = ((strip * STRIP + row) * WIDTH + col) * 4;
-      data[i] = Math.round(color[0] * 255);
-      data[i + 1] = Math.round(color[1] * 255);
-      data[i + 2] = Math.round(color[2] * 255);
-      data[i + 3] = 255;
-    }
-  }
-  tex.needsUpdate = true;
+  paintStrip(KNIFE_FINISHES.indexOf(finish), (u, v, out) => style.paint(u, v, out));
 }
 
-/** Where (u, v) of a finish lands in the shared texture. */
-export function finishUv(finish: KnifeFinish, u: number, v: number, out: [number, number]): void {
-  const strip = KNIFE_FINISHES.indexOf(finish) + 1;
+/** Paint a material's strip, if it has not been yet. */
+export function paintMaterial(material: Material): void {
+  if (painted.has(material)) return;
+  painted.add(material);
+  const paint = MATERIAL_PAINT[material];
+  paintStrip(KNIFE_FINISHES.length + MATERIALS.indexOf(material), (u, v, out) =>
+    paint(u * MATERIAL_LENGTH * 1000, v * MATERIAL_HEIGHT * 1000, out),
+  );
+}
+
+/** Where (u, v) of strip `strip` lands in the shared textures. */
+function stripUv(strip: number, u: number, v: number, out: [number, number]): void {
   out[0] = (0.5 + clamp01(u) * (WIDTH - 1)) / WIDTH;
   out[1] = (strip * STRIP + MARGIN + clamp01(v) * (STRIP - MARGIN * 2)) / HEIGHT;
 }
 
-/** A spot of plain white, for parts colored by their vertex colors alone. */
-export const WHITE_UV: readonly [number, number] = [0.5, STRIP / 2 / HEIGHT];
+/** Where (u, v) of a finish lands in the shared textures. */
+export function finishUv(finish: KnifeFinish, u: number, v: number, out: [number, number]): void {
+  stripUv(KNIFE_FINISHES.indexOf(finish), u, v, out);
+}
 
-/** The raw pixels of the texture, for a second renderer to wrap without painting again. */
-export function finishPixels(): { data: Uint8Array; width: number; height: number } {
-  const tex = finishTexture();
-  return { data: tex.image.data as Uint8Array, width: WIDTH, height: HEIGHT };
+/** Where a point of a part made of `material` lands: `along` and `up` it, in meters. */
+export function materialUv(
+  material: Material,
+  along: number,
+  up: number,
+  out: [number, number],
+): void {
+  const strip = KNIFE_FINISHES.length + MATERIALS.indexOf(material);
+  stripUv(strip, along / MATERIAL_LENGTH, up / MATERIAL_HEIGHT, out);
+}
+
+/** The raw pixels of the textures, for a second renderer to wrap without painting again. */
+export function finishPixels(): {
+  color: Uint8Array;
+  surface: Uint8Array;
+  width: number;
+  height: number;
+} {
+  return {
+    color: finishTexture().image.data as Uint8Array,
+    surface: surfaceTexture().image.data as Uint8Array,
+    width: WIDTH,
+    height: HEIGHT,
+  };
 }
 
 /** A finish's pattern as painted along a blade (tip first), for a swatch: RGBA rows, edge to spine. */
@@ -364,7 +542,7 @@ export function finishSwatch(finish: KnifeFinish): {
   paintFinish(finish);
   const data = finishTexture().image.data as Uint8Array;
   const rows = STRIP - MARGIN * 2;
-  const start = ((KNIFE_FINISHES.indexOf(finish) + 1) * STRIP + MARGIN) * WIDTH * 4;
+  const start = (KNIFE_FINISHES.indexOf(finish) * STRIP + MARGIN) * WIDTH * 4;
   return {
     data: new Uint8ClampedArray(data.subarray(start, start + rows * WIDTH * 4)),
     width: WIDTH,
