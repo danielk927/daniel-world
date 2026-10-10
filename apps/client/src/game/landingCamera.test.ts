@@ -278,37 +278,42 @@ describe('the camera behind the landing', () => {
     }
   });
 
-  it('sees the view outside through every pane and skylight, all the way round', () => {
-    const outside = paintOutside(lookAt(19.8));
-    const mesh = new Mesh(outside.geometry, new MeshBasicMaterial({ side: FrontSide }));
-    const raycaster = new Raycaster();
-    const eye = new Vector3();
-    const point = new Vector3();
-    const misses: string[] = [];
-    const sees = (from: Vector3): boolean => {
-      raycaster.set(from, from.clone().sub(eye).normalize());
-      return raycaster.intersectObject(mesh, false).length > 0;
-    };
-    for (let i = 0; i < 24; i++) {
-      LOOP.getPointAt(i / 24, eye);
-      for (let j = 0; j <= 12; j++) {
-        const u = WINDOWS.from + ((WINDOWS.to - WINDOWS.from) * j) / 12;
-        for (const v of [WINDOWS.bottom, WINDOWS.top]) {
-          if (!sees(point.set(u, v, -ROOM_HALF_Z - 0.25))) misses.push(`${where(eye)} pane`);
+  // Hundreds of rays against the outside view: about a second alone, many under a busy machine.
+  it(
+    'sees the view outside through every pane and skylight, all the way round',
+    { timeout: 30_000 },
+    () => {
+      const outside = paintOutside(lookAt(19.8));
+      const mesh = new Mesh(outside.geometry, new MeshBasicMaterial({ side: FrontSide }));
+      const raycaster = new Raycaster();
+      const eye = new Vector3();
+      const point = new Vector3();
+      const misses: string[] = [];
+      const sees = (from: Vector3): boolean => {
+        raycaster.set(from, from.clone().sub(eye).normalize());
+        return raycaster.intersectObject(mesh, false).length > 0;
+      };
+      for (let i = 0; i < 24; i++) {
+        LOOP.getPointAt(i / 24, eye);
+        for (let j = 0; j <= 12; j++) {
+          const u = WINDOWS.from + ((WINDOWS.to - WINDOWS.from) * j) / 12;
+          for (const v of [WINDOWS.bottom, WINDOWS.top]) {
+            if (!sees(point.set(u, v, -ROOM_HALF_Z - 0.25))) misses.push(`${where(eye)} pane`);
+          }
         }
-      }
-      for (const [a, b, , d] of SKYLIGHT_OPENINGS) {
-        for (let j = 0; j <= 6; j++) {
-          for (const v of [0.05, 0.95]) {
-            point
-              .copy(a!)
-              .lerp(b!, j / 6)
-              .addScaledVector(d!.clone().sub(a!), v);
-            if (!sees(point)) misses.push(`${where(eye)} skylight`);
+        for (const [a, b, , d] of SKYLIGHT_OPENINGS) {
+          for (let j = 0; j <= 6; j++) {
+            for (const v of [0.05, 0.95]) {
+              point
+                .copy(a!)
+                .lerp(b!, j / 6)
+                .addScaledVector(d!.clone().sub(a!), v);
+              if (!sees(point)) misses.push(`${where(eye)} skylight`);
+            }
           }
         }
       }
-    }
-    expect(misses).toEqual([]);
-  });
+      expect(misses).toEqual([]);
+    },
+  );
 });

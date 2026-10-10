@@ -13,27 +13,28 @@ export class Knockout {
   private readonly countdown = el('p', { class: 'knockout-countdown' });
   private readonly bar = el('div', { class: 'knockout-bar-fill' });
   private readonly hint = el('p', { class: 'knockout-hint', attrs: { hidden: '' } });
+  /**
+   * What a screen reader hears, once as the card shows: who did it, when the cook is back up, and
+   * any advice. Always in the page, so it is heard as it changes, unlike the card, which comes and
+   * goes, and whose countdown would be read out at every tick.
+   */
+  private readonly announcement = el('p', {
+    class: 'visually-hidden',
+    attrs: { role: 'status', 'aria-live': 'assertive' },
+  });
   private timer = 0;
 
   constructor(parent: HTMLElement) {
-    this.element = el(
-      'div',
-      { class: 'knockout', attrs: { role: 'status', 'aria-live': 'assertive', hidden: '' } },
-      [
-        el('div', { class: 'knockout-body' }, [
-          el('p', { class: 'kicker knockout-label', text: 'Knocked out by' }),
-          this.by,
-          el('div', { class: 'knockout-bar', attrs: { 'aria-hidden': 'true' } }, [this.bar]),
-          this.countdown,
-          this.hint,
-        ]),
-      ],
-    );
-    parent.append(this.element);
-  }
-
-  get isShown(): boolean {
-    return !this.element.hidden;
+    this.element = el('div', { class: 'knockout', attrs: { 'aria-hidden': 'true', hidden: '' } }, [
+      el('div', { class: 'knockout-body' }, [
+        el('p', { class: 'kicker knockout-label', text: 'Knocked out by' }),
+        this.by,
+        el('div', { class: 'knockout-bar' }, [this.bar]),
+        this.countdown,
+        this.hint,
+      ]),
+    ]);
+    parent.append(this.element, this.announcement);
   }
 
   /** `hint`, if any, is a line of advice under the countdown. */
@@ -42,10 +43,18 @@ export class Knockout {
     this.hint.textContent = hint;
     this.hint.hidden = hint === '';
     this.by.style.setProperty('--player-color', by.color);
+    this.announcement.textContent = [
+      `Knocked out by ${by.name}.`,
+      `Back on your feet in ${DEATH_SECONDS} seconds.`,
+      hint,
+    ]
+      .filter(Boolean)
+      .join(' ');
     const until = performance.now() + DEATH_SECONDS * 1000;
     const tick = (): void => {
       const seconds = Math.max(1, Math.ceil((until - performance.now()) / 1000));
-      this.countdown.textContent = `Back on your feet in ${seconds}`;
+      const text = `Back on your feet in ${seconds}`;
+      if (this.countdown.textContent !== text) this.countdown.textContent = text;
     };
     tick();
     window.clearInterval(this.timer);
@@ -62,5 +71,7 @@ export class Knockout {
     window.clearInterval(this.timer);
     this.element.classList.remove('is-shown');
     this.element.hidden = true;
+    // Cleared, so the next knockout is a change to hear even if it says the same.
+    this.announcement.textContent = '';
   }
 }

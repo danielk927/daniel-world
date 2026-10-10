@@ -54,10 +54,12 @@ export function trapFocus(container: HTMLElement): () => void {
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     if (!first || !last) return;
-    if (event.shiftKey && document.activeElement === first) {
+    // From the container itself (a click on its text), Shift+Tab wraps round too.
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === container)) {
       event.preventDefault();
       last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
+    } else if (!event.shiftKey && active === last) {
       event.preventDefault();
       first.focus();
     }

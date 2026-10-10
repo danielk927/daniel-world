@@ -42,10 +42,13 @@ export class InfoPanel {
       'aside',
       {
         class: 'panel',
+        // Focusable, so a click on its words or the kitchen beside it keeps focus, and with it Esc
+        // and E, in the panel.
         attrs: {
           role: 'dialog',
           'aria-modal': 'true',
           'aria-labelledby': 'panel-title',
+          tabindex: '-1',
           hidden: '',
         },
       },

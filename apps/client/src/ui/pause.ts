@@ -171,8 +171,15 @@ export class PauseMenu {
       'div',
       {
         class: 'pause',
-        // Named for what it is; the title on screen is the room.
-        attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Paused', hidden: '' },
+        // Named for what it is; the title on screen is the room. Focusable, so a click on its words
+        // or its dark keeps focus, and with it Esc, in the menu.
+        attrs: {
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-label': 'Paused',
+          tabindex: '-1',
+          hidden: '',
+        },
       },
       [
         el('div', { class: 'pause-frame' }, [

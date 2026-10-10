@@ -20,7 +20,6 @@ const KEY_DOWNARROW = 0xaf;
 const KEY_STRAFE_L = 0xa0;
 const KEY_STRAFE_R = 0xa1;
 const KEY_USE = 0xa2;
-const KEY_FIRE = 0xa3;
 const KEY_ESCAPE = 27;
 const KEY_ENTER = 13;
 const KEY_TAB = 9;
@@ -29,7 +28,6 @@ const KEY_PAUSE = 0xff;
 const KEY_EQUALS = 0x3d;
 const KEY_MINUS = 0x2d;
 const KEY_RSHIFT = 0x80 + 0x36;
-const KEY_RALT = 0x80 + 0x38;
 const KEY_F1 = 0x80 + 0x3b;
 
 const ascii = (c: string) => c.charCodeAt(0);
@@ -56,17 +54,15 @@ function buildMap(): Record<string, DoomKey> {
     Comma: { key: KEY_STRAFE_L, typed: ascii(',') },
     Period: { key: KEY_STRAFE_R, typed: ascii('.') },
     // Open doors and flip switches with Space, as in DOOM, or with E or F, as in most
-    // games since. Fire with Ctrl, or with the left mouse button
-    // (KitchenComputer.mouseButton).
+    // games since. Fire with the left mouse button (KitchenComputer.mouseButton). Neither
+    // Ctrl, DOOM's fire, nor Alt, its strafe, is a key here: held through a game they make
+    // shortcuts no page can stop (Ctrl+W closes the tab, Ctrl+Tab and Alt+Tab switch away),
+    // and A and D strafe anyway.
     Space: { key: KEY_USE, typed: ascii(' ') },
-    ControlLeft: { key: KEY_FIRE, typed: 0 },
-    ControlRight: { key: KEY_FIRE, typed: 0 },
     KeyE: { key: KEY_USE, typed: ascii('e') },
     KeyF: { key: KEY_USE, typed: ascii('f') },
     ShiftLeft: { key: KEY_RSHIFT, typed: 0 },
     ShiftRight: { key: KEY_RSHIFT, typed: 0 },
-    AltLeft: { key: KEY_RALT, typed: 0 },
-    AltRight: { key: KEY_RALT, typed: 0 },
     Enter: { key: KEY_ENTER, typed: KEY_ENTER },
     NumpadEnter: { key: KEY_ENTER, typed: KEY_ENTER },
     Escape: { key: KEY_ESCAPE, typed: KEY_ESCAPE },

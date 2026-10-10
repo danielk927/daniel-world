@@ -47,6 +47,40 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
     'stepped away, DOOM paused',
   );
   await expect(page.locator('.computer-hint')).toBeHidden();
+
+  // Holding E to sit down again: its auto-repeat is the same press, so it does not reach DOOM, and
+  // the controls stay up.
+  await expect(prompt).toHaveText('Press E to play DOOM');
+  await page.keyboard.down('KeyE');
+  await expectWorld(
+    page,
+    (w) => w.mode === 'computer' && w.computer.state === 'running',
+    'seated again, DOOM running',
+  );
+  await page.keyboard.down('KeyE');
+  await page.keyboard.down('KeyE');
+  await page.waitForTimeout(200);
+  await expect(guide).toBeVisible();
+  expect((await world(page)).computer.keys).toBe(0);
+  await page.keyboard.up('KeyE');
+  await page.keyboard.press('Escape');
+  await expectWorld(page, (w) => w.mode === 'playing', 'stepped away again');
+
+  // Away to another window with a key held, so its release never comes: DOOM lets go of it, and the
+  // cook steps away, as when the browser takes back the mouse.
+  await expect(prompt).toHaveText('Press E to play DOOM');
+  await page.keyboard.press('KeyE');
+  await expectWorld(page, (w) => w.computer.state === 'running', 'seated, DOOM running');
+  await page.keyboard.down('ArrowUp');
+  await expectWorld(page, (w) => w.computer.keys === 1, 'the marine walks');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expectWorld(
+    page,
+    (w) => w.mode === 'playing' && w.computer.state === 'paused' && w.computer.keys === 0,
+    'stepped away, nothing held',
+  );
+  await page.keyboard.up('ArrowUp');
+
   // Facing the desk (west), backing away walks east.
   await walkUntil(page, 'KeyS', (p) => p.x > -5.5);
   await page.context().close();

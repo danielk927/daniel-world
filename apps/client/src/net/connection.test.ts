@@ -10,6 +10,9 @@ const options = {
   prefs: { chef: true },
 };
 
+/** How often the connection pings, as connection.ts has it. */
+const PING_MS = 1000;
+
 const quiet: ConnectionHandlers = {
   onStatus: () => {},
   onWelcome: () => {},
@@ -112,6 +115,24 @@ describe('joinRoom', () => {
 });
 
 describe('Connection', () => {
+  it('says nothing from inside its constructor, even when no socket can be made', async () => {
+    FakeSocket.refuse = true;
+    const onStatus = vi.fn<ConnectionHandlers['onStatus']>();
+    const connection = new Connection({ ...options, handlers: { ...quiet, onStatus } });
+    expect(connection.status).toBe('connecting');
+    expect(onStatus).not.toHaveBeenCalled();
+    // A moment later it fails as a refused socket would, and tries again.
+    await Promise.resolve();
+    expect(connection.status).toBe('offline');
+    expect(onStatus).toHaveBeenLastCalledWith('offline');
+    vi.runOnlyPendingTimers();
+    expect(onStatus).toHaveBeenLastCalledWith('connecting');
+    await Promise.resolve();
+    expect(connection.status).toBe('offline');
+    connection.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('only states its intent until it is let in, so a reconnect just rejoins', () => {
     const handlers: ConnectionHandlers = {
       onStatus: vi.fn(),
@@ -136,6 +157,132 @@ describe('Connection', () => {
     expect(latest().sent[0]).not.toHaveProperty('intent');
     connection.close();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['room_full', 'room_taken', 'no_room'] as const)(
+    'is turned away with %s on a reconnect without giving up, and says so until let in',
+    (code) => {
+      const onFatal = vi.fn<ConnectionHandlers['onFatal']>();
+      const connection = new Connection({ ...options, handlers: { ...quiet, onFatal } });
+      latest().open();
+      latest().receive(welcome('friday'));
+      latest().close();
+      for (let i = 0; i < 2; i++) {
+        vi.runOnlyPendingTimers();
+        latest().open();
+        latest().receive({ t: 'error', code, message: 'no' });
+        latest().close();
+        expect(connection.status).toBe('offline');
+        expect(connection.refusal).toBe(code);
+      }
+      expect(onFatal).not.toHaveBeenCalled();
+      // Still trying; the room lets us in at last.
+      vi.runOnlyPendingTimers();
+      latest().open();
+      latest().receive(welcome('friday'));
+      expect(connection.status).toBe('online');
+      expect(connection.refusal).toBeNull();
+      connection.close();
+    },
+  );
+
+  it('is not turned away for good after a first attempt that failed, nor told of an old refusal', () => {
+    const onFatal = vi.fn<ConnectionHandlers['onFatal']>();
+    const connection = new Connection({ ...options, handlers: { ...quiet, onFatal } });
+    // The server is down as the visitor enters, so they are already cooking solo.
+    latest().close();
+    vi.runOnlyPendingTimers();
+    latest().open();
+    latest().receive({ t: 'error', code: 'room_full', message: 'full' });
+    latest().close();
+    expect(onFatal).not.toHaveBeenCalled();
+    expect(connection.refusal).toBe('room_full');
+    // Then the server goes away again: unreachable now, not full.
+    vi.runOnlyPendingTimers();
+    latest().close();
+    expect(connection.status).toBe('offline');
+    expect(connection.refusal).toBeNull();
+    connection.close();
+  });
+
+  it('gives up on a socket gone silent at once, not when its closing handshake does', () => {
+    const onStatus = vi.fn<ConnectionHandlers['onStatus']>();
+    const onMessage = vi.fn<ConnectionHandlers['onMessage']>();
+    const connection = new Connection({ ...options, handlers: { ...quiet, onStatus, onMessage } });
+    const lost = latest();
+    lost.open();
+    lost.receive(welcome('friday'));
+    lost.receive({ t: 'pong', id: 0 });
+    // The network goes quiet: nothing arrives, and the browser cannot finish closing the socket.
+    lost.stalls = true;
+    vi.advanceTimersByTime(5000);
+    expect(lost.closed).toBe(true);
+    expect(connection.status).toBe('offline');
+    expect(connection.isOnline).toBe(false);
+    expect(connection.rtt).toBeNull();
+    expect(onStatus).toHaveBeenLastCalledWith('offline');
+    // Nothing more is sent on it.
+    const sent = lost.sent.length;
+    connection.send({ t: 'chat', text: 'anyone?' });
+    expect(lost.sent).toHaveLength(sent);
+
+    // A new socket is tried meanwhile, and gets in.
+    vi.runOnlyPendingTimers();
+    expect(FakeSocket.sockets).toHaveLength(2);
+    latest().open();
+    latest().receive(welcome('friday'));
+    expect(connection.status).toBe('online');
+
+    // Whatever the lost socket says at last is not heard.
+    lost.receive({ t: 'leave', id: 3 });
+    lost.finishClosing();
+    expect(connection.status).toBe('online');
+    expect(onMessage).not.toHaveBeenCalled();
+    connection.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('judges no silence on a ping that comes late because this page was held up', () => {
+    // The page's own clock, apart from the timers: a timer can run late, but not early.
+    let clock = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const connection = new Connection({ ...options, handlers: quiet });
+    const socket = latest();
+    socket.open();
+    socket.receive(welcome('friday'));
+    const tick = (ms: number): void => {
+      clock += ms;
+      vi.advanceTimersByTime(PING_MS);
+    };
+    tick(PING_MS);
+    // A long frame, a hidden tab: five seconds pass before the ping's timer runs, and the messages
+    // that came meanwhile are queued behind it, still unread.
+    tick(5000);
+    expect(connection.status).toBe('online');
+    socket.receive({ t: 'pong', id: 0 });
+    tick(PING_MS);
+    expect(connection.status).toBe('online');
+
+    // Silence for real, from here: still found within the same few seconds.
+    for (let i = 0; i < 3; i++) tick(PING_MS);
+    expect(connection.status).toBe('online');
+    tick(PING_MS);
+    expect(connection.status).toBe('offline');
+    expect(socket.closed).toBe(true);
+    connection.close();
+  });
+
+  it('gives up on a server that never welcomes it without waiting on the socket either', () => {
+    const connection = new Connection({ ...options, handlers: quiet });
+    const first = latest();
+    first.stalls = true;
+    first.open();
+    vi.advanceTimersByTime(10_001);
+    expect(first.closed).toBe(true);
+    expect(connection.status).toBe('offline');
+    vi.runOnlyPendingTimers();
+    expect(FakeSocket.sockets).toHaveLength(2);
+    connection.close();
   });
 });
 
