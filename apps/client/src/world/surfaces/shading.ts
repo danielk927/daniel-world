@@ -146,7 +146,7 @@ ${floor ? FLOOR_OCCLUSION : ''}`,
   #ifdef USE_NORMALMAP
     roughnessFactor *= texture2D( normalMap, vNormalMapUv ).a;
   #endif
-  roughnessFactor = clamp( roughnessFactor * vFinish * tileRoughness * (1.0 - 0.3 * surfaceWear), 0.03, 1.0 );`,
+  roughnessFactor = clamp( roughnessFactor * vFinish * tileRoughness * (1.0 - 0.2 * surfaceWear), 0.03, 1.0 );`,
       );
     if (floor) {
       shader.fragmentShader = shader.fragmentShader.replace(

@@ -246,14 +246,14 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
   });
   return {
     floor: {
-      ...painted(0.42),
+      ...painted(0.52),
       shading: {
         tiles: { size: [0.5, 0.5], bond: false, color: 0.035, roughness: 0.12 },
         floor: true,
       },
     },
     tile: {
-      ...painted(0.12),
+      ...painted(0.4),
       shading: {
         tiles: { size: [0.6, 0.3], bond: false, color: 0.015, roughness: 0.2 },
       },
@@ -262,7 +262,7 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
     // light sits above the ceiling, which would otherwise shadow the whole room.
     shell: painted(0.88),
     matte: finished(0.85, { castShadow: true }),
-    gloss: finished(0.12, { castShadow: true }),
+    gloss: finished(0.2, { castShadow: true }),
     steel: {
       ...tinted(),
       material: hdr
@@ -275,7 +275,7 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
         : new MeshStandardMaterial({
             color: '#cfd3d4',
             metalness: 0.55,
-            roughness: 0.34,
+            roughness: 0.42,
             vertexColors: true,
           }),
     },
@@ -297,9 +297,9 @@ function surfaces(hdr: boolean): Record<LayerName, Surface> {
       }),
     },
     // Brass and copper are small polished pieces; shadows would only turn them maroon and olive.
-    brass: metal('#e9cf8d', '#e0b052', 0.3, { castShadow: true, receiveShadow: false }),
-    copper: metal('#f0a487', '#d9774a', 0.24, { castShadow: true, receiveShadow: false }),
-    stone: finished(0.45, { castShadow: true }),
+    brass: metal('#e9cf8d', '#e0b052', 0.36, { castShadow: true, receiveShadow: false }),
+    copper: metal('#f0a487', '#d9774a', 0.32, { castShadow: true, receiveShadow: false }),
+    stone: finished(0.52, { castShadow: true }),
     wood: finished(0.55, { castShadow: true }),
     food: finished(0.6, { castShadow: true }),
     glass: {

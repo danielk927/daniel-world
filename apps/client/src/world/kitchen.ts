@@ -55,7 +55,7 @@ const VAULT_SWEEP = Math.asin(HZ / VAULT_RADIUS);
 const VAULT_STEPS = 4;
 
 /** Finishes: roughness multipliers on layers that take one. */
-const POLISHED = 0.55;
+const POLISHED = 0.75;
 const SATIN = 1.25;
 /** Wire is too thin to keep a sharp highlight from glittering: dull it. */
 const WIRE = 1.9;
@@ -754,7 +754,7 @@ function createPiano(kit: Kit): void {
     p.maxZ + 0.04,
     0.02,
     undefined,
-    0.85,
+    1.15,
   );
   const knob = knobProfile();
   for (const side of [-1, 1]) {

@@ -374,7 +374,7 @@ export class CoolerDoor {
       geometry,
       // Brushed steel like the kitchen's, painted per vertex so scuffs can darken it. Smooth
       // shaded, unlike the kitchen's flat facets: a dent reads by the light rolling across it.
-      new MeshStandardMaterial({ vertexColors: true, metalness: 0.55, roughness: 0.38 }),
+      new MeshStandardMaterial({ vertexColors: true, metalness: 0.55, roughness: 0.42 }),
     );
     shadeSurface(this.leaf.material);
     this.leaf.name = 'cooler-door';
@@ -423,7 +423,7 @@ export class CoolerDoor {
     material.envMap = probe;
     material.envMapIntensity = 1;
     material.metalness = 1;
-    material.roughness = 0.34;
+    material.roughness = 0.44;
     material.color.set('#b4b7b8');
     material.needsUpdate = true;
   }

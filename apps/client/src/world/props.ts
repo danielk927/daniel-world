@@ -33,7 +33,7 @@ const croissant = croissantGeometry();
 
 /** Bright tin, the lining of copper pans: steel's layer, polished. */
 const TIN = '#e8e6e2';
-const POLISHED = 0.55;
+const POLISHED = 0.75;
 const CAST_IRON = '#2c2a28';
 /** The pass's plates: porcelain a shade off white, so under a heat lamp the food, not the plate, is what shines. */
 const PASS_PLATE = '#e6e0d5';

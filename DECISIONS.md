@@ -898,3 +898,18 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 - `scripts/hands.ts` shoots the hand holding each knife at rest, mid-inspect and on the Knives page with the page's clock held, so the same frames can be compared before and after a change.
 - The agent doing this stalled twice before writing it up; the merge was checked by hand: lint, typecheck, 972 unit tests, the build and the frames.
   Frame CPU with 16 players was the same just before and after it (2.81 and 2.72 ms on a machine running slower that day than the night before, when the same earlier commit measured 1.2 ms against 2.2 ms).
+
+### A kitchen less shiny (2026-10-10)
+
+- **The kitchen read a bit too shiny and reflective on review, so every reflective material is rougher**; reflections still come from the probe at full strength, with Fresnel deciding how much shows.
+  Turning the probe's strength down instead would have dimmed the metals, which are lit mostly by what they reflect, back toward the grey paint the graphics upgrade fixed; roughness is what made the reflections read as mirrors.
+- **What changed, as roughness on the high tier** (the painted texture's range times the part's finish):
+  - the floor's honed stone 0.44 to 0.62, from 0.3 to 0.48, and the aisles worn 20 % smoother instead of 30 %, so it no longer looks wet;
+  - the wall tiles' glaze 0.4 to 0.48, from 0.26 to 0.34, which takes the last streaks of the light lines off the walls;
+  - brushed steel 0.42 to 0.5, from 0.32 to 0.4, and its polished parts (rails, taps, small pots) at a finish of 0.75 instead of 0.55, about 0.32 instead of 0.18;
+  - the cooking suite's top brushed satin like the pass (finish 1.15, from 0.85), since from every side it threw a broad white glare of the hood's lights along its front edge and between the burners;
+  - copper 0.28 to 0.44 (from 0.2), brass 0.32 to 0.5 (from 0.26), stone 0.5 to 0.58 (from 0.42), porcelain and enamel 0.2 (from 0.12);
+  - the walk-in's door 0.44, from 0.34: it has no brushing of its own, so it read as a brown mirror.
+- **The pass is rougher with the steel it is made of** (its finishes stay 1.2 and 1.4, now about 0.5 to 0.6): it still reads as stainless from the dining room, and the pools under the heat lamps spread wider.
+- **The low tier's bases move in step** (floor 0.52, tiles 0.4, steel 0.42, copper 0.32, brass 0.36, stone 0.52); it has no probe, so for it this only softens the lamps' highlights.
+- **Unchanged**: food and its glazes, wood, cast iron, cloth, plaster, glass and the night panes, the cooks, and the hand and knives.

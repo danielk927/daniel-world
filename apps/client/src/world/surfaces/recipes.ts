@@ -34,7 +34,7 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   float face = (h.z - 0.5) * 0.0003 + (f.x - 0.5) * (h.x - 0.5) * 0.0004 + (f.y - 0.5) * (h.y - 0.5) * 0.0004;
   float ease = smoothstep(0.0012, 0.0045, edge);
   height = mix(-0.0018, face + 0.00002 * speck, ease);
-  roughness = mix(0.3 + 0.1 * h.y + 0.05 * clouds + 0.08 * shell, 0.85, grout);
+  roughness = mix(0.44 + 0.1 * h.y + 0.05 * clouds + 0.08 * shell, 0.85, grout);
 }
 `,
 };
@@ -69,7 +69,7 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   glaze *= mix(vec3(1.0), vec3(1.01, 1.0, 0.98), h.x);
   float dirt = 0.5 + 0.5 * fbm(uv, vec2(6.0), 3, 0.5);
   color = mix(glaze, vec3(0.8, 0.78, 0.74) * (0.94 + 0.08 * dirt), grout);
-  roughness = mix(0.26 + 0.06 * h.y + 0.02 * glazeNoise, 0.8, grout);
+  roughness = mix(0.4 + 0.06 * h.y + 0.02 * glazeNoise, 0.8, grout);
 }
 `,
 };
@@ -115,7 +115,7 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   }
   color = vec3(1.0);
   height = 0.000004 * brush - 0.000006 * scratch;
-  roughness = 0.32 + 0.035 * brush + 0.02 * streak + 0.06 * smoothstep(0.1, 0.8, smudge) - 0.1 * scratch;
+  roughness = 0.42 + 0.035 * brush + 0.02 * streak + 0.06 * smoothstep(0.1, 0.8, smudge) - 0.1 * scratch;
 }
 `,
 };
@@ -174,7 +174,7 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   float fine = fbm(uv, vec2(40.0), 3, 0.5);
   color = mix(vec3(1.0), vec3(0.62, 0.5, 0.46), patina * 0.75) * (1.0 + 0.04 * fine);
   height = 0.00045 * dent.x * dent.x;
-  roughness = 0.2 + 0.12 * patina + 0.04 * fine;
+  roughness = 0.28 + 0.12 * patina + 0.04 * fine;
 }
 `,
 };
@@ -190,7 +190,7 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   float brush = fbm(uv, vec2(2.0, 300.0), 3, 0.5);
   color = mix(vec3(1.0), vec3(0.72, 0.66, 0.55), tarnish * 0.6) * (1.0 + 0.03 * brush);
   height = 0.000004 * brush;
-  roughness = 0.26 + 0.14 * tarnish + 0.04 * brush;
+  roughness = 0.32 + 0.14 * tarnish + 0.04 * brush;
 }
 `,
 };
@@ -221,7 +221,7 @@ void surface(vec2 uv, out vec3 color, out float height, out float roughness) {
   vec3 base = vec3(0.92) * (1.0 + 0.1 * (crystal - 0.5)) * (1.0 + 0.04 * wander);
   color = mix(base, vec3(0.55, 0.56, 0.58), clamp(vein, 0.0, 1.0));
   height = -0.000015 * smoothstep(0.0, 0.3, grain.x) * crystal;
-  roughness = 0.42 + 0.08 * (crystal - 0.5) + 0.05 * vein;
+  roughness = 0.5 + 0.08 * (crystal - 0.5) + 0.05 * vein;
 }
 `,
 };
