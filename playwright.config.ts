@@ -10,6 +10,8 @@ const outDir = `dist-test-${E2E_CLIENT_PORT}`;
 
 export default defineConfig({
   testDir: 'e2e',
+  // Each run clears its output folder as it starts, so a suite on other ports keeps its own.
+  outputDir: `test-results/${E2E_CLIENT_PORT}`,
   // Tests share one room server process and start/stop it, so run serially.
   workers: 1,
   fullyParallel: false,
