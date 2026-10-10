@@ -312,7 +312,8 @@ export class PartyPanel {
       this.inviteInput.select();
       setLine(
         this.copyStatus,
-        `Copying was blocked, so the link is selected: press ${isMac() ? '⌘C' : 'Ctrl+C'} to copy it.`,
+        // In words: the fonts have no ⌘.
+        `Copying was blocked, so the link is selected: press ${isMac() ? 'Command-C' : 'Ctrl+C'} to copy it.`,
         'warn',
       );
     }

@@ -5,17 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0d1024" />
-    <meta
-      name="description"
-      content="Daniel Kim's portfolio: about, projects, experience, skills and contact."
-    />
-    <title>Daniel Kim - Portfolio</title>
+    <!-- The title, the description and the page are written in from src/content.ts by the build
+         (src/portfolioPage.ts, run from vite.config.ts), so the page reads without JavaScript. -->
+    <!-- portfolio:head -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
-    <div id="portfolio" class="pf">
-      <noscript>This page needs JavaScript to render its content.</noscript>
-    </div>
+    <div id="portfolio" class="pf"><!-- portfolio:body --></div>
     <script type="module" src="/src/portfolio.ts"></script>
   </body>
 </html>

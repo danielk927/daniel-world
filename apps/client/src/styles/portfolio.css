@@ -92,7 +92,7 @@ body {
   margin-top: 32px;
 }
 
-/* Email, LinkedIn and GitHub wrap as one group, never one of them alone. */
+/* Email, LinkedIn and GitHub, as text links, wrap as one group, never one of them alone. */
 .pf-contact {
   display: flex;
   flex-wrap: wrap;
@@ -100,6 +100,19 @@ body {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Links in the reading are the size of the words round them. */
+.pf-contact .text-link,
+.lore-links .text-link {
+  font-size: inherit;
+}
+
+/* As tall as the button beside them, so a row of them lines up with it, or under it on a phone. */
+.pf-contact .text-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 
 /* ---------- The list of sections ---------- */
@@ -570,32 +583,21 @@ body {
   }
 
   /* Links as plain words, each followed by where it goes. */
-  .lore-item-link {
+  .lore-item-link,
+  .text-link {
     text-decoration: none;
   }
 
-  .button {
+  .pf-contact .text-link {
     display: inline;
     min-height: 0;
-    padding: 0;
-    color: var(--ink);
-    font: 500 10.5pt/1.5 var(--font-body);
-    letter-spacing: 0;
-    text-transform: none;
+    font-weight: 500;
   }
 
-  a[data-print]::after,
-  .button[data-print]::after {
+  a[data-print]::after {
     content: ' ' attr(data-print);
-    position: static;
-    display: inline;
-    height: auto;
-    background: none;
-    transform: none;
     font-weight: 400;
     font-size: 9.5pt;
-    letter-spacing: 0;
-    text-transform: none;
     color: var(--ink-muted);
   }
 

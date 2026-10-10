@@ -1,9 +1,10 @@
 /* ---------- Bottom right corner: loadout over the minimap ---------- */
 
+/* As far from the edges as the chat, the controls and the players, so the corners line up. */
 .hud-corner {
   position: absolute;
-  right: 36px;
-  bottom: 30px;
+  right: var(--hud-edge);
+  bottom: var(--hud-edge);
   display: flex;
   flex-direction: column;
   align-items: flex-end;

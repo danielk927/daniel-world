@@ -31,16 +31,26 @@ describe('content', () => {
     noneMatch(/\u2014/);
   });
 
-  it('names the station and what it holds on every station', () => {
+  it('gives every station a section of its own', () => {
     const titles = new Set<string>();
     for (const { id } of STATIONS) {
-      const entry = stations[id];
-      expect(entry.station, id).toBeTruthy();
-      expect(entry.kicker.startsWith(`${entry.station} · `), id).toBe(true);
-      expect(entry.title, id).not.toBe(entry.station);
-      titles.add(entry.title);
+      expect(stations[id].id, id).toBe(id);
+      titles.add(stations[id].title);
     }
     expect(titles.size, 'every station holds something different').toBe(STATIONS.length);
+  });
+
+  it('says where every dish is from', () => {
+    for (const dish of Object.values(dishes)) expect(dish.place, dish.id).toBeTruthy();
+  });
+
+  it('names no French station in the panels, only the sections', () => {
+    const french =
+      /\b(le passe|saucier|poissonnier|r[oô]tisseur|entremetier|garde.manger|p[aâ]tisserie|plonge)\b/i;
+    const panels = [...Object.values(stations), ...Object.values(dishes)].flatMap((entry) =>
+      texts({ title: entry.title, paragraphs: entry.paragraphs, items: entry.items }),
+    );
+    expect(panels.filter((text) => french.test(text))).toEqual([]);
   });
 
   it('puts everything the stations hold on the portfolio page too', () => {

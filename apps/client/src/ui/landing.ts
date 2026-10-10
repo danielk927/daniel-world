@@ -111,7 +111,7 @@ export class Landing {
     this.describeRoom();
 
     this.party = el('div', { class: 'field landing-party', attrs: { id: 'landing-party' } }, [
-      el('label', { class: 'field-label', text: 'Private party', attrs: { for: 'landing-room' } }),
+      el('label', { class: 'field-label', text: 'Party code', attrs: { for: 'landing-room' } }),
       this.roomInput,
       this.roomHelp,
     ]);

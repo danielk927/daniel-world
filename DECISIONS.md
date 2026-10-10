@@ -721,6 +721,34 @@ From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call w
   The card itself is hidden from them, since its countdown, rewritten five times a second, was read out at every tick.
 - The debug state gained `arm`, `labels` and `computer.keys` (the keys DOOM has been told are held), for the tests above.
 
+### The interface and content after review (2026-10-09)
+
+- **The portfolio is written into `portfolio.html` by the build, from `content.ts`**, with its title and description, so it reads with JavaScript off and search engines and link previews see all of it; in the browser `portfolio.ts` only follows the reading in the list of sections.
+  Its noscript line had said "needs JavaScript", and the world's noscript sent visitors there; the static title still said "Daniel Kim".
+  `portfolioPage.ts` builds the page as a small markup tree (`ui/markup.ts`) that the station panel turns into elements and the build into HTML, so the panel and the page share one renderer and cannot drift; a DOM emulator in the build would have been a heavier way to run the old code, and a string template for the page alone a second renderer to keep in step.
+  The page module imports the dish photos, which only Vite can load, so Vite runs it: the dev server's own loader in dev (which reloads an open portfolio when what it imports changes), and `runnerImport` in a build.
+  A short-lived dev server did the job at first, but it started a second dependency optimizer on the dev server's cache and left a folder behind on every build.
+  The old renderer and the new page give the same DOM, checked in a browser, apart from the photos now loading lazily.
+- **Without JavaScript the world shows the landing as it is when the world cannot run**: the name, the bar, one plain line and "View the portfolio".
+  The loading screen used to lie over the noscript link for good, so a visitor saw "Loading..." forever and could not click through; a noscript style hides it now, by its id, since the build links the stylesheet after it.
+- **The faint ink went from 0.5 to 0.6 alpha, and the landing's even dim from 0.62 to 0.8**, as far as WCAG AA needs and no further.
+  Measured on real GPU frames at 8 p.m. and noon: each small text in the faint ink hidden, its box shot, the ink composited over every pixel behind it and the ratio taken, over the station panels (walked to, so tags show), the pause menu facing four ways, and 15 moments of the landing camera's lap.
+  Before, the panel's tags fell to 3.9:1, the pause menu's words to 4:1 and the landing's labels and help to 2.6:1, with 35 to 46 of 100 sampled texts under 4.5:1; after, every one holds 4.5:1 (the panel 4.88, the pause menu 5.03, the landing 4.58 at worst).
+  The dark sides needed the ink at 0.59; the landing would have needed 0.85, past the muted ink (0.74), which would have erased faint and muted, so the landing takes a deeper dim instead.
+  The landing is now noticeably darker behind the name, the kitchen still in view; Daniel may want to judge it.
+- **The labels in the world keep their ranks inside their own layer** (`isolation: isolate`), so none draws over the prompt, the HUD, the chat or the red flash of a hit; `labels.ts` is untouched.
+- **The loadout and the map keep the HUD's edge distance** (`--hud-edge`), so the bottom corners and the right edge line up at every size.
+- **The player list takes only the rows that fit above the loadout**, with room for a line of the kill feed, measured when the window changes size.
+  A full room in a short window printed names over the knife; a burst of several kills in a short, full room can still reach it for a few seconds, which seemed better than folding the list to two names for it.
+- **The knife grid's arrow keys move by the columns the stylesheet lays out**, measured when the grid changes size, instead of a constant 4 the phone layout's 3 broke.
+- **Tab in a dialog stops only on what the keyboard can reach** (`tabStops` in `ui/dom.ts`, shared by the trap and the panel): not the tabs and radios the arrow keys own, nor anything in a hidden tab, disabled or invisible.
+  The client review's fix to the same trap arrived at once; one implementation stays, this one, with its handling of focus on the dialog itself.
+- **Words**: the kitchen notes say the real controls (no emotes exist) and the game's "party" and "party code"; the landing's field is "Party code", as in the pause menu, beside the "Private party" toggle; "Leave the kitchen" answers "Enter the kitchen"; the link is "Plain portfolio" in both places; the plonge's panel no longer names the station; the pass lists the dishes by their own names, so the croissant is the black truffle croissant everywhere; a blocked copy says "Command-C" in words, as the fonts have no ⌘.
+- **The portfolio's contact links are text links**, as the house style has links, in its header (a button's height, beside the way into the kitchen) and its Contact section; the station panel's already were; on paper they stay plain words with where they go.
+- **Dead content went**: the site's tagline and world name, the stations' French names and kickers, and the portfolio sections' kickers and colors, which nothing showed.
+  A dish's restaurant is its `place`; the French names stay as a comment by each station; portfolio sections are `LoreSection`, and station and dish entries `LoreEntry`, which adds the light's color the world reads.
+- Left for Daniel: the two `TODO(daniel)` lines, and the "pending for NeurIPS and Nature" and "pending for AAAI and AISTATS" wording.
+
 ### E2E that holds on a busy machine (2026-10-09)
 
 From a review after three multiplayer tests failed at a load of 13 to 15 on 10 cores, with pages stuck compiling shaders past a minute.
