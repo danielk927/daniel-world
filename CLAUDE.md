@@ -43,6 +43,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
+  `helpers.ts` has what they share; the room server they start runs in a process of its own (`roomServer.ts`).
 - `scripts` - dev tooling (bots, screenshots, perf); `processes.ts` starts what they need and stops it with them.
 
 ## Conventions
@@ -88,6 +89,10 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   The fonts' latin subset has no arrows, so draw them.
 - The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
+- E2E must hold on a busy machine, where a page can go seconds without a frame.
+  Check that something did not happen only once the game has run frames (`waitForFrames`), the server says so (`server.room`), or the page has heard back; never after a fixed wait.
+  Each `enterWorld` adds its own time to the test's (`ENTER_MS`), so set a long body's time with `test.setTimeout` before entering, and take `test` from `helpers.ts` in specs that start a room server, so a failure carries its log.
+  The test build draws pages nobody is driving four times a second (`src/testDrawing.ts`); `E2E_CPU_THROTTLE` checks a spec on a starved page.
 
 <!-- BEGIN AWS Agent Toolkit rules -->
 

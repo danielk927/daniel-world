@@ -95,6 +95,11 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Before the next `npm run deploy:aws`: it replaces the instance once (rooms drop, players reconnect), creates the Elastic IP and moves CloudFront's `/ws` origin to it (a distribution update, several minutes); afterwards commit `infra/cdk.context.json` and check `dig +short <ServerOrigin output>` prints the Elastic IP.
 - Lint, typecheck, 926 unit tests and the build pass; a local synth shows the changes; `node scripts/perf.ts` on spare ports reports 16 players at 60 fps and leaves nothing running.
 
+### E2E on a busy machine (2026-10-09)
+
+- The suite holds on a loaded machine with no retries: in the test build pages nobody drives draw four times a second, each page a test enters adds its own time, the room server runs in its own process and a failed test carries its log, traces skip the screencast, and a check that nothing happened waits for the game, the server or an echo instead of a fixed time.
+- New end-to-end checks: the no-WebGL landing, the landing's live lobby count, jumping and sprinting, remote name tags, holding the button to keep throwing, and a private party finding itself again after a server restart.
+
 ### How to run it
 
 ```bash
