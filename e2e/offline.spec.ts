@@ -215,7 +215,7 @@ test('a room server address the browser will not even open still lets visitors i
 
     // Leaving and coming back works, and leaves nothing trying on behind it.
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Leave world' }).click();
+    await page.getByRole('button', { name: 'Leave the kitchen' }).click();
     await page.getByRole('button', { name: 'Enter the kitchen' }).click();
     await expectWorld(
       page,
