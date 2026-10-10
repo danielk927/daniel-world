@@ -30,7 +30,7 @@ async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.getByLabel('Your name').fill(name);
   if (room) {
     await page.getByRole('button', { name: 'Private party' }).click();
-    await page.getByLabel('Private party').fill(room);
+    await page.getByRole('textbox', { name: 'Party code' }).fill(room);
   }
   await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   await page.waitForFunction(() => window.__world?.mode === 'playing', null, { timeout: 60_000 });
@@ -183,7 +183,9 @@ async function main(): Promise<void> {
     await gamer.screenshot({ path: `${outDir}/computer-doom.png` });
     await gamer.close();
 
+    // The page is written in before the dev server's styles arrive: let their transitions settle.
     await page.goto(`${clientUrl}/portfolio.html`);
+    await page.waitForTimeout(500);
     await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });
     const phone = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -197,6 +199,7 @@ async function main(): Promise<void> {
     await phonePage.waitForTimeout(1500);
     await phonePage.screenshot({ path: `${outDir}/mobile-landing.png` });
     await phonePage.goto(`${clientUrl}/portfolio.html`);
+    await phonePage.waitForTimeout(500);
     await phonePage.screenshot({ path: `${outDir}/mobile-portfolio.png` });
     console.log(`Screenshots written to ${outDir}`);
   } finally {

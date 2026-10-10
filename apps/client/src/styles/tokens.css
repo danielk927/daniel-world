@@ -24,7 +24,8 @@
 
   --ink: var(--ivory);
   --ink-muted: rgb(242 234 216 / 0.74);
-  --ink-faint: rgb(242 234 216 / 0.5);
+  /* Faint, but small words in it still read at 4.5:1 over the dark sides with the kitchen lit behind. */
+  --ink-faint: rgb(242 234 216 / 0.6);
   --ink-hair: rgb(242 234 216 / 0.2);
   --accent: var(--brass);
   --danger: #ff8f80;
@@ -44,7 +45,8 @@
     rgb(var(--night-rgb) / 0.8) 46%,
     rgb(var(--night-rgb) / 0.94) 60%
   );
-  --dim: rgb(var(--night-rgb) / 0.62);
+  /* Deep enough that the landing's faint labels read at 4.5:1 wherever its camera walks. */
+  --dim: rgb(var(--night-rgb) / 0.8);
 
   --bar: 4px;
   --focus: 0 0 0 2px var(--brass);

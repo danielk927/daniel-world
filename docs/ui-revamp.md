@@ -37,7 +37,7 @@ The mockups are static HTML over real frames of the kitchen at 8 p.m.; build to 
    Say what a thing is or does, in as few words as it takes.
 9. **No French station names in the game.**
    Labels, panels and prompts name the resume section only (Experience, Products, Systems and ML...).
-   The `station` and `kicker` fields in `content.ts` stay for the portfolio page.
+   The French names are only the stations' ids, with a comment by each in `content.ts`; the portfolio page names the sections too.
 
 ## Tokens and parts
 
@@ -48,12 +48,12 @@ All in `apps/client/src/styles/tokens.css` and `controls.css`; use them, do not 
 - `.kicker`: a small uppercase line in brass above a title, only where it adds information (a status, a count).
 - `.title`: the display face; each surface sets the size.
 - `.bar`: the brass mark.
-- `.button`: a word with the bar sliding in under it on hover, press or `aria-current`/`aria-pressed`; `.button-primary` always has the bar; `.button-large` is the screen's main action in the display face.
+- `.button`: a word with the bar sliding in under it on hover or `aria-current`; `.button-primary` always has the bar; `.button-large` is the screen's main action in the display face.
 - `.icon-button`: a ring.
 - `.field`, `.field-label`, `.field-help`, `.input`: a line to write on that turns brass while you type; labels in plain case.
 - `kbd`: a ring.
 
-The old navy tokens (`--navy`, `--panel`, `--panel-border`, `--radius*`, `--shadow`, `.card`) remain only until every surface has moved off them, then they go.
+The old navy tokens (`--navy`, `--panel`, `--panel-border`, `--radius*`, `--shadow`, `.card`) are gone; do not bring them back.
 
 ## Surfaces
 
@@ -118,7 +118,7 @@ On `--dark-from-left`:
 - Sliders: a hairline track, a brass run and a ringed knob.
 - Switches stay `role="switch"` but read as "Off On" with the bar under the current word.
 - Choices (graphics) are words with the bar under the chosen one.
-- Bottom left: Resume with its Esc ring, Leave world, and the plain portfolio link.
+- Bottom left: Resume with its Esc ring, Leave the kitchen, and the Plain portfolio link.
 - Party, Knives and Controls follow the same rows, words and rings; the knife grid is icons and names with the bar under the equipped one, no tiles.
 - The dialog's accessible name stays "Paused".
 

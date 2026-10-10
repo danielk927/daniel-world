@@ -59,6 +59,7 @@ All personal content lives in [`apps/client/src/content.ts`](apps/client/src/con
 It holds Daniel's resume, item by item: each role and project is written once and shared by the portfolio page (the `lore` sections) and the kitchen's eight stations (`stations`), so a change shows up in both.
 Each station serves one part of it, and its label says which: the pass is About me, the saucier Experience, the rôtisseur and entremetier the projects, the poissonnier Research, the garde manger Skills, the pâtisserie Interests, and the plonge Education and contact.
 The few lines that still want Daniel's own words are marked `TODO(daniel)`.
+The build writes the portfolio page into `portfolio.html` from it (`src/portfolioPage.ts`, run by the plugin in `vite.config.ts`), so the page reads with JavaScript off and search engines and link previews see all of it.
 
 ## Scripts
 

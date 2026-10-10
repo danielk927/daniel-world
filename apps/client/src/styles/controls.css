@@ -32,7 +32,7 @@
   background: var(--accent);
 }
 
-/* Buttons are words. The bar comes up under one that is hovered, pressed or current. */
+/* Buttons are words. The bar comes up under one that is hovered or current. */
 .button {
   appearance: none;
   position: relative;
@@ -68,14 +68,12 @@
 }
 
 .button-primary,
-.button[aria-pressed='true'],
 .button[aria-current='true'],
 .button:hover:not(:disabled, [aria-disabled='true']) {
   color: var(--ink);
 }
 
 .button-primary::after,
-.button[aria-pressed='true']::after,
 .button[aria-current='true']::after,
 .button:hover:not(:disabled, [aria-disabled='true'])::after {
   transform: scaleX(1);
@@ -95,10 +93,6 @@
 .icon-button[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-.button-secondary {
-  color: var(--ink-muted);
 }
 
 /* The main action of a screen, in the title face. */
