@@ -10,11 +10,12 @@ import {
   type Material,
 } from 'three';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+import { creaseNormals } from './creaseNormals.ts';
 
 /**
  * The player's own hand, for the view model: a palm, four fingers of three phalanges each and a
- * thumb, faceted like the kitchen, in one skinned mesh (one draw call), posed by the angle of every
- * joint. The fingers wrap whatever handle the hand holds (gripPose), each phalanx touching it, the
+ * thumb, smooth-shaded over solids the knife's clearance is measured against, in one skinned mesh
+ * (one draw call), posed by the angle of every joint. The fingers wrap whatever handle the hand holds (gripPose), each phalanx touching it, the
  * thumb closes over them (solved, not keyed), and the bare hand curls from open to a fist.
  *
  * Hand space: the wrist at the origin, the fingers reaching along -Z, the thumb's side +Y and the
@@ -702,18 +703,117 @@ function ring(points: Vector3[], z: number, r: number, sides = 6, at = new Vecto
   }
 }
 
+/** Sides round a phalanx: its solid, the shape the knife is kept out of, is a six-sided loft. */
+const PHALANX_SIDES = 6;
+/** How far its normals lean toward the joint over the rounded end of a phalanx. */
+const KNUCKLE_LEAN = (55 * Math.PI) / 180;
+
 /**
- * A phalanx from its joint (the origin) to the next joint (at -length along Z), rounded over both
- * joints so a bent finger never opens a gap: the caps of neighbouring phalanges overlap like knuckles.
+ * A phalanx from its joint (`at`) to the next joint (at -length along Z), rounded over both joints
+ * so a bent finger never opens a gap: the caps of neighbouring phalanges overlap like knuckles. Its
+ * solid is a loft of six-sided rings, flatter from back to palm than across, capped at both ends
+ * (the fingertip in a point); it is drawn with a point on each of the rings' sides too, on the same
+ * faces, and normals from the round finger it stands for, so it shades round while staying the
+ * solid the knife's clearance is measured against. Skinned whole to `bone`.
  */
-function phalanx(length: number, r0: number, r1: number, tip: boolean): Vector3[] {
-  const points: Vector3[] = [];
-  ring(points, r0 * 0.6, r0 * 0.62);
-  ring(points, 0, r0);
-  ring(points, -length, r1);
-  ring(points, -length - r1 * (tip ? 0.55 : 0.6), r1 * (tip ? 0.72 : 0.62));
-  if (tip) points.push(new Vector3(0.0015, 0, -length - r1 * 0.95));
-  return points;
+function phalanxPiece(
+  length: number,
+  r0: number,
+  r1: number,
+  tip: boolean,
+  at: Vector3,
+  bone: number,
+): BufferGeometry {
+  const rings = [
+    { z: r0 * 0.6, r: r0 * 0.62, lean: KNUCKLE_LEAN },
+    { z: 0, r: r0, lean: 0 },
+    { z: -length, r: r1, lean: 0 },
+    { z: -length - r1 * (tip ? 0.55 : 0.6), r: r1 * (tip ? 0.72 : 0.62), lean: -KNUCKLE_LEAN },
+  ];
+  const corner = new Vector3();
+  const next = new Vector3();
+  const points: Vector3[][] = [];
+  const normals: Vector3[][] = [];
+  for (const { z, r, lean } of rings) {
+    const loop: Vector3[] = [];
+    const facing: Vector3[] = [];
+    for (let i = 0; i < PHALANX_SIDES; i++) {
+      const a = ((i + 0.5) / PHALANX_SIDES) * Math.PI * 2;
+      const b = ((i + 1.5) / PHALANX_SIDES) * Math.PI * 2;
+      corner.set(Math.cos(a) * r * 0.88, Math.sin(a) * r, z);
+      next.set(Math.cos(b) * r * 0.88, Math.sin(b) * r, z);
+      for (const p of [corner, next.clone().add(corner).multiplyScalar(0.5).setZ(z)]) {
+        loop.push(p.clone().add(at));
+        // Out from the ellipse the ring stands for, leaning toward the joint at a rounded end.
+        const out = new Vector3(p.x / 0.88, p.y, 0).normalize();
+        facing.push(out.multiplyScalar(Math.cos(lean)).setZ(Math.sin(lean)));
+      }
+    }
+    points.push(loop);
+    normals.push(facing);
+  }
+  const position: number[] = [];
+  const normal: number[] = [];
+  const corners = (list: readonly (readonly [Vector3, Vector3])[]): void => {
+    for (const [p, n] of list) {
+      position.push(p.x, p.y, p.z);
+      normal.push(n.x, n.y, n.z);
+    }
+  };
+  const count = PHALANX_SIDES * 2;
+  // The sides, ring to ring, wound to face out.
+  for (let k = 0; k < rings.length - 1; k++) {
+    for (let i = 0; i < count; i++) {
+      const j = (i + 1) % count;
+      const [p, q, s, t] = [points[k]![i]!, points[k]![j]!, points[k + 1]![i]!, points[k + 1]![j]!];
+      const [np, nq, ns, nt] = [
+        normals[k]![i]!,
+        normals[k]![j]!,
+        normals[k + 1]![i]!,
+        normals[k + 1]![j]!,
+      ];
+      corners([
+        [p, np],
+        [s, ns],
+        [q, nq],
+        [q, nq],
+        [s, ns],
+        [t, nt],
+      ]);
+    }
+  }
+  // The ends: flat round the knuckle, and the fingertip's point.
+  const knuckle = new Vector3(0, 0, rings[0]!.z).add(at);
+  const end = tip
+    ? new Vector3(0.0015, 0, -length - r1 * 0.95).add(at)
+    : new Vector3(0, 0, rings[3]!.z).add(at);
+  const up = new Vector3(0, 0, 1);
+  const down = new Vector3(0, 0, -1);
+  const last = rings.length - 1;
+  for (let i = 0; i < count; i++) {
+    const j = (i + 1) % count;
+    corners([
+      [knuckle, up],
+      [points[0]![i]!, normals[0]![i]!],
+      [points[0]![j]!, normals[0]![j]!],
+      [end, down],
+      [points[last]![j]!, normals[last]![j]!],
+      [points[last]![i]!, normals[last]![i]!],
+    ]);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(position, 3));
+  geometry.setAttribute('normal', new Float32BufferAttribute(normal, 3));
+  const n = position.length / 3;
+  const index = new Uint16Array(n * 4);
+  const weight = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    index[i * 4] = bone;
+    weight[i * 4] = 1;
+  }
+  geometry.setAttribute('skinIndex', new Uint16BufferAttribute(index, 4));
+  geometry.setAttribute('skinWeight', new Float32BufferAttribute(weight, 4));
+  return geometry;
 }
 
 /** A point of a hull and how it is skinned: to `bone`, blended by `weight` with the wrist. */
@@ -728,7 +828,7 @@ const fingerBone = (f: number, j: number): number => 1 + f * 4 + j;
 const THUMB_BONE = 1 + FINGERS.length * 4;
 
 /**
- * The palm, a faceted block from the wrist to the knuckles with the ball of the thumb on it. Round
+ * The palm, a rounded block from the wrist to the knuckles with the ball of the thumb on it. Round
  * each knuckle it moves with that finger's metacarpal; across the hand on the little finger's side
  * it is shared between the wrist and the little finger's, so the palm cups as the fist closes.
  */
@@ -765,13 +865,17 @@ function palmPoints(): SkinnedPoint[] {
   return points;
 }
 
+/** Faces of the palm meeting at less than this shade as one rounded surface. */
+const PALM_CREASE = (80 * Math.PI) / 180;
+
 /**
- * One skinned piece: a convex hull of points in hand space, each corner moved by its point's bone
- * (and the wrist), or all of it by `bone`.
+ * The palm, skinned: the convex hull of its points in hand space, each corner moved by its point's
+ * bone (and the wrist). Shaded round over its gentle turns (creaseNormals), so its broad back and
+ * palm read as one surface rounding over at the edges.
  */
-function piece(points: readonly (Vector3 | SkinnedPoint)[], bone = 0): BufferGeometry {
-  const skinned = points.map((p) => (p instanceof Vector3 ? { point: p, bone, weight: 1 } : p));
+function palmPiece(skinned: readonly SkinnedPoint[]): BufferGeometry {
   const geometry = new ConvexGeometry(skinned.map((p) => p.point));
+  creaseNormals(geometry, PALM_CREASE);
   const position = geometry.getAttribute('position');
   const index = new Uint16Array(position.count * 4);
   const weight = new Float32Array(position.count * 4);
@@ -837,7 +941,7 @@ export class HandRig {
   constructor(material: Material) {
     this.wrist = new Bone();
     const bones: Bone[] = [this.wrist];
-    const pieces: BufferGeometry[] = [piece(palmPoints())];
+    const pieces: BufferGeometry[] = [palmPiece(palmPoints())];
     for (const finger of FINGERS) {
       const metacarpal = new Bone();
       metacarpal.position.set(...finger.carpal);
@@ -853,9 +957,7 @@ export class HandRig {
         parent.add(bone);
         (j === 0 ? this.knuckles : this.joints).push(bone);
         const r0 = finger.radius * (1 - 0.04 * j);
-        const points = phalanx(finger.lengths[j]!, r0, r0 * 0.93, j === 2);
-        for (const p of points) p.add(at);
-        pieces.push(piece(points, bones.length));
+        pieces.push(phalanxPiece(finger.lengths[j]!, r0, r0 * 0.93, j === 2, at, bones.length));
         bones.push(bone);
         at = at.clone().add(new Vector3(0, 0, -finger.lengths[j]!));
         parent = bone;
@@ -869,9 +971,7 @@ export class HandRig {
       parent.add(bone);
       this.thumb.push(bone);
       const r0 = THUMB.radii[j]!;
-      const points = phalanx(THUMB.lengths[j]!, r0, r0 * 0.92, j === 2);
-      for (const p of points) p.add(at);
-      pieces.push(piece(points, THUMB_BONE + j));
+      pieces.push(phalanxPiece(THUMB.lengths[j]!, r0, r0 * 0.92, j === 2, at, THUMB_BONE + j));
       bones.push(bone);
       at = at.clone().add(new Vector3(0, 0, -THUMB.lengths[j]!));
       parent = bone;

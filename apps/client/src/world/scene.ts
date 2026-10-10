@@ -127,6 +127,7 @@ export class WorldScene {
     if (this.probe) this.cooler.reflect(this.probe.texture);
     if (this.probe) {
       dressKnives(this.probe.texture);
+      this.viewmodel.dress(this.renderer, this.probe.texture);
     }
 
     this.stations = new Stations(content, dishes, high);
