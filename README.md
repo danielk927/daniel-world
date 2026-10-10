@@ -108,7 +108,7 @@ Rendering is built for a smooth 60 fps with a full room:
 
 ![Two visitors on the live AWS deployment](docs/screenshots/live-aws.png)
 
-Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in one room throwing knives, on the high tier: a steady 60 fps, about 2.2 ms of main-thread time per frame, 74 draw calls (about 30 of them post-processing passes), 123k triangles, and no prediction corrections.
+Measured with `node scripts/perf.ts` on an Apple M5 laptop with 16 players in one room throwing knives, on the high tier: a steady 60 fps with the quality governor at its best level (one step down on a retina screen), about 1 to 3 ms of main-thread time per frame as the machine's own load varies, 84 draw calls (about 30 of them post-processing passes), 715k triangles, and no prediction corrections.
 
 ## The kitchen computer
 

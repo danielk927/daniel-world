@@ -66,7 +66,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 2. `npm run e2e` for anything touching networking, controls, or UI flow.
 3. `npm run build` before committing.
 4. For visual changes, run `node scripts/viewpoints.ts` (and `node scripts/screenshots.ts`) and look at the frames, at device pixel ratio 2 for detail.
-5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps at governor level 0, about 1 ms frame CPU, about 86 draw calls and 710 k triangles with 16 players and bots throwing knives; about 30 of the calls are post-processing passes), and `--dpr 2` (60 fps, governor level 1 or 2).
+5. For render-loop changes, run `node scripts/perf.ts` (expect 60 fps at governor level 0, about 1 to 3 ms frame CPU (it varies with the machine's own load, so compare against a run of the commit before), about 84 draw calls and 715 k triangles with 16 players and bots throwing knives; about 30 of the calls are post-processing passes), and `--dpr 2` (60 fps, governor level 1 or 2).
 
 ## Gotchas
 
