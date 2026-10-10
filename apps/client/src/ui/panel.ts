@@ -1,23 +1,24 @@
 import { dishes, stations, type LoreEntry } from '../content.ts';
-import { el, trapFocus } from './dom.ts';
+import { el, tabStops, trapFocus } from './dom.ts';
 import { renderLoreBody } from './loreContent.ts';
+import { toElement } from './markup.ts';
 
 const stationIds: readonly string[] = Object.keys(stations);
 const dishIds: readonly string[] = Object.keys(dishes);
 
 /** Which of the stations (or of the dishes) an entry is, in the order the resume reads. */
-function placeOf(entry: LoreEntry): { index: number; count: number; dish: boolean } | null {
+function orderOf(entry: LoreEntry): { index: number; count: number } | null {
   const station = stationIds.indexOf(entry.id);
-  if (station >= 0) return { index: station, count: stationIds.length, dish: false };
+  if (station >= 0) return { index: station, count: stationIds.length };
   const dish = dishIds.indexOf(entry.id);
-  if (dish >= 0) return { index: dish, count: dishIds.length, dish: true };
+  if (dish >= 0) return { index: dish, count: dishIds.length };
   return null;
 }
 
 /**
  * A station's section of the resume, or a dish on the pass: a column docked to the right edge over
- * the darkened kitchen, the station still in view on the left. The title is the section; the
- * station's own name stays on the portfolio page.
+ * the darkened kitchen, the station still in view on the left. The title is the section, never the
+ * station's French name.
  */
 export class InfoPanel {
   readonly element: HTMLElement;
@@ -41,10 +42,13 @@ export class InfoPanel {
       'aside',
       {
         class: 'panel',
+        // Focusable, so a click on its words or the kitchen beside it keeps focus, and with it Esc
+        // and E, in the panel.
         attrs: {
           role: 'dialog',
           'aria-modal': 'true',
           'aria-labelledby': 'panel-title',
+          tabindex: '-1',
           hidden: '',
         },
       },
@@ -97,13 +101,13 @@ export class InfoPanel {
   open(entry: LoreEntry): void {
     this.current = entry;
     this.title.textContent = entry.title;
-    const place = placeOf(entry);
-    this.where.textContent = place?.dish ? entry.kicker : '';
-    this.where.hidden = !place?.dish;
+    this.where.textContent = entry.place ?? '';
+    this.where.hidden = !entry.place;
+    const order = orderOf(entry);
     this.count.replaceChildren(
-      ...(place ? [el('span', { text: String(place.index + 1) }), ` of ${place.count}`] : []),
+      ...(order ? [el('span', { text: String(order.index + 1) }), ` of ${order.count}`] : []),
     );
-    this.body.replaceChildren(renderLoreBody(entry, 'text-link'));
+    this.body.replaceChildren(toElement(renderLoreBody(entry)));
     this.element.hidden = false;
     // Only once it shows: a hidden panel ignores this, and would open where the last one was left.
     this.body.scrollTop = 0;
@@ -132,8 +136,8 @@ export class InfoPanel {
    */
   private tabFromBody(event: KeyboardEvent): void {
     if (document.activeElement !== this.body) return;
-    const focusable = this.element.querySelectorAll<HTMLElement>('a[href], button');
-    const next = event.shiftKey ? focusable[focusable.length - 1] : focusable[0];
+    const focusable = tabStops(this.element);
+    const next = event.shiftKey ? focusable.at(-1) : focusable[0];
     if (!next) return;
     event.preventDefault();
     next.focus();

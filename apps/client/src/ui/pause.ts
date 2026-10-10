@@ -125,7 +125,7 @@ export class PauseMenu {
   ) {
     const leaveButton = el('button', {
       class: 'button',
-      text: 'Leave world',
+      text: 'Leave the kitchen',
       attrs: { type: 'button' },
     });
     this.party = new PartyPanel(handlers);
@@ -171,8 +171,15 @@ export class PauseMenu {
       'div',
       {
         class: 'pause',
-        // Named for what it is; the title on screen is the room.
-        attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Paused', hidden: '' },
+        // Named for what it is; the title on screen is the room. Focusable, so a click on its words
+        // or its dark keeps focus, and with it Esc, in the menu.
+        attrs: {
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-label': 'Paused',
+          tabindex: '-1',
+          hidden: '',
+        },
       },
       [
         el('div', { class: 'pause-frame' }, [
@@ -191,7 +198,7 @@ export class PauseMenu {
             leaveButton,
             el('a', {
               class: 'text-link pause-portfolio',
-              text: 'Plain portfolio page',
+              text: 'Plain portfolio',
               attrs: { href: '/portfolio.html' },
             }),
           ]),

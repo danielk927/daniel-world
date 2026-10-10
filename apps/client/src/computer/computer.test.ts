@@ -236,6 +236,26 @@ describe('KitchenComputer', () => {
     expect(computer.error).toBe(null);
   });
 
+  it('says so when the machine fails after it has started, and boots afresh after', async () => {
+    const crashes: string[] = [];
+    computer.onCrash((message) => crashes.push(message));
+    const worker = await boot();
+    computer.key('KeyW', true);
+    // A guest fault or trap in the middle of a game: there is no boot left to fail.
+    worker.reply({ type: 'failed', message: 'illegal instruction at 0x8000_1234' });
+    expect(crashes).toEqual(['illegal instruction at 0x8000_1234']);
+    expect(computer.state).toBe('failed');
+    expect(worker.terminated).toBe(true);
+    await boot();
+    expect(computer.state).toBe('running');
+    // A failed boot is the boot's to report, not a crash.
+    computer.dispose();
+    const on = computer.powerOn();
+    workers.at(-1)!.reply({ type: 'failed', message: 'no network' });
+    await expect(on).rejects.toThrow('no network');
+    expect(crashes).toHaveLength(1);
+  });
+
   it('forwards the console and shuts down on dispose', async () => {
     const worker = await boot();
     const lines: string[] = [];

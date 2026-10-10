@@ -680,6 +680,75 @@ From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call w
   Vite and the bots were spawned before the `try`, so a failure (a port in use, a timeout, Chromium not launching) left them running, and the next run quietly reused a Vite built for another server; reproduced with a port that accepts and never answers, which left Vite on its port.
   Children now start inside the `try`, Vite directly rather than through npm, each in a process group of its own, and the whole groups are stopped on finishing, on an error, and on Ctrl+C (which no longer reaches them by itself, so the script passes it on and exits 130).
 
+### The client game after review (2026-10-09)
+
+- **A connection that goes quiet goes solo at once.**
+  Four seconds without a message used to ask the socket to close and wait for its close event, which on a network that drops packets silently waits out the closing handshake, up to a minute in Chromium: all that time the HUD said Online, chat went nowhere without a word, and solo play never started.
+  Now the socket is given up on the spot (offline, the next attempt on its way) and told to close in the background, and nothing it says after that is heard; a socket the server never welcomes goes the same way.
+  `offline.spec.ts` reproduces it with a TCP relay that can go quiet like a dead network, passing nothing either way and closing nothing.
+- **A ping that comes late judges no silence**, as the server's heartbeat does since "A late heartbeat judges nobody": the page itself was held up (a long frame, a hidden tab, a collection), and what the server sent meanwhile may still be queued behind the timer.
+  Over a second late, the silence starts over and is judged on the next run on time, so a network gone quiet is still found within about five seconds.
+- **A connection never calls its owner from inside its own constructor.**
+  When the browser would not make the socket at all (a ws:// address on an https page, a malformed one), it reported offline before the game had it, which threw out of entering the world and left the connection retrying forever with nobody holding it; each entry added another.
+  The failure now comes a microtask later, as a refused socket's would.
+- **Only the answer to the hello the visitor asked for is final.**
+  Turned away later, by a room that filled while the server was away, the cook stays in the kitchen solo, retrying, and the chat says why once, instead of being thrown back to the landing against the spec's offline mode.
+  This counts a first attempt that failed too: a cook who entered while the server was down is already cooking solo.
+  Reconnects carry no intent (see "Private parties"), so in practice only a full room can turn one away, but taken and empty rooms are treated the same should they ever.
+  The server answered, so the menu still offers parties then rather than calling it unreachable.
+- **A new connection sends no view with its inputs until its own snapshots set the clock**; the reused input carried the last session's, so after a reconnect or a room move the server checked the first knives against a meaningless past.
+- **The arm and the labels show by one rule each**, applied wherever play changes, rather than decided again at every call: the arm only while playing or chatting on one's feet, the labels and name tags only while in the world on one's feet.
+  The respawn arriving under the menu had brought the arm up behind it, and closing the menu or a panel while still down had put the labels over the knockout card.
+- **Nothing is picked while knocked out, and E does nothing then.**
+  A cook on the floor could still open a station they saw from there, over the knockout card; being down is a few seconds of watching, like the computer, which it already refused.
+- **The pause menu and the station panel take focus themselves when clicked** (`tabindex="-1"`), and the panel's dark side catches clicks instead of passing them to the world, so Esc still closes either after a click on its words or the dark beside it.
+  The review said the panel was safe; it was not: a click on its title, or on the kitchen beside it, lost Esc just the same.
+  The focus trap now counts only what Tab can reach, so Shift+Tab from the menu's words or from a tab past the first no longer leaves it.
+- **Leaving the window or the tab at the computer steps away from it**, rather than only releasing DOOM's keys.
+  Under pointer lock that already happened, since the browser takes the mouse back; without it, a key held into DOOM stayed held with its release gone to another window, the marine kept going, and the next real press of it was taken for a repeat.
+  Stepping away also pauses DOOM, so nothing kills the marine while the visitor is elsewhere.
+- **Auto-repeat at the computer goes nowhere**: DOOM keeps track of held keys itself, and the E that sat the cook down, still held, used and put the controls away before the first real key.
+- **DOOM fires on the left click only, and strafes on A and D only.**
+  This replaces "Ctrl and the left button fire" from the kitchen computer's decisions (2026-10-07).
+  A page cannot cancel Chrome's own shortcuts (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+PageUp and Ctrl+PageDown, and their Shift forms), even under pointer lock, so holding Ctrl to fire while walking on W closed the tab, and firing while opening the map on Tab switched tabs.
+  Checking every held modifier found Alt, DOOM's strafe, as bad: with Tab, Space, F4 or Esc it makes the window shortcuts Windows and Linux desktops keep (switch, window menu, close).
+  Shift, DOOM's run, makes none with DOOM's keys alone, so it stays; `keys.test.ts` checks no such shortcut can be made from them.
+- **A crash after boot shows the standby screen and says so** ("The kitchen computer crashed. Step away and sit down again to restart it."); the machine had no boot left to reject, so the cook sat at a frozen frame with every key going nowhere.
+  It does not restart by itself, since a crash that comes again would loop; sitting down again boots it afresh.
+- **A kitchen that fails to load shows the landing's way into the portfolio**, saying so and suggesting a reload, the same path as no WebGL, instead of a loading screen up forever; it covers a code chunk gone in a deploy that landed mid-load and a renderer that will not start after the probe said it could, and logs the error.
+- **A knockout is said to screen readers once**, from a region always in the page: who did it, when the cook is back up, and any advice.
+  It stays assertive, being said once and about the visitor themselves.
+  The card itself is hidden from them, since its countdown, rewritten five times a second, was read out at every tick.
+- The debug state gained `arm`, `labels` and `computer.keys` (the keys DOOM has been told are held), for the tests above.
+
+### The interface and content after review (2026-10-09)
+
+- **The portfolio is written into `portfolio.html` by the build, from `content.ts`**, with its title and description, so it reads with JavaScript off and search engines and link previews see all of it; in the browser `portfolio.ts` only follows the reading in the list of sections.
+  Its noscript line had said "needs JavaScript", and the world's noscript sent visitors there; the static title still said "Daniel Kim".
+  `portfolioPage.ts` builds the page as a small markup tree (`ui/markup.ts`) that the station panel turns into elements and the build into HTML, so the panel and the page share one renderer and cannot drift; a DOM emulator in the build would have been a heavier way to run the old code, and a string template for the page alone a second renderer to keep in step.
+  The page module imports the dish photos, which only Vite can load, so Vite runs it: the dev server's own loader in dev (which reloads an open portfolio when what it imports changes), and `runnerImport` in a build.
+  A short-lived dev server did the job at first, but it started a second dependency optimizer on the dev server's cache and left a folder behind on every build.
+  The old renderer and the new page give the same DOM, checked in a browser, apart from the photos now loading lazily.
+- **Without JavaScript the world shows the landing as it is when the world cannot run**: the name, the bar, one plain line and "View the portfolio".
+  The loading screen used to lie over the noscript link for good, so a visitor saw "Loading..." forever and could not click through; a noscript style hides it now, by its id, since the build links the stylesheet after it.
+- **The faint ink went from 0.5 to 0.6 alpha, and the landing's even dim from 0.62 to 0.8**, as far as WCAG AA needs and no further.
+  Measured on real GPU frames at 8 p.m. and noon: each small text in the faint ink hidden, its box shot, the ink composited over every pixel behind it and the ratio taken, over the station panels (walked to, so tags show), the pause menu facing four ways, and 15 moments of the landing camera's lap.
+  Before, the panel's tags fell to 3.9:1, the pause menu's words to 4:1 and the landing's labels and help to 2.6:1, with 35 to 46 of 100 sampled texts under 4.5:1; after, every one holds 4.5:1 (the panel 4.88, the pause menu 5.03, the landing 4.58 at worst).
+  The dark sides needed the ink at 0.59; the landing would have needed 0.85, past the muted ink (0.74), which would have erased faint and muted, so the landing takes a deeper dim instead.
+  The landing is now noticeably darker behind the name, the kitchen still in view; Daniel may want to judge it.
+- **The labels in the world keep their ranks inside their own layer** (`isolation: isolate`), so none draws over the prompt, the HUD, the chat or the red flash of a hit; `labels.ts` is untouched.
+- **The loadout and the map keep the HUD's edge distance** (`--hud-edge`), so the bottom corners and the right edge line up at every size.
+- **The player list takes only the rows that fit above the loadout**, with room for a line of the kill feed, measured when the window changes size.
+  A full room in a short window printed names over the knife; a burst of several kills in a short, full room can still reach it for a few seconds, which seemed better than folding the list to two names for it.
+- **The knife grid's arrow keys move by the columns the stylesheet lays out**, measured when the grid changes size, instead of a constant 4 the phone layout's 3 broke.
+- **Tab in a dialog stops only on what the keyboard can reach** (`tabStops` in `ui/dom.ts`, shared by the trap and the panel): not the tabs and radios the arrow keys own, nor anything in a hidden tab, disabled or invisible.
+  The client review's fix to the same trap arrived at once; one implementation stays, this one, with its handling of focus on the dialog itself.
+- **Words**: the kitchen notes say the real controls (no emotes exist) and the game's "party" and "party code"; the landing's field is "Party code", as in the pause menu, beside the "Private party" toggle; "Leave the kitchen" answers "Enter the kitchen"; the link is "Plain portfolio" in both places; the plonge's panel no longer names the station; the pass lists the dishes by their own names, so the croissant is the black truffle croissant everywhere; a blocked copy says "Command-C" in words, as the fonts have no ⌘.
+- **The portfolio's contact links are text links**, as the house style has links, in its header (a button's height, beside the way into the kitchen) and its Contact section; the station panel's already were; on paper they stay plain words with where they go.
+- **Dead content went**: the site's tagline and world name, the stations' French names and kickers, and the portfolio sections' kickers and colors, which nothing showed.
+  A dish's restaurant is its `place`; the French names stay as a comment by each station; portfolio sections are `LoreSection`, and station and dish entries `LoreEntry`, which adds the light's color the world reads.
+- Left for Daniel: the two `TODO(daniel)` lines, and the "pending for NeurIPS and Nature" and "pending for AAAI and AISTATS" wording.
+
 ### The graphics upgrade: materials and reflections (2026-10-09)
 
 - **The kitchen leaves the low-poly style, at Daniel's request.** The direction, the audit of what read as cheap and the before and after frames are in `docs/graphics-upgrade.md`; this records the calls made on the way.

@@ -232,6 +232,10 @@ export class Game {
     document.addEventListener('mousemove', this.onComputerMouseMove);
     canvas.addEventListener('mousedown', this.onComputerMouseButton);
     window.addEventListener('mouseup', this.onComputerMouseButton);
+    window.addEventListener('blur', this.leaveComputerWithWindow);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.leaveComputerWithWindow();
+    });
 
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKey = (code) => this.onKey(code);
@@ -264,7 +268,6 @@ export class Game {
     if (this.mode !== 'landing') return;
     this.room = room;
     this.landing.hide();
-    this.labels.element.hidden = false;
     this.player.reset();
     this.world.knives.reset([]);
     this.cooler.reset([]);
@@ -277,6 +280,7 @@ export class Game {
     this.enterToQuat.setFromEuler(this.euler.set(0, SPAWN.yaw, 0));
     this.enterProgress = 0;
     this.mode = 'entering';
+    this.showLabels();
     this.name = name;
     this.chat.clear();
     this.multiplayer = this.connect(room);
@@ -330,7 +334,8 @@ export class Game {
     const current = this.multiplayer;
     if (!current || !this.inWorld || this.joining) return '';
     if (room === this.room) return `You are already in ${roomName(room)}.`;
-    if (!current.isOnline) {
+    // Turned away by a full room, the server still answers, so another room is worth a try.
+    if (!current.reachable) {
       if (room !== DEFAULT_ROOM) return joinFailureMessage('unreachable', room);
       this.moveInto(room);
       return null;
@@ -406,7 +411,7 @@ export class Game {
     this.pause.setPartyAvailability(
       !mp
         ? 'connecting'
-        : mp.status === 'online'
+        : mp.reachable
           ? 'online'
           : mp.status === 'connecting' && !mp.retrying
             ? 'connecting'
@@ -441,26 +446,47 @@ export class Game {
     this.multiplayer?.close();
     this.multiplayer = null;
     this.backOnFeet();
-    this.viewmodel.setShown(false);
+    this.showArm();
     this.world.knives.reset([]);
     this.cooler.reset([]);
     this.landing.setNotice(reason);
     // Entering again goes back to the same room, as the address bar says.
     this.landing.setRoom(this.room);
     this.landing.show();
-    // Labels would float over the landing card; the world behind it is just scenery.
-    this.labels.element.hidden = true;
+  }
+
+  /** Whether station labels and name tags show over the world. */
+  get labelsShown(): boolean {
+    return !this.labels.element.hidden;
   }
 
   /** Menus and panels cover the HUD and the labels, which would otherwise float over them. */
   private setCovered(covered: boolean): void {
     this.hud.setCovered(covered);
-    this.labels.element.hidden = covered;
+    this.showLabels();
+  }
+
+  /**
+   * Station labels and name tags float over the world only while in it on one's feet: not over the
+   * landing card, a menu, a panel or DOOM, nor the knockout card. Called whenever any of those
+   * change.
+   */
+  private showLabels(): void {
+    const playing = this.mode === 'entering' || this.mode === 'playing' || this.mode === 'chat';
+    this.labels.element.hidden = !playing || this.knockedOut;
+  }
+
+  /**
+   * The arm is in view only while playing or chatting on one's feet: never under a menu, a panel
+   * or DOOM, nor while knocked out. Called whenever any of those change.
+   */
+  private showArm(): void {
+    this.viewmodel.setShown((this.mode === 'playing' || this.mode === 'chat') && !this.knockedOut);
   }
 
   private beginPlaying(): void {
     this.mode = 'playing';
-    this.viewmodel.setShown(!this.knockedOut);
+    this.showArm();
     this.input.enabled = true;
     this.hud.show();
     this.chat.show();
@@ -473,10 +499,10 @@ export class Game {
   private async resume(look: boolean): Promise<void> {
     if (this.mode !== 'paused' && this.mode !== 'panel') return;
     this.pause.hide();
-    this.setCovered(false);
     this.mode = 'playing';
+    this.setCovered(false);
     this.input.enabled = true;
-    this.viewmodel.setShown(!this.knockedOut);
+    this.showArm();
     if (look) await this.input.lock();
   }
 
@@ -498,7 +524,7 @@ export class Game {
     this.input.releaseAll();
     this.input.unlock();
     this.setCovered(true);
-    this.viewmodel.setShown(false);
+    this.showArm();
     this.pause.show(note);
   }
 
@@ -509,7 +535,7 @@ export class Game {
     this.hud.setPrompt(null);
     this.setCovered(true);
     // The arm would show, dimmed, under the card.
-    this.viewmodel.setShown(false);
+    this.showArm();
     this.input.unlock();
     this.panel.open(entry);
   }
@@ -564,9 +590,9 @@ export class Game {
     this.rig.hit();
     this.world.renderer.domElement.classList.add('is-dimmed');
     this.rig.setKnockedOut(true);
-    this.viewmodel.setShown(false);
+    this.showArm();
     // Station labels would float over the knockout card.
-    this.labels.element.hidden = true;
+    this.showLabels();
     // The first time Chef Skinner gets this visitor, say he need not.
     const hint = by.resident && !this.toldAboutChef;
     if (hint) this.toldAboutChef = true;
@@ -587,8 +613,9 @@ export class Game {
     this.world.renderer.domElement.classList.remove('is-dimmed');
     // Leaving the world is not waking up; only blink when play goes on.
     if (this.mode !== 'landing') this.impact.blink();
-    this.viewmodel.setShown(this.inWorld);
-    this.labels.element.hidden = this.mode !== 'playing' && this.mode !== 'chat';
+    // Under a menu or a panel the arm waits for it to close.
+    this.showArm();
+    this.showLabels();
   }
 
   private onLockChange(locked: boolean): void {
@@ -616,8 +643,10 @@ export class Game {
     } else if (code === 'KeyI') {
       if (!this.knockedOut) this.viewmodel.startInspect();
     } else if (code === 'KeyE') {
+      // Down on the floor, nothing is in reach: no station, no computer.
+      if (this.knockedOut) return true;
       const entry = this.world.stations.hoveredEntry;
-      if (this.computerHovered && !this.knockedOut) this.useComputer();
+      if (this.computerHovered) this.useComputer();
       else if (entry) this.openPanel(entry);
     } else {
       return false;
@@ -843,8 +872,8 @@ export class Game {
     this.input.releaseAll();
     this.hud.setComputer('guide');
     this.computerGuide.show();
-    this.labels.element.hidden = true;
-    this.viewmodel.setShown(false);
+    this.showLabels();
+    this.showArm();
     // The mouse turns the marine, so hold on to it; E is a key press, so the browser allows it.
     void this.input.lock();
     void this.desk.use();
@@ -857,9 +886,18 @@ export class Game {
     this.mode = 'playing';
     this.input.enabled = true;
     this.hud.setComputer('off');
-    this.labels.element.hidden = false;
-    this.viewmodel.setShown(!this.knockedOut);
+    this.showLabels();
+    this.showArm();
   }
+
+  /**
+   * Away to another window or tab while at the computer: the keys held in DOOM would stay held,
+   * their release going elsewhere, and the next press of one would be taken for a repeat. So the
+   * cook steps away, as when the browser takes back a held mouse, which DOOM's keys go with.
+   */
+  private readonly leaveComputerWithWindow = (): void => {
+    if (this.mode === 'computer') this.leaveComputer();
+  };
 
   /** At the computer, with the mouse held, its motion turns the marine. */
   private readonly onComputerMouseMove = (event: MouseEvent): void => {
@@ -894,6 +932,9 @@ export class Game {
     if (this.mode !== 'computer') return;
     event.preventDefault();
     event.stopPropagation();
+    // A key held down repeats, but it is the same press: DOOM keeps track of held keys itself, and
+    // the E that sat the cook down, still held, must neither use nor put the controls away.
+    if (event.repeat) return;
     const down = event.type === 'keydown';
     if (event.code === 'Escape') {
       if (down) this.leaveComputer();
@@ -918,7 +959,8 @@ export class Game {
   private updateHover(): void {
     let index = -1;
     let computer = false;
-    if (this.mode === 'playing') {
+    // Knocked out, nothing is picked: no station lights up under the veil, and E finds nothing.
+    if (this.mode === 'playing' && !this.knockedOut) {
       const camera = this.world.camera;
       this.ray.origin.copy(camera.position);
       if (this.input.locked) {

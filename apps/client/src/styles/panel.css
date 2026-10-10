@@ -15,9 +15,16 @@
   --panel-text: color-mix(in srgb, var(--ink) 88%, transparent);
   position: absolute;
   inset: 0;
+  /* A modal: a click on the kitchen beside the column lands here, not in the world. */
+  pointer-events: auto;
   background: var(--dark-from-right);
   opacity: 0;
   transition: opacity 0.25s ease;
+}
+
+/* The panel itself takes focus only from a click on its words or its dark: no ring round it. */
+.panel:focus-visible {
+  box-shadow: none;
 }
 
 .panel.open {
@@ -471,14 +478,5 @@
 
   .panel-body {
     margin-top: 10px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
   }
 }

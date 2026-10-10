@@ -32,6 +32,8 @@ export function world(page: Page): Promise<WorldDebugState> {
       punching: w.punching,
       computer: w.computer,
       knockedOut: w.knockedOut,
+      arm: w.arm,
+      labels: w.labels,
       knife: w.knife,
       knives: w.knives,
       cooler: w.cooler,
@@ -65,15 +67,22 @@ export async function expectWorld(
 
 /**
  * Open the site in a fresh browser context and walk through the landing screen like a visitor.
- * `path` opens another address first, such as an invite link.
+ * `path` opens another address first, such as an invite link; `prepare` runs before the page loads.
  */
 export async function enterWorld(
   browser: Browser,
-  options: { name: string; room?: string; online?: boolean; path?: string },
+  options: {
+    name: string;
+    room?: string;
+    online?: boolean;
+    path?: string;
+    prepare?: (page: Page) => Promise<void>;
+  },
 ): Promise<Page> {
   // A modest viewport keeps several software-rendered pages responsive on one machine.
   const context = await browser.newContext({ viewport: { width: 960, height: 540 } });
   const page = await context.newPage();
+  await options.prepare?.(page);
   await page.goto(options.path ?? '/');
   // Pages already in the world keep rendering in software on the same CPU, so a third page can take
   // a while to build the kitchen and compile its shaders.
@@ -85,7 +94,7 @@ export async function enterWorld(
     // The party's code field opens from the row along the bottom, unless an invite opened it.
     const party = page.getByRole('button', { name: 'Private party' });
     if ((await party.getAttribute('aria-expanded')) !== 'true') await party.click();
-    await page.getByLabel('Private party').fill(options.room);
+    await page.getByRole('textbox', { name: 'Party code' }).fill(options.room);
   }
   await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   const online = options.online ?? true;

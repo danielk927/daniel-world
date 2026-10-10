@@ -10,6 +10,15 @@
     <meta name="theme-color" content="#0d1024" />
     <title>Daniel's World</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Without scripts the world never loads: say so instead of loading forever. By its id, so
+         it holds over the stylesheet the build links after it. -->
+    <noscript>
+      <style>
+        #loading {
+          display: none;
+        }
+      </style>
+    </noscript>
   </head>
   <body>
     <div id="app">
@@ -19,10 +28,20 @@
         <p class="loading-text">Loading…</p>
       </div>
       <noscript>
-        <p class="noscript">
-          This site is a small 3D world and needs JavaScript.
-          <a href="/portfolio.html">Here is the plain portfolio instead.</a>
-        </p>
+        <!-- As the landing says it when the world cannot run: the portfolio is the way in. -->
+        <section class="overlay landing" aria-labelledby="noscript-title">
+          <div class="landing-main">
+            <h1 class="title landing-title" id="noscript-title">Doyoon (Daniel) Kim</h1>
+            <span class="bar landing-bar" aria-hidden="true"></span>
+            <p class="landing-notice">
+              This site is a small 3D world and needs JavaScript. The portfolio has everything in
+              it.
+            </p>
+            <a class="button button-primary button-large landing-portfolio" href="/portfolio.html">
+              View the portfolio
+            </a>
+          </div>
+        </section>
       </noscript>
     </div>
     <script type="module" src="/src/main.ts"></script>

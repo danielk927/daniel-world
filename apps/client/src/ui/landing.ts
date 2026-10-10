@@ -111,7 +111,7 @@ export class Landing {
     this.describeRoom();
 
     this.party = el('div', { class: 'field landing-party', attrs: { id: 'landing-party' } }, [
-      el('label', { class: 'field-label', text: 'Private party', attrs: { for: 'landing-room' } }),
+      el('label', { class: 'field-label', text: 'Party code', attrs: { for: 'landing-room' } }),
       this.roomInput,
       this.roomHelp,
     ]);
@@ -266,11 +266,15 @@ export class Landing {
     this.mainAction = portfolio;
   }
 
-  /** No WebGL: the world cannot run, so the portfolio becomes the way in. */
+  /**
+   * The world cannot run (no WebGL, or it failed to load), so the portfolio becomes the way in: the
+   * one a phone was already offered, or a new one.
+   */
   setUnsupported(message: string): void {
     this.setNotice(message);
     this.form.hidden = true;
     this.row.hidden = true;
+    if (this.mainAction !== this.enterButton) return;
     const portfolio = el('a', {
       class: 'button button-primary button-large landing-portfolio',
       text: 'View the portfolio',

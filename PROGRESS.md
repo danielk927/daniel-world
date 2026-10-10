@@ -95,6 +95,26 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Before the next `npm run deploy:aws`: it replaces the instance once (rooms drop, players reconnect), creates the Elastic IP and moves CloudFront's `/ws` origin to it (a distribution update, several minutes); afterwards commit `infra/cdk.context.json` and check `dig +short <ServerOrigin output>` prints the Elastic IP.
 - Lint, typecheck, 926 unit tests and the build pass; a local synth shows the changes; `node scripts/perf.ts` on spare ports reports 16 players at 60 fps and leaves nothing running.
 
+### The client game after review (2026-10-09)
+
+- The findings from a review of the client's game and networking code, each reproduced by a failing test first, end to end where a visitor would meet it.
+- Connection: a network gone quiet now turns solo in seconds instead of up to a minute, a late ping (the page held up) judges no silence, a socket the browser will not make no longer breaks entering the world, a room that fills while the server is away keeps the cook in the kitchen solo instead of sending them to the landing, and a new connection's inputs no longer carry the last session's view.
+- Knockouts: no arm under the menu at the respawn, no labels over the knockout card, nothing picked or opened from the floor, and screen readers hear it once.
+- The pause menu and station panels close with Esc after a click on their words or their dark; the panel had the same bug the review put only on the menu.
+- The kitchen computer: leaving the window or tab steps away, the auto-repeat of the E that sits a cook down stays out of DOOM, Ctrl and Alt are no longer DOOM keys (Ctrl+W closed the tab, Ctrl+Tab and Alt+Tab switched away), and a crash after boot shows the standby screen and says so.
+- A kitchen that fails to load offers the portfolio instead of a loading screen up forever.
+- Still protocol version 8.
+- Lint, typecheck, 941 unit tests, 36 E2E tests and the build pass.
+
+### The interface and content after review (2026-10-09)
+
+- Seventeen findings from a review of the interface, its styles and the content, each confirmed in the code and, where a visitor would see it, reproduced in a browser first.
+- The portfolio is written into `portfolio.html` at build time, so it reads with JavaScript off and link previews see the right name; without JavaScript the world shows the landing's way into it instead of loading forever.
+- Tab stays in the pause menu and panels on what the keyboard can reach; labels draw under the HUD, the prompt and the hit flash; the knife grid's arrow keys go straight down on a phone; the loadout and map line up with the chat and the players; a full room in a short window folds its list before the loadout.
+- Faint words hold 4.5:1 over the dark sides and the landing, measured on the real kitchen at 8 p.m. and noon (the faint ink and the landing's dim went up).
+- The words agree everywhere (party code, Leave the kitchen, Plain portfolio, the black truffle croissant, the real controls), the portfolio's contact links are text links, and dead content and styles are gone.
+- Lint, typecheck, 954 unit tests, 40 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash
