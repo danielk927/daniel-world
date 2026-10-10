@@ -785,3 +785,4 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 - **At 4x throttling the pacing test once failed with its page gone solo**, while the attached server log had it still in the lobby: the page, held up, had judged the server silent (main's late ping fix that night covers it), and the test then looked a second time, after the knockout it had seen was over.
   It now judges by the look that saw the throw.
 - **The client review's new tests got the same treatment**: the relay test's server runs in its own process, the refused socket test counts its tries instead of sleeping 2.5 s, and the DOOM key repeat waits for frames.
+- **The panel tests turn to face the station from wherever the walk stopped** (`faceStation`), instead of trusting the walk to end on its mark: on a busy machine a walk polled every 50 ms ran 0.7 m past, where the middle of the screen picks nothing (found in a full run, read from its trace).
