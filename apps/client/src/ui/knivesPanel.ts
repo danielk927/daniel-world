@@ -14,9 +14,6 @@ import { el } from './dom.ts';
 import { skinIcon } from './knifeIcon.ts';
 import { KnifePreview } from './knifePreview.ts';
 
-/** Knives across the grid; arrow keys move this far up and down. */
-const COLUMNS = 4;
-
 /** Names short enough for the grid; the full name heads the preview. */
 const SHORT_NAMES: Readonly<Record<KnifeSkin, string>> = {
   kitchen: 'Chef’s',
@@ -66,6 +63,17 @@ export class KnivesPanel {
   });
   private readonly status = el('p', { class: 'knives-status', attrs: { role: 'status' } });
   private readonly swatches = new Map<KnifeFinish, HTMLCanvasElement>();
+  private readonly grid = el('div', {
+    class: 'knife-grid',
+    attrs: { role: 'radiogroup', 'aria-label': 'Knife' },
+  });
+  /**
+   * Knives across the grid as the stylesheet lays it out (fewer on a phone), which the arrow keys
+   * move up and down by. Measured when the grid changes size, as it does when it comes on screen or
+   * the window crosses a breakpoint, never on a key.
+   */
+  private columns = 1;
+  private readonly gridSize = new ResizeObserver(() => this.measureColumns());
   /** The knife and finish on show, which Equip would carry. */
   private selected: KnifeLook;
   private active = false;
@@ -73,10 +81,6 @@ export class KnivesPanel {
   constructor(settings: Settings) {
     this.settings = settings;
     this.selected = settings.values.knife;
-    const grid = el('div', {
-      class: 'knife-grid',
-      attrs: { role: 'radiogroup', 'aria-label': 'Knife' },
-    });
     KNIFE_SKINS.forEach((skin, i) => {
       const option = el(
         'button',
@@ -86,7 +90,7 @@ export class KnivesPanel {
       option.addEventListener('click', () => this.choose(skin));
       option.addEventListener('keydown', (event) => this.moveInGrid(event, i));
       this.options.set(skin, option);
-      grid.append(option);
+      this.grid.append(option);
     });
     this.equip.addEventListener('click', () => this.equipSelected());
     this.element = el('div', { class: 'pause-panel knives' }, [
@@ -98,9 +102,18 @@ export class KnivesPanel {
           el('div', { class: 'knives-actions' }, [this.equip, this.status]),
         ]),
       ]),
-      grid,
+      this.grid,
     ]);
+    this.gridSize.observe(this.grid);
     this.render();
+  }
+
+  private measureColumns(): void {
+    // A grid off screen has no tracks laid out; it is measured again when it shows.
+    if (!this.grid.offsetWidth) return;
+    // The resolved track list, one length per column: "131px 131px 131px".
+    const tracks = getComputedStyle(this.grid).gridTemplateColumns.trim().split(/\s+/);
+    this.columns = Math.max(1, tracks.length);
   }
 
   /** The tab is showing (or not): the preview runs only while it is. */
@@ -145,8 +158,8 @@ export class KnivesPanel {
     const moves: Record<string, number> = {
       ArrowRight: index + 1,
       ArrowLeft: index - 1,
-      ArrowDown: index + COLUMNS,
-      ArrowUp: index - COLUMNS,
+      ArrowDown: index + this.columns,
+      ArrowUp: index - this.columns,
       Home: 0,
       End: count - 1,
     };

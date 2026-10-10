@@ -200,13 +200,10 @@ test('Esc closes the menu or a panel wherever in it the visitor last clicked', a
     await expect(paused).toBeHidden();
     await expectWorld(page, (w) => w.mode === 'playing', 'resumed from the menu');
   }
-  // Tab and Shift+Tab stay in the menu from its words, and from a tab that is not the first.
+  // Shift+Tab stays in the menu from its words too (menus.spec.ts walks the rest of the Tab order).
   const inMenu = () => paused.evaluate((menu) => menu.contains(document.activeElement));
   await page.keyboard.press('Escape');
   await paused.locator('.pause-title').click();
-  await page.keyboard.press('Shift+Tab');
-  expect(await inMenu()).toBe(true);
-  await paused.getByRole('tab', { name: 'Knives' }).click();
   await page.keyboard.press('Shift+Tab');
   expect(await inMenu()).toBe(true);
   await page.keyboard.press('Escape');

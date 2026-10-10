@@ -106,6 +106,15 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 - Still protocol version 8.
 - Lint, typecheck, 941 unit tests, 36 E2E tests and the build pass.
 
+### The interface and content after review (2026-10-09)
+
+- Seventeen findings from a review of the interface, its styles and the content, each confirmed in the code and, where a visitor would see it, reproduced in a browser first.
+- The portfolio is written into `portfolio.html` at build time, so it reads with JavaScript off and link previews see the right name; without JavaScript the world shows the landing's way into it instead of loading forever.
+- Tab stays in the pause menu and panels on what the keyboard can reach; labels draw under the HUD, the prompt and the hit flash; the knife grid's arrow keys go straight down on a phone; the loadout and map line up with the chat and the players; a full room in a short window folds its list before the loadout.
+- Faint words hold 4.5:1 over the dark sides and the landing, measured on the real kitchen at 8 p.m. and noon (the faint ink and the landing's dim went up).
+- The words agree everywhere (party code, Leave the kitchen, Plain portfolio, the black truffle croissant, the real controls), the portfolio's contact links are text links, and dead content and styles are gone.
+- Lint, typecheck, 954 unit tests, 40 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash

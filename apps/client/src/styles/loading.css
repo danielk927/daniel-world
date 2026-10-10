@@ -53,17 +53,3 @@
   font: 400 16px/1.3 var(--font-body);
   color: var(--ink-muted);
 }
-
-.noscript {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  padding: 24px;
-  text-align: center;
-  color: var(--ink);
-}
-
-.noscript a {
-  color: var(--accent);
-}
