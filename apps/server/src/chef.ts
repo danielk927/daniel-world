@@ -39,6 +39,12 @@ export const STILL_TICKS = seconds(3);
 export const WIND_UP_TICKS = seconds(0.6);
 /** Time between throws, at random within this range. */
 const REST_TICKS: readonly [number, number] = [seconds(6), seconds(14)];
+/**
+ * Having lost his shot mid wind-up (the cook went behind something, or turned him off), he walks
+ * on this long before he looks for another. Picking again at once had him wind up afresh every
+ * time a pacing cook turned, and stand there for good, never throwing.
+ */
+const RETRY_TICKS = seconds(2);
 /** Closer than this is too easy to be fun, further is too far to be fair. */
 const MIN_RANGE = 3;
 const MAX_RANGE = 16;
@@ -235,6 +241,7 @@ export class Chef {
       const aim = victim && this.canTarget(victim, tick) ? this.aim(victim) : null;
       if (!aim) {
         this.plan = { kind: 'walk' };
+        this.nextThrow = tick + RETRY_TICKS;
         this.resetProgress(tick);
       } else {
         this.turnTo(aim.yaw, aim.pitch);

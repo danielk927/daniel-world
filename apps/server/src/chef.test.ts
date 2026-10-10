@@ -174,6 +174,23 @@ describe('Chef Skinner', () => {
     const lines = r.messages.filter((m) => m.t === 'chat' && m.id === r.chef.player.id);
     expect(lines.length).toBeGreaterThan(0);
   });
+
+  it('walks on when he loses his shot, never standing in one spot past a pause and a wind-up', () => {
+    // A cook pacing out of sight now and then, each time they turn: picking them again on the tick
+    // he lost them had him wind up afresh, again and again, standing there for good, never throwing.
+    for (let seed = 1; seed <= 10; seed++) {
+      const r = run(TICK_RATE * 120, pacing, seed);
+      let longest = 0;
+      let since = 1;
+      for (let t = 2; t < r.track.length; t++) {
+        const [a, b] = [r.track[since]!, r.track[t]!];
+        if (Math.hypot(b.x - a.x, b.z - a.z) > 0.3) since = t;
+        longest = Math.max(longest, t - since);
+      }
+      expect(longest / TICK_RATE, `seed ${seed}: longest standstill, in seconds`).toBeLessThan(5);
+      expect(knivesFromChef(r).length, `seed ${seed}`).toBeGreaterThan(2);
+    }
+  });
 });
 
 interface Cook {
