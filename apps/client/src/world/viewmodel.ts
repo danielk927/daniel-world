@@ -513,7 +513,9 @@ function spinePivot(model: KnifeModel, z: number, radius: number): Vector3 {
     }
     return true;
   };
-  let y = handleAt(model, z).y;
+  // From the spine up: a deep handle's middle may be as far from its edges, but inside it.
+  const section = handleAt(model, z);
+  let y = section.y + section.depth;
   while (!clear(y)) y += radius / 50;
   return new Vector3(0, y, z);
 }
