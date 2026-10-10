@@ -11,12 +11,12 @@
  * GPU, with the quality governor held at its best level. It prints how long each load took to the
  * "Enter the kitchen" button.
  */
-import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from '@playwright/test';
-import { EYE_HEIGHT } from '@world/shared';
+import { DEFAULT_SERVER_PORT, EYE_HEIGHT } from '@world/shared';
+import { reachable, startClient, stopAll, waitFor } from './processes.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const { values } = parseArgs({
@@ -77,32 +77,15 @@ function look(eye: Point, at: Point): { yaw: number; pitch: number } {
   return { yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(dy, Math.hypot(dx, dz)) };
 }
 
-async function reachable(url: string): Promise<boolean> {
-  try {
-    await fetch(url, { signal: AbortSignal.timeout(1000) });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function main(): Promise<void> {
   await mkdir(outDir, { recursive: true });
-  let client: ChildProcess | null = null;
   if (!(await reachable(clientUrl))) {
-    client = spawn(
-      'npm',
-      ['run', 'dev', '-w', '@world/client', '--', '--port', String(clientPort)],
-      {
-        cwd: root,
-        stdio: 'ignore',
-      },
+    // The room server it is built for need not be up: the landing works without it.
+    await waitFor(
+      clientUrl,
+      30_000,
+      startClient(clientPort, `ws://localhost:${DEFAULT_SERVER_PORT}`),
     );
-    const deadline = Date.now() + 30_000;
-    while (!(await reachable(clientUrl))) {
-      if (Date.now() > deadline) throw new Error(`${clientUrl} did not come up`);
-      await new Promise((r) => setTimeout(r, 300));
-    }
   }
   const only = values.only?.split(',');
   const views = VIEWPOINTS.filter((v) => !only || only.includes(v.name));
@@ -141,7 +124,7 @@ async function main(): Promise<void> {
     console.log(`Viewpoints written to ${outDir}`);
   } finally {
     await browser.close();
-    client?.kill('SIGINT');
+    await stopAll();
   }
 }
 
