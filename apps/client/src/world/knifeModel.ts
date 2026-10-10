@@ -16,14 +16,6 @@ import { knifeModel, type KnifeModel } from './knifeSkins.ts';
  * turned from -Z onto `d`.
  */
 
-export const BLADE_LENGTH = 0.19;
-export const HANDLE_LENGTH = 0.11;
-export const KNIFE_LENGTH = BLADE_LENGTH + 0.015 + HANDLE_LENGTH;
-/** Where a hand holds the chef's knife, measured from the tip. */
-export const GRIP = BLADE_LENGTH + 0.015 + HANDLE_LENGTH * 0.5;
-/** The middle of the chef's knife, which it tumbles around in flight. */
-export const KNIFE_CENTER = KNIFE_LENGTH * 0.45;
-
 export type { KnifeModel };
 export { knifeModel };
 
