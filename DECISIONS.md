@@ -772,7 +772,7 @@ From a review of `infra/` and `scripts/`; nothing was deployed and no AWS call w
 - **The skeleton knife's loop takes the finger it is spun on**: its hole was 8.2 mm across the hand's scale, under the index finger's 8.5, and is 9.5 now.
 - **Tried and dropped**: turning the arm while a knife spins on the finger, to show the spin face on.
   The finger points into the screen, so the spin is a pinwheel behind the fist, its blade above it half of each turn; turned, the spin was seen edge on.
-- **The deepest a knife reaches into the hand is now 6.6 mm, and no knife reaches more than 2.2 mm deeper than its own grip at rest.**
+- **The deepest a knife reaches into the hand is now 6.8 mm, and no knife reaches more than 2.3 mm deeper than its own grip at rest**, measured at 120 Hz.
   The grips themselves sit up to 6.1 mm into the inside of the fist (the chef's knife's bolster under the index finger), unseen: fingers solved round a circle between a handle's depth and width press into a handle that is not round, and into the bands and guards proud of it; that is each knife's floor, and is unchanged.
   `viewmodelClearance*.test.ts` checks every knife, move and cut at 60 Hz, counting what is in view: never more than 2.5 mm deeper than its grip at rest, nor 7 mm anywhere; on the old animations 11 of the 12 knives fail it, the deepest 12.9 mm.
   What is left is brief: a trip to the finger can brush a finger it passes for a frame or two (the karambit's ring past the middle finger), and a closed flip knife floats in the opened hand while it folds.

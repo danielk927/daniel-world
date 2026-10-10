@@ -117,7 +117,7 @@ The full definition of done passes from a fresh clone: `npm install`, `npm run l
 
 ### The knife clear of the hand (2026-10-10)
 
-- Knives no longer pass through the hand on screen: measured every frame of every knife's moves and cuts, the knife reached up to 13 mm into the hand, through the palm, for 11 of 12 knives; now 6.6 mm at most, never more than 2.2 mm past the knife's own grip.
+- Knives no longer pass through the hand on screen: measured every frame of every knife's moves and cuts, the knife reached up to 13 mm into the hand, through the palm, for 11 of 12 knives; now 6.8 mm at most, never more than 2.3 mm past the knife's own grip.
 - Every knife turns end over end on the index finger, the hand pointing, by its ring or its spine; folding blades and the butterfly's handle swing as hinges through a hand that lets go; a knife cut short mid-spin settles upright on the finger before coming back; a knife turned in the hand is held looser; the skeleton knife's loop takes the finger.
 - `viewmodelClearance*.test.ts` checks every knife, move and cut; it fails on the old animations.
 - Lint, typecheck, 966 unit tests, 40 E2E tests and the build pass.
