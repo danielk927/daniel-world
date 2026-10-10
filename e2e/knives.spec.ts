@@ -364,12 +364,14 @@ test('every press of I starts the inspect over, but holding I down does not', as
     (w) => w.inspectTime !== null && w.inspectTime < first.inspectTime!,
     'a second press starts it over',
   );
-  // Past where the first would have ended, the second plays on.
+  // Past where the first would have ended, the second plays on. That stretch can last well under
+  // a second, less than a poll from here waits once it has backed off, so watch it in the page,
+  // every frame.
   const inspect = knifeMoves('kitchen').inspect.duration;
-  await expectWorld(
-    page,
-    (w) => (w.inspectTime ?? 0) > inspect - first.inspectTime! + 0.3,
-    'the second inspect plays past where the first would have ended',
+  await page.waitForFunction(
+    (past) => (window.__world!.inspectTime ?? 0) > past,
+    inspect - first.inspectTime! + 0.3,
+    { polling: 'raf', timeout: 15_000 },
   );
   await expectWorld(page, (w) => !w.inspecting, 'the second inspect ends');
 

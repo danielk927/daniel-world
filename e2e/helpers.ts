@@ -100,7 +100,9 @@ export async function expectWorld(
         last = await world(page);
         return check(last);
       },
-      { message, timeout },
+      // A steady poll: backing off to a second at a time, as `expect.poll` does by default, could
+      // step right over a state that lasts less than that, such as the end of an inspect.
+      { message, timeout, intervals: [100] },
     )
     .toBe(true);
   return last!;
