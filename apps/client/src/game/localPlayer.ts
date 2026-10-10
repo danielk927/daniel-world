@@ -9,7 +9,7 @@ import {
   type PlayerState,
 } from '@world/shared';
 
-/** Unacknowledged inputs kept for replay. 128 ticks is 6.4 s, far beyond any sane round trip. */
+/** Unacknowledged inputs kept for replay. 128 ticks is 2.1 s at 60 Hz, far beyond any sane round trip. */
 const PENDING_CAPACITY = 128;
 /** Corrections bigger than this are teleports (respawn, reconnect) and snap instead of smoothing. */
 const SNAP_DISTANCE = 4;

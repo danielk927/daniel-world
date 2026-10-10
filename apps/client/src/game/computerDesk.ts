@@ -13,13 +13,21 @@ export class ComputerDesk {
   private loading: Promise<KitchenComputer> | null = null;
   private readonly screen: ComputerScreen;
   private readonly notify: (message: string) => void;
+  private readonly createMachine: () => Promise<KitchenComputer>;
   private inUse = false;
   /** Frames shown so far, for debugging and tests. */
   frames = 0;
 
-  constructor(screen: ComputerScreen, notify: (message: string) => void) {
+  /** `createMachine` is for tests; by default the machine's module loads on first use. */
+  constructor(
+    screen: ComputerScreen,
+    notify: (message: string) => void,
+    createMachine = () =>
+      import('../computer/computer.ts').then(({ KitchenComputer }) => new KitchenComputer()),
+  ) {
     this.screen = screen;
     this.notify = notify;
+    this.createMachine = createMachine;
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.machine?.pause();
       else if (this.inUse) void this.machine?.powerOn().catch(() => {});
@@ -29,6 +37,11 @@ export class ComputerDesk {
   /** The machine's state: 'off' until first used. */
   get state(): string {
     return this.machine?.state ?? 'off';
+  }
+
+  /** How many keys DOOM has been told are held down, for debugging and tests. */
+  get keysHeld(): number {
+    return this.machine?.keysHeld ?? 0;
   }
 
   /** Whether `ray` points at the screen from within `reach` meters. */
@@ -83,11 +96,15 @@ export class ComputerDesk {
   }
 
   private load(): Promise<KitchenComputer> {
-    this.loading ??= import('../computer/computer.ts').then(({ KitchenComputer }) => {
-      const machine = new KitchenComputer();
+    this.loading ??= this.createMachine().then((machine) => {
       machine.onFrame((frame) => {
         this.frames++;
         this.screen.showFrame(frame.pixels);
+      });
+      // Otherwise the cook would sit at a frozen frame, every key going nowhere, until Esc.
+      machine.onCrash(() => {
+        this.screen.showStandby();
+        this.notify('The kitchen computer crashed. Step away and sit down again to restart it.');
       });
       this.machine = machine;
       return machine;

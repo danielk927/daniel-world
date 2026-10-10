@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Browser, Page } from '@playwright/test';
 import {
   EYE_HEIGHT,
   KNIFE_MAX_FLIGHT_SECONDS,
@@ -44,6 +44,21 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
     await expect(target.getByRole('status').filter({ hasText: 'Knocked out by' })).toContainText(
       'Thrower',
     );
+    // Said once: what a screen reader hears does not change while the countdown runs on screen.
+    const heard = await target.evaluate(async () => {
+      const live = [...document.querySelectorAll('[role="status"]')].find((element) =>
+        element.textContent?.includes('Knocked out by'),
+      )!;
+      const countdown = document.querySelector('.knockout-countdown')!;
+      const before = countdown.textContent;
+      let changes = 0;
+      const observer = new MutationObserver((records) => (changes += records.length));
+      observer.observe(live, { subtree: true, childList: true, characterData: true });
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      observer.disconnect();
+      return { changes, counted: countdown.textContent !== before };
+    });
+    expect(heard).toEqual({ changes: 0, counted: true });
     // The thrower sees their hit land under the crosshair; both see it in the kill feed.
     await expect(thrower.locator('.hit-banner')).toContainText('Target');
     for (const page of [thrower, target]) {
@@ -60,6 +75,104 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
     for (const page of [thrower, target]) {
       await expectWorld(page, (w) => w.knives.stuck === 1, 'a knife is stuck in the floor');
     }
+    await thrower.context().close();
+    await target.context().close();
+  } finally {
+    await server.close();
+  }
+});
+
+/**
+ * Two cooks in a fresh party, the second (by arrival, so always at the same spawn point) knocked
+ * out by the first, who throws from where they stand. Returns once the target is down.
+ */
+async function knockOutInParty(
+  browser: Browser,
+  room: string,
+): Promise<{ thrower: Page; target: Page }> {
+  const thrower = await enterWorld(browser, { name: 'Thrower', room });
+  const target = await enterWorld(browser, { name: 'Target', room });
+  await expectWorld(thrower, (w) => w.playerCount === 2, 'the thrower sees the target');
+  const a = await waitUntilStill(thrower);
+  const b = await waitUntilStill(target);
+  await turnTo(thrower, Math.atan2(-(b.player.x - a.player.x), -(b.player.z - a.player.z)));
+  await throwKnife(thrower);
+  const down = await expectWorld(target, (w) => w.knockedOut, 'the target is knocked out');
+  expect(down.arm).toBe(false);
+  expect(down.labels).toBe(false);
+  return { thrower, target };
+}
+
+test('a cook who gets back up with the menu open finds the arm only once it closes', async ({
+  browser,
+}) => {
+  const server = await startRoomServer();
+  try {
+    const { thrower, target } = await knockOutInParty(browser, 'e2e-up');
+    await target.keyboard.press('Escape');
+    await expectWorld(target, (w) => w.mode === 'paused', 'the menu opens');
+    // The respawn arrives under the menu: nothing comes up behind it.
+    const up = await expectWorld(target, (w) => !w.knockedOut, 'the target gets back up', 8000);
+    expect(up.mode).toBe('paused');
+    expect(up.arm).toBe(false);
+    expect(up.labels).toBe(false);
+    await target.keyboard.press('Escape');
+    await expectWorld(target, (w) => w.mode === 'playing' && w.arm && w.labels, 'up and armed');
+    await thrower.context().close();
+    await target.context().close();
+  } finally {
+    await server.close();
+  }
+});
+
+test('a cook knocked out sees no labels and opens no station until back up', async ({
+  browser,
+}) => {
+  const server = await startRoomServer();
+  try {
+    const { thrower, target } = await knockOutInParty(browser, 'e2e-down');
+    // Into the menu and straight back out, still on the floor: the labels stay away. Done in the
+    // page, a frame apart, so it fits in the time down even on a machine too busy for round trips.
+    const back = await target.evaluate(async () => {
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const escape = (at: EventTarget) =>
+        at.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
+        );
+      escape(window);
+      await frame();
+      const menu = window.__world!.mode;
+      escape(document.activeElement ?? document.body);
+      await frame();
+      const { mode, knockedOut, labels } = window.__world!;
+      return { menu, mode, knockedOut, labels };
+    });
+    expect(back).toEqual({ menu: 'paused', mode: 'playing', knockedOut: true, labels: false });
+
+    // For the rest of the time down, the cursor goes over the view from the floor, where stations
+    // are in sight, and E is pressed on anything that gets picked: nothing does, and nothing opens.
+    const picked = await target.evaluate(async () => {
+      const prompt = document.querySelector('.prompt-sentence')!;
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const found: string[] = [];
+      for (let i = 0; window.__world!.knockedOut; i++) {
+        const x = 40 + ((i * 120) % 960);
+        const y = 30 + ((Math.floor(i / 8) * 80) % 480);
+        document.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y }));
+        await frame();
+        const text = prompt.textContent ?? '';
+        if (!text.startsWith('Press E to open') || !window.__world!.knockedOut) continue;
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE', key: 'e' }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE', key: 'e' }));
+        await frame();
+        found.push(`${text} at ${x},${y}, ${window.__world!.mode}`);
+        if (window.__world!.mode === 'panel') break;
+      }
+      return found;
+    });
+    expect(picked).toEqual([]);
+    // Up again, they come back.
+    await expectWorld(target, (w) => !w.knockedOut && w.labels, 'up, with the labels', 8000);
     await thrower.context().close();
     await target.context().close();
   } finally {

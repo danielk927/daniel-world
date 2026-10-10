@@ -9,7 +9,7 @@ type Row = readonly [keys: readonly string[], action: string];
 const ROWS: readonly Row[] = [
   [['W', 'A', 'S', 'D'], 'Walk and strafe'],
   [['Mouse', 'or', 'Left', 'Right'], 'Turn'],
-  [['Click', 'or', 'Ctrl'], 'Fire'],
+  [['Click'], 'Fire'],
   [['E', 'or', 'Space'], 'Open doors and flip switches, face to face'],
   [['Shift'], 'Run'],
   [['1', '-', '7'], 'Weapons'],

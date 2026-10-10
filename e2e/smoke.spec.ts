@@ -41,6 +41,34 @@ test('on a phone the portfolio is the way in, and the kitchen a quiet second cho
   await phone.close();
 });
 
+test('a kitchen that fails to load says so and offers the portfolio, on a desktop or a phone', async ({
+  browser,
+}) => {
+  for (const device of [
+    {},
+    { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
+  ]) {
+    const context = await browser.newContext(device);
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    // A deploy lands while the page loads: the game's code it asks for is gone.
+    await page.route(/\/assets\/game-[^/]*\.js$/, (route) => route.abort());
+    await page.goto('/');
+    const portfolio = page.getByRole('link', { name: 'View the portfolio' });
+    await expect(portfolio).toBeVisible({ timeout: 30_000 });
+    await expect(portfolio).toHaveCount(1);
+    await expect(portfolio).toBeFocused();
+    await expect(page.locator('.landing-notice')).toContainText('did not load');
+    await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeHidden();
+    await expect(page.locator('#loading')).toHaveCount(0);
+    expect(errors.length).toBeGreaterThan(0);
+    await context.close();
+  }
+});
+
 test('an invite link opens the private party with its code in', async ({ page }) => {
   await page.goto('/?room=friday-service');
   await expect(page.getByRole('button', { name: 'Private party' })).toHaveAttribute(

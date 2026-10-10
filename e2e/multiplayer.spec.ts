@@ -213,3 +213,55 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   await expectWorld(page, (w) => w.mode === 'playing', 'resumed from the menu');
   await page.context().close();
 });
+
+test('Esc closes the menu or a panel wherever in it the visitor last clicked', async ({
+  browser,
+}) => {
+  const page = await enterWorld(browser, { name: 'Clicker', online: false });
+  const paused = page.getByRole('dialog', { name: 'Paused' });
+  // Its title, then the dark beside it: a click on either keeps the keys with the menu.
+  for (const click of [
+    () => paused.locator('.pause-title').click(),
+    () => page.mouse.click(900, 500),
+  ]) {
+    await page.keyboard.press('Escape');
+    await expect(paused).toBeVisible();
+    await click();
+    await page.keyboard.press('Escape');
+    await expect(paused).toBeHidden();
+    await expectWorld(page, (w) => w.mode === 'playing', 'resumed from the menu');
+  }
+  // Tab and Shift+Tab stay in the menu from its words, and from a tab that is not the first.
+  const inMenu = () => paused.evaluate((menu) => menu.contains(document.activeElement));
+  await page.keyboard.press('Escape');
+  await paused.locator('.pause-title').click();
+  await page.keyboard.press('Shift+Tab');
+  expect(await inMenu()).toBe(true);
+  await paused.getByRole('tab', { name: 'Knives' }).click();
+  await page.keyboard.press('Shift+Tab');
+  expect(await inMenu()).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(paused).toBeHidden();
+
+  // A panel the same: its title, then the kitchen still in view beside it.
+  await walkUntil(page, 'KeyA', (p) => p.x < -5.3);
+  await walkUntil(page, 'KeyW', (p) => p.z < 2.9);
+  await walkUntil(page, 'KeyD', (p) => p.x > -2.6);
+  await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
+  await waitUntilStill(page);
+  const dialog = page.getByRole('dialog', { name: 'Products' });
+  for (const click of [
+    () => dialog.locator('.panel-title').click(),
+    () => page.mouse.click(120, 270),
+  ]) {
+    await page.mouse.move(480, 270);
+    await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Products');
+    await page.keyboard.press('KeyE');
+    await expect(dialog).toBeVisible();
+    await click();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expectWorld(page, (w) => w.mode === 'playing', 'back from the panel');
+  }
+  await page.context().close();
+});

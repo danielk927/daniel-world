@@ -36,14 +36,19 @@ async function boot(): Promise<void> {
     onEnter: (name, room) => game?.enter(name, room),
   });
 
-  const webgl = probeWebGL();
-  if (!webgl.supported) {
+  /** The world cannot run here: the portfolio becomes the way in, saying why. */
+  const unsupported = (message: string): void => {
     loading.hide();
     app.classList.add('no-webgl');
-    landing.setUnsupported(
+    landing.setUnsupported(message);
+    landing.show();
+  };
+
+  const webgl = probeWebGL();
+  if (!webgl.supported) {
+    unsupported(
       'Your browser or device cannot run the 3D world (WebGL 2 is unavailable). The portfolio has everything in it.',
     );
-    landing.show();
     return;
   }
   if (isTouchOnly()) {
@@ -52,40 +57,53 @@ async function boot(): Promise<void> {
     );
   }
 
-  loading.setText('Building the kitchen…');
-  loading.setProgress(0.15);
-  // Let the loading screen paint before the heavy synchronous scene build.
-  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
-  // How often the display refreshes, measured while nothing heavy draws yet, for the governor.
-  const refresh = measureRefreshInterval();
-  const [{ WorldScene }, { Game }] = await Promise.all([
-    import('./world/scene.ts'),
-    import('./game/game.ts'),
-  ]);
-  const canvas = el('canvas', { class: 'world-canvas' });
-  app.prepend(canvas);
-  const settings = Settings.load();
-  const quality = pickQuality(webgl, settings.values.quality);
-  const world = new WorldScene(canvas, stations, dishes, quality);
-  loading.setText('Compiling shaders…');
-  loading.setProgress(0.6);
-  await world.compile();
-  world.startGovernor(await refresh);
-  loading.setProgress(1);
+  let canvas: HTMLCanvasElement | null = null;
+  try {
+    loading.setText('Building the kitchen…');
+    loading.setProgress(0.15);
+    // Let the loading screen paint before the heavy synchronous scene build.
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    // How often the display refreshes, measured while nothing heavy draws yet, for the governor.
+    const refresh = measureRefreshInterval();
+    const [{ WorldScene }, { Game }] = await Promise.all([
+      import('./world/scene.ts'),
+      import('./game/game.ts'),
+    ]);
+    canvas = el('canvas', { class: 'world-canvas' });
+    app.prepend(canvas);
+    const settings = Settings.load();
+    const quality = pickQuality(webgl, settings.values.quality);
+    const world = new WorldScene(canvas, stations, dishes, quality);
+    loading.setText('Compiling shaders…');
+    loading.setProgress(0.6);
+    await world.compile();
+    world.startGovernor(await refresh);
+    loading.setProgress(1);
 
-  game = new Game(world, overlay, landing, settings, pickQuality(webgl));
-  // The E2E suite's build only: pages it is not driving draw a few times a second (see the module).
-  // An inline check, like the debug hooks', so other builds drop the chunk.
-  if (import.meta.env.MODE === 'test') {
-    const { drawOnlyWhileDriven } = await import('./testDrawing.ts');
-    drawOnlyWhileDriven(world);
-  }
-  game.start();
+    game = new Game(world, overlay, landing, settings, pickQuality(webgl));
+    // The E2E suite's build only: pages it is not driving draw a few times a second (see the
+    // module). An inline check, like the debug hooks', so other builds drop the chunk.
+    if (import.meta.env.MODE === 'test') {
+      const { drawOnlyWhileDriven } = await import('./testDrawing.ts');
+      drawOnlyWhileDriven(world);
+    }
+    game.start();
 
-  // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.
-  if (import.meta.env.MODE !== 'production') {
-    const { installDebugHooks } = await import('./debug.ts');
-    installDebugHooks(game, world);
+    // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.
+    if (import.meta.env.MODE !== 'production') {
+      const { installDebugHooks } = await import('./debug.ts');
+      installDebugHooks(game, world);
+    }
+  } catch (error) {
+    // Code that would not load (a deploy landed while the page loaded), or a renderer that would
+    // not start after the probe said it could: rather than a loading screen up forever, the
+    // portfolio, as without WebGL.
+    console.error('The kitchen did not load.', error);
+    canvas?.remove();
+    unsupported(
+      'The kitchen did not load. Reload the page to try again, or read the portfolio, which has everything in it.',
+    );
+    return;
   }
 
   // Two frames so the first real render is on screen before the loading screen fades.

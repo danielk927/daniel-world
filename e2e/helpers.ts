@@ -72,6 +72,8 @@ export function world(page: Page): Promise<WorldDebugState> {
       punching: w.punching,
       computer: w.computer,
       knockedOut: w.knockedOut,
+      arm: w.arm,
+      labels: w.labels,
       knife: w.knife,
       knives: w.knives,
       cooler: w.cooler,
@@ -120,11 +122,17 @@ export async function waitForFrames(page: Page, count = 2): Promise<void> {
 
 /**
  * Open the site in a fresh browser context and walk through the landing screen like a visitor.
- * `path` opens another address first, such as an invite link.
+ * `path` opens another address first, such as an invite link; `prepare` runs before the page loads.
  */
 export async function enterWorld(
   browser: Browser,
-  options: { name: string; room?: string; online?: boolean; path?: string },
+  options: {
+    name: string;
+    room?: string;
+    online?: boolean;
+    path?: string;
+    prepare?: (page: Page) => Promise<void>;
+  },
 ): Promise<Page> {
   test.info().setTimeout(test.info().timeout + ENTER_MS);
   // A modest viewport keeps several software-rendered pages responsive on one machine.
@@ -134,6 +142,7 @@ export async function enterWorld(
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
   }
+  await options.prepare?.(page);
   await page.goto(options.path ?? '/');
   await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeVisible({
     timeout: LOAD_MS,
