@@ -117,7 +117,7 @@ A hit that leaves the cook standing flares the screen's edges, softer and shorte
 The thrower's crosshair marks every hit, and only a knockout names the cook.
 
 The scoreboard is held with Tab, a reading surface like the computer's guide: an even `--dim` of the whole view, the title "Scoreboard" in the display face with the bar, and a table of plain lines, the columns Kills, Deaths and Assists as small words over the numbers with one hairline under them.
-Each name is in its cook's color, yours marked "you" in brass before it, best first (most kills, then fewest deaths); a full room that does not fit scrolls under a thin brass scrollbar.
+Each name is in its cook's color, yours marked "you" in brass before it, best first (most kills, then fewest deaths); the rows shrink so that a full room of 16 fits down to a window 480 px tall, and in a shorter one the list keeps your own row in view (it cannot be scrolled while the key is held).
 Nothing else in it is boxed, and letting go of Tab, opening a menu or the chat, or leaving the window hides it.
 
 ### Pause menu (`ui/pause.ts`, `party.ts`, `knivesPanel.ts`, `knifePreview.ts`, `styles/pause.css`)

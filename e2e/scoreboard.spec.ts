@@ -289,6 +289,53 @@ test('Tab works with the pointer locked as without it, and lets go when the menu
   await page.context().close();
 });
 
+test('a full room of sixteen fits the scoreboard down to a window 480 px tall, and a shorter one keeps your own row in view', async ({
+  browser,
+}) => {
+  const page = await enterWorld(browser, { name: 'Packed', online: false });
+  await page.keyboard.down('Tab');
+  await expect(board(page)).toBeVisible();
+  // A room of sixteen: fifteen more rows ahead of this player's own, which comes last, where a
+  // list that is cut off would lose it first. (The page draws a row per cook; this stands in for
+  // the other fifteen, in the real page and its real styles.)
+  await page.evaluate(() => {
+    const own = document.querySelector('.scoreboard-row')!;
+    for (let i = 0; i < 15; i++) own.before(own.cloneNode(true));
+  });
+  /** How far each row is inside what the list shows, in px; negative where it is cut off. */
+  const clearances = () =>
+    page.evaluate(() => {
+      const box = document.querySelector('.scoreboard-scroll')!.getBoundingClientRect();
+      return [...document.querySelectorAll('.scoreboard-row')].map((row) => {
+        const r = row.getBoundingClientRect();
+        return Math.min(r.top - box.top, box.bottom - r.bottom);
+      });
+    });
+  for (const height of [900, 720, 600, 540, 480]) {
+    await page.setViewportSize({ width: 960, height });
+    await waitForFrames(page, 2);
+    const all = await clearances();
+    expect(all, `${height} px`).toHaveLength(16);
+    expect(
+      Math.min(...all),
+      `every row of sixteen in a window ${height} px tall`,
+    ).toBeGreaterThanOrEqual(-0.5);
+  }
+  // Shorter than that the list is cut off, and nothing can scroll it while the key is held: put
+  // away and brought up again, it shows the part with this player's own row, the last.
+  await page.setViewportSize({ width: 960, height: 420 });
+  await waitForFrames(page, 2);
+  await page.keyboard.up('Tab');
+  await expect(board(page)).toBeHidden();
+  await page.keyboard.down('Tab');
+  await expect(board(page)).toBeVisible();
+  const shown = await clearances();
+  expect(shown.at(-1)!, 'the last row, this player, is in view').toBeGreaterThanOrEqual(-0.5);
+  expect(Math.min(...shown), 'and the list is cut off above it').toBeLessThan(0);
+  await page.keyboard.up('Tab');
+  await page.context().close();
+});
+
 test('Tab shows no scoreboard in the chat, where it leaves the field as it always did', async ({
   browser,
 }) => {

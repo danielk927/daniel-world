@@ -44,6 +44,8 @@ const COLUMNS = [
 export class Scoreboard {
   readonly element: HTMLElement;
   private readonly body = el('tbody');
+  /** What the table is in, which cuts it off in a window too short for every row. */
+  private readonly scroller = el('div', { class: 'scoreboard-scroll' });
   private rows: readonly ScoreRow[] = [];
   private key = '';
   private drawn = '';
@@ -65,12 +67,12 @@ export class Scoreboard {
         el('div', { class: 'scoreboard-body' }, [
           el('h2', { class: 'title scoreboard-title', text: 'Scoreboard' }),
           el('span', { class: 'bar' }),
-          // Scrolls in a window too short for a full room.
-          el('div', { class: 'scoreboard-scroll' }, [
-            el('table', { class: 'scoreboard-table' }, [el('thead', {}, [header]), this.body]),
-          ]),
+          this.scroller,
         ]),
       ],
+    );
+    this.scroller.append(
+      el('table', { class: 'scoreboard-table' }, [el('thead', {}, [header]), this.body]),
     );
     parent.append(this.element);
   }
@@ -91,7 +93,9 @@ export class Scoreboard {
     const key = rowsKey(rows);
     if (key === this.key) return;
     this.key = key;
-    if (this.shown) this.draw();
+    if (!this.shown) return;
+    this.draw();
+    this.keepSelfInView();
   }
 
   setShown(shown: boolean): void {
@@ -99,6 +103,24 @@ export class Scoreboard {
     // Drawn as it comes up, not as each change comes in while it is away.
     if (shown) this.draw();
     this.element.hidden = !shown;
+    if (shown) this.keepSelfInView();
+  }
+
+  /**
+   * In a window too short for every row, the list is cut off, and nothing can scroll it while the
+   * key is held: show the part with this player's own line in it, as far up as it goes.
+   */
+  private keepSelfInView(): void {
+    const row = this.body.querySelector<HTMLElement>('.is-self');
+    const box = this.scroller;
+    if (!row || box.scrollHeight <= box.clientHeight) {
+      box.scrollTop = 0;
+      return;
+    }
+    const top = row.offsetTop;
+    const bottom = top + row.offsetHeight;
+    if (bottom > box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+    else box.scrollTop = 0;
   }
 
   private draw(): void {

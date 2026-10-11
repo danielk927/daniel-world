@@ -21,8 +21,13 @@
   }
 }
 
+/*
+ * The rows shrink with the window so that a full room of 16 fits down to a window 480 px tall,
+ * which nothing can be scrolled in while the key is held: 16 rows, the column names, the title and
+ * the padding add up to the height at the smallest row (21 px), and a row 38 px at most.
+ */
 .scoreboard-body {
-  --row: clamp(26px, 4.6vh, 38px);
+  --row: clamp(21px, calc((100vh - 220px) / 16.8), 38px);
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   justify-items: center;
@@ -38,14 +43,16 @@
   margin-top: 12px;
 }
 
-/* A thin brass scrollbar where a full room does not fit, as the station panel has. */
+/*
+ * In a window still too short for 16 rows the list is cut off; it is moved to keep this player's
+ * own row in view (`Scoreboard`), and has no scrollbar, since there is no way to use one while the
+ * key is held.
+ */
 .scoreboard-scroll {
   width: 100%;
   min-height: 0;
   margin-top: clamp(12px, 3vh, 28px);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent) var(--ink-hair);
+  overflow-y: hidden;
 }
 
 .scoreboard-table {
@@ -120,12 +127,12 @@
 }
 
 /*
- * Nothing of the kitchen's own words shows through it: the labels, the prompt, the crosshair and,
- * for a cook held down while they look, the knockout card would print over the table. The veil
- * of the fall stays.
+ * Nothing of the kitchen's own words shows through it: the labels, the prompt, the crosshair, the
+ * chat (which a narrow window runs under the table) and, for a cook held down while they look, the
+ * knockout card would print over it. The veil of the fall stays.
  */
 .ui:has(> .scoreboard:not([hidden]))
-  :is(.labels, .crosshair, .prompt, .look-cue, .hit-marker, .hit-banner, .knockout-body) {
+  :is(.labels, .crosshair, .prompt, .look-cue, .hit-marker, .hit-banner, .knockout-body, .chat) {
   visibility: hidden;
 }
 
