@@ -188,7 +188,6 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - Chef Skinner's rules are unchanged, so he takes about three times as long to knock a cook out (measured: his first hit 13 to 59 s in, his first knockout 56 to 180 s, against a cook pacing the aisle).
 - Tests: server unit tests (`health.test.ts`, `scores.test.ts`, welcome scores in `server.test.ts`, the old one-hit tests moved to three), protocol schema tests, `input.test.ts` for the held key, `multiplayer.test.ts` for hits and scores on the client, `avatars.test.ts` for the recoil, and E2E `health.spec.ts` and `scoreboard.spec.ts` (two and three pages, the room server asked what it counts).
 - Lint, typecheck, 1101 unit tests, all 53 E2E tests (the new specs three times over and once with `E2E_CPU_THROTTLE=4`) and the build pass; `node scripts/perf.ts` holds 60 fps at governor level 0 with 16 players (1.6 ms of frame CPU, 84 draw calls, 715 k triangles, the same as before), and at dpr 2 matches the commit before under the same load.
-- The bayonet's clearance check timed out at its 60 s on a machine at a load average of 50 (90 s there, about 25 s on a quiet one); its limit is 180 s now.
 - The server half reaches visitors only with `npm run deploy:aws`; until then the live site and a new client do not match versions and play solo.
 
 ### How to run it
