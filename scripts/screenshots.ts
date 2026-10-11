@@ -131,7 +131,8 @@ async function main(): Promise<void> {
     // Done with it: a page left open keeps rendering and slows the next ones down.
     await reader.close();
 
-    // Knives in a private room: two stuck in the wall past a cook, then one that knocks them out.
+    // Knives in a private room: two stuck in the wall past a cook, then one that hits them; two
+    // more knock them out (a cook has three health), and the scoreboard, held, has the knockout.
     const thrower = await context.newPage();
     await enter(thrower, 'Thrower', 'docs-knives');
     const target = await context.newPage();
@@ -153,6 +154,17 @@ async function main(): Promise<void> {
     await thrower.waitForFunction(() => window.__world!.remotePlayers.length > 0);
     await thrower.waitForTimeout(900);
     await thrower.screenshot({ path: `${outDir}/knives.png` });
+
+    // The knockout, and Tab held for the scoreboard.
+    for (let i = 0; i < 20 && !(await target.evaluate(() => window.__world!.knockedOut)); i++) {
+      await thrower.mouse.click(1300, 120);
+      await thrower.waitForTimeout(1100);
+    }
+    await thrower.waitForTimeout(600);
+    await thrower.keyboard.down('Tab');
+    await thrower.waitForTimeout(400);
+    await thrower.screenshot({ path: `${outDir}/scoreboard.png` });
+    await thrower.keyboard.up('Tab');
 
     // Inspecting the knife (I), caught with the flat of the blade turned to the eye.
     await thrower.waitForTimeout(1500);

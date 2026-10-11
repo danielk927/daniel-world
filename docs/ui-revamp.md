@@ -99,6 +99,7 @@ Nothing behind or around any of it.
 - Bottom left: chat as plain lines, names in their color and weight 700, system lines in full ivory; the chat input is a line to write on.
 - Toasts and the kill feed: plain lines, no chips.
 - Knocked out: the flat veil stays; the card becomes a kicker and the name in the display face, no box.
+- Health and the scoreboard: see their own section below.
 - The computer guide: plain rows of ring keys and words.
 
 ### Loadout and minimap (`ui/loadout.ts`, `ui/minimap.ts`, `styles/loadout.css`, `styles/minimap.css`)
@@ -107,6 +108,17 @@ Bottom right.
 The minimap is a round disc of `--night` with an `--ink-faint` ring and an "N" tab on top, the kitchen drawn in ivory line, stations as small diamonds, players as dots of their color, you as a brass arrow.
 Above it the loadout: the knife over the fist, Q as a ring beside the pair, a brass bar under what is in hand; the knife's readiness after a throw still shows.
 No panel behind the loadout; if the icons vanish on the brightest walls, give each a small night disc like the map rather than a box.
+
+### Health and the scoreboard (`ui/health.ts`, `ui/scoreboard.ts`, `styles/health.css`, `styles/scoreboard.css`)
+
+Health is a small heart and three segments in the bottom right corner, under the knife, one segment for each hit a knife takes to knock a cook out: ivory while whole, a hairline once gone, the last one left (and the heart) in `--danger`, and a segment that has just gone flares and settles.
+Like the crosshair, each holds on the white walls with a hairline of the night round it; there are no words (the heart says what it is, so it is not taken for a second brass bar like the one under the knife), and the bar is a `meter` named Health whose value reads "2 of 3" for a screen reader, which also hears each hit.
+A hit that leaves the cook standing flares the screen's edges, softer and shorter than the knockout's, and shakes the view less; the knockout card and veil are unchanged.
+The thrower's crosshair marks every hit, and only a knockout names the cook.
+
+The scoreboard is held with Tab, a reading surface like the computer's guide: an even `--dim` of the whole view, the title "Scoreboard" in the display face with the bar, and a table of plain lines, the columns Kills, Deaths and Assists as small words over the numbers with one hairline under them.
+Each name is in its cook's color, yours marked "you" in brass before it, best first (most kills, then fewest deaths); a full room that does not fit scrolls under a thin brass scrollbar.
+Nothing else in it is boxed, and letting go of Tab, opening a menu or the chat, or leaving the window hides it.
 
 ### Pause menu (`ui/pause.ts`, `party.ts`, `knivesPanel.ts`, `knifePreview.ts`, `styles/pause.css`)
 

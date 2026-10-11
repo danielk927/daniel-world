@@ -39,6 +39,7 @@ Open a second browser window to see yourself from the outside.
 | Click   | Throw a knife, or punch with the bare hand (hold to repeat) |
 | Q       | Switch between knife and bare hand                          |
 | I       | Inspect the knife                                           |
+| Tab     | Hold for the scoreboard: everyone's kills, deaths, assists  |
 | E       | Open the station you are looking at                         |
 | Enter   | Chat (120 characters, plain text)                           |
 | Esc     | Menu                                                        |
@@ -50,8 +51,14 @@ Every room, the lobby and each party alike, has Chef Skinner locked in its walk-
 
 Every cook carries knives, in every room.
 Left click to throw one; it leaves the hand a little off the crosshair (never more than 1.5°), flies in a slight arc and sticks into whatever it hits.
-A knife that hits another cook knocks them out for three seconds, then they get back up somewhere else, briefly protected.
 The newest 60 knives stay stuck around the kitchen until everyone leaves the room.
+Every cook has three health, shown as a heart and three segments by the knife in the bottom right corner.
+A knife that hits another cook takes one, and the third takes the last: they are knocked out for three seconds, then get back up somewhere else with all their health, briefly protected.
+Health comes back only that way.
+Hold Tab to see the scoreboard: for everyone in the room (Chef Skinner too), the kills they have landed, the times they have been knocked out, and their assists, which are hits on a cook that somebody else then knocked out.
+Scores last as long as the cook is in the room, so leaving and coming back starts again from nothing.
+
+![The scoreboard, held with Tab](docs/screenshots/scoreboard.png)
 
 ## Editing the content
 
@@ -210,5 +217,5 @@ Build the client with `VITE_SERVER_URL` set to the server's `wss://` URL, or to 
 
 - Unit and integration tests (Vitest) cover the simulation, protocol validation, rate limiting, rooms, the WebSocket server, prediction and interpolation.
 - End-to-end tests (Playwright, Chromium with SwiftShader software WebGL) open several browser contexts and assert on a read-only `window.__world` debug object that exists only in dev and test builds.
-  They cover the landing (on a phone, without WebGL, the live lobby count), lobby presence, movement replication, jumping and sprinting, name tags, chat, private parties and invite links, leaving, the stations' and dishes' panels, the menus' keyboard focus, knives (throwing, knockouts, the spread, skins, inspecting, holding to keep throwing, punches), Chef Skinner, the walk-in, the kitchen computer, the portfolio with JavaScript off, and offline play, reconnection and refusals.
+  They cover the landing (on a phone, without WebGL, the live lobby count), lobby presence, movement replication, jumping and sprinting, name tags, chat, private parties and invite links, leaving, the stations' and dishes' panels, the menus' keyboard focus, knives (throwing, health and knockouts, the scoreboard, the spread, skins, inspecting, holding to keep throwing, punches), Chef Skinner, the walk-in, the kitchen computer, the portfolio with JavaScript off, and offline play, reconnection and refusals.
   On a busy machine they hold without retries: pages the test is not driving draw only a few times a second in the test build, the room server runs in its own process, and a failed test carries its log.

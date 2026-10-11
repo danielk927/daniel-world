@@ -52,8 +52,13 @@ Build an original implementation. Do not copy code, assets, or content from that
    Q switches between the knife and the bare hand, which punches instead (others see the jab; it hits nothing), and I inspects the knife, as in CS2.
    The bottom right corner shows both over the minimap, like a shooter's loadout: the one in hand bright, the other with its key, and the knife filling back in after each throw.
    A knife leaves the hand a little off the crosshair (up to 1.5°, any way), flies fast in a slight arc, tumbling, and sticks into whatever surface it hits; the newest 60 per room stay until the room empties, and newcomers see them.
-   A knife that hits another cook knocks them out: they fall over, see "Knocked out by <name>" for 3 s, then respawn at a spawn point, protected for 2 s.
-   Kills show in the kill feed under the player list, and to the thrower and the cook knocked out on screen; there are no scores and no game modes.
+   Every cook has 3 health, shown as a heart and three segments in the bottom right corner by the knife.
+   A knife that hits another cook takes one (their screen's edges flare, the thrower's crosshair marks the hit, and the others see the cook rock back); the third takes the last and knocks them out: they fall over, see "Knocked out by <name>" for 3 s, then respawn at a spawn point with all their health, protected for 2 s.
+   Health comes back only by respawning.
+   Knockouts show in the kill feed under the player list, and to the thrower and the cook knocked out on screen.
+   The room keeps a score for every cook, Chef Skinner included, for as long as the cook is in it: a kill is landing the knockout hit, a death is being knocked out, and an assist is having hit a cook, since they last stood up, who somebody else then knocked out.
+   Holding Tab shows everyone's kills, deaths and assists, best first (most kills, then fewest deaths), yours marked; letting go hides it.
+   There are no game modes.
 
 ## Networking
 
