@@ -641,8 +641,12 @@ function scenarios(skin: KnifeSkin): [string, (run: Run) => void][] {
   return out;
 }
 
-/** How long checking one knife may take, on a machine busy with other tests. */
-const CHECK_TIMEOUT = 60_000;
+/**
+ * How long checking one knife may take, on a machine busy with other tests. A minute was not
+ * enough on one shared by a dozen running suites (a load average of about 50), where the bayonet
+ * took 90 seconds; it takes around 25 on a quiet one.
+ */
+const CHECK_TIMEOUT = 180_000;
 
 /** Every move and cut of each of `skins`, checked against its grip at rest. */
 export function checkClearance(skins: readonly KnifeSkin[]): void {
