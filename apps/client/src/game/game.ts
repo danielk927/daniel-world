@@ -885,6 +885,9 @@ export class Game {
     if (this.mode !== 'computer') return;
     this.desk.stepAway();
     this.computerGuide.hide();
+    // A notice from the computer was for the desk (one says to step away): it does not follow the
+    // cook back to the map and the room beside it.
+    this.toasts.clear();
     this.mode = 'playing';
     this.input.enabled = true;
     this.hud.setComputer('off');

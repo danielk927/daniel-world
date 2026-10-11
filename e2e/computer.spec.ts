@@ -55,6 +55,15 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
     }));
   const seated = await edges();
   expect(seated.room, "the room takes the corner, on the chat's edge").toBeCloseTo(seated.chat, 0);
+  // A notice from the computer (one says to step away) is for the desk: it does not follow the cook.
+  await page.evaluate(() => {
+    const notice = document.createElement('div');
+    notice.className = 'toast';
+    notice.textContent =
+      'The kitchen computer crashed. Step away and sit down again to restart it.';
+    document.querySelector('.toasts')!.append(notice);
+  });
+  await expect(page.locator('.toasts .toast')).toHaveCount(1);
 
   // Esc steps away; the game pauses where it is, and the keys walk the kitchen again.
   await page.keyboard.press('Escape');
@@ -65,6 +74,7 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   );
   await expect(page.locator('.computer-hint')).toBeHidden();
   await expect(page.locator('.minimap')).toBeVisible();
+  await expect(page.locator('.toasts .toast')).toHaveCount(0);
   const away = await edges();
   expect(away.room, 'the room is beside the map again').toBeGreaterThan(away.map);
 

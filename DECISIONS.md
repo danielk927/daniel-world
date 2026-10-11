@@ -1001,6 +1001,7 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   Measured, a 20-character code ran from 252 to 607 px at 1280x720 and the toast began at 591; now it ends at 568, 23 px short of it.
   It is never narrower than "The lobby" beside the map.
   The computer's two error toasts are as wide as 40 % of the window and show at the desk, where the room is in the corner (as before the move): they meet a party name longer than about 450 px, and nothing prevents that.
+  Stepping away clears them (one says to), so they do not follow the cook back to the map and the room beside it; a boot that fails after the cook has left still shows its toast for its 2.6 s, beside the room.
   Under 880 px wide the map and "The lobby" leave no room beside a toast, so toasts come down under the room instead (and the room may then reach the middle), and under 640 px the map goes with the loadout, the hint and the players, the room keeping the corner as before.
 - **The room is first in the page and the map second**, put first on the screen by `order`: a screen reader says where it is before it reaches the map's picture.
 - **The hint still goes under 1080 px**, but because of the chat: it gives the hint half the width less 288 px, and at 1081 px is 222 px wide, the least that reads.
