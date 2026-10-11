@@ -33,8 +33,8 @@ export interface KnifeModel {
   readonly grip: V2;
   /** Its middle, which it tumbles about in flight. */
   readonly center: V2;
-  /** What it turns about in the hand when it is spun: a finger ring, or the grip. */
-  readonly pivot: V2;
+  /** The middle of the finger ring at its butt, if it has one (a karambit, talon or skeleton). */
+  readonly ring?: V2;
   /**
    * How the hand holds it: `chef` blade up out of the fist and edge on, as the chef's knife always
    * was; `forward` the same, but turned to show the flat of the blade (and so the knife's shape) to
@@ -170,7 +170,6 @@ function kitchen(): KnifeModel {
     ],
     grip: [h0 + HANDLE_LENGTH * 0.5, 0],
     center: [(BLADE_LENGTH + 0.015 + HANDLE_LENGTH) * 0.45, 0],
-    pivot: [h0 + HANDLE_LENGTH * 0.5, 0],
     hold: 'chef',
   };
 }
@@ -244,7 +243,7 @@ function karambit(): KnifeModel {
     ],
     grip: [0.16, 0.068],
     center: [0.12, 0.05],
-    pivot: [0.226, 0.071],
+    ring: [0.226, 0.071],
     hold: 'reverse',
   };
 }
@@ -331,7 +330,6 @@ function butterfly(): KnifeModel {
     ],
     grip: [0.215, -0.002],
     center: [0.15, -0.002],
-    pivot: [0.215, -0.002],
     hold: 'forward',
   };
 }
@@ -442,7 +440,6 @@ function m9(): KnifeModel {
     ],
     grip: [0.245, 0],
     center: [0.158, 0],
-    pivot: [0.245, 0],
     hold: 'forward',
   };
 }
@@ -547,7 +544,6 @@ function bayonet(): KnifeModel {
     ],
     grip: [0.235, 0],
     center: [0.15, 0],
-    pivot: [0.235, 0],
     hold: 'forward',
   };
 }
@@ -637,7 +633,6 @@ function flip(): KnifeModel {
     ],
     grip: [0.18, 0],
     center: [0.118, 0],
-    pivot: [0.18, 0],
     hold: 'forward',
   };
 }
@@ -740,7 +735,6 @@ function huntsman(): KnifeModel {
     ],
     grip: [0.257, 0],
     center: [0.163, 0],
-    pivot: [0.257, 0],
     hold: 'forward',
   };
 }
@@ -835,7 +829,6 @@ function falchion(): KnifeModel {
     ],
     grip: [0.236, -0.002],
     center: [0.148, 0],
-    pivot: [0.236, -0.002],
     hold: 'forward',
   };
 }
@@ -927,7 +920,6 @@ function gut(): KnifeModel {
     ],
     grip: [0.198, -0.001],
     center: [0.128, 0],
-    pivot: [0.198, -0.001],
     hold: 'forward',
   };
 }
@@ -1030,7 +1022,7 @@ function talon(): KnifeModel {
     ],
     grip: [0.19, 0.052],
     center: [0.14, 0.04],
-    pivot: [0.258, 0.053],
+    ring: [0.258, 0.053],
     hold: 'forward',
   };
 }
@@ -1110,7 +1102,7 @@ function skeleton(): KnifeModel {
     ],
     grip: [0.17, 0],
     center: [0.125, 0],
-    pivot: [0.231, 0],
+    ring: [0.231, 0],
     hold: 'forward',
   };
 }
@@ -1209,7 +1201,6 @@ function stiletto(): KnifeModel {
     ],
     grip: [0.2, 0],
     center: [0.13, 0],
-    pivot: [0.2, 0],
     hold: 'forward',
   };
 }
@@ -1249,7 +1240,7 @@ function scaled(model: KnifeModel, k: number): KnifeModel {
     }),
     grip: v(model.grip),
     center: v(model.center),
-    pivot: v(model.pivot),
+    ...(model.ring ? { ring: v(model.ring) } : {}),
   };
 }
 

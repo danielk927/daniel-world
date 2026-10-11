@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { KNIFE_SKINS, knifeLook, type KnifeSkin } from '@world/shared';
 import { knifeModel } from './knifeModel.ts';
 import { knifeMoves } from './knifeMoves.ts';
-import { Viewmodel, knifeHand } from './viewmodel.ts';
+import { Viewmodel } from './viewmodel.ts';
 
 /**
  * The knife in the hand on screen moves as a hand could move it, through every knife's draw and
@@ -96,7 +96,8 @@ function measure(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): Worst {
     vm.startInspect();
     seconds = moves.inspect.duration + 0.5;
   }
-  const pivot = knifeHand(knifeModel(skin)).pivot;
+  const [gz, gy] = knifeModel(skin).grip;
+  const pivot = new Vector3(0, gy, gz);
   const bones = parts.hand.mesh.skeleton.bones;
   const wrist = parts.hand.wrist;
   const worst = new Worst();
