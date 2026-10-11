@@ -89,7 +89,7 @@ test('Chef Skinner is locked in the walk-in until its door bursts, then comes ou
   );
   // Shouting about it...
   const log = boxer.getByRole('list', { name: 'Chat history' });
-  await expect(log).toContainText('Chef Skinner');
+  await expect(log).toContainText('Chef Skinner is out of the walk-in');
   const said = (await log.textContent()) ?? '';
   expect(
     ENTRANCE_LINES.some((line) => said.includes(line)),

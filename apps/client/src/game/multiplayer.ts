@@ -435,7 +435,12 @@ export class Multiplayer {
         if (message.player.id === this.selfId) return;
         this.addRemote(message.player);
         this.refreshPlayers();
-        this.deps.chat.addSystem(`${message.player.name} joined`);
+        // A resident does not walk in: Chef Skinner joins only as he comes out of the walk-in.
+        this.deps.chat.addSystem(
+          message.player.resident
+            ? `${message.player.name} is out of the walk-in`
+            : `${message.player.name} joined`,
+        );
         return;
       case 'leave': {
         const remote = this.remotes.get(message.id);
