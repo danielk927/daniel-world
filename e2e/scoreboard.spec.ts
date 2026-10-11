@@ -300,7 +300,13 @@ test('a full room of sixteen fits the scoreboard down to a window 480 px tall, a
   // the other fifteen, in the real page and its real styles.)
   await page.evaluate(() => {
     const own = document.querySelector('.scoreboard-row')!;
-    for (let i = 0; i < 15; i++) own.before(own.cloneNode(true));
+    for (let i = 0; i < 15; i++) {
+      // Another cook's row: not marked as this player's.
+      const other = own.cloneNode(true) as HTMLElement;
+      other.classList.remove('is-self');
+      other.querySelector('.scoreboard-you')?.remove();
+      own.before(other);
+    }
   });
   /** How far each row is inside what the list shows, in px; negative where it is cut off. */
   const clearances = () =>

@@ -8,6 +8,8 @@
   position: absolute;
   inset: 0;
   display: grid;
+  /* The one row is the window's height, not the table's, so a table too tall for it is cut off. */
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   padding: clamp(16px, 5vh, 56px) 32px;
   background: var(--dim);
