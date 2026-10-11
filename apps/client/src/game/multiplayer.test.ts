@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { KillMessage } from '@world/shared';
 import { joinRoom } from '../net/connection.ts';
 import { FakeSocket, latestSocket, welcome } from '../net/fakeSocket.ts';
 import type { Hud } from '../ui/hud.ts';
@@ -45,7 +46,7 @@ function setup(room: string) {
   return { deps, onKill, onSpawn, addSystem, addMessage, onCoolerState, onCoolerHit, setStatus };
 }
 
-const killOfSelf = { t: 'kill', knife: 1, from: 3, to: 7, at: 0.2 } as const;
+const killOfSelf: KillMessage = { t: 'kill', knife: 1, from: 3, to: 7, at: 0.2, scores: [] };
 
 beforeEach(() => {
   vi.useFakeTimers();

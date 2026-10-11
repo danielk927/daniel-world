@@ -4,6 +4,7 @@ import {
   KNIFE_COOLDOWN_INPUTS,
   KNIFE_MAX_STUCK,
   Keys,
+  MAX_HEALTH,
   parseServerMessage,
   thrownKnife,
   type ServerMessage,
@@ -117,10 +118,12 @@ describe('knives', () => {
     expect(headings.has(0)).toBe(false);
   });
 
-  it('knocks out a player it hits, who respawns protected after a while', () => {
+  it('knocks out a player whose last health it takes, who respawns protected after a while', () => {
     const { room, join, input, steps, received } = setup();
     const thrower = join(0, 5.6);
     const victim = join(0, 3.2);
+    // Down to their last hit (health.test.ts has the two before it).
+    victim.health = 1;
     // Aim a little down so the knife meets the victim's chest, not their toque.
     input(thrower, { throwKnife: true, pitch: -0.1 });
     steps(FLIGHT);
@@ -147,29 +150,49 @@ describe('knives', () => {
     steps(KNIFE_COOLDOWN_INPUTS + FLIGHT);
     expect(received(thrower.id, 'knife')).toHaveLength(2);
     expect(received(thrower.id, 'kill')).toHaveLength(1);
+    expect(received(thrower.id, 'hit')).toHaveLength(0);
     expect(PROTECTION_TICKS).toBeGreaterThan(KNIFE_COOLDOWN_INPUTS);
   });
 
-  it('knocks a cook out once when two knives hit them on the same tick, and the other flies on', () => {
-    const { join, input, steps, received } = setup();
-    const left = join(-0.6, 5.6);
-    const right = join(0.6, 5.6);
-    const victim = join(0, 3.2);
-    // Thrown together from either side, the same distance away: they arrive on the same tick.
+  /** Two cooks throw at one, from either side, the same distance away: the knives arrive together. */
+  function twoKnivesAtOnce(victimHealth: number) {
+    const room = setup();
+    const left = room.join(-0.6, 5.6);
+    const right = room.join(0.6, 5.6);
+    const victim = room.join(0, 3.2);
+    victim.health = victimHealth;
     for (const thrower of [left, right]) {
       const yaw = Math.atan2(thrower.state.x - victim.state.x, thrower.state.z - victim.state.z);
-      input(thrower, { throwKnife: true, yaw, pitch: -0.1 });
+      room.input(thrower, { throwKnife: true, yaw, pitch: -0.1 });
     }
-    steps(FLIGHT);
-    const knives = received(victim.id, 'knife');
+    room.steps(FLIGHT);
+    const knives = room.received(victim.id, 'knife');
     expect(knives.map((k) => k.from)).toEqual([left.id, right.id]);
+    return { ...room, left, right, victim, knives };
+  }
+
+  it('knocks a cook out once when two knives take their last health on the same tick, and the other flies on', () => {
+    const { received, left, victim, knives } = twoKnivesAtOnce(1);
     const kills = received(victim.id, 'kill');
     const stuck = received(victim.id, 'stuck');
     expect(kills).toMatchObject([{ knife: knives[0]!.id, from: left.id, to: victim.id }]);
+    expect(received(victim.id, 'hit')).toEqual([]);
     // Every knife ends somewhere: the second went on through and stuck past them.
     expect(stuck.map((m) => m.knife.id)).toEqual([knives[1]!.id]);
     expect(stuck[0]!.knife.z).toBeLessThan(victim.state.z);
     expect(stuck[0]!.at).toBeGreaterThan(kills[0]!.at);
+  });
+
+  it('hits a cook once a tick, so two knives together hit them one after the other', () => {
+    const { received, left, right, victim, knives } = twoKnivesAtOnce(MAX_HEALTH);
+    const hits = received(victim.id, 'hit');
+    expect(hits).toMatchObject([
+      { knife: knives[0]!.id, from: left.id, health: MAX_HEALTH - 1 },
+      { knife: knives[1]!.id, from: right.id, health: MAX_HEALTH - 2 },
+    ]);
+    expect(hits[1]!.at).toBeGreaterThan(hits[0]!.at);
+    expect(victim.health).toBe(MAX_HEALTH - 2);
+    expect(received(victim.id, 'kill')).toEqual([]);
   });
 
   it("passes a resident's knives through a cook who has turned him off, and nobody else's", () => {
@@ -185,18 +208,18 @@ describe('knives', () => {
       steps(KNIFE_COOLDOWN_INPUTS + 1 + FLIGHT);
     };
     throwFrom(chef);
-    expect(received(cook.id, 'kill')).toHaveLength(0);
+    expect(received(cook.id, 'hit')).toHaveLength(0);
+    expect(cook.health).toBe(MAX_HEALTH);
     // It flew on, through them, and landed somewhere in the kitchen.
     expect(received(cook.id, 'stuck')).toHaveLength(1);
     // Turning him off is about him: another visitor's knife still lands.
     throwFrom(visitor);
-    expect(received(cook.id, 'kill')).toMatchObject([{ from: visitor.id, to: cook.id }]);
-    steps(DEATH_TICKS + PROTECTION_TICKS);
+    expect(received(cook.id, 'hit')).toMatchObject([{ from: visitor.id, to: cook.id }]);
     // And it applies at once: back on, his next knife lands too.
-    Object.assign(cook.state, { x: 0, z: 3.2, vx: 0, vz: 0 });
     cook.prefs = { chef: true };
     throwFrom(chef);
-    expect(received(cook.id, 'kill').map((k) => k.from)).toEqual([visitor.id, chef.id]);
+    expect(received(cook.id, 'hit').map((hit) => hit.from)).toEqual([visitor.id, chef.id]);
+    expect(cook.health).toBe(MAX_HEALTH - 2);
   });
 
   it('passes the knives of a cook who has turned him off through the resident too', () => {
@@ -207,7 +230,9 @@ describe('knives', () => {
     input(cook, { throwKnife: true, pitch: -0.1 });
     steps(FLIGHT);
     expect(received(cook.id, 'kill')).toHaveLength(0);
+    expect(received(cook.id, 'hit')).toHaveLength(0);
     expect(received(cook.id, 'stuck')).toHaveLength(1);
+    expect(chef.health).toBe(MAX_HEALTH);
     expect(chef.deadUntil).toBeNull();
   });
 
@@ -278,7 +303,7 @@ describe('knives', () => {
       target.state.x += 2;
       input(thrower, { throwKnife: true, pitch: -0.1, view: compensate ? seenAt : undefined });
       steps(FLIGHT);
-      return received(thrower.id, 'kill').length;
+      return received(thrower.id, 'hit').length;
     };
     expect(throwAtSteppedAside(true)).toBe(1);
     expect(throwAtSteppedAside(false)).toBe(0);
@@ -295,6 +320,7 @@ describe('knives', () => {
     steps(MAX_REWIND_TICKS + 5);
     input(thrower, { throwKnife: true, pitch: -0.1, view: seenAt });
     steps(FLIGHT);
+    expect(received(thrower.id, 'hit')).toHaveLength(0);
     expect(received(thrower.id, 'kill')).toHaveLength(0);
   });
 
@@ -302,6 +328,7 @@ describe('knives', () => {
     const { join, input, steps } = setup();
     const thrower = join(0, 5.6);
     const victim = join(0, 3.2);
+    victim.health = 1;
     input(thrower, { throwKnife: true, pitch: -0.1 });
     steps(FLIGHT);
     const before = { x: victim.state.x, z: victim.state.z };

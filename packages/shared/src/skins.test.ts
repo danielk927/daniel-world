@@ -155,6 +155,7 @@ describe('knife looks on the wire', () => {
       players: [],
       self,
       knives: [knife, { ...knife, id: 4, skin: undefined, finish: undefined }],
+      scores: [],
     };
     const parsed = parseServerMessage(encode(welcome as never));
     expect(parsed?.t === 'welcome' && parsed.knives.map((k) => k.skin)).toEqual([
