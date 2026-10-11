@@ -654,7 +654,7 @@
   transform: scaleX(1);
 }
 
-/* Resume (with the key that does it, in a brass ring), Leave, and the plain page. */
+/* Resume (with the key that does it, in a brass ring), Leave, and the resume as a PDF. */
 .pause-actions {
   grid-area: actions;
   display: grid;
@@ -666,7 +666,7 @@
 }
 
 .pause-actions > .button,
-.pause-portfolio {
+.pause-resume {
   grid-column: 2;
   justify-self: start;
 }
@@ -689,7 +689,7 @@
   bottom: 0;
 }
 
-.pause-portfolio {
+.pause-resume {
   display: inline-flex;
   align-items: center;
   min-height: 30px;
@@ -701,7 +701,7 @@
     text-decoration-color 0.15s ease;
 }
 
-.pause-portfolio:hover {
+.pause-resume:hover {
   color: var(--ink);
 }
 
@@ -758,7 +758,7 @@
   }
 
   .pause-actions .button,
-  .pause-portfolio {
+  .pause-resume {
     font-size: 16px;
   }
 }

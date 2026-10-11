@@ -1,6 +1,7 @@
 import { DEFAULT_ROOM, NAME_MAX_LENGTH, sanitizeName } from '@world/shared';
 import { site } from '../content.ts';
 import { checkPartyCode, partyFromAddress } from '../game/party.ts';
+import { RESUME_LABEL, resumeAttrs } from '../resume.ts';
 import { randomName } from '../util/names.ts';
 import { storage } from '../util/storage.ts';
 import { el } from './dom.ts';
@@ -34,7 +35,7 @@ function rerollIcon(): SVGSVGElement {
 /**
  * The landing, centered over the kitchen going by: Daniel's name, what he studies, the cook's name
  * and the way in. A quiet row along the bottom has who is online, a private party (a code field that
- * opens under the name) and the plain portfolio.
+ * opens under the name) and the resume, a PDF.
  */
 export class Landing {
   readonly element: HTMLElement;
@@ -52,13 +53,16 @@ export class Landing {
   private readonly form: HTMLFormElement;
   private readonly enterButton: HTMLButtonElement;
   private readonly row: HTMLElement;
-  /** The plain portfolio, in the quiet row. */
-  private readonly portfolioLink = el('a', {
+  /**
+   * The resume, in the quiet row. It opens in a tab of its own, so the kitchen behind the landing
+   * stays as it is for a visitor who comes back to enter it.
+   */
+  private readonly resumeLink = el('a', {
     class: 'landing-link',
-    text: 'Plain portfolio',
-    attrs: { href: '/portfolio.html' },
+    text: RESUME_LABEL,
+    attrs: resumeAttrs(true),
   });
-  /** What Enter (the key) does when the landing shows: the way in, or the portfolio without WebGL. */
+  /** What Enter (the key) does when the landing shows: the way in, or the resume without WebGL. */
   private mainAction: HTMLElement;
   private readonly count = el('p', { class: 'landing-count', attrs: { 'aria-live': 'polite' } });
   private readonly notice = el('p', {
@@ -156,11 +160,7 @@ export class Landing {
       handlers.onEnter(name, room);
     });
 
-    this.row = el('div', { class: 'landing-row' }, [
-      this.count,
-      this.partyToggle,
-      this.portfolioLink,
-    ]);
+    this.row = el('div', { class: 'landing-row' }, [this.count, this.partyToggle, this.resumeLink]);
 
     this.element = el(
       'section',
@@ -250,24 +250,20 @@ export class Landing {
   }
 
   /**
-   * A phone or tablet: the world wants a keyboard and mouse, so the portfolio becomes the way in,
-   * and the kitchen a quiet second choice for a tablet with a keyboard.
+   * A phone or tablet: the world wants a keyboard and mouse, so the resume becomes the way in, and
+   * the kitchen a quiet second choice for a tablet with a keyboard.
    */
-  suggestPortfolio(message: string): void {
+  suggestResume(message: string): void {
     this.setNotice(message);
-    const portfolio = el('a', {
-      class: 'button button-primary button-large landing-portfolio',
-      text: 'View the portfolio',
-      attrs: { href: '/portfolio.html' },
-    });
-    this.form.before(portfolio);
+    const resume = this.mainResumeLink();
+    this.form.before(resume);
     this.enterButton.classList.remove('button-primary', 'button-large');
-    this.portfolioLink.hidden = true;
-    this.mainAction = portfolio;
+    this.resumeLink.hidden = true;
+    this.mainAction = resume;
   }
 
   /**
-   * The world cannot run (no WebGL, or it failed to load), so the portfolio becomes the way in: the
+   * The world cannot run (no WebGL, or it failed to load), so the resume becomes the way in: the
    * one a phone was already offered, or a new one.
    */
   setUnsupported(message: string): void {
@@ -275,12 +271,20 @@ export class Landing {
     this.form.hidden = true;
     this.row.hidden = true;
     if (this.mainAction !== this.enterButton) return;
-    const portfolio = el('a', {
-      class: 'button button-primary button-large landing-portfolio',
-      text: 'View the portfolio',
-      attrs: { href: '/portfolio.html' },
+    const resume = this.mainResumeLink();
+    this.form.after(resume);
+    this.mainAction = resume;
+  }
+
+  /**
+   * The resume as the screen's main action. It goes in this tab: with no world to keep, there is
+   * nothing to leave open, and Back comes home.
+   */
+  private mainResumeLink(): HTMLAnchorElement {
+    return el('a', {
+      class: 'button button-primary button-large landing-resume',
+      text: RESUME_LABEL,
+      attrs: resumeAttrs(false),
     });
-    this.form.after(portfolio);
-    this.mainAction = portfolio;
   }
 }

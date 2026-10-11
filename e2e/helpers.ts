@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { test as base, expect, type Browser, type Page } from '@playwright/test';
 import { EYE_HEIGHT, ROOM_HALF_X, STATIONS, type StationId } from '@world/shared';
 import type { WorldDebugState } from '../apps/client/src/debug.ts';
+import { RESUME_URL } from '../apps/client/src/resume.ts';
 import { roomServers } from './roomServer.ts';
 
 export type { WorldDebugState };
@@ -331,4 +333,30 @@ export async function turnTo(page: Page, yaw: number, pitch = 0): Promise<void> 
     await page.mouse.up();
   }
   throw new Error(`could not turn to ${yaw}`);
+}
+
+/** The resume as the repo keeps it, which the site must serve as it is. */
+export const RESUME_FILE = readFileSync(
+  new URL(`../apps/client/public${RESUME_URL}`, import.meta.url),
+);
+
+/**
+ * Do what follows a link to the resume (`activate`: a click, or the Enter key) and check it goes
+ * where it should: the resume's address, in a tab of its own or in this one, and the file that
+ * comes is the resume itself, under the name a saved copy keeps. Headless Chromium has no PDF
+ * viewer, so it hands a PDF to a download, which is where the file shows; a visitor's browser shows
+ * it in the tab.
+ */
+export async function followResume(
+  page: Page,
+  activate: () => Promise<void>,
+  options: { newTab: boolean },
+): Promise<void> {
+  const opened = options.newTab ? page.waitForEvent('popup') : Promise.resolve(null);
+  const [download] = await Promise.all([page.waitForEvent('download'), activate()]);
+  await opened;
+  expect(download.url()).toBe(new URL(RESUME_URL, page.url()).href);
+  expect(download.suggestedFilename()).toBe(RESUME_URL.slice(1));
+  expect(readFileSync(await download.path()).equals(RESUME_FILE)).toBe(true);
+  if (!options.newTab) expect(page.context().pages()).toHaveLength(1);
 }
