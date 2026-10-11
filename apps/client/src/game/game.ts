@@ -743,6 +743,8 @@ export class Game {
     const mp = this.multiplayer;
     this.world.knives.update(dt, mp?.knifeTargets() ?? NO_TARGETS, mp?.spares);
     this.updateCamera(dt);
+    // Posed already; whoever the camera has ended up inside is left out of this frame.
+    this.world.avatars.hideAround(this.world.camera.position);
     const color = this.multiplayer?.selfColor;
     if (color) this.viewmodel.setColor(color);
     this.viewmodel.update(

@@ -9,7 +9,6 @@ import {
   SNAPSHOT_EVERY_TICKS,
   TICK_RATE,
   thrownKnife,
-  MAX_PLAYERS_PER_ROOM,
   NAME_MAX_LENGTH,
   DEFAULT_PREFS,
   samePrefs,
@@ -120,13 +119,11 @@ export class Room {
   private readonly candidates: KnifeCandidate[] = [];
   /** Told whenever a knife knocks someone out. */
   onKnockout: ((from: number, to: number) => void) | null = null;
+  /** Told when the walk-in's door bursts open, once everyone has been told of the hit. */
+  onCoolerBurst: (() => void) | null = null;
 
   constructor(code: string) {
     this.code = code;
-  }
-
-  get isFull(): boolean {
-    return this.players.size >= MAX_PLAYERS_PER_ROOM;
   }
 
   /** Visitors in the room, not counting residents. */
@@ -167,7 +164,10 @@ export class Room {
     return state;
   }
 
-  /** Adds a player and tells everyone else. The caller must check `isFull` first. */
+  /**
+   * Adds a player and tells everyone else. The caller keeps the room within MAX_PLAYERS_PER_ROOM,
+   * whose colors run out after that.
+   */
   add(joining: NewPlayer): RoomPlayer {
     const state = this.standAt(joining.spawn ?? this.nextSpawn());
     const player: RoomPlayer = {
@@ -366,6 +366,7 @@ export class Room {
       player.coolerFrom = Math.max(0, player.received + COOLER_OPEN_DELAY_INPUTS);
       player.send(encode({ ...message, openFrom: player.coolerFrom }));
     }
+    this.onCoolerBurst?.();
   }
 
   /** The walk-in's door, for a newcomer's welcome. */

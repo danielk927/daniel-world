@@ -46,7 +46,7 @@ Open a second browser window to see yourself from the outside.
 Leave the private party field empty to join the public `lobby`, or type a code to join or start a private party, a kitchen of your own.
 The menu's Party tab does the same without leaving the world: start a party with your own code or a random one, join one by its code, or head back to the lobby.
 In a party it shows the invite link (`/?room=<code>`) with a Copy link button, and the address bar keeps the party, so a reload or the shared address comes back to it.
-Chef Skinner stays in the lobby.
+Every room, the lobby and each party alike, has Chef Skinner locked in its walk-in cooler; break the door down and he is loose, throwing knives, until everyone has left.
 
 Every cook carries knives, in every room.
 Left click to throw one; it leaves the hand a little off the crosshair (never more than 1.5°), flies in a slight arc and sticks into whatever it hits.
@@ -83,7 +83,7 @@ The repository is an npm workspaces monorepo.
 
 - `packages/shared` holds everything client and server must agree on: the zod message protocol, constants, the world layout and its colliders, and a deterministic movement simulation.
 - `apps/server` is a Node WebSocket server (`ws`).
-  Rooms live in memory, hold up to 16 players, and disappear when empty.
+  Rooms live in memory, hold up to 16 players (one place in each is Chef Skinner's), and disappear when empty.
 - `apps/client` is Vite, TypeScript and Three.js, with plain DOM and CSS for the interface.
 
 Networking follows the usual pattern for fast-paced games:

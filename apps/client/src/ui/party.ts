@@ -208,11 +208,7 @@ export class PartyPanel {
     const inParty = link !== null;
     this.where.textContent = inParty ? `#${room}` : 'The public lobby';
     this.whereHelp.hidden = inParty;
-    setLine(
-      this.whereHelp,
-      'Everyone who visits lands here, and Chef Skinner works the line.',
-      'help',
-    );
+    setLine(this.whereHelp, 'Everyone who visits lands here.', 'help');
     this.lobbyButton.hidden = !inParty;
     this.invite.hidden = !inParty;
     this.inviteInput.value = link ?? '';

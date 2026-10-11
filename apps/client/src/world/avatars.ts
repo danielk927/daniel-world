@@ -116,7 +116,16 @@ interface Avatar {
   look: KnifeLook;
   /** Where the name tag should sit, updated every frame. */
   readonly tagAnchor: Vector3;
+  /** Where the cook stands, at their feet, as last posed. */
+  readonly at: Vector3;
 }
+
+/**
+ * The camera is inside a standing cook when it is this close to their middle, as far up as the top
+ * of their toque: in their head or toque at eye height, or with their body and hands round it.
+ */
+const INSIDE_RADIUS = BODY_RADIUS + HAND_RADIUS;
+const INSIDE_TOP = HEAD_Y + HEAD_RADIUS + HAT_HEIGHT;
 
 const tmpColor = new Color();
 const white = new Color('#ffffff');
@@ -156,6 +165,8 @@ export class Avatars {
   private readonly p = new Vector3();
   private readonly s = new Vector3(1, 1, 1);
   private readonly hidden = new Matrix4().makeScale(0, 0, 0);
+  /** The camera, for `hideAround`'s pass over the cooks. */
+  private eye: Vector3 | null = null;
 
   constructor(capacity: number = MAX_PLAYERS_PER_ROOM) {
     this.capacity = capacity;
@@ -233,6 +244,7 @@ export class Avatars {
       fallAmount: 0,
       look: DEFAULT_LOOK,
       tagAnchor: new Vector3(0, -1000, 0),
+      at: new Vector3(0, -1000, 0),
     };
     this.useLook(DEFAULT_LOOK, 1);
     this.avatars.set(id, avatar);
@@ -288,6 +300,29 @@ export class Avatars {
     this.hideSlot(avatar.slot, avatar.look);
     this.useLook(avatar.look, -1);
   }
+
+  /**
+   * Leave out of this frame any standing cook the camera at `eye` is inside. Nobody bumps into
+   * anybody, so a cook can walk right through the player (Chef Skinner does, coming out of the
+   * walk-in past whoever broke its door), and the screen would fill with the inside of their head
+   * and jacket. Call it after posing everyone and placing the camera; the next pose draws them
+   * again.
+   */
+  hideAround(eye: Vector3): void {
+    this.eye = eye;
+    this.avatars.forEach(this.hideIfInside);
+  }
+
+  /** Bound once, so the per-frame pass allocates nothing. */
+  private readonly hideIfInside = (avatar: Avatar): void => {
+    const eye = this.eye!;
+    const at = avatar.at;
+    const up = eye.y - at.y;
+    if (avatar.fallAmount > 0.5 || up < 0 || up > INSIDE_TOP) return;
+    if (Math.hypot(eye.x - at.x, eye.z - at.z) < INSIDE_RADIUS) {
+      this.hideSlot(avatar.slot, avatar.look);
+    }
+  };
 
   /** Swing the knife hand: this cook just threw. */
   playThrow(id: number, time: number): void {
@@ -355,6 +390,7 @@ export class Avatars {
     const avatar = this.avatars.get(id);
     if (!avatar) return;
     const slot = avatar.slot;
+    avatar.at.set(pose.x, pose.y, pose.z);
 
     const walking = pose.grounded && pose.speed > 0.4 ? Math.min(1, pose.speed / 5) : 0;
     avatar.walkAmount += (walking - avatar.walkAmount) * Math.min(1, dt * 10);

@@ -20,7 +20,7 @@ npm run e2e                  # playwright: builds the client in test mode into a
                              # E2E_CPU_THROTTLE=4 runs every page's CPU 4x slower, to see a spec holds when starved
 npm run build                # server bundle (apps/server/dist) + client (apps/client/dist)
 npm run bots                 # simulated players: fill the lobby but for one seat, yours
-                             # (--count up to 15, --room <code>, --knives; Chef Skinner counts)
+                             # (--count up to 15, --room <code>, --knives; Chef Skinner's place counts)
 npm run deploy:aws           # build assets + cdk deploy (needs AWS credentials)
 node scripts/screenshots.ts  # regenerate docs/screenshots (starts what it needs, real GPU;
                              # WORLD_CLIENT_PORT / WORLD_SERVER_PORT move it off :5173 / :3001)
@@ -37,7 +37,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 
 - `packages/shared` - protocol (zod schemas), constants, world colliders, deterministic movement simulation.
   Consumed as TypeScript source by both apps (no build step).
-- `apps/server` - Node WebSocket room server (`ws`), and Chef Skinner, the lobby's resident knife-throwing cook (`chef.ts`).
+- `apps/server` - Node WebSocket room server (`ws`), and Chef Skinner, the knife-throwing cook locked in every room's walk-in until its door bursts (`chef.ts`).
   Runs TypeScript natively in dev (`node --watch src/index.ts`), bundled with esbuild for production.
 - `apps/client` - Vite + Three.js client.
   `src/content.ts` holds all personal content (Daniel's resume; the few lines still wanting his words are marked `TODO(daniel)`).
@@ -105,6 +105,8 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - `portfolio.html` is written at build time from `content.ts` (a Vite plugin running `src/portfolioPage.ts`, through `ui/markup.ts`, which the station panel renders too), so the page works without JavaScript; change `content.ts`, never the built page.
 - The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
+- Chef Skinner is in a room only once its walk-in's door has burst (`WalkInChef`), a second after the tenth hit, and every room keeps a place for him while `CHEF` is on (15 visitors, 16 without him).
+  A test that needs him breaks the door first (`walkToWalkIn` and `punchUntil` in `e2e/helpers.ts`, `burstWalkIn` in `server.test.ts`).
 - E2E must hold on a busy machine, where a page can go seconds without a frame.
   Check that something did not happen only once the game has run frames (`waitForFrames`), the server says so (`server.room`), or the page has heard back; never after a fixed wait.
   Each `enterWorld` adds its own time to the test's (`ENTER_MS`), so set a long body's time with `test.setTimeout` before entering, and take `test` from `helpers.ts` in specs that start a room server, so a failure carries its log.

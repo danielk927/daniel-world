@@ -69,12 +69,11 @@ describe('Room', () => {
     expect(JSON.parse(inbox.get(a.id)!.at(-1)!)).toEqual({ t: 'leave', id: b.id });
   });
 
-  it('gives each player a distinct color and reports when full', () => {
-    const { room, join } = makeRoom();
+  it('gives each player of a full room a distinct color', () => {
+    const { join } = makeRoom();
     const colors = new Set<string>();
     for (let i = 0; i < MAX_PLAYERS_PER_ROOM; i++) colors.add(join().color);
     expect(colors.size).toBe(MAX_PLAYERS_PER_ROOM);
-    expect(room.isFull).toBe(true);
   });
 
   it('applies at most one input per tick on average', () => {
