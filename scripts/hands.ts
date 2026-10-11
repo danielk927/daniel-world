@@ -121,7 +121,8 @@ async function main(): Promise<void> {
         });
         // Let the draw play out and the knife settle, then hold the clock.
         await page.waitForTimeout(3000);
-        await page.clock.pauseAt(Date.now() + 1000);
+        // Far enough ahead that a machine too busy to answer for a second does not overtake it.
+        await page.clock.pauseAt(Date.now() + 5000);
         await run(page, 1500);
         const name = `${skin}-${finish}`;
         if (values.every) {
