@@ -1,0 +1,50 @@
+/* ---------- Health ---------- */
+
+/*
+ * A segment for each hit a knife takes to knock this cook out, under the knife in the corner: whole
+ * ivory while it is there, a hairline once it is gone. Like the crosshair, each holds on the white
+ * walls with a hairline of the night round it.
+ */
+.health {
+  display: flex;
+  gap: 6px;
+  margin-right: 16px;
+}
+
+.health-segment {
+  width: 34px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ink-hair);
+  box-shadow: 0 0 0 1px rgb(var(--night-rgb) / 0.35);
+  transition: background-color 0.25s ease;
+}
+
+.health-segment.is-full {
+  background: var(--ink);
+}
+
+/* One hit from a knockout: the last segment turns to the warning color. */
+.health[data-health='1'] .health-segment.is-full {
+  background: var(--danger);
+}
+
+/* A segment that has just gone flares in the warning color and settles to its hairline. */
+.health-segment.is-pulsing {
+  animation: health-lost 0.7s ease-out;
+}
+
+@keyframes health-lost {
+  0% {
+    background: var(--danger);
+    transform: scaleY(2.2);
+  }
+  40% {
+    background: var(--danger);
+    transform: scaleY(1.4);
+  }
+  100% {
+    background: var(--ink-hair);
+    transform: none;
+  }
+}

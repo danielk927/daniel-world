@@ -36,13 +36,15 @@ try {
         if (!room) return null;
         const players = [...room.players.values()];
         return {
-          players: players.map(({ id, name, prefs, resident, state }) => ({
+          players: players.map(({ id, name, prefs, resident, state, health, tally }) => ({
             id,
             name,
             prefs,
             resident,
             x: state.x,
             z: state.z,
+            health,
+            score: { ...tally },
           })),
         };
       }

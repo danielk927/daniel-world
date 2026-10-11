@@ -93,6 +93,7 @@ export class Hud {
     ['Shift', 'sprint'],
     ['Q', 'switch'],
     ['I', 'inspect'],
+    ['Tab', 'scores'],
   ]);
   /** How to play DOOM, and how to stop, while at the kitchen computer. */
   private readonly computerHint = keyHints('hint computer-hint', [

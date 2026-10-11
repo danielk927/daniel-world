@@ -103,7 +103,7 @@ describe('Knives', () => {
   it('takes a knife away when the server says it hit someone, as it gets there', () => {
     const knives = new Knives();
     knives.launch(1, 2, 0, launchKnife(0, 1.6, 5.6, 0, 0), false, 0);
-    knives.resolve(1, { kind: 'kill', at: 0.2 });
+    knives.resolve(1, { kind: 'hit', at: 0.2 });
     run(knives, 0.1);
     expect(knives.flyingCount).toBe(1);
     run(knives, 0.15);

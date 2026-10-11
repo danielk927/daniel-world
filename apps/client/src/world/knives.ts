@@ -27,7 +27,8 @@ const VERDICT_TIMEOUT = 2;
 
 type Outcome =
   | { readonly kind: 'stuck'; readonly knife: StuckKnife; readonly at: number }
-  | { readonly kind: 'kill'; readonly at: number };
+  /** In a cook, knocking them out or not: the knife is gone either way. */
+  | { readonly kind: 'hit'; readonly at: number };
 
 interface Flight {
   /** The server's id, once known. Own throws learn theirs when the server echoes them. */

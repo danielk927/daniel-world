@@ -34,6 +34,23 @@ export interface WorldDebugState {
   readonly computer: { state: string; frames: number; keys: number };
   /** Knocked out by a knife, waiting to respawn. */
   readonly knockedOut: boolean;
+  /** This player's health as the health bar shows it: 3 whole, one less with each hit, 0 down. */
+  readonly health: number;
+  /**
+   * The scoreboard (held with Tab): whether it is up, and its rows as listed, best first. Offline
+   * it lists just this player.
+   */
+  readonly scoreboard: {
+    shown: boolean;
+    rows: {
+      id: number;
+      name: string;
+      kills: number;
+      deaths: number;
+      assists: number;
+      self: boolean;
+    }[];
+  };
   /** The arm is on screen: in the world, standing, and no menu or panel over it. */
   readonly arm: boolean;
   /** Station labels and name tags show over the world, uncovered by a menu, panel or knockout. */
@@ -146,6 +163,22 @@ export function installDebugHooks(game: Game, world: WorldScene): void {
     },
     get knockedOut() {
       return game.knockedOut;
+    },
+    get health() {
+      return game.health.value;
+    },
+    get scoreboard() {
+      return {
+        shown: game.scoreboard.shown,
+        rows: game.scoreboard.ranked.map(({ id, name, kills, deaths, assists, isSelf }) => ({
+          id,
+          name,
+          kills,
+          deaths,
+          assists,
+          self: isSelf,
+        })),
+      };
     },
     get arm() {
       return world.viewmodel.isShown;

@@ -12,6 +12,10 @@ export interface RoomView {
     resident: boolean;
     x: number;
     z: number;
+    /** Hits left before a knife knocks them out: 3 whole, 0 while they lie knocked out. */
+    health: number;
+    /** Kills, deaths and assists, as the room counts them. */
+    score: { kills: number; deaths: number; assists: number };
   }[];
 }
 

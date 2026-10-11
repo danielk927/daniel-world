@@ -1,35 +1,52 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { KillMessage } from '@world/shared';
+import type { HitMessage, KillMessage, WelcomeMessage } from '@world/shared';
 import { joinRoom } from '../net/connection.ts';
 import { FakeSocket, latestSocket, welcome } from '../net/fakeSocket.ts';
 import type { Hud } from '../ui/hud.ts';
+import type { ScoreRow, Scoreboard } from '../ui/scoreboard.ts';
 import { LocalPlayer } from './localPlayer.ts';
 import { Multiplayer, type MultiplayerDeps } from './multiplayer.ts';
 
-/** Everything a Multiplayer touches, as stubs; the welcome has nobody else in it, so no DOM. */
+/**
+ * Everything a Multiplayer touches, as stubs. A welcome with nobody else in it needs no DOM; one
+ * with other cooks builds their name tags, for which the tests give the page `FakeElement`s.
+ */
 function setup(room: string) {
   const stub = <T>(methods: Record<string, unknown>): T => methods as T;
   const onKill = vi.fn<MultiplayerDeps['onKill']>();
+  const onHit = vi.fn<MultiplayerDeps['onHit']>();
   const onSpawn = vi.fn<MultiplayerDeps['onSpawn']>();
+  const onBackOnFeet = vi.fn<MultiplayerDeps['onBackOnFeet']>();
   const onCoolerState = vi.fn<MultiplayerDeps['onCoolerState']>();
   const onCoolerHit = vi.fn<MultiplayerDeps['onCoolerHit']>();
   const addSystem = vi.fn<(text: string) => void>();
   const addMessage = vi.fn<(name: string, color: string, text: string) => void>();
   const setStatus = vi.fn<Hud['setStatus']>();
+  const playHit = vi.fn<(id: number, time: number) => void>();
+  const setRows = vi.fn<Scoreboard['setRows']>();
+  const resolve = vi.fn();
   const deps: MultiplayerDeps = {
     url: 'ws://test',
     name: 'Otter',
     room,
     prefs: { chef: true },
     player: new LocalPlayer(),
-    avatars: stub({ add: vi.fn(), remove: vi.fn(), update: vi.fn(), playThrow: vi.fn() }),
+    avatars: stub({
+      add: vi.fn(),
+      remove: vi.fn(),
+      update: vi.fn(),
+      playThrow: vi.fn(),
+      playHit,
+      setLook: vi.fn(),
+    }),
     labels: stub({ add: vi.fn(), remove: vi.fn() }),
     hud: stub({ setRoom: vi.fn(), setPlayers: vi.fn(), setStatus }),
+    scoreboard: stub({ setRows }),
     chat: stub({ addSystem, addMessage }),
     knives: stub({
       reset: vi.fn(),
       goOffline: vi.fn(),
-      resolve: vi.fn(),
+      resolve,
       // The knife reaches the player half a second after the server's word.
       timeUntil: () => 0.5,
     }),
@@ -39,18 +56,70 @@ function setup(room: string) {
     onStatus: vi.fn(),
     onSpawn,
     onKill,
-    onBackOnFeet: vi.fn(),
+    onHit,
+    onBackOnFeet,
     onCoolerState,
     onCoolerHit,
   };
-  return { deps, onKill, onSpawn, addSystem, addMessage, onCoolerState, onCoolerHit, setStatus };
+  /** The scoreboard's latest rows, by id. */
+  const rows = (): ScoreRow[] => [...setRows.mock.lastCall![0]].sort((a, b) => a.id - b.id);
+  return {
+    deps,
+    onKill,
+    onHit,
+    onSpawn,
+    onBackOnFeet,
+    addSystem,
+    addMessage,
+    onCoolerState,
+    onCoolerHit,
+    setStatus,
+    playHit,
+    resolve,
+    rows,
+  };
+}
+
+/** Just enough of a page to build a name tag: elements that take whatever `el` gives them. */
+class FakeElement {
+  className = '';
+  textContent = '';
+  hidden = false;
+  style = { setProperty: vi.fn() };
+  setAttribute(): void {}
+  append(): void {}
+}
+
+/** Player 7's welcome, with the cooks `others` in the room too, and everyone's `scores`. */
+function withOthers(
+  room: string,
+  others: readonly { id: number; name: string; resident?: true }[],
+  scores: WelcomeMessage['scores'] = [],
+): WelcomeMessage {
+  const base = welcome(room);
+  return {
+    ...base,
+    players: [
+      ...base.players,
+      ...others.map(({ id, name, resident }) => ({
+        id,
+        name,
+        color: '#4fb3ff',
+        prefs: { chef: true },
+        ...(resident ? { resident } : {}),
+      })),
+    ],
+    scores,
+  };
 }
 
 const killOfSelf: KillMessage = { t: 'kill', knife: 1, from: 3, to: 7, at: 0.2, scores: [] };
+const hitOnSelf: HitMessage = { t: 'hit', knife: 1, from: 3, to: 7, health: 2, at: 0.2 };
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal('window', globalThis);
+  vi.stubGlobal('document', { createElement: () => new FakeElement() });
   vi.stubGlobal('WebSocket', FakeSocket);
   FakeSocket.sockets = [];
   FakeSocket.refuse = false;
@@ -208,5 +277,253 @@ describe('Multiplayer', () => {
     expect(addMessage).toHaveBeenLastCalledWith('Otter', '#ffffff', 'later');
     mp.close();
     expect(latestSocket().closed).toBe(true);
+  });
+});
+
+describe('hits', () => {
+  it('announces a hit once its knife arrives on this screen, with the health it left', () => {
+    const { deps, onHit, resolve } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().receive(hitOnSelf);
+    // The knife is gone as it arrives, as it is for a knockout.
+    expect(resolve).toHaveBeenCalledWith(1, { kind: 'hit', at: 0.2 });
+    expect(onHit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(400);
+    expect(onHit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(200);
+    expect(onHit).toHaveBeenCalledOnce();
+    expect(onHit).toHaveBeenCalledWith(expect.anything(), expect.anything(), 2, 'victim');
+    mp.close();
+  });
+
+  it('tells a thrower of their hit, and a bystander of the cook it hit, who rocks back', () => {
+    const { deps, onHit, playHit } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(
+      withOthers('lobby', [
+        { id: 3, name: 'Cook' },
+        { id: 4, name: 'Other' },
+      ]),
+    );
+    // This player's knife hit cook 3; cook 3's hit cook 4.
+    latestSocket().receive({ ...hitOnSelf, from: 7, to: 3, health: 1 });
+    latestSocket().receive({ ...hitOnSelf, knife: 2, from: 3, to: 4, health: 2 });
+    vi.advanceTimersByTime(600);
+    expect(
+      onHit.mock.calls.map(([thrower, victim, health, role]) => [
+        thrower.name,
+        victim.name,
+        health,
+        role,
+      ]),
+    ).toEqual([
+      ['Otter', 'Cook', 1, 'thrower'],
+      ['Cook', 'Other', 2, 'witness'],
+    ]);
+    // Each cook who was hit rocks back as the knife reaches them, as drawn.
+    expect(playHit.mock.calls.map(([id]) => id)).toEqual([3, 4]);
+    mp.close();
+  });
+
+  it('does not rock this player back: their own screen is the view, and flinches instead', () => {
+    const { deps, playHit } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().receive(hitOnSelf);
+    vi.advanceTimersByTime(600);
+    expect(playHit).not.toHaveBeenCalled();
+    mp.close();
+  });
+
+  it('does not take a hit that arrives after the cook has been back up with all their health', () => {
+    const { deps, onHit } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().receive(hitOnSelf);
+    // Respawned in the meantime (a screen too busy to run its timers can be that late).
+    latestSocket().receive({ t: 'respawn', player: welcome('lobby').self });
+    vi.advanceTimersByTime(1000);
+    expect(onHit).not.toHaveBeenCalled();
+    mp.close();
+  });
+
+  it('forgets a hit still in flight when the room is left, as it does a kill', () => {
+    const { deps, onHit } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().receive(hitOnSelf);
+    mp.close();
+    vi.advanceTimersByTime(1000);
+    expect(onHit).not.toHaveBeenCalled();
+  });
+
+  it('stands this player back up, with all their health, on every welcome', () => {
+    const { deps, onBackOnFeet } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    expect(onBackOnFeet).toHaveBeenCalledTimes(1);
+    latestSocket().close();
+    vi.runOnlyPendingTimers();
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    expect(onBackOnFeet.mock.calls.length).toBeGreaterThanOrEqual(2);
+    mp.close();
+  });
+});
+
+describe('scores', () => {
+  it('lists this player alone, with nothing yet, before there is a welcome', () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    expect(rows()).toEqual([
+      { id: -1, name: 'Otter', color: '#fff8f0', kills: 0, deaths: 0, assists: 0, isSelf: true },
+    ]);
+    mp.close();
+  });
+
+  it("takes everyone's score from the welcome, this player marked", () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(
+      withOthers(
+        'lobby',
+        [{ id: 3, name: 'Chef Skinner', resident: true }],
+        [
+          { id: 7, kills: 1, deaths: 2, assists: 3 },
+          { id: 3, kills: 4, deaths: 5, assists: 6 },
+        ],
+      ),
+    );
+    expect(rows()).toEqual([
+      {
+        id: 3,
+        name: 'Chef Skinner',
+        color: '#4fb3ff',
+        kills: 4,
+        deaths: 5,
+        assists: 6,
+        isSelf: false,
+      },
+      { id: 7, name: 'Otter', color: '#ffffff', kills: 1, deaths: 2, assists: 3, isSelf: true },
+    ]);
+    mp.close();
+  });
+
+  it('starts a cook who joins at nothing, and drops one who leaves', () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().receive({
+      t: 'join',
+      player: { id: 3, name: 'Newcomer', color: '#4fb3ff', prefs: { chef: true } },
+    });
+    expect(rows().map((r) => [r.id, r.kills, r.deaths, r.assists])).toEqual([
+      [3, 0, 0, 0],
+      [7, 0, 0, 0],
+    ]);
+    latestSocket().receive({ t: 'leave', id: 3 });
+    expect(rows().map((r) => r.id)).toEqual([7]);
+    mp.close();
+  });
+
+  it("takes a knockout's scores as its knife arrives on this screen, not before", () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(withOthers('lobby', [{ id: 3, name: 'Cook' }]));
+    latestSocket().receive({
+      ...killOfSelf,
+      scores: [
+        { id: 3, kills: 1, deaths: 0, assists: 0 },
+        { id: 7, kills: 0, deaths: 1, assists: 0 },
+      ],
+    });
+    // The knife is half a second off: the scoreboard does not give it away.
+    expect(rows().map((r) => r.kills + r.deaths)).toEqual([0, 0]);
+    vi.advanceTimersByTime(600);
+    expect(rows().map((r) => [r.id, r.kills, r.deaths, r.assists])).toEqual([
+      [3, 1, 0, 0],
+      [7, 0, 1, 0],
+    ]);
+    mp.close();
+  });
+
+  it('leaves the rows of cooks a knockout did not change alone, and ignores one who has left', () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(
+      withOthers(
+        'lobby',
+        [{ id: 3, name: 'Cook' }],
+        [
+          { id: 7, kills: 2, deaths: 0, assists: 0 },
+          { id: 3, kills: 0, deaths: 2, assists: 0 },
+        ],
+      ),
+    );
+    latestSocket().receive({
+      ...killOfSelf,
+      from: 7,
+      to: 3,
+      // Cook 9 left while the knife flew.
+      scores: [
+        { id: 7, kills: 3, deaths: 0, assists: 0 },
+        { id: 9, kills: 0, deaths: 0, assists: 1 },
+      ],
+    });
+    vi.advanceTimersByTime(600);
+    expect(rows().map((r) => [r.id, r.kills, r.deaths, r.assists])).toEqual([
+      [3, 0, 2, 0],
+      [7, 3, 0, 0],
+    ]);
+    mp.close();
+  });
+
+  it('shows just this player, from nothing, when the connection is lost', () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(
+      withOthers(
+        'lobby',
+        [{ id: 3, name: 'Cook' }],
+        [
+          { id: 7, kills: 2, deaths: 0, assists: 0 },
+          { id: 3, kills: 0, deaths: 2, assists: 0 },
+        ],
+      ),
+    );
+    latestSocket().close();
+    expect(rows().map((r) => [r.id, r.kills, r.deaths, r.assists, r.isSelf])).toEqual([
+      [-1, 0, 0, 0, true],
+    ]);
+    mp.close();
+  });
+
+  it('starts over from the new welcome of a reconnect', () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive({
+      ...welcome('lobby'),
+      scores: [{ id: 7, kills: 5, deaths: 0, assists: 0 }],
+    });
+    expect(rows().map((r) => r.kills)).toEqual([5]);
+    latestSocket().close();
+    vi.runOnlyPendingTimers();
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    expect(rows().map((r) => [r.id, r.kills])).toEqual([[7, 0]]);
+    mp.close();
   });
 });

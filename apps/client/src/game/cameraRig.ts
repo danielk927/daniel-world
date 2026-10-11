@@ -40,9 +40,12 @@ export class CameraRig {
     if (!knockedOut) this.down = 0;
   }
 
-  /** A knife has hit: the head snaps back and the view shakes, dying away quickly. */
-  hit(): void {
-    this.flinch = 1;
+  /**
+   * A knife has hit: the head snaps back and the view shakes, dying away quickly. A knockout takes
+   * all of it, a hit that leaves the cook standing (`strength` less than 1) a part.
+   */
+  hit(strength = 1): void {
+    this.flinch = Math.max(this.flinch, strength);
   }
 
   /** A smaller jolt: a fist meeting something solid. */

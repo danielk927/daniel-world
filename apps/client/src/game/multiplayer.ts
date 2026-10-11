@@ -9,10 +9,12 @@ import {
   type CoolerHitMessage,
   type Cook,
   type ErrorCode,
+  type HitMessage,
   type KnifeTarget,
   type InputMessage,
   type PlayerInfo,
   type Prefs,
+  type Score,
   type ServerMessage,
   type WelcomeMessage,
 } from '@world/shared';
@@ -28,6 +30,7 @@ import { el } from '../ui/dom.ts';
 import type { Hud, HudPlayer } from '../ui/hud.ts';
 import type { KillParty } from '../ui/killFeed.ts';
 import type { Label, LabelLayer } from '../ui/labels.ts';
+import type { ScoreRow, Scoreboard } from '../ui/scoreboard.ts';
 import type { Avatars, AvatarPose } from '../world/avatars.ts';
 import type { Knives } from '../world/knives.ts';
 import type { LocalPlayer } from './localPlayer.ts';
@@ -69,6 +72,8 @@ export interface MultiplayerDeps {
   avatars: Avatars;
   labels: LabelLayer;
   hud: Hud;
+  /** Everyone's score, listed as the room tells it. */
+  scoreboard: Scoreboard;
   chat: Chat;
   knives: Knives;
   /** Seconds, the same clock the world animates with. */
@@ -85,7 +90,19 @@ export interface MultiplayerDeps {
    * threw it, was hit by it, or only saw it.
    */
   onKill: (thrower: KillParty, victim: KillParty, role: 'thrower' | 'victim' | 'witness') => void;
-  /** This player is standing again: respawned, rejoined, or playing solo. */
+  /**
+   * A knife hit someone and left them standing with `health`, as it arrives on this screen.
+   * `role` is as for `onKill`.
+   */
+  onHit: (
+    thrower: KillParty,
+    victim: KillParty,
+    health: number,
+    role: 'thrower' | 'victim' | 'witness',
+  ) => void;
+  /**
+   * This player is standing again, with all their health: respawned, rejoined, or playing solo.
+   */
   onBackOnFeet: () => void;
   /** The walk-in's door as the room has it, on joining. */
   onCoolerState: (dents: readonly CoolerDent[]) => void;
@@ -131,8 +148,18 @@ export class Multiplayer {
   private statusTimer = 0;
   /** This player, as far as Chef Skinner is concerned. */
   private readonly self: { prefs: Readonly<Prefs> };
-  /** Kills waiting for their knife to arrive on this screen before they are announced. */
-  private readonly killTimers = new Set<number>();
+  /** Hits and kills waiting for their knife to arrive on this screen before they are announced. */
+  private readonly impactTimers = new Set<number>();
+  /**
+   * Everyone's score in the room, by id, as the server last said. A cook is added as they join,
+   * from nothing, and dropped as they leave.
+   */
+  private scores = new Map<number, Score>();
+  /**
+   * Counts this player's lives: a welcome or a respawn begins a new one, with all its health. A hit
+   * on an earlier life that arrives late (a screen too busy to run its timers) is for nothing.
+   */
+  private life = 0;
 
   /**
    * Connects to `deps.room`, or, given a room already joined in the background, takes over its
@@ -250,19 +277,19 @@ export class Multiplayer {
 
   close(): void {
     window.clearInterval(this.statusTimer);
-    this.clearKillTimers();
+    this.clearImpactTimers();
     this.connection.close();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     this.selfId = null;
   }
 
   /**
-   * Forget kills still in flight. Announced after this room is gone (left, or moved to another),
-   * a knife from it would knock this player out where no respawn will ever come.
+   * Forget hits and kills still in flight. Announced after this room is gone (left, or moved to
+   * another), a knife from it would knock this player out where no respawn will ever come.
    */
-  private clearKillTimers(): void {
-    for (const timer of this.killTimers) window.clearTimeout(timer);
-    this.killTimers.clear();
+  private clearImpactTimers(): void {
+    for (const timer of this.impactTimers) window.clearTimeout(timer);
+    this.impactTimers.clear();
   }
 
   remotePlayers(): RemoteDebugInfo[] {
@@ -353,11 +380,13 @@ export class Multiplayer {
     }
     // Offline: everyone else vanishes, the world keeps working in single player.
     this.hasClock = false;
-    this.clearKillTimers();
+    this.clearImpactTimers();
     this.deps.knives.goOffline();
     this.deps.onBackOnFeet();
+    this.life++;
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     this.selfId = null;
+    this.scores.clear();
     this.clock.reset();
     this.refreshPlayers();
     if (this.wasOnline) {
@@ -386,6 +415,8 @@ export class Multiplayer {
 
   private onWelcome(welcome: WelcomeMessage): void {
     this.selfId = welcome.id;
+    this.life++;
+    this.scores = new Map(welcome.scores.map((score) => [score.id, score]));
     this.deps.player.reset(welcome.self);
     this.deps.onBackOnFeet();
     this.deps.knives.reset(welcome.knives);
@@ -446,6 +477,8 @@ export class Multiplayer {
         const remote = this.remotes.get(message.id);
         if (!remote) return;
         this.removeRemote(message.id);
+        // Their score goes with them.
+        this.scores.delete(message.id);
         this.refreshPlayers();
         this.deps.chat.addSystem(`${remote.info.name} left`);
         return;
@@ -506,18 +539,24 @@ export class Multiplayer {
           at: message.at,
         });
         return;
-      case 'kill': {
-        const { knives } = this.deps;
-        // Tell everyone when the knife gets there on this screen, not when the server decided.
-        const wait = knives.timeUntil(message.knife, message.at);
-        knives.resolve(message.knife, { kind: 'kill', at: message.at });
-        const timer = window.setTimeout(() => {
-          this.killTimers.delete(timer);
-          this.announceKill(message.from, message.to);
-        }, wait * 1000);
-        this.killTimers.add(timer);
+      case 'hit': {
+        const life = this.life;
+        // Shown when the knife gets there on this screen, not when the server decided.
+        this.whenKnifeArrives(message.knife, message.at, () => {
+          // A hit on a life that has since ended (the cook is back up with all their health, or
+          // somewhere new) is for nothing.
+          if (message.to === this.selfId && life !== this.life) return;
+          this.announceHit(message);
+        });
         return;
       }
+      case 'kill':
+        this.whenKnifeArrives(message.knife, message.at, () => {
+          // The scoreboard moves with the kill feed, not ahead of the knife.
+          this.takeScores(message.scores);
+          this.announceKill(message.from, message.to);
+        });
+        return;
       case 'cooler': {
         const own = message.from === this.selfId;
         // Shown as it lands on this screen: a knife when its drawn flight gets there, someone
@@ -533,6 +572,7 @@ export class Multiplayer {
       case 'respawn': {
         const s = message.player;
         if (s.id === this.selfId) {
+          this.life++;
           this.deps.player.reset(s);
           this.deps.onSpawn(s.yaw);
           this.deps.onBackOnFeet();
@@ -547,10 +587,46 @@ export class Multiplayer {
     }
   }
 
+  /**
+   * Tell everyone when a knife gets where the server says it landed on this screen, not when the
+   * server decided: the knife is taken away as it arrives, and `then` runs at that moment.
+   */
+  private whenKnifeArrives(knife: number, at: number, then: () => void): void {
+    const { knives } = this.deps;
+    const wait = knives.timeUntil(knife, at);
+    knives.resolve(knife, { kind: 'hit', at });
+    const timer = window.setTimeout(() => {
+      this.impactTimers.delete(timer);
+      then();
+    }, wait * 1000);
+    this.impactTimers.add(timer);
+  }
+
+  private announceHit(message: HitMessage): void {
+    const role =
+      message.to === this.selfId ? 'victim' : message.from === this.selfId ? 'thrower' : 'witness';
+    // Another cook rocks back as the knife reaches them, as they are drawn. This player's own
+    // screen is the view: it flinches instead.
+    if (role !== 'victim') this.deps.avatars.playHit(message.to, this.deps.worldTime());
+    this.deps.onHit(this.who(message.from), this.who(message.to), message.health, role);
+  }
+
   private announceKill(from: number, to: number): void {
-    const someone = { name: 'Someone', color: '#f6f3ea' };
     const role = to === this.selfId ? 'victim' : from === this.selfId ? 'thrower' : 'witness';
-    this.deps.onKill(this.lookup(from) ?? someone, this.lookup(to) ?? someone, role);
+    this.deps.onKill(this.who(from), this.who(to), role);
+  }
+
+  /** Someone in the room, or `Someone` if they have left since. */
+  private who(id: number): KillParty {
+    return this.lookup(id) ?? { name: 'Someone', color: '#f6f3ea' };
+  }
+
+  /** Take the tallies a knockout changed, for the cooks still in the room. */
+  private takeScores(scores: readonly Score[]): void {
+    for (const score of scores) {
+      if (score.id === this.selfId || this.remotes.has(score.id)) this.scores.set(score.id, score);
+    }
+    this.refreshPlayers();
   }
 
   /** Name and color of anyone in the room, this player included. */
@@ -628,6 +704,7 @@ export class Multiplayer {
     }, BUBBLE_MS);
   }
 
+  /** The list of cooks in the HUD and the scoreboard's rows, whenever either may have changed. */
   private refreshPlayers(): void {
     const players: HudPlayer[] = [];
     const selfName = this.selfInfo?.name ?? this.deps.name;
@@ -637,5 +714,11 @@ export class Multiplayer {
       players.push({ id: r.info.id, name: r.info.name, color: r.info.color, isSelf: false });
     }
     this.deps.hud.setPlayers(players);
+    this.deps.scoreboard.setRows(
+      players.map((p): ScoreRow => {
+        const { kills = 0, deaths = 0, assists = 0 } = this.scores.get(p.id) ?? {};
+        return { ...p, kills, deaths, assists };
+      }),
+    );
   }
 }
