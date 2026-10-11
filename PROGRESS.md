@@ -191,6 +191,7 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
   Nothing was deployed.
 - `e2e/resume.spec.ts` fetches the PDF from the served site (200, `application/pdf`, `%PDF-`, the committed file), follows the landing's and the pause menu's links into a tab of its own and checks the cook is still in the room; the phone, no-WebGL (Enter), failed-load and no-JavaScript specs follow theirs in place.
 - It holds the phone number and the expected graduation month that `content.ts` keeps off the site, and its email link points at `x@x.com`: see DECISIONS.md, and "What needs Daniel's input".
+- Lint, typecheck, 1006 unit tests, 51 E2E tests and the build pass; the landing, pause and phone shots were taken again, and the link was followed in a headed browser (the PDF opens in its viewer from the landing, the pause menu, and a page with JavaScript blocked).
 
 ### How to run it
 
