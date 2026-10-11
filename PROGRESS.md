@@ -173,6 +173,14 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - `scripts/hands.ts --every 1` shoots every frame of an inspect.
 - Lint, typecheck, 996 unit tests, 45 E2E tests and the build pass.
 
+### Inspects from the wrist, not the finger (2026-10-11)
+
+- Every inspect and draw is now what a hand and wrist can do with a knife in them: the knife stays rigid in the fingers and the arm, the forearm's roll and the wrist (`flex`, `dev`) turn hand and knife together, with no toss, no spin on or about a finger and no turn in the fist; the old moves strayed 10.6 cm from the grip and turned the knife 3 rad in the hand.
+- Each knife has its own inspect, in its own order and weight: the karambit swings its claw out and hangs it the other way with the ring on the finger, the butterfly swings a handle round its pin and folds its blade in and out, the flip knife is eased partway shut and snapped open, the stiletto is pressed back and springs open, the huntsman is weighed, the falchion rolled over in one sweep, the M9 shows its saw back and a blade swung to the light, and so on.
+- Moves are minimum-jerk curves: a hand's acceleration never jumps, and its jerk is the same at 60 and 120 Hz (it doubled before); the hand in view peaks at 0.8 m/s, 8.4 m/s², 188 m/s³ and 8.5 rad/s (the old moves: the tip at 3.8 m/s, 7 300 m/s³).
+- `viewmodelGrounded.test.ts` holds the knife to its grip (3 mm, 0.1 rad) and the wrist and forearm to a person's range; `viewmodelMotion.test.ts` bounds the hand's jerk too and fails 20 of 24 checks on the old moves.
+- Lint, typecheck, unit tests, the E2E suite and the build pass.
+
 ### How to run it
 
 ```bash
