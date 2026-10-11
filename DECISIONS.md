@@ -898,3 +898,30 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 - `scripts/hands.ts` shoots the hand holding each knife at rest, mid-inspect and on the Knives page with the page's clock held, so the same frames can be compared before and after a change.
 - The agent doing this stalled twice before writing it up; the merge was checked by hand: lint, typecheck, 972 unit tests, the build and the frames.
   Frame CPU with 16 players was the same just before and after it (2.81 and 2.72 ms on a machine running slower that day than the night before, when the same earlier commit measured 1.2 ms against 2.2 ms).
+
+### The knife moves as a hand could move it (2026-10-10)
+
+- **Daniel saw some knives teleport round the hand in their inspects (the falchion, the butterfly and the bayonet), and they did, on the way between the grip and the index finger.**
+  Stepped a frame at a time, a point of the bayonet or the falchion moved 14 cm in two frames at 60 Hz and the knife's pivot left the hand at up to 5 m/s, stopped dead in front of the fingertip and came back, at 300 to 700 m/s² (twice as hard at 120 Hz as at 60, the mark of a jump), for every knife spun on the finger by its spine or by a ring at its butt, in its inspect and its draw.
+  The way there was three moves one after another (out of the palm and round to ahead of the fingertip, a stop, then back along the finger), each eased by itself and all of it eased again by the key, which bunched the knife's whole way into the middle 40 ms of a 0.2 s key.
+- **Now the knife goes in one arc**, a cubic Bezier curve out of the palm and round onto the finger, and `hang` moves at an even pace whatever its key's ease, each part of the way (the hand opening, the arc, the knife's turn, the fingers and then the thumb folding) easing in and out by itself.
+  A knife hung by its spine rolls a few centimeters out of the palm onto the finger; a ring (the talon's, the skeleton's) is tossed further, round over the fingertip and along the finger, as a ring goes on.
+  The keys give each trip about a third of a second instead of a fifth.
+  A straight line from the grip to the finger was tried first: a knife hung by its spine reached 6.5 mm into the middle finger folding behind it, and a ringed one 12 mm into the palm.
+- **The karambit flipped over in one frame**, 3 rad (180 rad/s at 60 Hz, 369 at 120), when its `hang` reached about 0.7, in its draw and twice in its inspect.
+  Which way along the finger the knife's turning axis runs was picked from the finger each frame, and the karambit's index finger, straightening through the ring, turns across the knife's flat on the way.
+  A ring on a finger cannot turn over, so the way it runs in the grip is kept now (`KnifeHand.hangSign`), and the knife turns with the finger; every other knife already ran the same way all the way.
+- **Spins keep their momentum.**
+  Two turns round the finger are one spin, flicked up to speed, carried round and caught (`in`, `linear` and `out` keys whose speeds match where they meet, an ease in or out of a cubic reaching three times its average), instead of two that each stop dead; no knife turns faster than about 24 rad/s, under 4 turns a second, where the bayonet, the M9 and the butterfly's aerial had peaked at 35 and the huntsman at 42.
+  The karambit's spin, the gut knife's twirl and six draws' spins had jumped speed at a key (the twirl started at 13 rad/s from rest, the talon's draw went from 24 to 44 rad/s); they match now.
+  The butterfly no longer turns a whole turn about its length in the fist in a third of a second (32 rad/s), which no hand can; it turns over in the look as the other knives do, its handles and blade swing out and come to rest instead of stopping dead at 40 rad/s, and its inspect is 4.4 s, within the 4.5 s every inspect keeps to.
+  The huntsman's hand rises and falls under its toss, slowing at the top, instead of stopping dead from 0.6 m/s.
+- **The fingers let go of a handle and take hold of it again like a critically damped spring**, speeding up and slowing down: they had gone 37 % of the way open in the first frame of letting go, and with the trip to the finger moved at up to 3 m/s.
+- **An inspect started over gives the knife 0.7 s to come back** (a throw or a switch still 0.5 s, done before a thrown knife's fresh one comes up).
+  With the inspects themselves smooth, a knife spun up to speed and stopped in a quarter of a second had become the hardest jolt pressing I gave it, 2.2 times its own inspect's; now it is at most 1.64 times, the chef's knife's, unchanged.
+- **The clearance tests' floor is each knife's grip once the hand has closed on it**, a second after its draw.
+  It had been taken while the fingers were still a few percent open, so it moved with the timing of the draw's last frames (the huntsman's from its settled 5.0 mm to 4.0, then 3.4 mm with this change); the bounds are unchanged, never 2.5 mm deeper than that floor nor 7 mm anywhere, and every knife passes them.
+- **`viewmodelMotion.test.ts` follows every knife's draw and inspect at 60 and 120 Hz**, the knife in the hand's own frame, so the arm carrying hand and knife together (the draw's snap up from below the screen) does not count: the knife's pivot under 1.5 m/s and 50 m/s², its turn under 30 rad/s and 1000 rad/s², the fingers under 2 m/s and 150 m/s², and through the inspect the hand in view under 1.5 m/s, 40 m/s², 12 rad/s and 250 rad/s².
+  On the old moves 11 of the 12 knives fail it; the chef's knife, which never left the fist, passes.
+  A hinge (a flip knife or a stiletto flicked open, the butterfly's handles) is the knife's own mechanism and is not bounded.
+- `scripts/hands.ts --every 1` shoots every frame of a knife's inspect on the real GPU, the page's clock held, to see how it moves from one frame to the next.

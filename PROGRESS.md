@@ -155,6 +155,14 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 
 - The hand on screen is a satin glove in the player's color with a chef's sleeve, and the knives are smooth where round and crisp at spine and edge, with steel that reflects the kitchen and handles of wood, micarta, G10, rubber or cord; the shapes the clearance tests check did not move.
 
+### The knife moves as a hand could move it (2026-10-10)
+
+- Knives no longer jump round the hand on their way onto the index finger and back: the bayonet's and the falchion's had moved 14 cm in two frames, and the karambit turned over in one; now a knife's pivot moves at most about 1.2 m/s in the hand, no knife turns faster than about 24 rad/s, and nothing starts or stops with a jolt, at 60 Hz or 120.
+- The knife goes onto the finger in one arc, spins keep their speed through their keys, the fingers let go and take hold like a hand, and an inspect started over brings the knife back at the pace an inspect does.
+- `viewmodelMotion.test.ts` bounds how fast the knife, the fingers and the hand move, and how fast that changes, through every knife's draw and inspect at 60 and 120 Hz; 11 of the 12 knives fail it on the old moves.
+- `scripts/hands.ts --every 1` shoots every frame of an inspect.
+- Lint, typecheck, 996 unit tests, 45 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash
