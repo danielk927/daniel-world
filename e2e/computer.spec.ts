@@ -45,6 +45,8 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   expect((await world(page)).player).toEqual(running.player);
   await expect(guide).toBeHidden();
   await expect(page.locator('.computer-hint')).toBeVisible();
+  // Seated at the desk there is nowhere to go: the map gives way, and the room takes its corner.
+  await expect(page.locator('.minimap')).toBeHidden();
 
   // Esc steps away; the game pauses where it is, and the keys walk the kitchen again.
   await page.keyboard.press('Escape');
@@ -54,6 +56,7 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
     'stepped away, DOOM paused',
   );
   await expect(page.locator('.computer-hint')).toBeHidden();
+  await expect(page.locator('.minimap')).toBeVisible();
 
   // Holding E to sit down again: its auto-repeat is the same press, so it does not reach DOOM, and
   // the controls stay up.

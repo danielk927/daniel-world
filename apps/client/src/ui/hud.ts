@@ -105,8 +105,10 @@ export class Hud {
     ['`', 'menu'],
     ['Esc', 'step away'],
   ]);
-  /** The bottom right corner, where the loadout stacks over the minimap. */
+  /** The bottom right corner, where the loadout is. */
   readonly corner = el('div', { class: 'hud-corner' });
+  /** The top left corner, where the minimap goes, with the room beside it. */
+  readonly mapSlot = el('div', { class: 'hud-map' });
   /** Under the player list, top right: where the kill feed goes. */
   readonly feedSlot = el('div', { class: 'hud-feed' });
   private hintTimer = 0;
@@ -123,6 +125,7 @@ export class Hud {
     el('div', { class: 'hud-room-line' }, [this.status, this.fps]),
     this.statusAnnouncement,
   ]);
+  private readonly left = el('div', { class: 'hud-left' }, [this.mapSlot, this.room]);
   private readonly right = el('div', { class: 'hud-right' }, [
     el('section', { class: 'hud-players', attrs: { 'aria-label': 'Players in this room' } }, [
       this.playerCount,
@@ -136,7 +139,7 @@ export class Hud {
       this.crosshair,
       this.prompt,
       this.lookCue,
-      this.room,
+      this.left,
       this.right,
       this.hint,
       this.computerHint,
@@ -148,7 +151,7 @@ export class Hud {
   }
 
   /**
-   * How many names fit between the top of the list and the loadout over the map, leaving the kill
+   * How many names fit between the top of the list and the loadout, leaving the kill
    * feed its gap and a line under them, so a full room in a short window folds into "and N more"
    * before it prints over the knife. Measured when the window changes size, never in a frame.
    */
@@ -182,14 +185,14 @@ export class Hud {
   }
 
   /**
-   * The world's labels never show over the room, the players, the cue to click, the controls or the
-   * corner.
+   * The world's labels never show over the map and the room, the players, the cue to click, the
+   * controls or the loadout.
    */
   keepLabelsClear(labels: LabelLayer): void {
     const covered = (): boolean =>
       this.element.classList.contains('is-covered') ||
       this.element.classList.contains('is-computer');
-    labels.keepClear(this.room);
+    labels.keepClear(this.left);
     labels.keepClear(this.right);
     // Under the crosshair while the mouse is free; it fades, keeping its size.
     labels.keepClear(this.lookCue, () => this.lookCueShown && !covered());

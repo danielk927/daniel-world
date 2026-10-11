@@ -82,6 +82,93 @@ test('the HUD, the prompt and the hit flash draw over the labels in the world', 
   await page.context().close();
 });
 
+test('the minimap is in the top left corner with the room beside it, and the loadout has the bottom right to itself', async ({
+  browser,
+}) => {
+  const page = await enterWorld(browser, { name: 'Mapper', online: false });
+  type Box = { left: number; top: number; right: number; bottom: number };
+  const boxes = () =>
+    page.evaluate(() => {
+      const box = (selector: string): Box => {
+        const { left, top, right, bottom } = document
+          .querySelector(selector)!
+          .getBoundingClientRect();
+        return { left, top, right, bottom };
+      };
+      return {
+        view: { width: window.innerWidth, height: window.innerHeight },
+        map: box('.minimap'),
+        north: box('.minimap-north'),
+        room: box('.hud-room'),
+        title: box('.hud-room-title'),
+        players: box('.hud-players'),
+        chat: box('.chat'),
+        corner: box('.hud-corner'),
+        loadout: box('.loadout'),
+        mapParent: document.querySelector('.minimap')!.parentElement!.className,
+        cornerHoldsMap: !!document.querySelector('.hud-corner .minimap'),
+      };
+    });
+  const overlap = (a: Box, b: Box): boolean =>
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+  for (const [width, height] of [
+    [1280, 720],
+    [1920, 1080],
+    [960, 540],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    // The map and the room are laid out in the frame after the resize.
+    await waitForFrames(page, 2);
+    const at = await boxes();
+    const where = `at ${width}x${height}`;
+
+    // In the corner: the north tab's top and the map's left sit on the HUD's edge, as the chat's
+    // left and the players' top do, and the map lies in the top left of the window.
+    expect(at.mapParent, `the map is in the HUD's top left slot ${where}`).toBe('hud-map');
+    expect(at.map.left, `the map's left edge is the chat's ${where}`).toBeCloseTo(at.chat.left, 0);
+    expect(at.north.top, `the north tab's top is the players' top ${where}`).toBeCloseTo(
+      at.players.top,
+      0,
+    );
+    expect(at.map.right, `the map stays in the left of the window ${where}`).toBeLessThan(
+      at.view.width / 4,
+    );
+    expect(at.map.bottom, `the map stays in the top of the window ${where}`).toBeLessThan(
+      at.view.height / 2,
+    );
+
+    // The room name and status beside it, never over it, nor under it, nor over the players.
+    expect(at.title.left, `the room starts after the map ${where}`).toBeGreaterThanOrEqual(
+      at.map.right + 16,
+    );
+    expect(at.room.bottom, `the room is beside the map, not under it ${where}`).toBeLessThan(
+      at.map.bottom,
+    );
+    expect(overlap(at.room, at.map), `the room is clear of the map ${where}`).toBe(false);
+    expect(overlap(at.room, at.players), `the room is clear of the players ${where}`).toBe(false);
+    expect(overlap(at.map, at.chat), `the map is clear of the chat ${where}`).toBe(false);
+
+    // The loadout is alone in the bottom right, its edge the players'.
+    expect(at.cornerHoldsMap, `the minimap is not in the corner ${where}`).toBe(false);
+    expect(at.loadout.right, `the loadout's right edge is the players' ${where}`).toBeCloseTo(
+      at.players.right,
+      0,
+    );
+    expect(at.corner.bottom, `the loadout rests on the bottom edge ${where}`).toBeCloseTo(
+      at.view.height - (at.view.width - at.players.right),
+      0,
+    );
+  }
+
+  // A menu covers the left side with its own dark: the map and the room give way to it.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeVisible();
+  await expect(page.locator('.minimap')).toBeHidden();
+  await expect(page.locator('.hud-room-title')).toBeHidden();
+  await page.context().close();
+});
+
 test('the arrow keys move straight up and down the knife grid, however many columns it has', async ({
   browser,
 }) => {

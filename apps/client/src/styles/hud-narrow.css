@@ -35,6 +35,7 @@
 @media (max-width: 640px) {
   .hint,
   .hud-players,
+  .hud-map,
   .hud-corner {
     display: none;
   }

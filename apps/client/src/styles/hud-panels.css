@@ -1,21 +1,39 @@
-/* ---------- HUD corners: the room top left, the players top right ---------- */
+/* ---------- HUD corners: the map and the room top left, the players top right ---------- */
 
 /*
  * Plain words over the world, nothing behind them (docs/ui-revamp.md): weight and size carry them
  * over the bright walls, and the top of the screen is mostly the dark hood and ceiling.
  */
-.hud-room {
+
+/*
+ * The map in the corner, as near the edges as the players are, and the room beside it. The row
+ * stops short of the players, which can reach in a third of the way, so a long party code gives
+ * way with an ellipsis before it meets a long name.
+ */
+.hud-left {
   position: absolute;
-  /* The display face's line box sits a little above its capitals. */
-  top: calc(var(--hud-edge) - 6px);
+  top: var(--hud-edge);
   left: var(--hud-edge);
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  max-width: calc(100% - 2 * var(--hud-edge) - min(300px, 30vw) - 16px);
+}
+
+.hud-map {
+  flex-shrink: 0;
+}
+
+.hud-room {
   display: grid;
   justify-items: start;
   gap: 4px;
+  min-width: 0;
+  /* The display face's line box sits a little above its capitals. */
+  margin-top: -6px;
 }
 
 .hud-room-title {
-  max-width: 44vw;
   margin: 0;
   overflow: hidden;
   font: 700 30px/1.15 var(--font-display);

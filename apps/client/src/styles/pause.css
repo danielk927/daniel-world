@@ -854,7 +854,10 @@
   }
 }
 
-/* The room and the chat sit where the menu's dark side does, and the menu names the room itself. */
-.ui:has(> .pause:not([hidden])) :is(.hud-room, .chat) {
+/*
+ * The map, the room and the chat sit where the menu's dark side does, and the menu names the room
+ * itself.
+ */
+.ui:has(> .pause:not([hidden])) :is(.hud-left, .chat) {
   visibility: hidden;
 }

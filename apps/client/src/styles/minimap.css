@@ -1,8 +1,15 @@
 /* ---------- Minimap ---------- */
 
+/* How far north's tab hangs above the ring. */
+:root {
+  --north-tab: 9px;
+}
+
 /* A night disc, a touch lighter at its edge, in a faint ring; north is tabbed on top of the ring. */
 .minimap {
   position: relative;
+  /* The tab is part of the map: its top is what sits on the HUD's edge. */
+  margin-top: var(--north-tab);
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
@@ -18,7 +25,7 @@
 
 .minimap-north {
   position: absolute;
-  top: -9px;
+  top: calc(-1 * var(--north-tab));
   left: 50%;
   width: 20px;
   margin-left: -10px;
