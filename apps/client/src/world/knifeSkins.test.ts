@@ -165,6 +165,27 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => 
     expect(largestJump(moves.redraw, HINGES)).toBeLessThan(0.04);
   });
 
+  it('never jumps in acceleration, at a key or anywhere: a hand is pushed, not struck', () => {
+    // The arm and the wrist are minimum-jerk curves, with no acceleration at a stop and the same
+    // either side of a key they flow through. (A hinge may be let go like a spring, and is not held to it.)
+    const h = 5e-7;
+    const pose = (c: Clip, t: number, k: Channel): number => sample(c, t, blank())[k];
+    for (const c of [moves.draw, moves.redraw, moves.inspect, moves.idle]) {
+      if (c.duration === 0) continue;
+      for (const key of c.times) {
+        for (const k of [...ARM, ...WRIST]) {
+          // Second differences just before and just after the key.
+          const before =
+            (pose(c, key - 2 * h, k) - 2 * pose(c, key - h, k) + pose(c, key, k)) / h ** 2;
+          const after =
+            (pose(c, key, k) - 2 * pose(c, key + h, k) + pose(c, key + 2 * h, k)) / h ** 2;
+          if (key - 2 * h < 0 || key + 2 * h > c.duration) continue;
+          expect(Math.abs(after - before), `${k} at ${key.toFixed(2)} s`).toBeLessThan(0.5);
+        }
+      }
+    }
+  });
+
   it('keys only the channels a pose has', () => {
     expect(moves.inspect.values.length % CHANNELS.length).toBe(0);
   });

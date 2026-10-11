@@ -94,10 +94,9 @@ const INSPECT_BLEND = 0.5;
 const CARRY = 10;
 /**
  * How stiffly the fingers open off a knife's handle and close on it again, per second: letting go
- * in about a twentieth of a second, a reflex ahead of the blade, and taking hold again in about a
- * third.
+ * in under a tenth of a second, a reflex ahead of the blade, and taking hold again in about a third.
  */
-const RELEASE = { open: 80, close: 15 } as const;
+const RELEASE = { open: 60, close: 15 } as const;
 
 const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
 const lerp = (a: number, b: number, k: number): number => a + (b - a) * k;

@@ -67,12 +67,12 @@ const HINGES = CHANNELS.indexOf('a');
  * How a key is arrived at. `flow` carries the motion through the key on a smooth curve, slowing to
  * a stop at it only where the motion turns round or holds; `smooth` is a stop at every key, the way
  * a hand goes from one place to rest in another (the minimum-jerk curve: speed and acceleration both
- * start and end at nothing). `linear` keeps a speed going through it, `in` and `out` accelerate or
- * decelerate (a flick, a spring let go), `back` overshoots a little and settles, like a hand
- * snapping into place.
+ * start and end at nothing). `snap` is a flick: it too starts from nothing, but is at its top speed
+ * early, as a spring let go or a wrist snapped is, and not in an instant. `linear` keeps a speed going through it, `in` and `out`
+ * accelerate or decelerate, `back` overshoots a little and settles, like a hand snapping into place.
  */
-export type Ease = 'flow' | 'smooth' | 'linear' | 'in' | 'out' | 'back';
-const EASES: readonly Ease[] = ['flow', 'smooth', 'linear', 'in', 'out', 'back'];
+export type Ease = 'flow' | 'smooth' | 'linear' | 'in' | 'out' | 'back' | 'snap';
+const EASES: readonly Ease[] = ['flow', 'smooth', 'linear', 'in', 'out', 'back', 'snap'];
 const FLOW = EASES.indexOf('flow');
 
 export const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
@@ -98,6 +98,8 @@ function ease(kind: number, t: number): number {
       return easeOutCubic(t);
     case 5:
       return easeOutBack(t);
+    case 6:
+      return minimumJerk(1 - (1 - t) ** 1.5);
     default:
       return minimumJerk(t);
   }
@@ -349,9 +351,27 @@ const SWUNG = { x: -0.05, y: 0.1, z: 0.1, rx: -0.2, ry: 0, rz: 0, flex: 0, dev: 
 /** A hand's small dip before it lifts, so the lift has something to push off. */
 const DIP = { y: -0.012, rx: 0.04 } as const;
 
+/** Some of a pose's channels. */
+type Pose = { readonly [C in Channel]?: number };
+
 /** A pose `k` of the way from rest: a heavy knife is turned less. */
-function part(pose: Readonly<Record<string, number>>, k: number): Omit<Key, 't'> {
-  return Object.fromEntries(Object.entries(pose).map(([c, v]) => [c, v * k]));
+function part(pose: Pose, k: number): Pose {
+  return Object.fromEntries(Object.entries(pose).map(([c, v]) => [c, (v ?? 0) * k]));
+}
+
+/**
+ * A knife drawn: the hand comes up from below the screen with its wrist turning into place (`from`
+ * where it starts, `mid` as it comes into view), arrives a touch past rest, as far as the knife's
+ * weight carries it (`weight`: a heavy knife overshoots more), and settles.
+ */
+function rise(time: number, from: Pose, mid: Pose, weight = 1): readonly Key[] {
+  const over = part(mid, -0.25);
+  return [
+    { ...DOWN, ...from },
+    { ...REST, t: time * 0.4, y: -0.045, rx: 0.12, ...mid },
+    { ...REST, t: time * 0.68, ...over, y: 0.012 * weight, rx: -0.035 * weight },
+    { ...REST, t: time },
+  ];
 }
 
 const CHEF_INSPECT: readonly Key[] = [
@@ -370,15 +390,11 @@ const CHEF_INSPECT: readonly Key[] = [
 ];
 
 const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
-  kitchen: { draw: [DOWN, { t: 0.22, ...REST, ease: 'back' }], inspect: CHEF_INSPECT },
+  kitchen: { draw: rise(0.55, {}, {}, 1.2), inspect: CHEF_INSPECT },
 
   karambit: {
     rest: { y: 0.05 },
-    draw: [
-      { ...DOWN, rz: -0.4, flex: -0.6 },
-      { t: 0.34, y: -0.04, rx: 0.1, rz: 0.2, flex: 0.3 },
-      { t: 0.66, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.62, { rz: -0.4, flex: -0.6 }, { rz: 0.15, flex: 0.3 }),
     idle: [
       { t: 0, ...REST },
       { t: 2.2, ...REST },
@@ -402,16 +418,26 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   butterfly: {
     draw: [
       { ...DOWN, a: -PI, b: PI },
-      { t: 0.18, y: -0.06, rx: 0.15, a: -PI, b: PI, ease: 'out' },
-      { t: 0.36, y: 0.01, rx: -0.05, rz: 0.15, a: 0, b: PI, hingeEase: 'in' },
-      { t: 0.56, y: 0, rx: 0, rz: 0, a: 0, b: 0, hingeEase: 'out' },
-      { t: 0.8, ...REST, ease: 'back' },
+      { ...REST, t: 0.2, y: -0.05, rx: 0.14, a: -PI, b: PI },
+      {
+        ...REST,
+        t: 0.4,
+        y: 0.012,
+        rx: -0.05,
+        rz: 0.15,
+        flex: -0.25,
+        a: 0,
+        b: PI,
+        hingeEase: 'snap',
+      },
+      { ...REST, t: 0.62, y: 0.01, rz: 0.03, flex: 0.08, hingeEase: 'snap' },
+      { ...REST, t: 0.86 },
     ],
     idle: [
       { t: 0, ...REST },
       { t: 2.5, ...REST },
-      { t: 2.75, b: 0.35, rz: 0.04, ease: 'smooth', hingeEase: 'out' },
-      { t: 3.05, b: 0, rz: 0, ease: 'smooth', hingeEase: 'in' },
+      { t: 2.75, b: 0.35, rz: 0.04, ease: 'smooth', hingeEase: 'snap' },
+      { t: 3.15, b: 0, rz: 0, ease: 'smooth' },
       { t: 5.5, ...REST },
     ],
     inspect: [
@@ -433,11 +459,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   m9: {
-    draw: [
-      { ...DOWN, rz: -0.6, flex: 0.4 },
-      { t: 0.3, y: -0.02, rx: 0.05, rz: 0.15, flex: -0.15 },
-      { t: 0.58, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.58, { rz: -0.6, flex: 0.4 }, { rz: 0.15, flex: -0.15 }),
     idle: [
       { t: 0, ...REST },
       { t: 3, ...REST },
@@ -460,11 +482,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   bayonet: {
-    draw: [
-      { ...DOWN, rz: 0.5, flex: -0.6 },
-      { t: 0.26, y: -0.03, rx: 0.08, rz: -0.1, flex: 0.25 },
-      { t: 0.5, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.5, { rz: 0.5, flex: -0.6 }, { rz: -0.1, flex: 0.25 }, 0.9),
     idle: [
       { t: 0, ...REST },
       { t: 3.2, ...REST },
@@ -474,7 +492,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.12, ...DIP },
+      { t: 0.12, ...part(DIP, 0.8) },
       { t: 0.5, ...FLAT },
       { t: 0.85, ...FLAT },
       { t: 1.3, ...SWUNG },
@@ -490,16 +508,16 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   flip: {
     draw: [
       { ...DOWN, a: PI },
-      { t: 0.22, y: -0.05, rx: 0.12, a: PI, ease: 'out' },
-      { t: 0.37, y: -0.02, rx: -0.08, rz: -0.1, a: 0.2, hingeEase: 'in' },
-      { t: 0.44, a: 0, hingeEase: 'out' },
-      { t: 0.65, ...REST, ease: 'back' },
+      { ...REST, t: 0.22, y: -0.05, rx: 0.12, a: PI },
+      { ...REST, t: 0.36, y: -0.015, rx: -0.06, rz: -0.12, flex: -0.3, a: PI },
+      { ...REST, t: 0.5, y: 0.01, rx: -0.04, rz: -0.05, flex: 0.15, hingeEase: 'snap' },
+      { ...REST, t: 0.72 },
     ],
     idle: [
       { t: 0, ...REST },
       { t: 2.8, ...REST },
-      { t: 3.0, a: 0.07, rz: -0.03, ease: 'smooth', hingeEase: 'out' },
-      { t: 3.25, a: 0, rz: 0, ease: 'smooth', hingeEase: 'in' },
+      { t: 3.0, a: 0.07, rz: -0.03, ease: 'smooth', hingeEase: 'snap' },
+      { t: 3.3, a: 0, rz: 0, ease: 'smooth' },
       { t: 6, ...REST },
     ],
     inspect: [
@@ -511,7 +529,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 1.5, ...FLAT, a: 1.6, hingeEase: 'smooth' },
       { t: 2.05, ...CANT_LEFT, a: 1.6 },
       { t: 2.5, ...FLAT, flex: -0.4, dev: 0.15, a: 1.6 },
-      { t: 2.78, ...FLAT, flex: 0.25, dev: -0.08, rx: -0.2, a: 0, hingeEase: 'out' },
+      { t: 2.78, ...FLAT, flex: 0.25, dev: -0.08, rx: -0.2, a: 0, hingeEase: 'snap' },
       { t: 3.35, ...OTHER },
       { t: 3.65, ...OTHER },
       { t: 4.4, ...REST },
@@ -519,11 +537,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   huntsman: {
-    draw: [
-      { ...DOWN, flex: -0.3 },
-      { t: 0.38, y: -0.02, rx: 0.06, flex: 0.1 },
-      { t: 0.7, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.72, { flex: -0.3 }, { flex: 0.1 }, 1.7),
     idle: [
       { t: 0, ...REST },
       { t: 2.6, ...REST },
@@ -547,11 +561,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   falchion: {
-    draw: [
-      { ...DOWN, x: 0.05, dev: -0.35, rz: 0.4 },
-      { t: 0.3, x: -0.03, y: -0.03, rx: 0.06, dev: 0.1, rz: -0.15 },
-      { t: 0.7, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.68, { x: 0.05, dev: -0.35, rz: 0.4 }, { x: -0.03, dev: 0.1, rz: -0.15 }, 1.1),
     idle: [
       { t: 0, ...REST },
       { t: 2.4, ...REST },
@@ -575,11 +585,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   gut: {
-    draw: [
-      { ...DOWN, rz: 0.8, flex: -0.5 },
-      { t: 0.26, y: -0.03, rx: 0.08, rz: 0.1, flex: 0.1 },
-      { t: 0.52, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.52, { rz: 0.8, flex: -0.5 }, { rz: 0.1, flex: 0.1 }, 0.9),
     idle: [
       { t: 0, ...REST },
       { t: 3, ...REST },
@@ -589,7 +595,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.12, ...DIP },
+      { t: 0.12, ...part(DIP, 0.8) },
       { t: 0.52, ...FLAT },
       { t: 0.95, ...FLAT },
       // The hook to the eye, then the other side.
@@ -602,11 +608,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   talon: {
-    draw: [
-      { ...DOWN, rz: -0.5, flex: -0.5 },
-      { t: 0.32, y: -0.02, rx: 0.06, rz: 0.1, flex: 0.1 },
-      { t: 0.74, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.74, { rz: -0.5, flex: -0.5 }, { rz: 0.1, flex: 0.1 }),
     idle: [
       { t: 0, ...REST },
       { t: 2.6, ...REST },
@@ -629,11 +631,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   skeleton: {
-    draw: [
-      { ...DOWN, flex: 0.5 },
-      { t: 0.3, y: -0.02, rx: 0.06, flex: -0.2 },
-      { t: 0.6, ...REST, ease: 'back' },
-    ],
+    draw: rise(0.6, { flex: 0.5 }, { flex: -0.2 }, 0.7),
     idle: [
       { t: 0, ...REST },
       { t: 2.8, ...REST },
@@ -643,7 +641,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.1, ...DIP },
+      { t: 0.1, ...part(DIP, 0.6) },
       { t: 0.45, ...FLAT },
       { t: 0.8, ...FLAT },
       // Held up to the light to see through, and canted to catch it again.
@@ -661,11 +659,11 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     through: { a: [1.75, 3.1] },
     draw: [
       { ...DOWN, a: PI },
-      { t: 0.24, y: -0.04, rx: 0.1, a: PI, loose: 1, ease: 'out' },
-      { t: 0.3, a: PI, loose: 1 },
-      { t: 0.4, a: 0, rz: -0.08, hingeEase: 'out' },
-      { t: 0.48, loose: 0 },
-      { t: 0.66, ...REST, ease: 'back' },
+      { ...REST, t: 0.24, y: -0.04, rx: 0.1, a: PI },
+      { ...REST, t: 0.33, y: -0.015, rx: -0.04, rz: 0.05, a: PI, loose: 1 },
+      { ...REST, t: 0.47, y: 0.008, rx: -0.03, rz: -0.08, flex: 0.1, loose: 1, hingeEase: 'snap' },
+      { ...REST, t: 0.56, y: 0.004 },
+      { ...REST, t: 0.74 },
     ],
     idle: [
       { t: 0, ...REST },
@@ -676,7 +674,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.14, ...DIP },
+      { t: 0.14, ...part(DIP, 0.7) },
       { t: 0.55, ...FLAT },
       { t: 1.0, ...FLAT },
       { t: 1.65, ...TIP },
@@ -684,7 +682,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       // The blade pressed partway back, then the spring takes it open.
       { t: 2.4, ...FLAT, a: 1.6, hingeEase: 'smooth' },
       { t: 2.65, ...FLAT, a: 1.6 },
-      { t: 2.75, ...FLAT, a: 0, hingeEase: 'out' },
+      { t: 2.8, ...FLAT, a: 0, hingeEase: 'snap' },
       { t: 3.35, ...OTHER },
       { t: 3.6, ...OTHER },
       { t: 4.4, ...REST },
