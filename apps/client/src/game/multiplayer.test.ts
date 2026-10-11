@@ -25,6 +25,8 @@ function setup(room: string) {
   const playHit = vi.fn<(id: number, time: number) => void>();
   const setRows = vi.fn<Scoreboard['setRows']>();
   const resolve = vi.fn();
+  /** How long each knife takes to arrive on this screen after the server's word: half a second. */
+  const waits = new Map<number, number>();
   const deps: MultiplayerDeps = {
     url: 'ws://test',
     name: 'Otter',
@@ -47,8 +49,8 @@ function setup(room: string) {
       reset: vi.fn(),
       goOffline: vi.fn(),
       resolve,
-      // The knife reaches the player half a second after the server's word.
-      timeUntil: () => 0.5,
+      // The knife reaches the player half a second after the server's word, unless `waits` says so.
+      timeUntil: (id: number) => waits.get(id) ?? 0.5,
     }),
     worldTime: () => 0,
     notify: vi.fn(),
@@ -76,6 +78,7 @@ function setup(room: string) {
     setStatus,
     playHit,
     resolve,
+    waits,
     rows,
   };
 }
@@ -349,6 +352,103 @@ describe('hits', () => {
     latestSocket().receive({ t: 'respawn', player: welcome('lobby').self });
     vi.advanceTimersByTime(1000);
     expect(onHit).not.toHaveBeenCalled();
+    mp.close();
+  });
+
+  it('shows only the hit that leaves the least health when two arrive out of order', () => {
+    const { deps, onHit, waits } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    // The room hit this player twice, one tick apart: to two health, then to one. A screen can
+    // show them the other way round (the second knife's flight is drawn quicker than the first's),
+    // and must not then show the bar back at two.
+    waits.set(1, 0.6);
+    waits.set(2, 0.2);
+    latestSocket().receive({ ...hitOnSelf, knife: 1, health: 2 });
+    latestSocket().receive({ ...hitOnSelf, knife: 2, health: 1 });
+    vi.advanceTimersByTime(1000);
+    expect(onHit.mock.calls.map((call) => call[2])).toEqual([1]);
+    mp.close();
+  });
+
+  it('shows both hits, in turn, when they arrive in the order they came', () => {
+    const { deps, onHit } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().receive({ ...hitOnSelf, knife: 1, health: 2 });
+    latestSocket().receive({ ...hitOnSelf, knife: 2, health: 1 });
+    vi.advanceTimersByTime(1000);
+    expect(onHit.mock.calls.map((call) => call[2])).toEqual([2, 1]);
+    mp.close();
+  });
+
+  it('shows no hit once the knockout has been shown, however late its knife arrives', () => {
+    const { deps, onHit, onKill, waits } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    // A hit to one health whose knife is a long flight on this screen, and the knockout one tick
+    // after it, whose knife is a short one: the knockout is shown first.
+    waits.set(1, 0.9);
+    waits.set(2, 0.2);
+    latestSocket().receive({ ...hitOnSelf, knife: 1, health: 1 });
+    latestSocket().receive({ ...killOfSelf, knife: 2 });
+    vi.advanceTimersByTime(1500);
+    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'victim');
+    expect(onHit).not.toHaveBeenCalled();
+    mp.close();
+  });
+
+  it("shows a hit on another cook as it comes, knockout or not: only this player's bar is kept", () => {
+    const { deps, onHit, onKill, waits } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(withOthers('lobby', [{ id: 3, name: 'Cook' }]));
+    waits.set(1, 0.9);
+    waits.set(2, 0.2);
+    latestSocket().receive({ ...hitOnSelf, knife: 1, from: 7, to: 3, health: 1 });
+    latestSocket().receive({ ...killOfSelf, knife: 2, from: 7, to: 3 });
+    vi.advanceTimersByTime(1500);
+    expect(onKill).toHaveBeenCalledTimes(1);
+    expect(onHit).toHaveBeenCalledTimes(1);
+    mp.close();
+  });
+
+  it('puts a knockout whose cook has since respawned in the feed, without knocking them out', () => {
+    const { deps, onKill } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(welcome('lobby'));
+    latestSocket().receive(killOfSelf);
+    // Back up in the meantime (a screen too busy to run its timers can be that late): there is no
+    // knockout card to wait out, where no respawn will ever come.
+    latestSocket().receive({ t: 'respawn', player: welcome('lobby').self });
+    vi.advanceTimersByTime(1000);
+    expect(onKill).toHaveBeenCalledOnce();
+    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'witness');
+    mp.close();
+  });
+
+  it('still counts the score of a knockout whose cook has since respawned', () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(withOthers('lobby', [{ id: 3, name: 'Cook' }]));
+    latestSocket().receive({
+      ...killOfSelf,
+      scores: [
+        { id: 3, kills: 1, deaths: 0, assists: 0 },
+        { id: 7, kills: 0, deaths: 1, assists: 0 },
+      ],
+    });
+    latestSocket().receive({ t: 'respawn', player: welcome('lobby').self });
+    vi.advanceTimersByTime(1000);
+    expect(rows().map((r) => [r.id, r.kills, r.deaths])).toEqual([
+      [3, 1, 0],
+      [7, 0, 1],
+    ]);
     mp.close();
   });
 

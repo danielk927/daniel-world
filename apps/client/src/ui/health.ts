@@ -23,6 +23,15 @@ function clampHealth(health: number): number {
 }
 
 /**
+ * The health to show after being told `told` while showing `shown`, or null if that is not less:
+ * within a life the bar only goes down, so a hit that arrives late or twice changes nothing.
+ */
+export function loweredTo(shown: number, told: number): number | null {
+  const next = clampHealth(told);
+  return next < shown ? next : null;
+}
+
+/**
  * This player's health, in the bottom right corner by the knife: a heart, and a segment for each hit
  * a knife takes to knock them out, whole while they have it and a hairline once it is gone. The last
  * one left turns to the warning color. A segment that goes pulses as it does.
@@ -75,7 +84,9 @@ export class Health {
   /** A knife has hit, leaving `health`: the segment goes with a pulse, and a reader hears of it. */
   hurt(health: number): void {
     const before = this.health;
-    this.show(clampHealth(health));
+    const next = loweredTo(before, health);
+    if (next === null) return;
+    this.show(next);
     for (const [i, segment] of this.segments.entries()) {
       if (i < before && i >= this.health) {
         segment.classList.remove('is-pulsing');

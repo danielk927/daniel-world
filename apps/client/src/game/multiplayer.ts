@@ -1,6 +1,7 @@
 import type { Vector3 } from 'three';
 import {
   INTERPOLATION_DELAY_MS,
+  MAX_HEALTH,
   TICK_MS,
   chefSpares,
   knifeLook,
@@ -157,9 +158,17 @@ export class Multiplayer {
   private scores = new Map<number, Score>();
   /**
    * Counts this player's lives: a welcome or a respawn begins a new one, with all its health. A hit
-   * on an earlier life that arrives late (a screen too busy to run its timers) is for nothing.
+   * or knockout of an earlier life that arrives late (a screen too busy to run its timers) is for
+   * nothing.
    */
   private life = 0;
+  /**
+   * The health this player's screen has shown them this life, 0 once knocked out. Each hit and
+   * knockout is shown as its knife arrives on this screen, which can be in a different order to the
+   * room's (the flights are drawn on clocks that stall on a busy page), so one that would show more
+   * health than the screen already has is dropped: the bar only goes down within a life.
+   */
+  private shownHealth = MAX_HEALTH;
 
   /**
    * Connects to `deps.room`, or, given a room already joined in the background, takes over its
@@ -383,7 +392,7 @@ export class Multiplayer {
     this.clearImpactTimers();
     this.deps.knives.goOffline();
     this.deps.onBackOnFeet();
-    this.life++;
+    this.newLife();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     this.selfId = null;
     this.scores.clear();
@@ -415,7 +424,7 @@ export class Multiplayer {
 
   private onWelcome(welcome: WelcomeMessage): void {
     this.selfId = welcome.id;
-    this.life++;
+    this.newLife();
     this.scores = new Map(welcome.scores.map((score) => [score.id, score]));
     this.deps.player.reset(welcome.self);
     this.deps.onBackOnFeet();
@@ -543,20 +552,30 @@ export class Multiplayer {
         const life = this.life;
         // Shown when the knife gets there on this screen, not when the server decided.
         this.whenKnifeArrives(message.knife, message.at, () => {
-          // A hit on a life that has since ended (the cook is back up with all their health, or
-          // somewhere new) is for nothing.
-          if (message.to === this.selfId && life !== this.life) return;
+          if (message.to === this.selfId) {
+            // A hit on a life that has since ended (the cook is back up with all their health, or
+            // somewhere new) is for nothing, and so is one that would give back health a hit or a
+            // knockout already shown has taken.
+            if (life !== this.life || message.health >= this.shownHealth) return;
+            this.shownHealth = message.health;
+          }
           this.announceHit(message);
         });
         return;
       }
-      case 'kill':
+      case 'kill': {
+        const life = this.life;
         this.whenKnifeArrives(message.knife, message.at, () => {
           // The scoreboard moves with the kill feed, not ahead of the knife.
           this.takeScores(message.scores);
-          this.announceKill(message.from, message.to);
+          // Knocked out in a life that has since ended: the cook is already back up, and no
+          // respawn is coming to get them up again, so it is only a line in the feed.
+          const late = message.to === this.selfId && life !== this.life;
+          if (message.to === this.selfId && !late) this.shownHealth = 0;
+          this.announceKill(message.from, message.to, late);
         });
         return;
+      }
       case 'cooler': {
         const own = message.from === this.selfId;
         // Shown as it lands on this screen: a knife when its drawn flight gets there, someone
@@ -572,7 +591,7 @@ export class Multiplayer {
       case 'respawn': {
         const s = message.player;
         if (s.id === this.selfId) {
-          this.life++;
+          this.newLife();
           this.deps.player.reset(s);
           this.deps.onSpawn(s.yaw);
           this.deps.onBackOnFeet();
@@ -611,9 +630,23 @@ export class Multiplayer {
     this.deps.onHit(this.who(message.from), this.who(message.to), message.health, role);
   }
 
-  private announceKill(from: number, to: number): void {
-    const role = to === this.selfId ? 'victim' : from === this.selfId ? 'thrower' : 'witness';
+  /** `late`: this player was the victim, but of a life that has ended; they only see it happen. */
+  private announceKill(from: number, to: number, late = false): void {
+    const role =
+      to === this.selfId
+        ? late
+          ? 'witness'
+          : 'victim'
+        : from === this.selfId
+          ? 'thrower'
+          : 'witness';
     this.deps.onKill(this.who(from), this.who(to), role);
+  }
+
+  /** This player's next life begins, whole. */
+  private newLife(): void {
+    this.life++;
+    this.shownHealth = MAX_HEALTH;
   }
 
   /** Someone in the room, or `Someone` if they have left since. */

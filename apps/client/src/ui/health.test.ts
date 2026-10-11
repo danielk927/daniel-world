@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_HEALTH } from '@world/shared';
-import { healthAnnouncement, healthText } from './health.ts';
+import { healthAnnouncement, healthText, loweredTo } from './health.ts';
 
 describe('healthText', () => {
   it('says how much health there is of how much', () => {
@@ -24,5 +24,26 @@ describe('healthAnnouncement', () => {
 
   it('leaves the knockout to the card that says who did it', () => {
     expect(healthAnnouncement(0)).toBe('');
+  });
+});
+
+describe('loweredTo', () => {
+  it('takes a health below the one shown', () => {
+    expect(loweredTo(3, 2)).toBe(2);
+    expect(loweredTo(2, 1)).toBe(1);
+    expect(loweredTo(1, 0)).toBe(0);
+  });
+
+  it('never gives health back: a hit told late, or twice, changes nothing', () => {
+    expect(loweredTo(1, 2)).toBeNull();
+    expect(loweredTo(1, 1)).toBeNull();
+    expect(loweredTo(0, 1)).toBeNull();
+    expect(loweredTo(3, 3)).toBeNull();
+  });
+
+  it('holds what it is told between none and all', () => {
+    expect(loweredTo(3, -4)).toBe(0);
+    expect(loweredTo(3, 9)).toBeNull();
+    expect(loweredTo(3, 1.7)).toBe(1);
   });
 });

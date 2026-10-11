@@ -603,6 +603,9 @@ export class Game {
     role: 'thrower' | 'victim' | 'witness',
   ): void {
     if (role === 'victim') {
+      // A hit shown after the knockout it came before (the knives' flights are drawn on clocks
+      // that stall on a busy page) changes nothing: down on the floor, there is nothing left to take.
+      if (this.knockedOut) return;
       this.health.hurt(health);
       this.impact.hurt();
       this.rig.hit(HURT_FLINCH);
