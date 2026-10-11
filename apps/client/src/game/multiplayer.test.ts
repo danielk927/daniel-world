@@ -369,11 +369,15 @@ describe('hits', () => {
     latestSocket().open();
     latestSocket().receive(welcome('lobby'));
     expect(onBackOnFeet).toHaveBeenCalledTimes(1);
+    // Losing the connection puts them on their feet too (they play on solo, whole).
     latestSocket().close();
+    const offline = onBackOnFeet.mock.calls.length;
+    expect(offline).toBeGreaterThan(1);
+    // And the reconnect's own welcome does, exactly once more.
     vi.runOnlyPendingTimers();
     latestSocket().open();
     latestSocket().receive(welcome('lobby'));
-    expect(onBackOnFeet.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(onBackOnFeet).toHaveBeenCalledTimes(offline + 1);
     mp.close();
   });
 });
@@ -485,6 +489,42 @@ describe('scores', () => {
     expect(rows().map((r) => [r.id, r.kills, r.deaths, r.assists])).toEqual([
       [3, 0, 2, 0],
       [7, 3, 0, 0],
+    ]);
+    mp.close();
+  });
+
+  it('never takes a count back when two knockouts show in the opposite order to the room', () => {
+    const { deps, rows } = setup('lobby');
+    const mp = new Multiplayer(deps);
+    latestSocket().open();
+    latestSocket().receive(withOthers('lobby', [{ id: 3, name: 'Cook' }]));
+    // The room knocked cook 3 out twice, this player's knife both times. A screen can show the
+    // second knockout before the first (a knife of this player's own is drawn at once, another's
+    // a little after the server threw it), so the second's tallies come first here.
+    const second: KillMessage = {
+      ...killOfSelf,
+      knife: 2,
+      scores: [
+        { id: 7, kills: 2, deaths: 0, assists: 1 },
+        { id: 3, kills: 0, deaths: 2, assists: 0 },
+      ],
+    };
+    const first: KillMessage = {
+      ...killOfSelf,
+      knife: 1,
+      scores: [
+        { id: 7, kills: 1, deaths: 0, assists: 1 },
+        { id: 3, kills: 0, deaths: 1, assists: 0 },
+      ],
+    };
+    latestSocket().receive(second);
+    vi.advanceTimersByTime(600);
+    latestSocket().receive(first);
+    vi.advanceTimersByTime(600);
+    // The older tallies, shown last, take nothing away.
+    expect(rows().map((r) => [r.id, r.kills, r.deaths, r.assists])).toEqual([
+      [3, 0, 2, 0],
+      [7, 2, 0, 1],
     ]);
     mp.close();
   });

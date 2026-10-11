@@ -621,10 +621,28 @@ export class Multiplayer {
     return this.lookup(id) ?? { name: 'Someone', color: '#f6f3ea' };
   }
 
-  /** Take the tallies a knockout changed, for the cooks still in the room. */
+  /**
+   * Take the tallies a knockout changed, for the cooks still in the room. Each message has them
+   * whole, and a tally only ever grows while its cook is here, so a message that arrives out of
+   * order (a knife of this player's own is drawn at once, another's a little after the server
+   * threw it, and two knockouts close together can show in the opposite order to the room's) is
+   * taken field by field and cannot take a count back.
+   */
   private takeScores(scores: readonly Score[]): void {
     for (const score of scores) {
-      if (score.id === this.selfId || this.remotes.has(score.id)) this.scores.set(score.id, score);
+      if (score.id !== this.selfId && !this.remotes.has(score.id)) continue;
+      const known = this.scores.get(score.id);
+      this.scores.set(
+        score.id,
+        known
+          ? {
+              id: score.id,
+              kills: Math.max(known.kills, score.kills),
+              deaths: Math.max(known.deaths, score.deaths),
+              assists: Math.max(known.assists, score.assists),
+            }
+          : score,
+      );
     }
     this.refreshPlayers();
   }

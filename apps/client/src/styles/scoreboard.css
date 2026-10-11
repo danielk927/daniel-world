@@ -120,11 +120,12 @@
 }
 
 /*
- * Nothing of the kitchen's own words shows through it: the labels, the prompt and the crosshair
- * would print over the table, as the knockout card has them go.
+ * Nothing of the kitchen's own words shows through it: the labels, the prompt, the crosshair and,
+ * for a cook held down while they look, the knockout card would print over the table. The veil
+ * of the fall stays.
  */
 .ui:has(> .scoreboard:not([hidden]))
-  :is(.labels, .crosshair, .prompt, .look-cue, .hit-marker, .hit-banner) {
+  :is(.labels, .crosshair, .prompt, .look-cue, .hit-marker, .hit-banner, .knockout-body) {
   visibility: hidden;
 }
 

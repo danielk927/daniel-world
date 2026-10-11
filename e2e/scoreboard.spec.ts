@@ -59,8 +59,11 @@ test('Tab shows who has knocked out whom, on every screen, for as long as it is 
   const room = 'e2e-scores';
   const server = await startRoomServer();
   try {
-    const alice = await enterWorld(browser, { name: 'Alice', room });
+    // Bob comes first, so he stands in the middle of the aisle with Alice on one side of him and
+    // Cara on the other, both with a clear throw at him (a cook stands between any two others
+    // on the same side, and a knife hits the first it meets).
     const bob = await enterWorld(browser, { name: 'Bob', room });
+    const alice = await enterWorld(browser, { name: 'Alice', room });
     const cara = await enterWorld(browser, { name: 'Cara', room });
     const pages = { Alice: alice, Bob: bob, Cara: cara };
     for (const page of Object.values(pages)) {
@@ -78,6 +81,12 @@ test('Tab shows who has knocked out whom, on every screen, for as long as it is 
     await hitUntil(server, room, cara, bob, 2);
     await hitUntil(server, room, alice, bob, 0);
     await expectWorld(bob, (w) => w.knockedOut, 'Bob is knocked out');
+    // Down on the floor, Tab still shows it, and the card that says who did it stays out of its way
+    // (if he has not already got up, which he does after three seconds, on a page too slow to see).
+    await holdingTab(bob, async () => {
+      await expect(board(bob)).toBeVisible();
+      if ((await world(bob)).knockedOut) await expect(bob.locator('.knockout-body')).toBeHidden();
+    });
     for (const page of Object.values(pages)) {
       await expectWorld(
         page,
@@ -280,7 +289,7 @@ test('Tab works with the pointer locked as without it, and lets go when the menu
   await page.context().close();
 });
 
-test('Tab shows nothing while typing in the chat, and nothing is held after the chat closes', async ({
+test('Tab shows no scoreboard in the chat, where it leaves the field as it always did', async ({
   browser,
 }) => {
   const page = await enterWorld(browser, { name: 'Typist', online: false });
@@ -290,8 +299,8 @@ test('Tab shows nothing while typing in the chat, and nothing is held after the 
   await waitForFrames(page, 2);
   await expect(board(page)).toBeHidden();
   await page.keyboard.up('Tab');
-  await page.keyboard.press('Escape');
-  await expectWorld(page, (w) => w.mode === 'playing', 'back to playing');
+  // Tab in the field goes where it always did, out of it, which ends the chat as clicking away does.
+  await expectWorld(page, (w) => w.mode === 'playing', 'the chat ends');
   await expect(board(page)).toBeHidden();
   // And a throw in between does not bring it up either.
   await throwKnife(page);
