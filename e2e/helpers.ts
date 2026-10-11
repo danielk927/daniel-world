@@ -292,10 +292,11 @@ export async function walkToWalkIn(page: Page): Promise<void> {
 
 /**
  * Punch the walk-in's door with the bare hand until it has taken `hits`. A jab takes 0.42 s of the
- * game's time and a starved page runs that several times slower than the clock, so the budget, which
- * only bounds a hang, grows with the hits.
+ * game's time and a starved page runs that several times slower than the clock, so the budget,
+ * which only bounds a hang, grows with the hits still to land.
  */
 export async function punchUntil(page: Page, hits: number): Promise<void> {
+  const start = (await world(page)).cooler.hits;
   await expect
     .poll(
       async () => {
@@ -307,7 +308,7 @@ export async function punchUntil(page: Page, hits: number): Promise<void> {
       },
       {
         message: `the door has taken ${hits} hits`,
-        timeout: 10_000 + 4_000 * hits,
+        timeout: 11_000 + 4_000 * Math.max(1, hits - start),
         intervals: [100],
       },
     )
