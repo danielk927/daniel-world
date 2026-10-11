@@ -381,6 +381,13 @@ export interface KnifeHand {
    * middle of its ring, or beside its spine above the grip, a finger's thickness off it.
    */
   readonly pivot: Vector3;
+  /**
+   * Whether the knife's own turning axis runs toward the fingertip (1) or the knuckle (-1) as it
+   * hangs on the index finger: the way it does in the grip. Kept the whole way between the grip and
+   * the finger, which may turn across the knife's flat on the way there (a karambit's, as it
+   * straightens through the ring): the knife turns with it rather than flipping over as it does.
+   */
+  readonly hangSign: 1 | -1;
   /** Its handle's thickness where it is held, in the arm's frame. */
   readonly radius: number;
   /** How the forearm turns, at the wrist, toward the hand in this grip. */
@@ -605,7 +612,25 @@ export function knifeHand(model: KnifeModel): KnifeHand {
     .slerp(new Quaternion().setFromUnitVectors(FOREARM, reach), FOREARM_FOLLOWS);
   const open = letGo(grip);
   const turning = threaded ? { grip, placement } : turningGrip(model, grip, axis, point);
-  const hand = { grip, open, placement, turning, ringed, threaded, along, pivot, radius, forearm };
+  // The way the index finger runs past the knife in the grip: a ring on it cannot turn over on the
+  // way to hanging, and a knife off it turns least to hang the same way round.
+  const fingertip = new Vector3();
+  proximalAt(grip.pose, 0, along, new Vector3(), fingertip);
+  fingertip.applyQuaternion(placement.quaternion).applyQuaternion(hold.clone().invert());
+  const hangSign = fingertip.x < 0 ? -1 : 1;
+  const hand: KnifeHand = {
+    grip,
+    open,
+    placement,
+    turning,
+    ringed,
+    threaded,
+    along,
+    pivot,
+    hangSign,
+    radius,
+    forearm,
+  };
   knifeHands.set(model.skin, hand);
   return hand;
 }
@@ -636,13 +661,14 @@ export class Viewmodel {
   private readonly flipTurn = new Quaternion();
   private readonly spinTurn = new Quaternion();
   /**
-   * Where the knife hangs on the index finger this frame, the finger's line, and how the knife
-   * turns to hang there, in the holder's space; and which way along that line the fingertip is.
+   * Where the knife hangs on the index finger this frame, the way along the finger toward its tip,
+   * the knife's turning axis along the finger, and how the knife turns to hang there, in the
+   * holder's space.
    */
   private readonly hangAt = new Vector3();
+  private readonly fingertip = new Vector3();
   private readonly hangAxis = new Vector3();
   private readonly hangTurn = new Quaternion();
-  private hangSide = 1;
   /** Out from the palm, and in front of the fingertip, on the knife's way to the finger. */
   private readonly palmOut = new Vector3();
   private readonly aheadAt = new Vector3();
@@ -1215,16 +1241,14 @@ export class Viewmodel {
     const hang = clamp01(pose.hang);
     // A ring already on the finger slides along it, from where it sits in the grip.
     const along = held.threaded ? lerp(held.along, HANG_ALONG, hang) : HANG_ALONG;
-    proximalAt(this.handPose, 0, along, this.hangAt, this.hangAxis);
+    proximalAt(this.handPose, 0, along, this.hangAt, this.fingertip);
     this.hangAt
       .applyQuaternion(wrist.quaternion)
       .add(wrist.position)
       .applyQuaternion(this.toHolder)
       .divideScalar(KNIFE_SIZE);
-    this.hangAxis.applyQuaternion(wrist.quaternion).applyQuaternion(this.toHolder);
-    // Toward the fingertip, which way along the knife's own turning axis.
-    this.hangSide = this.hangAxis.x < 0 ? -1 : 1;
-    if (this.hangAxis.x < 0) this.hangAxis.negate();
+    this.fingertip.applyQuaternion(wrist.quaternion).applyQuaternion(this.toHolder);
+    this.hangAxis.copy(this.fingertip).multiplyScalar(held.hangSign);
     this.hangTurn.setFromUnitVectors(X_AXIS, this.hangAxis);
     // Held, it turns about its length through the grip.
     this.spinTurn.setFromAxisAngle(Z_AXIS, -pose.spin);
@@ -1240,9 +1264,7 @@ export class Viewmodel {
       // fingertip; then it comes onto the finger along it, over the tip, as a ring goes on.
       const round = smoothstep(clamp01((hang - HANG.open) / (HANG.round - HANG.open)));
       const on = smoothstep(clamp01((hang - HANG.round) / (1 - HANG.round)));
-      this.aheadAt
-        .copy(this.hangAt)
-        .addScaledVector(this.hangAxis, (HANG.ahead * this.hangSide) / KNIFE_SIZE);
+      this.aheadAt.copy(this.hangAt).addScaledVector(this.fingertip, HANG.ahead / KNIFE_SIZE);
       this.palmOut.set(-1, 0, 0).applyQuaternion(wrist.quaternion).applyQuaternion(this.toHolder);
       this.flipper.position
         .lerpVectors(this.heldAt, this.aheadAt, round)
