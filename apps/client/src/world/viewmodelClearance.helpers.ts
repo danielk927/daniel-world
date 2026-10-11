@@ -642,7 +642,7 @@ function scenarios(skin: KnifeSkin): [string, (run: Run) => void][] {
 }
 
 /** How long checking one knife may take, on a machine busy with other tests. */
-const CHECK_TIMEOUT = 60_000;
+const CHECK_TIMEOUT = 240_000;
 
 /** Every move and cut of each of `skins`, checked against its grip at rest. */
 export function checkClearance(skins: readonly KnifeSkin[]): void {

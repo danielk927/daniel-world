@@ -45,6 +45,7 @@ import {
   easeOutBack,
   easeOutCubic,
   knifeMoves,
+  minimumJerk,
   sample,
   type ArmPose,
   type KnifeMoves,
@@ -100,7 +101,6 @@ const RELEASE = { open: 80, close: 15 } as const;
 
 const clamp01 = (t: number): number => Math.max(0, Math.min(1, t));
 const lerp = (a: number, b: number, k: number): number => a + (b - a) * k;
-const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 function set(
   out: ArmPose,
   x: number,
@@ -155,8 +155,8 @@ function blend(
   through: KnifeMoves['through'],
 ): void {
   const carried = (1 - Math.exp(-CARRY * t)) / CARRY;
-  const arm = 1 - smoothstep(clamp01(t / duration));
-  const hinge = 1 - smoothstep(clamp01(t / Math.max(duration, HINGE_BLEND)));
+  const arm = 1 - minimumJerk(clamp01(t / duration));
+  const hinge = 1 - minimumJerk(clamp01(t / Math.max(duration, HINGE_BLEND)));
   // A blade or handle the cut swings from where it was to where it goes, through the fingers, makes
   // them loosen while it does.
   const swung = crosses(through.a, from.a, to.a) || crosses(through.b, from.b, to.b);
