@@ -28,6 +28,18 @@ export function knifeIcon(): SVGSVGElement {
   ]);
 }
 
+/** A heart, point down, for health: two lobes over a point, as a card suit is drawn. */
+export function heartIcon(): SVGSVGElement {
+  return svg('0 0 16 14', [
+    [
+      'path',
+      {
+        d: 'M8 13.2 C8 13.2 1 8.8 1 4.7 C1 2.5 2.6 1 4.6 1 C6 1 7.3 1.8 8 3.1 C8.7 1.8 10 1 11.4 1 C13.4 1 15 2.5 15 4.7 C15 8.8 8 13.2 8 13.2 Z',
+      },
+    ],
+  ]);
+}
+
 /** Each fist's mask needs an id of its own in the page. */
 let fists = 0;
 

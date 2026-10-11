@@ -1,5 +1,6 @@
 import { MAX_HEALTH } from '@world/shared';
 import { el } from './dom.ts';
+import { heartIcon } from './icons.ts';
 
 /** Health as a reading: "2 of 3". Held between none and all, and whole. */
 export function healthText(health: number): string {
@@ -22,9 +23,9 @@ function clampHealth(health: number): number {
 }
 
 /**
- * This player's health, in the bottom right corner by the knife: a segment for each hit a knife
- * takes to knock them out, whole while they have it and a hairline once it is gone. The last one
- * left turns to the warning color. A segment that goes pulses as it does.
+ * This player's health, in the bottom right corner by the knife: a heart, and a segment for each hit
+ * a knife takes to knock them out, whole while they have it and a hairline once it is gone. The last
+ * one left turns to the warning color. A segment that goes pulses as it does.
  */
 export class Health {
   readonly element: HTMLElement;
@@ -50,7 +51,10 @@ export class Health {
           'aria-valuemax': String(MAX_HEALTH),
         },
       },
-      this.segments,
+      [
+        el('span', { class: 'health-heart' }, [heartIcon()]),
+        el('span', { class: 'health-segments' }, this.segments),
+      ],
     );
     // Beside the meter, not in it: a meter's children are not read out.
     parent.append(this.element, this.announcement);

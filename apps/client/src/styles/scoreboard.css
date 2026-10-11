@@ -73,7 +73,6 @@
   height: var(--row);
   padding: 0;
   font-weight: inherit;
-  text-align: inherit;
 }
 
 .scoreboard-number {
@@ -118,6 +117,15 @@
 
 .scoreboard-row.is-self .scoreboard-number {
   font-weight: 700;
+}
+
+/*
+ * Nothing of the kitchen's own words shows through it: the labels, the prompt and the crosshair
+ * would print over the table, as the knockout card has them go.
+ */
+.ui:has(> .scoreboard:not([hidden]))
+  :is(.labels, .crosshair, .prompt, .look-cue, .hit-marker, .hit-banner) {
+  visibility: hidden;
 }
 
 @media (max-height: 640px) {

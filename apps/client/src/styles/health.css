@@ -1,20 +1,36 @@
 /* ---------- Health ---------- */
 
 /*
- * A segment for each hit a knife takes to knock this cook out, under the knife in the corner: whole
- * ivory while it is there, a hairline once it is gone. Like the crosshair, each holds on the white
- * walls with a hairline of the night round it.
+ * A heart and a segment for each hit a knife takes to knock this cook out, under the knife in the
+ * corner: whole ivory while it is there, a hairline once it is gone. Like the crosshair, each holds
+ * on the white walls with a hairline of the night round it. Inset as the knife is, from the disc.
  */
 .health {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
   margin-right: 16px;
 }
 
+.health-heart svg {
+  display: block;
+  width: 15px;
+  height: 13px;
+  fill: var(--ink);
+  stroke: rgb(var(--night-rgb) / 0.35);
+  stroke-width: 0.8;
+  paint-order: stroke;
+}
+
+.health-segments {
+  display: flex;
+  gap: 6px;
+}
+
 .health-segment {
-  width: 34px;
-  height: 6px;
-  border-radius: 3px;
+  width: 32px;
+  height: 7px;
+  border-radius: 3.5px;
   background: var(--ink-hair);
   box-shadow: 0 0 0 1px rgb(var(--night-rgb) / 0.35);
   transition: background-color 0.25s ease;
@@ -24,9 +40,13 @@
   background: var(--ink);
 }
 
-/* One hit from a knockout: the last segment turns to the warning color. */
+/* One hit from a knockout: the last segment, and the heart, turn to the warning color. */
 .health[data-health='1'] .health-segment.is-full {
   background: var(--danger);
+}
+
+.health[data-health='1'] .health-heart svg {
+  fill: var(--danger);
 }
 
 /* A segment that has just gone flares in the warning color and settles to its hairline. */
