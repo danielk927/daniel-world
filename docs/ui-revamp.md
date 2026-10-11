@@ -93,7 +93,8 @@ Nothing behind or around any of it.
 ### HUD (`ui/hud.ts`, `chat.ts`, `toast.ts`, `killFeed.ts`, `knockout.ts`, `impact.ts`, `computerGuide.ts`, their styles)
 
 - Top left: the minimap in the corner, and beside it the room name in the display face, with under it the signal bars and the connection word (Online, Connecting, Solo).
-  The north tab's top, the room name's capitals and the player count share one line, the HUD's edge; the map and the room go while a menu or a panel is open, and the map goes at the kitchen computer, where the room takes the corner.
+  The north tab's top, the room name's capitals and the player count share one line, the HUD's edge; the map and the room go while a menu or a panel is open, and the map goes at the kitchen computer and on a window under 520 px tall, where the room takes the corner.
+  A long party code ends in an ellipsis before the middle, where notices show, and before the players; under 880 px wide notices come down under the room.
 - Top right: the players, right-aligned, each with a dot of their color; yours marked "you" in brass.
 - The prompt under the crosshair: a ring key and the action ("Open Products", "Play DOOM"); its accessible text stays a full sentence.
 - Bottom center: the controls hint as ring keys and words.
