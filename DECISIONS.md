@@ -898,3 +898,37 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 - `scripts/hands.ts` shoots the hand holding each knife at rest, mid-inspect and on the Knives page with the page's clock held, so the same frames can be compared before and after a change.
 - The agent doing this stalled twice before writing it up; the merge was checked by hand: lint, typecheck, 972 unit tests, the build and the frames.
   Frame CPU with 16 players was the same just before and after it (2.81 and 2.72 ms on a machine running slower that day than the night before, when the same earlier commit measured 1.2 ms against 2.2 ms).
+
+### Chef Skinner, locked in the walk-in (2026-10-10)
+
+- **Daniel asked for it**: Chef Skinner no longer walks the lobby from its first visitor; he is locked in the walk-in of every room, and breaking its door lets him loose.
+  This reverses "a quiet portfolio should not feel empty" (2026-10-06): an empty lobby is empty now, and the walk-in, a secret already, hides someone.
+  It was built as `docs/superpowers/specs/2026-10-09-caged-chef-design.md` has it, which Daniel approved on 2026-10-10; where the build adds to it or departs from it is below.
+- **He is created when the door bursts, not with the room.** The room tells a hook (`Room.onCoolerBurst`) from `hitCooler`, where it decides the tenth hit, as it tells `onKnockout` of knockouts.
+  `WalkInChef` in `chef.ts` holds him for 60 ticks (1 s), since each screen shows the burst only when the fist or knife that made it arrives there, then lets him out on the tick a second after the burst.
+  A room that empties in that second never has him: the server drops a room as it empties, and `WalkInChef` forgets the entrance if it is ever ticked empty.
+- **Every room gets him**, the lobby and parties alike; `CHEF=off` still turns him off everywhere.
+  He joins with the doorway open for all his inputs (`coolerFrom` 0), as any later arrival does.
+- **He starts at the back of the cold room, at (10.9, -3.1)**, south of the shelves on its east wall and clear of the door lying open along its south wall, facing the doorway, so whoever broke it sees him straight through it.
+- **He shouts as he appears**, a line from `ENTRANCE_LINES` ("Who locked me in the walk-in?!" among them); it is his first line, so the 25 s quiet rule does not hold it back, and it holds back his next one.
+- **He stands his ground for a second before he storms out**, a call the spec left open: it says he appears, shouts and walks out, and a second's pause reads as that order, where walking off on the tick he appeared did not.
+  It also gives a busy machine time to see him at the back of the cold room.
+- **His aisle graph gains two points**: the middle of the cold room's floor (9.7, -3.7) and just inside the kitchen at the doorway (7.3, -3), joined to each other and to the east column's points either side of the doorway.
+  Every edge clears the shelves, the open door and the doorway's frame by at least 0.55 m (more than a player's radius; the old edges' least is 0.55 m too), and the clearance test now checks every edge against the colliders with the walk-in open, since he is only ever out with it open.
+- **His aim flies the knife with the walk-in open** (`aimAt`), as the room flies it: with it shut, a throw through the doorway, into the cold room or out of it, would always have looked blocked.
+- **Everyone gets his 8 s grace from when he appears**, however long they have been in the room: he counts a cook as arriving when he first sees them, and he is new.
+- **A room keeps a place for him while he can come out** (`CHEF` on): 15 visitors, and 16 with `CHEF=off`, so parties lose a visitor's place and the lobby is as it was.
+  The server checks visitors against that capacity, so `Room.isFull`, which counted everyone, is gone, and the room-count endpoint's `max` is the same number.
+  The endpoint already said 15 for the lobby with him on (since the room server's review); the spec's "fixes today's lobby reporting 16" was written against an older state.
+- **The bots and `scripts/perf.ts` fill a room to what the server says it takes**: the lobby's count gives `max` for every room, the bots count visitors in the welcome (not residents), and perf waits for that many cooks; with its own server (no chef) that is still 16.
+- **The protocol did not change**: he joins as any player does, with the resident flag, so `PROTOCOL_VERSION` stays 8.
+  The room server change reaches visitors only with `npm run deploy:aws`.
+- **The HUD still reads "n / 16"**: the sixteenth place is his, in the walk-in or out of it, so a full party reads 15 / 16 until someone lets him out.
+  Saying 15 would need the client to know whether the server has him on, a protocol change, for a party of fifteen.
+- **The party menu no longer says "Chef Skinner works the line"** of the lobby: he does not, until someone breaks the door, and in every room.
+- **Two flaws the locked-in chef brought to light were fixed with it.**
+  He froze for good mid wind-up whenever a pacing cook went out of his sight at every turn: he dropped the wind-up, picked the same cook on the next tick, and never had 0.6 s of clear aim in a row; 12 of 20 seeds froze him for 27 to 110 s in two minutes of pacing, on the chef as he was.
+  Having lost his shot, he now walks on for 2 s before he looks again; every seed of 30 throws 9 to 12 knives in two minutes, the "about 10" the 2026-10-06 section measured.
+  And since nobody bumps into anybody, coming out of the walk-in he walks right through whoever broke its door, which put the camera inside his head and toque; a cook the camera is inside of is now left out of that frame (`Avatars.hideAround`), for any two cooks passing through each other.
+- **E2E breaks the door to see him**: `e2e/chef.spec.ts` checks he is in nobody's view and not on the server before the burst, nor at nine hits, then that the server has him at the back of the cold room, the page sees him with his line in the chat, and he comes out into the kitchen; the opt-out case lets him out first.
+  `walkToWalkIn` and `punchUntil` moved to `helpers.ts`, and the room server's view for tests has each cook's position and resident flag, so where he first stood comes from the server, not from a page that may have missed the moment.

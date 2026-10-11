@@ -1,8 +1,7 @@
 # Chef Skinner, locked in the walk-in
 
-Status: not built.
-Daniel approved this design in conversation on 2026-10-09; the written spec still waits for his review before any of it is built.
-Until then Chef Skinner walks the lobby from its first visitor, as the README says.
+Status: built on 2026-10-10, once Daniel had reviewed this spec that day.
+`DECISIONS.md` ("Chef Skinner, locked in the walk-in") has the calls the build made where this left them open, and where it differs.
 
 Chef Skinner would no longer walk the lobby from the start.
 He is locked in the walk-in cooler of every room, and breaking its door lets him loose.

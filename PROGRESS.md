@@ -3,7 +3,7 @@
 ## Where things stand (2026-10-10)
 
 Daniel's World is a first-person, multiplayer French brigade kitchen: visitors are cooks, the eight stations serve the sections of Daniel's resume, his five favorite dishes wait on the pass under their heat lamps, and everyone in a room sees everyone else in real time.
-Around that: knives to throw (twelve CS2-style skins, a little spread on every throw), Chef Skinner walking the lobby, a walk-in cooler that bursts open after ten hits, and a RISC-V computer running DOOM.
+Around that: knives to throw (twelve CS2-style skins, a little spread on every throw), a walk-in cooler that bursts open after ten hits and lets out Chef Skinner, locked inside it, and a RISC-V computer running DOOM.
 The plain portfolio page renders the same content, written into `portfolio.html` at build time so it works without JavaScript.
 
 The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and not yet pushed:
@@ -12,7 +12,7 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - **Knives clear of the hand**: every knife's moves were measured frame by frame and rebuilt so no knife passes through the hand.
 - **Every plate on the pass lit** by its own heat lamp.
 - **A review of every part of the code**, by area and then a second pass (server, client, interface, rendering, infrastructure, kitchen computer, docs, tests), and fixes for what it found: a socket that could crash the room server, cooldowns that could be skipped, a dead network still shown as online, the knockout card and menus, focus and contrast, the walk-in door's knives, the quality governor, a safer AWS stack, and an E2E suite that holds on a busy machine.
-- Not built: locking Chef Skinner in the walk-in, whose spec (`docs/superpowers/specs/2026-10-09-caged-chef-design.md`) waits for Daniel's review.
+- **Chef Skinner locked in the walk-in** of every room, as its spec has it (`docs/superpowers/specs/2026-10-09-caged-chef-design.md`): nowhere until someone breaks the door, then loose until the room empties.
 
 ### Live deployment
 
@@ -155,6 +155,16 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 
 - The hand on screen is a satin glove in the player's color with a chef's sleeve, and the knives are smooth where round and crisp at spine and edge, with steel that reflects the kitchen and handles of wood, micarta, G10, rubber or cord; the shapes the clearance tests check did not move.
 
+### Chef Skinner locked in the walk-in (2026-10-10)
+
+- Every room, the lobby and parties alike, starts with Chef Skinner nowhere: not in the player list, on the minimap or on the wire.
+  A second after the walk-in's door bursts he appears at the back of the cold room, shouts a line, stands a moment and walks out through the doorway; everyone gets 8 s before he throws, and he goes with the last visitor.
+- Rooms keep his place while he can come out: 15 visitors with him on, 16 with `CHEF=off`; the bots and `scripts/perf.ts` fill a room to what the server says it takes.
+- Fixed along the way: he could freeze for good mid wind-up at a cook pacing out of his sight, and a cook walking through the player (as he does, past whoever broke the door) put the camera inside them; that cook is now left out of the frame.
+- The protocol did not change (version 8); it reaches visitors with `npm run deploy:aws`.
+- Lint, typecheck, 985 unit tests, the 45 E2E tests and the build pass; the chef spec passed four times over and with every page's CPU 4x slower.
+  `node scripts/perf.ts` holds 60 fps at governor level 0 with 16 players (84 draw calls, 716 k triangles), level 1 at dpr 2, and fills a party to 15 against a server with him on.
+
 ### How to run it
 
 ```bash
@@ -193,7 +203,7 @@ npm run bots -- --count 5   # optional: some company
 - **Pushing and deploying.** Nothing from 2026-10-09 and 10 is pushed.
   Protocol version 8 means the room server must be redeployed with the client: push, then `npm run deploy:aws`, or the Vercel front end plays solo until the deploy.
   That deploy replaces the room server's instance once (rooms drop, players reconnect), gives it an Elastic IP and moves CloudFront's `/ws` origin to it; afterwards check that `dig +short` on the `ServerOrigin` output prints the Elastic IP, and commit `infra/cdk.context.json`, which it writes.
-- **The caged chef spec** (`docs/superpowers/specs/2026-10-09-caged-chef-design.md`): review it before it is built.
+- **Chef Skinner locked in the walk-in** is all in the room server, so until `npm run deploy:aws` the live lobby keeps him walking it from its first visitor.
 - **Taste calls**: the landing's dim is deeper (for the small text's contrast); the new kitchen look; the bayonet, M9 and huntsman spins, whose blade the fist hides half of each turn.
 - **His words**: the two `TODO(daniel)` lines in `content.ts`, and whether "pending for NeurIPS and Nature" and "pending for AAAI and AISTATS" should read "under review at".
 - **`AGENTS.md`**: an untracked, out-of-date copy of an old `CLAUDE.md` in the checkout; delete it or regenerate it from `CLAUDE.md`.
@@ -274,4 +284,3 @@ Removed on 2026-10-03 in favor of knife throwing in every room.
 ## Next
 
 - Push and deploy, after reviewing (see "What needs Daniel's input").
-- Lock Chef Skinner in the walk-in, once Daniel has reviewed its spec.
