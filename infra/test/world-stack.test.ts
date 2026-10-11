@@ -22,6 +22,9 @@ const AMI_CONTEXT_KEY =
   'ssm:account=123456789012:parameterName=/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-arm64:region=us-east-1';
 const CACHED_AMI = 'ami-0123456789abcdef0';
 
+/** The resume, as the client's public/ folder has it and the build copies it to the site's root. */
+const RESUME_FILE = 'Doyoon-Kim-resume.pdf';
+
 /**
  * Evaluates a template value the way CloudFormation would, taking Refs and GetAtts (`Id` or
  * `Id.Attr`) from `values`, and showing any others as `{Ref Id}` or `{Id.Attr}` placeholders.
@@ -78,6 +81,7 @@ beforeAll(() => {
   mkdirSync(serverDir);
   writeFileSync(join(clientDir, 'index.html'), '<!doctype html>');
   writeFileSync(join(clientDir, 'favicon.svg'), '<svg/>');
+  writeFileSync(join(clientDir, RESUME_FILE), '%PDF-1.5\n%%EOF\n');
   writeFileSync(join(clientDir, SITE_ASSETS_DIR, 'main-B8FjIsg3.js'), 'export {}');
   writeFileSync(join(serverDir, 'index.js'), 'console.log("server")');
 
@@ -136,8 +140,36 @@ describe('WorldStack', () => {
       DistributionPaths: ['/*'],
     });
     expect(pages.Properties.DestinationBucketKeyPrefix).toBeUndefined();
-    expect(uploads(pages).sort()).toEqual(['favicon.svg', 'index.html']);
+    expect(uploads(pages).sort()).toEqual([RESUME_FILE, 'favicon.svg', 'index.html']);
     expect(pages.DependsOn).toContain(hashedId);
+  });
+
+  it('serves the resume with the pages: uploaded, revalidated on every visit, and fresh after a deploy', () => {
+    const [hashedId, hashed] = resources('Custom::CDKBucketDeployment').find(
+      ([, d]) => d.Properties.DestinationBucketKeyPrefix === `${SITE_ASSETS_DIR}/`,
+    )!;
+    const [, pages] = resources('Custom::CDKBucketDeployment').find(([id]) => id !== hashedId)!;
+
+    // Under its own name at the site's root, not in assets/, where a name is cached for a year and a
+    // new resume would not show until the old one expired.
+    expect(uploads(pages)).toContain(RESUME_FILE);
+    expect(uploads(hashed)).not.toContain(RESUME_FILE);
+    // Checked again on every visit (a conditional request, so the same file costs nothing), and
+    // the pages' upload clears CloudFront's copies, so a new resume shows on the next deploy.
+    expect(pages.Properties).toMatchObject({
+      SystemMetadata: { 'cache-control': 'no-cache' },
+      DistributionPaths: ['/*'],
+    });
+    // The PDF is not named in the deployment: `aws s3 sync` gives each file the Content-Type its
+    // extension implies (application/pdf, as it does text/html for index.html), and a deployment
+    // names one for every file it uploads, which would mislabel the pages.
+    expect(pages.Properties).not.toHaveProperty('SystemMetadata.content-type');
+    // Served from the bucket by the default behavior, as the pages are: /ws* is the only other path.
+    template.hasResourceProperties('AWS::CloudFront::Distribution', {
+      DistributionConfig: Match.objectLike({
+        CacheBehaviors: [Match.objectLike({ PathPattern: `${SERVER_PATH}*` })],
+      }),
+    });
   });
 
   it('routes /ws* to the room server with caching off and upgrade headers forwarded', () => {
