@@ -161,6 +161,21 @@ test('the minimap is in the top left corner with the room beside it, and the loa
     );
   }
 
+  // A party's longest code, in a narrow window, gives way with an ellipsis before it comes within
+  // reach of the players' column, which can be as wide as a third of the window.
+  await page.setViewportSize({ width: 800, height: 600 });
+  await waitForFrames(page, 2);
+  await page.evaluate(() => {
+    document.querySelector('.hud-room-name')!.textContent = '#friday-service-night-abc';
+    document.querySelector<HTMLElement>('.hud-room-kind')!.hidden = false;
+  });
+  const long = await boxes();
+  expect(long.title.right).toBeLessThanOrEqual(long.players.right - 0.3 * long.view.width);
+  expect(
+    await page.locator('.hud-room-title').evaluate((n) => n.scrollWidth > n.clientWidth),
+    'the code is cut short, not run over the players',
+  ).toBe(true);
+
   // A menu covers the left side with its own dark: the map and the room give way to it.
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Paused' })).toBeVisible();

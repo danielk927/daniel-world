@@ -26,7 +26,8 @@
 
 .hud-room {
   display: grid;
-  justify-items: start;
+  /* A track that may be narrower than the name, which fills it, so its ellipsis has an edge to meet. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   min-width: 0;
   /* The display face's line box sits a little above its capitals. */
