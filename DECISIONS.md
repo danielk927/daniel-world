@@ -974,3 +974,24 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   On the old moves 11 of the 12 knives fail it; the chef's knife, which never left the fist, passes.
   A hinge (a flip knife or a stiletto flicked open, the butterfly's handles) is the knife's own mechanism and is not bounded.
 - `scripts/hands.ts --every 1` shoots every frame of a knife's inspect on the real GPU, the page's clock held, to see how it moves from one frame to the next.
+
+### The minimap in the top left (2026-10-11)
+
+- **The minimap is in the top left corner**, at Daniel's request, as near the edges as the player list across from it (`--hud-edge`): the map's left edge is the chat's, and the north tab's top is on the line the player count sits on.
+  The loadout has the bottom right to itself, and its right edge is the HUD's edge, like the player dots' (it had been 16 px in, clear of the disc curving away under it).
+  The tab now counts in the map's layout (`--north-tab`), so the corner is measured from it and not from the disc.
+- **The room name and status went beside the map, not under it.**
+  Both were shot on the real GPU at 1280x720, 1920x1080 and dpr 2.
+  Under the map the name lands mid-screen (about 280 px down), over the bright steel and among the stations' labels: the labels' keep-clear box grew to 196 x 280 px and "Products" was pushed hard up against the status line, and on a short window an open chat comes within 80 px of it.
+  Beside it the name stays in the dark band of the hood where the interface has always put it, the strip is only 205 px tall, and the map and the name read as one header.
+  The cost is that the name starts 216 px further in, so the rules below keep it clear of what is nearby.
+- **A menu or panel takes the map and the room with it.**
+  The panel's dark side starts a quarter of the way across and washes a long party code out (a faded "docs-station" in the first frame of it), and the map, hidden under a panel before as part of the corner, is no use there; the room used to stay.
+  The pause menu names the room itself, as before.
+- **At the kitchen computer the map goes and the room takes its corner.**
+  A cook seated at a desk has nowhere to go, and in a window squarer than about 3:2 (800x600) the map lay over the monitor and the DOOM screen.
+  `display: none`, not `visibility`, so the room does not float beside a gap; it moves from beside the map to the corner as the cook sits down, under the guide's dim, and back as they stand.
+- **The room stops short of the players**: the top left is as wide as the window less the edges, the widest the player list can be (300 px, or a third of the window) and a gap, so a long party code ends in an ellipsis before it meets a long name.
+  Below 640 px the map goes with the loadout, the hint and the players, and the room keeps the corner as before.
+- **Not handled**: a toast (top center, up to 40 % of the width) can meet a long party name on a narrow window; a toast is "Reconnected" or one of the computer's two errors, and none was seen to.
+- `e2e/menus.spec.ts` measures the map in the corner at 1280x720, 1920x1080 and 960x540: on the chat's left and the players' top, the room beside it and clear of the players and the chat, the loadout alone in the corner on the players' right edge and the window's bottom margin, and the map and room gone under the pause menu; `e2e/computer.spec.ts` checks the map goes at the desk and comes back.

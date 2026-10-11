@@ -173,6 +173,13 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - `scripts/hands.ts --every 1` shoots every frame of an inspect.
 - Lint, typecheck, 996 unit tests, 45 E2E tests and the build pass.
 
+### The minimap in the top left (2026-10-11)
+
+- The minimap moved from the bottom right to the top left corner, with the room name and its connection beside it, and the loadout has the bottom right to itself.
+- A menu or panel takes the map and the room with it, the kitchen computer takes the map (the room moves to the corner), and a long party code ends in an ellipsis before the players' column.
+- `e2e/menus.spec.ts` measures where the map, the room and the loadout sit at three window sizes, and that a long party code is cut short before the players; the screenshots were taken again.
+- Lint, typecheck, 1009 unit tests, 46 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash

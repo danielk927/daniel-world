@@ -92,7 +92,8 @@ Nothing behind or around any of it.
 
 ### HUD (`ui/hud.ts`, `chat.ts`, `toast.ts`, `killFeed.ts`, `knockout.ts`, `impact.ts`, `computerGuide.ts`, their styles)
 
-- Top left: the room name in the display face, and under it the signal bars and the connection word (Online, Connecting, Solo).
+- Top left: the minimap in the corner, and beside it the room name in the display face, with under it the signal bars and the connection word (Online, Connecting, Solo).
+  The north tab's top, the room name's capitals and the player count share one line, the HUD's edge; the map and the room go while a menu or a panel is open, and the map goes at the kitchen computer, where the room takes the corner.
 - Top right: the players, right-aligned, each with a dot of their color; yours marked "you" in brass.
 - The prompt under the crosshair: a ring key and the action ("Open Products", "Play DOOM"); its accessible text stays a full sentence.
 - Bottom center: the controls hint as ring keys and words.
@@ -101,11 +102,14 @@ Nothing behind or around any of it.
 - Knocked out: the flat veil stays; the card becomes a kicker and the name in the display face, no box.
 - The computer guide: plain rows of ring keys and words.
 
-### Loadout and minimap (`ui/loadout.ts`, `ui/minimap.ts`, `styles/loadout.css`, `styles/minimap.css`)
+### Minimap and loadout (`ui/minimap.ts`, `ui/loadout.ts`, `styles/minimap.css`, `styles/loadout.css`)
 
-Bottom right.
-The minimap is a round disc of `--night` with an `--ink-faint` ring and an "N" tab on top, the kitchen drawn in ivory line, stations as small diamonds, players as dots of their color, you as a brass arrow.
-Above it the loadout: the knife over the fist, Q as a ring beside the pair, a brass bar under what is in hand; the knife's readiness after a throw still shows.
+The minimap is top left, in the corner, the room name beside it (see the HUD above).
+It is a round disc of `--night` with an `--ink-faint` ring and an "N" tab on top, the kitchen drawn in ivory line, stations as small diamonds, players as dots of their color, you as a brass arrow.
+The mockup `docs/ui-revamp/world.jpg` shows it in the bottom right, under the loadout, which is where it began; it moved to the top left on 2026-10-11 (DECISIONS.md).
+
+The loadout is bottom right, alone there: the knife over the fist, Q as a ring beside the pair, a brass bar under what is in hand; the knife's readiness after a throw still shows.
+Its right edge is the HUD's edge, the same as the player list's dots.
 No panel behind the loadout; if the icons vanish on the brightest walls, give each a small night disc like the map rather than a box.
 
 ### Pause menu (`ui/pause.ts`, `party.ts`, `knivesPanel.ts`, `knifePreview.ts`, `styles/pause.css`)
