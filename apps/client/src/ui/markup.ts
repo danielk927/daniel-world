@@ -1,8 +1,6 @@
 /**
- * Markup built without a document, so one piece of code can draw a station's panel in the browser
- * and write the portfolio page at build time (see `portfolioPage.ts`): `toElement` makes the
- * elements, `toHtml` the text of the page. Words are always text, never markup: elements get them
- * as text nodes, and HTML gets them escaped.
+ * Markup built without a document, which `toElement` turns into elements for the page it is in
+ * (the station panel). Words are always text, never markup: elements get them as text nodes.
  */
 export interface Markup {
   readonly tag: string;
@@ -42,32 +40,4 @@ export function toElement(markup: Markup): HTMLElement {
     node.append(typeof child === 'string' ? child : toElement(child));
   }
   return node;
-}
-
-/** Elements that have no end tag and hold nothing. */
-const VOID = new Set(['area', 'br', 'col', 'hr', 'img', 'input', 'link', 'meta', 'source', 'wbr']);
-
-const ENTITIES: Readonly<Record<string, string>> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-};
-
-/** Text made safe for HTML, between tags or in a quoted attribute. */
-export function escapeHtml(text: string): string {
-  return text.replace(/[&<>"]/g, (c) => ENTITIES[c]!);
-}
-
-/** The markup as HTML. */
-export function toHtml(markup: Markup | string): string {
-  if (typeof markup === 'string') return escapeHtml(markup);
-  const attrs = Object.entries(markup.attrs)
-    .map(([name, value]) => ` ${name}="${escapeHtml(value)}"`)
-    .join('');
-  if (VOID.has(markup.tag)) {
-    if (markup.children.length) throw new Error(`<${markup.tag}> cannot hold anything`);
-    return `<${markup.tag}${attrs}>`;
-  }
-  return `<${markup.tag}${attrs}>${markup.children.map(toHtml).join('')}</${markup.tag}>`;
 }

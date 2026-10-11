@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STATIONS } from '@world/shared';
-import { dishes, lore, site, stations, type LoreItem } from './content.ts';
+import { dishes, site, stations } from './content.ts';
 
 /** Every piece of text on the site, so a failure names the line at fault. */
 function texts(value: unknown): string[] {
@@ -9,7 +9,7 @@ function texts(value: unknown): string[] {
   if (value && typeof value === 'object') return Object.values(value).flatMap(texts);
   return [];
 }
-const everything = texts({ site, lore, stations, dishes });
+const everything = texts({ site, stations, dishes });
 
 function noneMatch(pattern: RegExp): void {
   expect(everything.filter((text) => pattern.test(text))).toEqual([]);
@@ -53,22 +53,8 @@ describe('content', () => {
     expect(panels.filter((text) => french.test(text))).toEqual([]);
   });
 
-  it('puts everything the stations hold on the portfolio page too', () => {
-    const onPage = new Set<LoreItem>(lore.flatMap((entry) => entry.items ?? []));
-    const pageTags = new Set(lore.flatMap((entry) => entry.tags ?? []));
-    const pageLinks = new Set(lore.flatMap((entry) => entry.links ?? []).map((l) => l.href));
-    for (const { id } of STATIONS) {
-      // The pass lists the dishes on it, which have panels of their own.
-      if (id === 'passe') continue;
-      const entry = stations[id];
-      for (const item of entry.items ?? []) expect(onPage.has(item), item.title).toBe(true);
-      for (const tag of entry.tags ?? []) expect(pageTags.has(tag), tag).toBe(true);
-      for (const link of entry.links ?? []) expect(pageLinks.has(link.href), link.href).toBe(true);
-    }
-  });
-
   it('links to Daniel by email, LinkedIn and GitHub', () => {
-    expect(site.links.map((l) => l.href)).toEqual([
+    expect((stations.plonge.links ?? []).map((l) => l.href)).toEqual([
       'mailto:dkim927@uchicago.edu',
       'https://www.linkedin.com/in/doyoondanielkim',
       'https://github.com/danielk927',

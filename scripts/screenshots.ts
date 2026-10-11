@@ -182,10 +182,7 @@ async function main(): Promise<void> {
     await gamer.screenshot({ path: `${outDir}/computer-doom.png` });
     await gamer.close();
 
-    // The page is written in before the dev server's styles arrive: let their transitions settle.
-    await page.goto(`${clientUrl}/portfolio.html`);
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `${outDir}/portfolio.png`, fullPage: true });
+    // A phone, where the resume is the way in.
     const phone = await browser.newContext({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 2,
@@ -197,9 +194,6 @@ async function main(): Promise<void> {
     await phonePage.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
     await phonePage.waitForTimeout(1500);
     await phonePage.screenshot({ path: `${outDir}/mobile-landing.png` });
-    await phonePage.goto(`${clientUrl}/portfolio.html`);
-    await phonePage.waitForTimeout(500);
-    await phonePage.screenshot({ path: `${outDir}/mobile-portfolio.png` });
     console.log(`Screenshots written to ${outDir}`);
   } finally {
     await browser?.close();

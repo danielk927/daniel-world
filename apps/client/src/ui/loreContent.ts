@@ -43,8 +43,8 @@ function renderItem(item: LoreItem): Markup {
 }
 
 /**
- * The body of a lore entry, shared by the station panel and the portfolio page. Its links (Email,
- * GitHub...) are text links, as the house style has them.
+ * The body of a lore entry, as the station panel shows it. Its links (Email, GitHub...) are text
+ * links, as the house style has them.
  */
 export function renderLoreBody(entry: LoreSection): Markup {
   return h('div', { class: 'lore-body' }, [

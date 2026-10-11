@@ -6,10 +6,9 @@ import rotiPhoto from './assets/dishes/roti.webp';
 import truffleCroissantPhoto from './assets/dishes/truffle-croissant.webp';
 
 /**
- * Every piece of personal content on the site lives here, taken from Daniel's resume.
- * The 3D kitchen (`stations` and `dishes`) and the plain portfolio page (`lore`, and the dishes)
- * both render from this file and share the same items, so a change to a role or a project shows up
- * in both.
+ * Every piece of personal content in the 3D kitchen lives here, taken from Daniel's resume: what
+ * the stations and the dishes say when they are opened. The resume itself is a PDF kept as it is in
+ * `public/` (`resume.ts`), so a change to a role or a project is made in both places.
  *
  * The few places that still want Daniel's own words are marked TODO(daniel).
  * Never publish the graduation date or the phone number here.
@@ -40,10 +39,10 @@ export interface LoreImage {
   readonly alt: string;
 }
 
-/** A section of the resume, as the portfolio page has it. */
+/** A section of the resume, as a station's panel or a dish shows it. */
 export interface LoreSection {
   readonly id: string;
-  /** The heading: of a portfolio section, of a station's panel and its label in the kitchen, or a dish. */
+  /** The heading: of a station's panel and its label in the kitchen, or of a dish. */
   readonly title: string;
   /** A photo shown above the text. */
   readonly image?: LoreImage;
@@ -71,8 +70,6 @@ const links: readonly LoreLink[] = [
 export const site = {
   name: 'Doyoon (Daniel) Kim',
   headline: 'CS + Statistics @ UChicago',
-  intro: 'This is the plain version of my site: everything in the 3D kitchen, none of the walking.',
-  links,
 } as const;
 
 // ---------- The resume, item by item ----------
@@ -221,60 +218,6 @@ const interests = {
   ],
   tags: ['Kendo', 'Cooking and baking', 'Eating', 'Beli', 'Watching the NBA', 'Fashion'],
 } as const;
-
-// ---------- The portfolio page ----------
-
-/** The sections of the portfolio page, in order: a resume, then how the kitchen works. */
-export const lore: readonly LoreSection[] = [
-  {
-    id: 'about',
-    title: 'About',
-    paragraphs: aboutParagraphs,
-  },
-  {
-    id: 'experience',
-    title: 'Experience',
-    items: [anto],
-  },
-  {
-    id: 'projects',
-    title: 'Projects',
-    items: [inferenceEngine, generativeOmics, sync, bridge, thisKitchen],
-  },
-  {
-    id: 'research',
-    title: 'Research',
-    items: [uclaLab, readingProgram],
-  },
-  { id: 'skills', title: 'Skills', items: skills },
-  {
-    id: 'education',
-    title: 'Education',
-    items: education,
-  },
-  {
-    id: 'interests',
-    title: 'Interests',
-    ...interests,
-  },
-  {
-    id: 'contact',
-    title: 'Contact',
-    paragraphs: [
-      'Email is the best way to reach me. I am happy to talk about anything in this kitchen.',
-    ],
-    links,
-  },
-  {
-    id: 'guest-notes',
-    title: 'Kitchen notes',
-    paragraphs: [
-      'Everyone visiting right now is in the kitchen with you. WASD walks, the mouse looks around, Space jumps and Shift sprints.',
-      'E opens the station you are looking at. A left click throws a knife; Q swaps it for your bare hand, which punches instead, and I inspects it.',
-      'Enter opens the chat, and Esc the menu, where you can start a party and share its party code with friends. Nothing is stored: when everyone leaves a party, it is gone.',
-    ],
-  },
-];
 
 // ---------- The kitchen ----------
 
