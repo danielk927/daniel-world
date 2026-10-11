@@ -296,8 +296,8 @@ const SPINE = {
   dev: 0,
 } as const;
 const OTHER = {
-  x: -0.19,
-  y: 0.08,
+  x: -0.16,
+  y: 0.09,
   z: 0.12,
   rx: 0.1,
   ry: -0.5,
@@ -316,6 +316,38 @@ const TIP = {
   flex: -0.2,
   dev: 0.27,
 } as const;
+/** The blade canted across the view to the left or the right, a flat turned to the eye. */
+const CANT_LEFT = {
+  x: -0.08,
+  y: 0.1,
+  z: 0.1,
+  rx: -0.2,
+  ry: 0,
+  rz: 0.7,
+  flex: 0.4,
+  dev: 0,
+} as const;
+const CANT_RIGHT = {
+  x: -0.02,
+  y: 0.1,
+  z: 0.1,
+  rx: -0.2,
+  ry: 0,
+  rz: -0.6,
+  flex: -0.4,
+  dev: 0,
+} as const;
+/** The blade swung out to catch the light along its flat, and the wrist bent to show it whole. */
+const LIGHT = { x: 0, y: 0.08, z: 0.08, rx: 0, ry: 0.5, rz: -0.4, flex: 0, dev: 0 } as const;
+const BEND = { x: -0.05, y: 0.1, z: 0.1, rx: 0, ry: 0, rz: 0, flex: 1, dev: 0 } as const;
+const SWUNG = { x: -0.05, y: 0.1, z: 0.1, rx: -0.2, ry: 0, rz: 0, flex: 0, dev: 0.4 } as const;
+/** A hand's small dip before it lifts, so the lift has something to push off. */
+const DIP = { y: -0.012, rx: 0.04 } as const;
+
+/** A pose `k` of the way from rest: a heavy knife is turned less. */
+function part(pose: Readonly<Record<string, number>>, k: number): Omit<Key, 't'> {
+  return Object.fromEntries(Object.entries(pose).map(([c, v]) => [c, v * k]));
+}
 
 const CHEF_INSPECT: readonly Key[] = [
   { t: 0, ...REST },
@@ -333,7 +365,11 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
 
   karambit: {
     rest: { y: 0.05 },
-    draw: [DOWN, { t: 0.22, ...REST, ease: 'back' }],
+    draw: [
+      { ...DOWN, rz: -0.4, flex: -0.6 },
+      { t: 0.34, y: -0.04, rx: 0.1, rz: 0.2, flex: 0.3 },
+      { t: 0.66, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 2.2, ...REST },
@@ -343,7 +379,13 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 3, ...REST },
+      { t: 0.55, x: -0.06, y: 0.1, z: 0.09, rx: -0.2, rz: -0.35, flex: 0, dev: 0 },
+      { t: 1.2, x: -0.06, y: 0.1, z: 0.09, rx: -0.2, rz: -0.38, flex: 0.05, dev: 0 },
+      { t: 1.8, x: -0.07, y: 0.11, z: 0.09, rx: -0.2, rz: -0.7, flex: -0.5, dev: 0 },
+      { t: 2.3, x: -0.07, y: 0.11, z: 0.09, rx: -0.2, rz: -0.72, flex: -0.52, dev: 0 },
+      { t: 2.95, x: -0.05, y: 0.1, z: 0.09, rx: -0.2, rz: 0.7, flex: 0, dev: 0 },
+      { t: 3.4, x: -0.05, y: 0.1, z: 0.09, rx: -0.2, rz: 0.72, flex: 0, dev: 0 },
+      { t: 4.0, ...REST },
     ],
   },
 
@@ -378,7 +420,11 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   m9: {
-    draw: [DOWN, { t: 0.3, ...REST, ease: 'back' }],
+    draw: [
+      { ...DOWN, rz: -0.6, flex: 0.4 },
+      { t: 0.3, y: -0.02, rx: 0.05, rz: 0.15, flex: -0.15 },
+      { t: 0.58, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 3, ...REST },
@@ -388,18 +434,24 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.5, ...FLAT },
+      { t: 0.14, ...DIP },
+      { t: 0.55, ...FLAT },
       { t: 1.0, ...FLAT },
+      // The saw back to the eye, then the blade swung out to catch the light.
       { t: 1.6, ...SPINE },
-      { t: 2.0, ...SPINE },
-      { t: 2.5, ...TIP },
-      { t: 2.9, ...TIP },
-      { t: 3.5, ...REST },
+      { t: 2.05, ...SPINE },
+      { t: 2.65, ...LIGHT },
+      { t: 3.05, ...LIGHT },
+      { t: 3.7, ...REST },
     ],
   },
 
   bayonet: {
-    draw: [DOWN, { t: 0.3, ...REST, ease: 'back' }],
+    draw: [
+      { ...DOWN, rz: 0.5, flex: -0.6 },
+      { t: 0.26, y: -0.03, rx: 0.08, rz: -0.1, flex: 0.25 },
+      { t: 0.5, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 3.2, ...REST },
@@ -409,13 +461,16 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
+      { t: 0.12, ...DIP },
       { t: 0.4, ...FLAT },
-      { t: 0.8, ...FLAT },
-      { t: 1.3, ...EDGE },
-      { t: 1.6, ...EDGE },
-      { t: 2.2, ...OTHER },
+      { t: 0.75, ...FLAT },
+      { t: 1.1, ...SWUNG },
+      { t: 1.35, ...SWUNG },
+      { t: 1.8, ...EDGE },
+      { t: 2.05, ...EDGE },
       { t: 2.6, ...OTHER },
-      { t: 3.1, ...REST },
+      { t: 2.9, ...OTHER },
+      { t: 3.4, ...REST },
     ],
   },
 
@@ -450,7 +505,11 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
   },
 
   huntsman: {
-    draw: [DOWN, { t: 0.45, ...REST, ease: 'back' }],
+    draw: [
+      { ...DOWN, flex: -0.3 },
+      { t: 0.38, y: -0.02, rx: 0.06, flex: 0.1 },
+      { t: 0.7, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 2.6, ...REST },
@@ -460,16 +519,25 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.6, ...FLAT },
-      { t: 1.6, ...FLAT },
-      { t: 2.3, ...EDGE },
-      { t: 3.0, ...EDGE },
-      { t: 3.8, ...REST },
+      { t: 0.18, y: -0.02, rx: 0.06 },
+      { t: 0.85, ...part(FLAT, 0.8) },
+      // Weighed in the hand: let down a little and taken up again.
+      { t: 1.25, ...part(FLAT, 0.8), y: 0.065 },
+      { t: 1.65, ...part(FLAT, 0.8), y: 0.085 },
+      { t: 2.5, ...part(CANT_RIGHT, 0.8) },
+      { t: 3.0, ...part(CANT_RIGHT, 0.8) },
+      { t: 3.5, ...part(EDGE, 0.8) },
+      { t: 3.85, ...part(EDGE, 0.8) },
+      { t: 4.3, ...REST },
     ],
   },
 
   falchion: {
-    draw: [DOWN, { t: 0.4, ...REST, ease: 'back' }],
+    draw: [
+      { ...DOWN, x: 0.05, dev: -0.35, rz: 0.4 },
+      { t: 0.3, x: -0.03, y: -0.03, rx: 0.06, dev: 0.1, rz: -0.15 },
+      { t: 0.7, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 2.4, ...REST },
@@ -479,17 +547,25 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
+      { t: 0.14, ...DIP },
       { t: 0.5, ...FLAT },
-      { t: 1.0, ...FLAT },
-      { t: 1.7, ...SPINE },
-      { t: 2.3, ...OTHER },
-      { t: 2.8, ...OTHER },
-      { t: 3.5, ...REST },
+      { t: 0.95, ...FLAT },
+      // Rolled over in one long sweep, to show the curve of its belly, and held.
+      { t: 1.5, ...SPINE },
+      { t: 2.15, ...OTHER },
+      { t: 2.7, ...OTHER },
+      { t: 3.1, ...BEND },
+      { t: 3.5, ...BEND },
+      { t: 4.0, ...REST },
     ],
   },
 
   gut: {
-    draw: [DOWN, { t: 0.3, ...REST, ease: 'back' }],
+    draw: [
+      { ...DOWN, rz: 0.8, flex: -0.5 },
+      { t: 0.26, y: -0.03, rx: 0.08, rz: 0.1, flex: 0.1 },
+      { t: 0.52, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 3, ...REST },
@@ -499,17 +575,24 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
+      { t: 0.12, ...DIP },
       { t: 0.45, ...FLAT },
-      { t: 1.1, ...FLAT },
-      { t: 1.7, ...SPINE },
-      { t: 2.2, ...OTHER },
-      { t: 2.6, ...OTHER },
-      { t: 3.2, ...REST },
+      { t: 0.85, ...FLAT },
+      // The hook to the eye, then the other side.
+      { t: 1.35, ...BEND },
+      { t: 1.85, ...BEND },
+      { t: 2.4, ...OTHER },
+      { t: 2.75, ...OTHER },
+      { t: 3.3, ...REST },
     ],
   },
 
   talon: {
-    draw: [DOWN, { t: 0.4, ...REST }],
+    draw: [
+      { ...DOWN, rz: -0.5, flex: -0.5 },
+      { t: 0.32, y: -0.02, rx: 0.06, rz: 0.1, flex: 0.1 },
+      { t: 0.74, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 2.6, ...REST },
@@ -519,16 +602,24 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.5, ...FLAT },
-      { t: 1.2, ...FLAT },
-      { t: 1.9, ...TIP },
-      { t: 2.4, ...TIP },
-      { t: 3.1, ...REST },
+      { t: 0.14, ...DIP },
+      { t: 0.55, ...FLAT },
+      { t: 1.05, ...FLAT },
+      // The claw turned to the eye, and the blade pointed along the view.
+      { t: 1.75, ...CANT_LEFT },
+      { t: 2.2, ...CANT_LEFT },
+      { t: 2.8, ...TIP },
+      { t: 3.2, ...TIP },
+      { t: 3.8, ...REST },
     ],
   },
 
   skeleton: {
-    draw: [DOWN, { t: 0.4, ...REST, ease: 'back' }],
+    draw: [
+      { ...DOWN, flex: 0.5 },
+      { t: 0.3, y: -0.02, rx: 0.06, flex: -0.2 },
+      { t: 0.6, ...REST, ease: 'back' },
+    ],
     idle: [
       { t: 0, ...REST },
       { t: 2.8, ...REST },
@@ -538,11 +629,15 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: [
       { t: 0, ...REST },
-      { t: 0.4, ...FLAT },
-      { t: 0.9, ...FLAT },
-      { t: 1.4, ...SPINE },
-      { t: 1.9, ...SPINE },
-      { t: 2.5, ...REST },
+      { t: 0.1, ...DIP },
+      { t: 0.38, ...FLAT },
+      { t: 0.7, ...FLAT },
+      // Held up to the light to see through, and canted to catch it again.
+      { t: 1.15, ...LIGHT },
+      { t: 1.5, ...LIGHT },
+      { t: 1.95, ...CANT_LEFT },
+      { t: 2.25, ...CANT_LEFT },
+      { t: 2.8, ...REST },
     ],
   },
 
