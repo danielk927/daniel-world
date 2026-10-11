@@ -4,7 +4,7 @@
 
 Daniel's World is a first-person, multiplayer French brigade kitchen: visitors are cooks, the eight stations serve the sections of Daniel's resume, his five favorite dishes wait on the pass under their heat lamps, and everyone in a room sees everyone else in real time.
 Around that: knives to throw (twelve CS2-style skins, a little spread on every throw), a walk-in cooler that bursts open after ten hits and lets out Chef Skinner, locked inside it, and a RISC-V computer running DOOM.
-The plain portfolio page renders the same content, written into `portfolio.html` at build time so it works without JavaScript.
+The plain alternative is Daniel's resume, a PDF served as it is (`/Doyoon-Kim-resume.pdf`), linked from the landing and the pause menu.
 
 The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and not yet pushed:
 
@@ -182,6 +182,16 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - `punchUntil` in the E2E helpers gives the door's punches a budget that grows with the hits: on a starved machine the chef spec ran out of its 15 s with the same code that passed on a quiet one.
 - Lint, typecheck, 1009 unit tests, 49 E2E tests and the build pass; the screenshots were taken again.
 
+### The resume PDF replaces the portfolio page (2026-10-11)
+
+- The plain alternative to the world is Daniel's resume as a PDF, `apps/client/public/Doyoon-Kim-resume.pdf`, served as he made it.
+  Every way in says "View the resume (PDF)": the landing's quiet row and the pause menu (each in a tab of its own, so the world and the room stay), and the main action on a phone, without WebGL, when the kitchen fails to load and without JavaScript (in place).
+- The generated portfolio page is gone, with its build step, styles, tests, the HTML half of `ui/markup.ts` and the `content.ts` sections only it used; `/portfolio.html` is an error page now.
+- The stack needed no change (the PDF goes up with the pages, revalidated on every visit and cleared by the deploy); `infra/test` says so.
+  Nothing was deployed.
+- `e2e/resume.spec.ts` fetches the PDF from the served site (200, `application/pdf`, `%PDF-`, the committed file), follows the landing's and the pause menu's links into a tab of its own and checks the cook is still in the room; the phone, no-WebGL (Enter), failed-load and no-JavaScript specs follow theirs in place.
+- It holds the phone number and the expected graduation month that `content.ts` keeps off the site, and its email link points at `x@x.com`: see DECISIONS.md, and "What needs Daniel's input".
+
 ### How to run it
 
 ```bash
@@ -223,6 +233,8 @@ npm run bots -- --count 5   # optional: some company
 - **Chef Skinner locked in the walk-in** is all in the room server, so until `npm run deploy:aws` the live lobby keeps him walking it from its first visitor.
 - **Taste calls**: the landing's dim is deeper (for the small text's contrast); the new kitchen look; the bayonet, M9 and huntsman spins, whose blade the fist hides half of each turn.
 - **His words**: the two `TODO(daniel)` lines in `content.ts`, and whether "pending for NeurIPS and Nature" and "pending for AAAI and AISTATS" should read "under review at".
+- **The resume PDF's contents.** It has his phone number and "Expected June 2028", which `content.ts` never publishes, and its email link goes to `mailto:x@x.com`.
+  Fix them in the Overleaf source and replace the file under the same name, or say that publishing them is fine.
 - **`AGENTS.md`**: an untracked, out-of-date copy of an old `CLAUDE.md` in the checkout; delete it or regenerate it from `CLAUDE.md`.
 
 ## Milestones

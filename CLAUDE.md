@@ -41,7 +41,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   Runs TypeScript natively in dev (`node --watch src/index.ts`), bundled with esbuild for production.
 - `apps/client` - Vite + Three.js client.
   `src/content.ts` holds all personal content (Daniel's resume; the few lines still wanting his words are marked `TODO(daniel)`).
-  `index.html` is the 3D world, `portfolio.html` is the static fallback.
+  `index.html` is the 3D world; the plain alternative is the resume, a PDF in `public/` (`src/resume.ts` names it and every link to it).
   `src/computer/` is the kitchen computer: a RISC-V machine (interpreter and JIT) in a Web Worker that runs DOOM; `src/game/computerDesk.ts` hooks it into the game.
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
@@ -102,7 +102,12 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - The interface follows `docs/ui-revamp.md` (approved mockups in `docs/ui-revamp/`): no boxes, nothing behind or around words in the world (no outlines, glows or `text-shadow`), Gabarito for titles and Rubik for the rest, brass only for what is current, marked by the `.bar`, and keys as rings.
   Use the tokens in `styles/tokens.css` and the parts in `styles/controls.css`; each surface has its own stylesheet, imported in cascade order by `styles/app.css`.
   The fonts' latin subset has no arrows, so draw them.
-- `portfolio.html` is written at build time from `content.ts` (a Vite plugin running `src/portfolioPage.ts`, through `ui/markup.ts`, which the station panel renders too), so the page works without JavaScript; change `content.ts`, never the built page.
+- The plain alternative to the world is the resume, a PDF served as it is: `apps/client/public/Doyoon-Kim-resume.pdf`, which Vite copies to the site's root.
+  Every way to it (the landing's link, the pause menu, the phone, no-WebGL and failed-load paths, the no-JavaScript page in `index.html`) uses `RESUME_URL`, `RESUME_LABEL` and `resumeAttrs` from `src/resume.ts` (`resume.test.ts` checks `index.html` agrees).
+  The words say it is a PDF ("View the resume (PDF)"), and not "Resume" alone, which the pause menu's own button already is.
+  A page with a world or a cook to keep (the landing, the pause menu) opens it in a tab of its own, `noopener`; the pages with nothing left to show open it in place.
+  To change the resume, replace the file under the same name: the stack uploads it with the pages (revalidated on every visit, CloudFront cleared by the deploy), never in `assets/`, where a name is cached for a year.
+  There is no generated portfolio page any more; `content.ts` feeds the kitchen's panels only.
 - The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 - Chef Skinner is in a room only once its walk-in's door has burst (`WalkInChef`), a second after the tenth hit, and every room keeps a place for him while `CHEF` is on (15 visitors, 16 without him).

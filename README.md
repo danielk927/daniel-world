@@ -2,7 +2,7 @@
 
 A personal website that is a small multiplayer 3D world.
 Visitors walk a three-star kitchen, laid out after the French Laundry, in first person, open its stations to learn about Daniel, and see everyone else who is visiting as a cook in a toque with a name tag.
-There is also a plain [portfolio page](apps/client/portfolio.html) with the same content, for phones, browsers without WebGL, and anyone in a hurry.
+There is also a plain alternative, [Daniel's resume as a PDF](apps/client/public/Doyoon-Kim-resume.pdf), for phones, browsers without WebGL, and anyone in a hurry.
 
 **Live:** https://d1ivv0s5bbzyx0.cloudfront.net (AWS: CloudFront, S3, EC2) and https://daniel-world-nine.vercel.app (Vercel front end on the same AWS room server).
 
@@ -10,10 +10,10 @@ Everything also runs locally: no accounts, no API keys, no paid services, no dow
 
 ![Landing screen](docs/screenshots/landing.png)
 
-| World, with other visitors                  | Info panel                                          |
-| ------------------------------------------- | --------------------------------------------------- |
-| ![In the world](docs/screenshots/world.png) | ![Info panel](docs/screenshots/info-panel.png)      |
-| ![Pause menu](docs/screenshots/pause.png)   | ![Portfolio](docs/screenshots/mobile-portfolio.png) |
+| World, with other visitors                  | Info panel                                         |
+| ------------------------------------------- | -------------------------------------------------- |
+| ![In the world](docs/screenshots/world.png) | ![Info panel](docs/screenshots/info-panel.png)     |
+| ![Pause menu](docs/screenshots/pause.png)   | ![On a phone](docs/screenshots/mobile-landing.png) |
 
 ## Quick start
 
@@ -56,10 +56,11 @@ The newest 60 knives stay stuck around the kitchen until everyone leaves the roo
 ## Editing the content
 
 All personal content lives in [`apps/client/src/content.ts`](apps/client/src/content.ts).
-It holds Daniel's resume, item by item: each role and project is written once and shared by the portfolio page (the `lore` sections) and the kitchen's eight stations (`stations`), so a change shows up in both.
+It holds what the kitchen's eight stations (`stations`) and its dishes say when they are opened, taken from Daniel's resume.
 Each station serves one part of it, and its label says which: the pass is About me, the saucier Experience, the rôtisseur and entremetier the projects, the poissonnier Research, the garde manger Skills, the pâtisserie Interests, and the plonge Education and contact.
 The few lines that still want Daniel's own words are marked `TODO(daniel)`.
-The build writes the portfolio page into `portfolio.html` from it (`src/portfolioPage.ts`, run by the plugin in `vite.config.ts`), so the page reads with JavaScript off and search engines and link previews see all of it.
+The resume itself is a PDF, `apps/client/public/Doyoon-Kim-resume.pdf`, served as it is at `/Doyoon-Kim-resume.pdf`; replace the file under the same name to update it, and the next deploy shows the new one.
+It is not generated from `content.ts`, so a change to a role or project goes in both places.
 
 ## Scripts
 
@@ -145,7 +146,7 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
   It serves the site and proxies WebSocket traffic on the same domain, so the page connects to `wss://<same host>/ws` with CloudFront's TLS certificate and no custom domain is required.
 - **S3** holds the built client; the bucket is private, encrypted, and readable only by the distribution.
   Every deploy uploads the new build and invalidates the cache.
-  The files Vite names by their content (everything under `assets/`) are cached for a year and never deleted, so a tab opened before a deploy can still lazy-load the build it started with (the kitchen computer, DOOM, the post-processing); the pages and the favicon are revalidated on every visit, and go up only after the files they name.
+  The files Vite names by their content (everything under `assets/`) are cached for a year and never deleted, so a tab opened before a deploy can still lazy-load the build it started with (the kitchen computer, DOOM, the post-processing); the pages, the favicon and the resume PDF are revalidated on every visit, and go up only after the files they name.
 - **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
   Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
   CloudFront reaches it by an Elastic IP's public DNS name, which survives a stop and start (AWS maintenance included), unlike the instance's own address.
@@ -210,5 +211,5 @@ Build the client with `VITE_SERVER_URL` set to the server's `wss://` URL, or to 
 
 - Unit and integration tests (Vitest) cover the simulation, protocol validation, rate limiting, rooms, the WebSocket server, prediction and interpolation.
 - End-to-end tests (Playwright, Chromium with SwiftShader software WebGL) open several browser contexts and assert on a read-only `window.__world` debug object that exists only in dev and test builds.
-  They cover the landing (on a phone, without WebGL, the live lobby count), lobby presence, movement replication, jumping and sprinting, name tags, chat, private parties and invite links, leaving, the stations' and dishes' panels, the menus' keyboard focus, knives (throwing, knockouts, the spread, skins, inspecting, holding to keep throwing, punches), Chef Skinner, the walk-in, the kitchen computer, the portfolio with JavaScript off, and offline play, reconnection and refusals.
+  They cover the landing (on a phone, without WebGL, the live lobby count), lobby presence, movement replication, jumping and sprinting, name tags, chat, private parties and invite links, leaving, the stations' and dishes' panels, the menus' keyboard focus, knives (throwing, knockouts, the spread, skins, inspecting, holding to keep throwing, punches), Chef Skinner, the walk-in, the kitchen computer, the resume's links (the landing, the pause menu, a phone, without WebGL or JavaScript) and the file itself, and offline play, reconnection and refusals.
   On a busy machine they hold without retries: pages the test is not driving draw only a few times a second in the test build, the room server runs in its own process, and a failed test carries its log.
