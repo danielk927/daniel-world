@@ -290,7 +290,11 @@ export async function walkToWalkIn(page: Page): Promise<void> {
   await waitUntilStill(page);
 }
 
-/** Punch the walk-in's door with the bare hand until it has taken `hits`. */
+/**
+ * Punch the walk-in's door with the bare hand until it has taken `hits`. A jab takes 0.42 s of the
+ * game's time and a starved page runs that several times slower than the clock, so the budget, which
+ * only bounds a hang, grows with the hits.
+ */
 export async function punchUntil(page: Page, hits: number): Promise<void> {
   await expect
     .poll(
@@ -301,7 +305,11 @@ export async function punchUntil(page: Page, hits: number): Promise<void> {
         if (!w.punching) await page.mouse.click(480, 270);
         return false;
       },
-      { message: `the door has taken ${hits} hits`, timeout: 15_000, intervals: [100] },
+      {
+        message: `the door has taken ${hits} hits`,
+        timeout: 10_000 + 4_000 * hits,
+        intervals: [100],
+      },
     )
     .toBe(true);
 }
