@@ -176,6 +176,13 @@ test('the minimap is in the top left corner with the room beside it, and the loa
     [...document.querySelector('.hud-left')!.children].map((child) => child.className),
   );
   expect(order).toEqual(['hud-room', 'hud-map']);
+
+  // A menu covers the left side with its own dark, and names the room itself: the map and the room
+  // give way to it.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeVisible();
+  await expect(page.locator('.minimap')).toBeHidden();
+  await expect(page.locator('.hud-room-title')).toBeHidden();
   await page.context().close();
 });
 
@@ -294,12 +301,17 @@ test('station labels show in the strip between the map and the room name, where 
   async function steerTo(x: number, y: number): Promise<void> {
     for (let i = 0; i < 8; i++) {
       const at = await label();
-      const dx = x - (at.left + at.right) / 2;
-      const dy = y - (at.top + at.bottom) / 2;
-      if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
+      const cx = (at.left + at.right) / 2;
+      const cy = (at.top + at.bottom) / 2;
+      if (Math.abs(x - cx) < 15 && Math.abs(y - cy) < 15) return;
       const { look } = await world(page);
+      // The angle a point on the screen is from the middle of it is its offset's arctangent.
       // Turning left carries what is in view to the right; looking down carries it up.
-      await turnTo(page, look.yaw + dx / focal, look.pitch + dy / focal);
+      await turnTo(
+        page,
+        look.yaw + Math.atan((x - 640) / focal) - Math.atan((cx - 640) / focal),
+        look.pitch + Math.atan((y - 360) / focal) - Math.atan((cy - 360) / focal),
+      );
       await waitForFrames(page, 2);
     }
     // A label that gives way stops where it was, so one hidden in the strip never gets there.
@@ -323,9 +335,27 @@ test('station labels show in the strip between the map and the room name, where 
   expect(inStrip.top, 'the label is under the room').toBeGreaterThan(at.room.bottom);
   expect(inStrip.shown, 'a label shows where neither the map nor the room is').toBe(true);
 
-  // The same label over the map, in one turn, gives way to it: the check can fail.
-  const { look } = await world(page);
-  await turnTo(page, look.yaw + (at.map.left + 100 - x) / focal, look.pitch);
+  // The same label over the map gives way to it, and to nothing else: with the map's slot out of
+  // the page the label shows in the map's box, and with it back it is hidden.
+  const slotOut = await page.addStyleTag({ content: '.hud-map { display: none !important; }' });
+  await waitForFrames(page, 3);
+  await steerTo((at.map.left + at.map.right) / 2, (at.map.top + at.map.bottom) / 2);
+  await waitForFrames(page, 3);
+  const overMap = await label();
+  expect(overMap.shown, 'a label shows in the map box when the map is not there').toBe(true);
+  expect((overMap.left + overMap.right) / 2, 'the label is in the map box').toBeGreaterThan(
+    at.map.left,
+  );
+  expect((overMap.left + overMap.right) / 2, 'the label is in the map box').toBeLessThan(
+    at.map.right,
+  );
+  expect((overMap.top + overMap.bottom) / 2, 'the label is in the map box').toBeGreaterThan(
+    at.map.top,
+  );
+  expect((overMap.top + overMap.bottom) / 2, 'the label is in the map box').toBeLessThan(
+    at.map.bottom,
+  );
+  await slotOut.evaluate((node) => (node as HTMLElement).remove());
   await waitForFrames(page, 3);
   expect((await label()).shown, 'a label over the map gives way to it').toBe(false);
   await page.context().close();
