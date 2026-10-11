@@ -165,6 +165,14 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - Lint, typecheck, 985 unit tests, the 45 E2E tests and the build pass; the chef spec passed four times over and with every page's CPU 4x slower.
   `node scripts/perf.ts` holds 60 fps at governor level 0 with 16 players (84 draw calls, 716 k triangles), level 1 at dpr 2, and fills a party to 15 against a server with him on.
 
+### The knife moves as a hand could move it (2026-10-10)
+
+- Knives no longer jump round the hand on their way onto the index finger and back: the bayonet's and the falchion's had moved 14 cm in two frames, and the karambit turned over in one; now a knife's pivot moves at most about 1.2 m/s in the hand, no knife turns faster than about 24 rad/s, and nothing starts or stops with a jolt, at 60 Hz or 120.
+- The knife goes onto the finger in one arc, spins keep their speed through their keys, the fingers let go and take hold like a hand, and an inspect started over brings the knife back at the pace an inspect does.
+- `viewmodelMotion.test.ts` bounds how fast the knife, the fingers and the hand move, and how fast that changes, through every knife's draw and inspect at 60 and 120 Hz; 11 of the 12 knives fail it on the old moves.
+- `scripts/hands.ts --every 1` shoots every frame of an inspect.
+- Lint, typecheck, 996 unit tests, 45 E2E tests and the build pass.
+
 ### How to run it
 
 ```bash

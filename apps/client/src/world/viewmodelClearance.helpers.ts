@@ -35,6 +35,8 @@ const GRIP_ALLOWANCE = 0.0025;
 /** The deepest a knife may reach into the hand at all. */
 const DEEPEST = 0.007;
 const FRAME = 1 / 60;
+/** Long enough after a knife is up for the hand to have closed on it. */
+const SETTLE = 1;
 /** How far apart the points over the knife's surface are, in the arm's units. */
 const SPACING = 0.002;
 
@@ -648,8 +650,9 @@ export function checkClearance(skins: readonly KnifeSkin[]): void {
     it(
       'never passes through the hand, in any move or cut',
       () => {
-        // The knife's own grip at rest, its floor.
-        const rest = new Run(skin).up(skin).measure().play(FRAME).deepest;
+        // The knife's own grip at rest, its floor: once the fingers have closed on the handle after
+        // the draw, not while the last of them still are, or the floor would turn on the draw's timing.
+        const rest = new Run(skin).up(skin).play(SETTLE).measure().play(FRAME).deepest;
         expect(rest).toBeLessThan(DEEPEST);
         for (const [name, play] of scenarios(skin)) {
           const run = new Run(skin);

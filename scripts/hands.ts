@@ -3,10 +3,13 @@
  * moments of its inspect, on the real GPU, the same frames before and after a change.
  *
  *   node scripts/hands.ts [--out <dir>] [--dpr 1] [--looks karambit/doppler,m9/tiger]
- *                         [--at rest,0.3,0.55,menu] [--time 20:00] [--quality high]
+ *                         [--at rest,0.3,0.55,menu] [--every 1] [--time 20:00] [--quality high]
  *
  * `--at` takes `rest`, shares of each knife's inspect (0.3 is 30 % of the way through it) and `menu`,
  * the knife on the Knives page of the pause menu.
+ * `--every <frames>` shoots one whole inspect instead, every so many display frames (1 is every
+ * frame at 60 Hz), into a folder per knife named by how far into the inspect each frame is, to see
+ * how the knife moves from one frame to the next.
  * Starts the Vite dev client and a room server if they are not up (WORLD_CLIENT_PORT and
  * WORLD_SERVER_PORT move them), enters a private party alone with each knife equipped, and holds
  * the page's clock (Playwright's fake clock) so every frame is taken at exactly the same moment of
@@ -31,6 +34,7 @@ const { values } = parseArgs({
         'kitchen/stock,kitchen/damascus,karambit/doppler,butterfly/fade,m9/tiger,bayonet/case',
     },
     at: { type: 'string', default: 'rest,0.3,0.55,menu' },
+    every: { type: 'string' },
     time: { type: 'string', default: '20:00' },
     quality: { type: 'string', default: 'high' },
   },
@@ -45,6 +49,27 @@ const serverUrl = `ws://localhost:${serverPort}`;
 async function run(page: Page, ms: number): Promise<void> {
   const frame = 1000 / 60;
   for (let t = 0; t < ms; t += frame) await page.clock.runFor(frame);
+}
+
+/** The knife's inspect, every `frames` display frames from the press until it has settled. */
+async function shootInspect(page: Page, dir: string, frames: number): Promise<void> {
+  await mkdir(dir, { recursive: true });
+  const inspectTime = (): Promise<number | null> =>
+    page.evaluate(() => window.__world!.inspectTime);
+  await page.keyboard.press('KeyI');
+  await run(page, 1000 / 60);
+  if ((await inspectTime()) === null) throw new Error(`${dir}: the inspect did not start`);
+  // On for half a second past its end, while the hand closes on the handle again.
+  let after = 0;
+  for (let shot = 0; ; shot++) {
+    const t = await inspectTime();
+    if (t === null) after += frames / 60;
+    if (after > 0.5) break;
+    if (shot > 60 * 20) throw new Error(`${dir}: the inspect never ended`);
+    const at = t === null ? `end+${after.toFixed(3)}` : t.toFixed(3);
+    await page.screenshot({ path: `${dir}/${String(shot).padStart(4, '0')}-${at}.png` });
+    await run(page, (frames * 1000) / 60);
+  }
 }
 
 async function main(): Promise<void> {
@@ -99,6 +124,12 @@ async function main(): Promise<void> {
         await page.clock.pauseAt(Date.now() + 1000);
         await run(page, 1500);
         const name = `${skin}-${finish}`;
+        if (values.every) {
+          await shootInspect(page, `${outDir}/${name}`, Number(values.every));
+          console.log(`${name}: done`);
+          await context.close();
+          continue;
+        }
         for (const moment of moments) {
           if (moment === 'rest') {
             await page.screenshot({ path: `${outDir}/${name}-rest.png` });
