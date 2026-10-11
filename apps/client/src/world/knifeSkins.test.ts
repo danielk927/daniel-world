@@ -172,7 +172,7 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => 
     const pose = (c: Clip, t: number, k: Channel): number => sample(c, t, blank())[k];
     for (const c of [moves.draw, moves.redraw, moves.inspect, moves.idle]) {
       if (c.duration === 0) continue;
-      for (const key of c.times) {
+      for (const key of [...c.arm.times, ...c.hinge.times]) {
         for (const k of [...ARM, ...WRIST]) {
           // Second differences just before and just after the key.
           const before =
@@ -187,7 +187,10 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => 
   });
 
   it('keys only the channels a pose has', () => {
-    expect(moves.inspect.values.length % CHANNELS.length).toBe(0);
+    const { arm, hinge } = moves.inspect;
+    expect(arm.values.length).toBe(arm.times.length * arm.width);
+    expect(hinge.values.length).toBe(hinge.times.length * hinge.width);
+    expect(arm.width + hinge.width).toBe(CHANNELS.length);
   });
 
   it('is drawn, thrown and inspected in the hand on screen', () => {

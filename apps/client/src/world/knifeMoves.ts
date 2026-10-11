@@ -110,17 +110,34 @@ export type Key = { readonly t: number; readonly ease?: Ease; readonly hingeEase
   readonly [C in Channel]?: number;
 };
 
-/** A compiled clip: flat arrays, so sampling it never allocates. */
+/** A key of the hinges and the fingers alone: a time, how it is arrived at, and what changes. */
+export type HingeKey = { readonly t: number; readonly ease?: Ease } & {
+  readonly [C in 'a' | 'b' | 'loose']?: number;
+};
+
+/** A run of channels keyed together: flat arrays, so sampling it never allocates. */
+interface Track {
+  /** The first channel (in CHANNELS) it has, and how many. */
+  readonly first: number;
+  readonly width: number;
+  readonly times: Float64Array;
+  /** `width` values per key. */
+  readonly values: Float64Array;
+  /** How fast each channel goes at each key where the motion flows through it. */
+  readonly slopes: Float64Array;
+  /** How each key is arrived at. */
+  readonly eases: Uint8Array;
+}
+
+/**
+ * A compiled clip: the arm and the wrist keyed on one track, the knife's hinges and the fingers on
+ * another, so that a blade can snap open at its own moment without the hand's keys being squeezed
+ * round it. Flat arrays, so sampling it never allocates.
+ */
 export interface Clip {
   readonly duration: number;
-  readonly times: Float64Array;
-  /** CHANNELS.length values per key. */
-  readonly values: Float64Array;
-  /** How a channel's speed is at each key where the motion flows through it, per key and channel. */
-  readonly slopes: Float64Array;
-  /** How each key is arrived at, for the arm and the wrist and for the knife's hinges. */
-  readonly armEase: Uint8Array;
-  readonly hingeEase: Uint8Array;
+  readonly arm: Track;
+  readonly hinge: Track;
 }
 
 /**
@@ -145,69 +162,92 @@ function flowSlope(
   return (w0 + w1) / (w0 / d0 + w1 / d1);
 }
 
-/** Compile keys (in time order, the first at 0) into a clip. Channels not keyed start at 0. */
-export function clip(keys: readonly Key[]): Clip {
-  const n = CHANNELS.length;
+/** Compile keys (in time order, the first at 0) into a track of `width` channels from `first`. */
+function track(
+  keys: readonly { readonly t: number; readonly [channel: string]: unknown }[],
+  first: number,
+  width: number,
+  easeOf: (key: { readonly [channel: string]: unknown }) => Ease | undefined,
+): Track {
   const times = new Float64Array(keys.length);
-  const values = new Float64Array(keys.length * n);
-  const armEase = new Uint8Array(keys.length);
-  const hingeEase = new Uint8Array(keys.length);
+  const values = new Float64Array(keys.length * width);
+  const eases = new Uint8Array(keys.length);
   keys.forEach((key, i) => {
     if (i > 0 && key.t <= keys[i - 1]!.t) throw new Error('keys must move forward in time');
     times[i] = key.t;
-    CHANNELS.forEach((channel, c) => {
-      values[i * n + c] = key[channel] ?? (i > 0 ? values[(i - 1) * n + c]! : 0);
-    });
-    armEase[i] = EASES.indexOf(key.ease ?? 'flow');
-    hingeEase[i] = EASES.indexOf(key.hingeEase ?? key.ease ?? 'flow');
+    for (let c = 0; c < width; c++) {
+      const given = key[CHANNELS[first + c]!];
+      values[i * width + c] =
+        typeof given === 'number' ? given : i > 0 ? values[(i - 1) * width + c]! : 0;
+    }
+    eases[i] = EASES.indexOf(easeOf(key) ?? 'flow');
   });
   // A channel flows through a key only if the curve is the flowing one on both sides of it.
-  const slopes = new Float64Array(keys.length * n);
+  const slopes = new Float64Array(keys.length * width);
   for (let i = 1; i < keys.length - 1; i++) {
-    for (let c = 0; c < n; c++) {
-      const eases = c < HINGES ? armEase : hingeEase;
-      if (eases[i] === FLOW && eases[i + 1] === FLOW) {
-        slopes[i * n + c] = flowSlope(times, values, n, i, c);
-      }
-    }
+    if (eases[i] !== FLOW || eases[i + 1] !== FLOW) continue;
+    for (let c = 0; c < width; c++) slopes[i * width + c] = flowSlope(times, values, width, i, c);
   }
-  return { duration: keys[keys.length - 1]!.t, times, values, slopes, armEase, hingeEase };
+  return { first, width, times, values, slopes, eases };
 }
 
-/** The pose `t` seconds into a clip. Past its end it holds its last key. */
-export function sample(c: Clip, t: number, out: ArmPose): ArmPose {
-  const n = CHANNELS.length;
-  const last = c.times.length - 1;
-  out.knife = true;
-  if (last === 0 || t >= c.duration) {
-    for (let ch = 0; ch < n; ch++) out[CHANNELS[ch]!] = c.values[last * n + ch]!;
-    return out;
+/**
+ * Compile keys (in time order, the first at 0) into a clip. Channels not keyed start at 0. The
+ * hinges and the fingers follow the same keys, unless `hinges` keys them on their own.
+ */
+export function clip(keys: readonly Key[], hinges?: readonly HingeKey[]): Clip {
+  const arm = track(keys, 0, HINGES, (key) => key.ease as Ease | undefined);
+  const hinge = hinges
+    ? track(hinges, HINGES, CHANNELS.length - HINGES, (key) => key.ease as Ease | undefined)
+    : track(
+        keys,
+        HINGES,
+        CHANNELS.length - HINGES,
+        (key) => (key.hingeEase ?? key.ease) as Ease | undefined,
+      );
+  const end = (t: Track): number => t.times[t.times.length - 1]!;
+  return { duration: Math.max(end(arm), end(hinge)), arm, hinge };
+}
+
+/** Sample one track `t` seconds in into `out`. Past its last key it holds it. */
+function sampleTrack(tr: Track, t: number, out: ArmPose): void {
+  const { first, width, times, values, slopes, eases } = tr;
+  const last = times.length - 1;
+  if (last === 0 || t >= times[last]!) {
+    for (let c = 0; c < width; c++) out[CHANNELS[first + c]!] = values[last * width + c]!;
+    return;
   }
   let i = 0;
-  while (i < last - 1 && t >= c.times[i + 1]!) i++;
-  const t0 = c.times[i]!;
-  const h = c.times[i + 1]! - t0;
+  while (i < last - 1 && t >= times[i + 1]!) i++;
+  const t0 = times[i]!;
+  const h = times[i + 1]! - t0;
   const k = Math.max(0, Math.min(1, (t - t0) / h));
-  for (let ch = 0; ch < n; ch++) {
-    const eases = ch < HINGES ? c.armEase : c.hingeEase;
-    const kind = eases[i + 1]!;
-    const a = c.values[i * n + ch]!;
-    const b = c.values[(i + 1) * n + ch]!;
+  const kind = eases[i + 1]!;
+  for (let c = 0; c < width; c++) {
+    const a = values[i * width + c]!;
+    const b = values[(i + 1) * width + c]!;
     if (kind === FLOW) {
       // A quintic Hermite curve through both keys, at the speeds flowing through them and with no
       // acceleration at either, so that the acceleration is the same either side of every key.
       const k3 = k * k * k;
       const k4 = k3 * k;
       const k5 = k4 * k;
-      out[CHANNELS[ch]!] =
+      out[CHANNELS[first + c]!] =
         (1 - 10 * k3 + 15 * k4 - 6 * k5) * a +
-        (k - 6 * k3 + 8 * k4 - 3 * k5) * h * c.slopes[i * n + ch]! +
+        (k - 6 * k3 + 8 * k4 - 3 * k5) * h * slopes[i * width + c]! +
         (10 * k3 - 15 * k4 + 6 * k5) * b +
-        (-4 * k3 + 7 * k4 - 3 * k5) * h * c.slopes[(i + 1) * n + ch]!;
+        (-4 * k3 + 7 * k4 - 3 * k5) * h * slopes[(i + 1) * width + c]!;
     } else {
-      out[CHANNELS[ch]!] = a + (b - a) * ease(kind, k);
+      out[CHANNELS[first + c]!] = a + (b - a) * ease(kind, k);
     }
   }
+}
+
+/** The pose `t` seconds into a clip. Past its end it holds its last key. */
+export function sample(c: Clip, t: number, out: ArmPose): ArmPose {
+  out.knife = true;
+  sampleTrack(c.arm, t, out);
+  sampleTrack(c.hinge, t, out);
   return out;
 }
 
@@ -263,6 +303,8 @@ interface MoveKeys {
   redraw?: readonly Key[];
   idle?: readonly Key[];
   inspect: readonly Key[];
+  /** The hinges and the fingers' own keys through the inspect, if they are not the arm's. */
+  inspectHinges?: readonly HingeKey[];
   rest?: Partial<Offset>;
   through?: KnifeMoves['through'];
 }
@@ -284,75 +326,48 @@ const REST = {
   loose: 0,
 } as const;
 
-/**
- * Where the hand takes a knife it holds blade up and forward, as offsets from rest, to show it:
- * lifted toward the eye (the usual flat to it), turned over by the forearm and the wrist to show
- * the spine, the other flat, the edge, and tipped to look along the blade. Each is the arm (the
- * elbow and shoulder bringing it up, across and in), the forearm's roll, and the wrist's flexion,
- * and none asks more of a wrist than it gives (`viewmodelGrounded.test.ts`).
- */
-const FLAT = { x: -0.03, y: 0.09, z: 0.1, rx: -0.12, ry: 0.05, rz: 0, flex: 0, dev: 0 } as const;
-const SPINE = {
-  x: -0.11,
-  y: 0.08,
-  z: 0.12,
-  rx: 0,
-  ry: -0.26,
-  rz: 0.58,
-  flex: -0.62,
-  dev: 0,
-} as const;
-const OTHER = {
-  x: -0.16,
-  y: 0.09,
-  z: 0.12,
-  rx: 0.1,
-  ry: -0.5,
-  rz: 1.15,
-  flex: -0.85,
-  dev: 0,
-} as const;
-const EDGE = { x: 0, y: 0.08, z: 0.06, rx: -0.05, ry: 0.2, rz: -0.8, flex: 0.45, dev: 0 } as const;
-const TIP = {
-  x: -0.06,
-  y: 0.07,
-  z: 0.12,
-  rx: 0.3,
-  ry: 0.2,
-  rz: 0.5,
-  flex: -0.2,
-  dev: 0.27,
-} as const;
-/** The blade canted across the view to the left or the right, a flat turned to the eye. */
-const CANT_LEFT = {
-  x: -0.08,
-  y: 0.1,
-  z: 0.1,
-  rx: -0.2,
-  ry: 0,
-  rz: 0.7,
-  flex: 0.4,
-  dev: 0,
-} as const;
-const CANT_RIGHT = {
-  x: -0.02,
-  y: 0.1,
-  z: 0.1,
-  rx: -0.2,
-  ry: 0,
-  rz: -0.6,
-  flex: -0.4,
-  dev: 0,
-} as const;
-/** The blade swung out to catch the light along its flat, and the wrist bent to show it whole. */
-const LIGHT = { x: 0, y: 0.08, z: 0.08, rx: 0, ry: 0.5, rz: -0.4, flex: 0, dev: 0 } as const;
-const BEND = { x: -0.05, y: 0.1, z: 0.1, rx: 0, ry: 0, rz: 0, flex: 1, dev: 0 } as const;
-const SWUNG = { x: -0.05, y: 0.1, z: 0.1, rx: -0.2, ry: 0, rz: 0, flex: 0, dev: 0.4 } as const;
-/** A hand's small dip before it lifts, so the lift has something to push off. */
-const DIP = { y: -0.012, rx: 0.04 } as const;
-
 /** Some of a pose's channels. */
 type Pose = { readonly [C in Channel]?: number };
+
+/**
+ * Where the hand takes each knife to show it, as offsets from rest, each found by searching what a
+ * wrist and a forearm reach (`viewmodelGrounded.test.ts` holds every clip to their range) for a view
+ * of the knife: the arm brings it up, across and near, so the blade fills a good part of the view
+ * and its middle is near the middle of it, and the forearm rolls and the wrist flexes to turn it.
+ * One flat of a blade is seen from the palm's side at rest; the other is seen only from the back of
+ * the hand, with the fingers reaching toward the eye, the fist low and the blade above it.
+ */
+const FWD = {
+  /** The flat the knife rests showing, face on. */
+  flat: { x: -0.08, y: 0.14, z: 0.12, rx: 0.18, ry: 0.03, rz: 0.08, flex: 0.27, dev: 0.18 },
+  /** The same, rolled a little to tilt the blade across the view. */
+  turn: { x: -0.08, y: 0.14, z: 0.12, rx: 0.18, ry: 0.03, rz: 0.6, flex: 0.1, dev: 0.18 },
+  /** The other flat, face on. */
+  other: { x: -0.15, y: 0.14, z: 0.1, rx: 0.54, ry: -0.56, rz: 1.25, flex: -0.95, dev: 0 },
+  /** The spine up, from the back of the hand. */
+  spine: { x: -0.1, y: 0.14, z: 0.1, rx: -0.1, ry: -0.3, rz: 0.9, flex: -0.5, dev: 0.2 },
+  /** The edge toward the eye. */
+  edge: { x: -0.1, y: 0.14, z: 0.1, rx: 0.06, ry: 0.11, rz: -0.48, flex: 0.96, dev: 0.15 },
+  /** Looking along the blade, its tip toward the eye. */
+  look: { x: -0.06, y: 0.12, z: 0.1, rx: 0.35, ry: 0.2, rz: 0.5, flex: 0.1, dev: 0.3 },
+} as const satisfies Record<string, Pose>;
+/** The chef's knife, held edge on and blade up, which the forearm and wrist turn the same way. */
+const CHEF = {
+  flat: { x: -0.09, y: 0.12, z: 0.11, rx: -0.09, ry: 0.13, rz: -0.22, flex: 0.51, dev: 0.14 },
+  spine: { x: -0.11, y: 0.12, z: 0.12, rx: 0.08, ry: -0.23, rz: 0.03, flex: -0.13, dev: 0.23 },
+  other: { x: -0.12, y: 0.12, z: 0.09, rx: 0.3, ry: -0.46, rz: 1.08, flex: -0.95, dev: 0.09 },
+} as const satisfies Record<string, Pose>;
+/** The karambit, held with its ring on the index finger and its claw out of the fist's heel. */
+const CLAW = {
+  /** The claw's flat, seen from the palm's side. */
+  flat: { x: -0.06, y: 0.14, z: 0.13, rx: 0.04, ry: -0.04, rz: -0.19, flex: 0.02, dev: 0.21 },
+  /** Its other side, seen from the back of the hand, the wrist bent right over. */
+  other: { x: -0.07, y: 0.13, z: 0.12, rx: 0.41, ry: 0.7, rz: 0.47, flex: 1, dev: 0.35 },
+  /** The edge of the claw's inside curve to the eye. */
+  edge: { x: -0.07, y: 0.16, z: 0.14, rx: 0.24, ry: 0.25, rz: -0.29, flex: 0.7, dev: 0.14 },
+} as const satisfies Record<string, Pose>;
+/** A hand's small dip before it lifts, so the lift has something to push off. */
+const DIP = { y: -0.012, rx: 0.04 } as const satisfies Pose;
 
 /** A pose `k` of the way from rest: a heavy knife is turned less. */
 function part(pose: Pose, k: number): Pose {
@@ -374,23 +389,102 @@ function rise(time: number, from: Pose, mid: Pose, weight = 1): readonly Key[] {
   ];
 }
 
-const CHEF_INSPECT: readonly Key[] = [
-  { t: 0, ...REST },
-  { t: 0.22, y: -0.015, rx: 0.045 },
-  // Lifted into view and turned to show the flat, a long look...
-  { t: 0.72, x: -0.03, y: 0.07, z: 0.07, rz: -0.2, flex: 0.15, rx: -0.1 },
-  { t: 1.3, x: -0.02, y: 0.09, z: 0.1, rz: -0.42, flex: 0.27, dev: 0.06, rx: -0.18, ry: 0.1 },
-  { t: 1.75, x: -0.025, y: 0.095, z: 0.1, rz: -0.44, flex: 0.3, dev: 0.06, rx: -0.19, ry: 0.11 },
-  // ...rolled over, the spine to the eye on the way, to show the other side...
-  { t: 2.35, x: -0.08, y: 0.08, z: 0.1, rz: 0.15, flex: -0.34, dev: 0, rx: -0.13, ry: -0.17 },
-  { t: 2.95, x: -0.17, y: 0.1, z: 0.1, rz: 0.93, flex: -0.33, dev: 0.12, rx: 0.09, ry: -0.32 },
-  { t: 3.4, x: -0.17, y: 0.1, z: 0.1, rz: 0.95, flex: -0.33, dev: 0.12, rx: 0.1, ry: -0.33 },
-  // ...and lowered home.
-  { t: 4.1, ...REST },
-];
+/** The arm and wrist's channels, which a beat of an inspect sets and a drift settles. */
+const ARM_CHANNELS = CHANNELS.slice(0, HINGES);
+const ARM_AT_REST = Object.fromEntries(ARM_CHANNELS.map((c) => [c, 0])) as Pose;
+
+/** A pose to show: arrive at `at` seconds, stay `hold` seconds, and go on. */
+interface Beat {
+  readonly at: number;
+  /** The arm and the wrist; any channel not given is at rest. */
+  readonly pose: Pose;
+  readonly hold?: number;
+  /** How far toward the next pose the hand has settled by the end of the hold (a tenth). */
+  readonly drift?: number;
+  readonly ease?: Ease;
+}
+
+/**
+ * An inspect from the poses it shows, in order, the last back at rest. A hold is never a stop: the
+ * hand leaves a pose a little on toward the next, as one settles and begins to move on, so the
+ * motion slows into a pose, creeps on through it, and picks up again, the way a hand does and a
+ * pose held between two stops does not.
+ */
+function inspectOf(beats: readonly Beat[]): readonly Key[] {
+  const keys: Key[] = [{ t: 0, ...ARM_AT_REST }];
+  beats.forEach((beat, i) => {
+    const next = beats[i + 1]?.pose ?? ARM_AT_REST;
+    keys.push({
+      ...ARM_AT_REST,
+      ...beat.pose,
+      t: beat.at,
+      ...(beat.ease ? { ease: beat.ease } : {}),
+    });
+    if (!beat.hold) return;
+    const settled = Object.fromEntries(
+      ARM_CHANNELS.map((c) => {
+        const from = beat.pose[c] ?? 0;
+        return [c, from + ((next[c] ?? 0) - from) * (beat.drift ?? 0.1)];
+      }),
+    );
+    keys.push({ ...settled, t: beat.at + beat.hold });
+  });
+  return keys;
+}
+
+/**
+ * A hinge swung to its stop from `from` at `t`: it goes at once and hits the stop, bounces back a
+ * little and settles, as a blade or a handle swung by the wrist does.
+ */
+function swing(
+  channel: 'a' | 'b',
+  t: number,
+  from: number,
+  to: number,
+  over = 0.17,
+  bounce = 0.13,
+): readonly HingeKey[] {
+  const back = to - Math.sign(to - from) * bounce;
+  return [
+    { t, [channel]: from },
+    { t: t + over, [channel]: to, ease: 'snap' },
+    { t: t + over + 0.11, [channel]: back, ease: 'smooth' },
+    { t: t + over + 0.26, [channel]: to, ease: 'smooth' },
+  ];
+}
+
+/** A hinge pressed slowly from `from` to `to` over `over` seconds from `t`, by the thumb. */
+function press(
+  channel: 'a' | 'b',
+  t: number,
+  from: number,
+  to: number,
+  over = 0.5,
+): readonly HingeKey[] {
+  return [
+    { t, [channel]: from },
+    { t: t + over, [channel]: to, ease: 'smooth' },
+  ];
+}
+
+/** Hinge keys from runs of them, in time order, the first at 0 and what is not keyed at rest. */
+function hinges(...runs: (readonly HingeKey[])[]): readonly HingeKey[] {
+  return [{ t: 0, a: 0, b: 0, loose: 0 }, ...runs.flat()];
+}
 
 const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
-  kitchen: { draw: rise(0.55, {}, {}, 1.2), inspect: CHEF_INSPECT },
+  kitchen: {
+    draw: rise(0.55, {}, {}, 1.2),
+    inspect: inspectOf([
+      { at: 0.24, pose: DIP },
+      { at: 0.85, pose: part(CHEF.flat, 0.55) },
+      { at: 1.4, pose: CHEF.flat, hold: 0.35 },
+      { at: 2.2, pose: CHEF.spine },
+      { at: 2.85, pose: CHEF.other, hold: 0.35 },
+      { at: 3.65, pose: part(CHEF.spine, 0.45) },
+      { at: 4.3, pose: {} },
+    ]),
+  },
 
   karambit: {
     rest: { y: 0.05 },
@@ -402,17 +496,15 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 3.6, ry: 0, rz: 0, ease: 'smooth' },
       { t: 6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.14, y: -0.01, rx: 0.04 },
-      { t: 0.6, x: -0.06, y: 0.1, z: 0.09, rx: -0.2, rz: -0.35, flex: 0, dev: 0 },
-      { t: 1.25, x: -0.06, y: 0.1, z: 0.09, rx: -0.2, rz: -0.38, flex: 0.05, dev: 0 },
-      { t: 1.9, x: -0.07, y: 0.12, z: 0.09, rx: -0.2, rz: -0.7, flex: -0.5, dev: 0 },
-      { t: 2.4, x: -0.07, y: 0.12, z: 0.09, rx: -0.2, rz: -0.72, flex: -0.52, dev: 0 },
-      { t: 3.05, x: -0.05, y: 0.1, z: 0.09, rx: -0.2, rz: 0.7, flex: 0, dev: 0 },
-      { t: 3.5, x: -0.05, y: 0.1, z: 0.09, rx: -0.2, rz: 0.72, flex: 0, dev: 0 },
-      { t: 4.15, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.2, pose: DIP },
+      { at: 0.8, pose: part(CLAW.flat, 0.6) },
+      { at: 1.4, pose: CLAW.flat, hold: 0.4 },
+      { at: 2.25, pose: CLAW.edge, hold: 0.25 },
+      { at: 3.05, pose: CLAW.other, hold: 0.3 },
+      { at: 3.85, pose: part(CLAW.flat, 0.5) },
+      { at: 4.35, pose: {} },
+    ]),
   },
 
   butterfly: {
@@ -440,22 +532,21 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 3.15, b: 0, rz: 0, ease: 'smooth' },
       { t: 5.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.14, ...DIP },
-      { t: 0.55, ...FLAT },
-      { t: 0.95, ...FLAT },
-      // Shut: the free handle swings round its pin, then the blade folds in between the handles.
-      { t: 1.3, ...CANT_RIGHT, b: PI, hingeEase: 'smooth' },
-      { t: 1.7, ...CANT_RIGHT, a: -PI, b: PI, hingeEase: 'smooth' },
-      { t: 2.05, ...CANT_RIGHT, a: -PI, b: PI },
-      // And open again: the blade swings out and the handle comes home.
-      { t: 2.4, ...FLAT, a: 0, b: PI, hingeEase: 'smooth' },
-      { t: 2.75, ...FLAT, a: 0, b: 0, hingeEase: 'smooth' },
-      { t: 3.35, ...OTHER },
-      { t: 3.6, ...OTHER },
-      { t: 4.4, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.14, pose: DIP },
+      { at: 0.7, pose: FWD.flat, hold: 0.3 },
+      { at: 1.5, pose: FWD.turn, hold: 0.25 },
+      { at: 2.3, pose: FWD.spine },
+      { at: 3.0, pose: FWD.flat },
+      { at: 3.55, pose: FWD.other, hold: 0.3 },
+      { at: 4.4, pose: {} },
+    ]),
+    inspectHinges: hinges(
+      swing('b', 1.2, 0, PI),
+      swing('a', 1.8, 0, -PI, 0.2, 0.12),
+      swing('a', 2.5, -PI, 0, 0.2, 0.12),
+      swing('b', 3.0, PI, 0),
+    ),
   },
 
   m9: {
@@ -467,18 +558,14 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 4.4, rz: 0, flex: 0, ease: 'smooth' },
       { t: 6.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.14, ...DIP },
-      { t: 0.62, ...FLAT },
-      { t: 1.1, ...FLAT },
-      // The saw back to the eye, then the blade swung out to catch the light.
-      { t: 1.75, ...SPINE },
-      { t: 2.25, ...SPINE },
-      { t: 2.9, ...LIGHT },
-      { t: 3.35, ...LIGHT },
-      { t: 4.05, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.16, pose: DIP },
+      { at: 0.7, pose: FWD.flat, hold: 0.4 },
+      { at: 1.65, pose: FWD.spine, hold: 0.3 },
+      { at: 2.55, pose: FWD.other, hold: 0.3 },
+      { at: 3.4, pose: FWD.look },
+      { at: 4.25, pose: {} },
+    ]),
   },
 
   bayonet: {
@@ -490,19 +577,14 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 4.6, ry: 0, rz: 0, ease: 'smooth' },
       { t: 7, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.12, ...part(DIP, 0.8) },
-      { t: 0.5, ...FLAT },
-      { t: 0.85, ...FLAT },
-      { t: 1.3, ...SWUNG },
-      { t: 1.6, ...SWUNG },
-      { t: 2.1, ...EDGE },
-      { t: 2.35, ...EDGE },
-      { t: 3.15, ...OTHER },
-      { t: 3.45, ...OTHER },
-      { t: 4.25, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.1, pose: part(DIP, 0.6) },
+      { at: 0.65, pose: FWD.look, hold: 0.2 },
+      { at: 1.35, pose: FWD.flat, hold: 0.3 },
+      { at: 2.15, pose: FWD.other, hold: 0.3 },
+      { at: 3.2, pose: FWD.edge },
+      { at: 3.95, pose: {} },
+    ]),
   },
 
   flip: {
@@ -520,20 +602,17 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 3.3, a: 0, rz: 0, ease: 'smooth' },
       { t: 6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.14, ...DIP },
-      { t: 0.55, ...FLAT },
-      { t: 1.0, ...FLAT },
-      // The thumb eases the blade shut, partway; the wrist is cocked and snaps it open again.
-      { t: 1.5, ...FLAT, a: 1.6, hingeEase: 'smooth' },
-      { t: 2.05, ...CANT_LEFT, a: 1.6 },
-      { t: 2.5, ...FLAT, flex: -0.4, dev: 0.15, a: 1.6 },
-      { t: 2.78, ...FLAT, flex: 0.25, dev: -0.08, rx: -0.2, a: 0, hingeEase: 'snap' },
-      { t: 3.35, ...OTHER },
-      { t: 3.65, ...OTHER },
-      { t: 4.4, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.14, pose: DIP },
+      { at: 0.7, pose: FWD.flat, hold: 0.3 },
+      { at: 1.4, pose: FWD.turn, hold: 0.3 },
+      { at: 2.15, pose: FWD.spine },
+      { at: 2.55, pose: { ...FWD.turn, flex: -0.1, dev: 0.1 } },
+      { at: 2.88, pose: { ...FWD.flat, flex: 0.3 } },
+      { at: 3.6, pose: FWD.other, hold: 0.4 },
+      { at: 4.45, pose: {} },
+    ]),
+    inspectHinges: hinges(press('a', 1.2, 0, 1.6, 0.6), swing('a', 2.65, 1.6, 0, 0.1, 0.1)),
   },
 
   huntsman: {
@@ -545,19 +624,15 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 4.1, y: 0, rx: 0, ease: 'smooth' },
       { t: 6.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.18, y: -0.02, rx: 0.06 },
-      { t: 0.85, ...part(FLAT, 0.8) },
-      // Weighed in the hand: let down a little and taken up again.
-      { t: 1.25, ...part(FLAT, 0.8), y: 0.065 },
-      { t: 1.65, ...part(FLAT, 0.8), y: 0.085 },
-      { t: 2.5, ...part(CANT_RIGHT, 0.8) },
-      { t: 3.0, ...part(CANT_RIGHT, 0.8) },
-      { t: 3.5, ...part(EDGE, 0.8) },
-      { t: 3.85, ...part(EDGE, 0.8) },
-      { t: 4.3, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.3, pose: { y: -0.025, rx: 0.07 } },
+      { at: 1.0, pose: part(FWD.flat, 0.9), hold: 0.4, drift: 0.25 },
+      // Weighed: let down in the hand, and taken up again, past where it was.
+      { at: 1.8, pose: { ...part(FWD.flat, 0.9), y: 0.09, z: 0.09, rx: 0.28 } },
+      { at: 2.5, pose: { ...part(FWD.flat, 0.9), y: 0.15 }, hold: 0.3, drift: 0.25 },
+      { at: 3.35, pose: part(FWD.other, 0.9), hold: 0.35, drift: 0.2 },
+      { at: 4.45, pose: {} },
+    ]),
   },
 
   falchion: {
@@ -569,19 +644,14 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 3.8, rz: 0, ry: 0, ease: 'smooth' },
       { t: 6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.14, ...DIP },
-      { t: 0.58, ...FLAT },
-      { t: 1.05, ...FLAT },
-      // Rolled over in one long sweep, to show the curve of its belly, and held.
-      { t: 1.7, ...SPINE },
-      { t: 2.4, ...OTHER },
-      { t: 2.85, ...OTHER },
-      { t: 3.5, ...BEND },
-      { t: 3.85, ...BEND },
-      { t: 4.35, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.14, pose: DIP },
+      { at: 0.7, pose: FWD.turn },
+      { at: 1.65, pose: FWD.other, hold: 0.5 },
+      { at: 2.75, pose: FWD.flat, hold: 0.4 },
+      { at: 3.7, pose: FWD.look },
+      { at: 4.4, pose: {} },
+    ]),
   },
 
   gut: {
@@ -593,18 +663,14 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 4.2, rz: 0, ease: 'smooth' },
       { t: 6.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.12, ...part(DIP, 0.8) },
-      { t: 0.52, ...FLAT },
-      { t: 0.95, ...FLAT },
-      // The hook to the eye, then the other side.
-      { t: 1.6, ...BEND },
-      { t: 2.1, ...BEND },
-      { t: 2.8, ...OTHER },
-      { t: 3.15, ...OTHER },
-      { t: 3.95, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.12, pose: DIP },
+      // The hook, on its spine, first; then the flat, and the other side.
+      { at: 0.75, pose: FWD.spine, hold: 0.4 },
+      { at: 1.65, pose: FWD.flat, hold: 0.35 },
+      { at: 2.6, pose: FWD.other, hold: 0.4 },
+      { at: 3.95, pose: {} },
+    ]),
   },
 
   talon: {
@@ -616,18 +682,14 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 4.0, ry: 0, rz: 0, ease: 'smooth' },
       { t: 6.4, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.14, ...DIP },
-      { t: 0.6, ...FLAT },
-      { t: 1.1, ...FLAT },
-      // The claw turned to the eye, and the blade pointed along the view.
-      { t: 1.9, ...BEND },
-      { t: 2.4, ...BEND },
-      { t: 3.05, ...TIP },
-      { t: 3.45, ...TIP },
-      { t: 4.1, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.14, pose: DIP },
+      { at: 0.7, pose: FWD.turn },
+      { at: 1.35, pose: FWD.flat, hold: 0.4 },
+      { at: 2.35, pose: FWD.other, hold: 0.3 },
+      { at: 3.4, pose: FWD.look },
+      { at: 4.25, pose: {} },
+    ]),
   },
 
   skeleton: {
@@ -639,18 +701,13 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 4.2, ry: 0, rz: 0, ease: 'smooth' },
       { t: 6.6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.1, ...part(DIP, 0.6) },
-      { t: 0.45, ...FLAT },
-      { t: 0.8, ...FLAT },
-      // Held up to the light to see through, and canted to catch it again.
-      { t: 1.3, ...LIGHT },
-      { t: 1.65, ...LIGHT },
-      { t: 2.2, ...CANT_LEFT },
-      { t: 2.5, ...CANT_LEFT },
-      { t: 3.1, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.1, pose: part(DIP, 0.6) },
+      { at: 0.6, pose: FWD.flat, hold: 0.3 },
+      { at: 1.45, pose: FWD.other, hold: 0.4 },
+      { at: 2.5, pose: FWD.flat },
+      { at: 3.4, pose: {} },
+    ]),
   },
 
   // The stiletto's blade, closed, reaches past the butt, and sweeps through the little finger and the
@@ -672,21 +729,16 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 4.4, rz: 0, flex: 0, ease: 'smooth' },
       { t: 6.8, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.14, ...part(DIP, 0.7) },
-      { t: 0.55, ...FLAT },
-      { t: 1.0, ...FLAT },
-      { t: 1.65, ...TIP },
-      { t: 2.0, ...TIP },
-      // The blade pressed partway back, then the spring takes it open.
-      { t: 2.4, ...FLAT, a: 1.6, hingeEase: 'smooth' },
-      { t: 2.65, ...FLAT, a: 1.6 },
-      { t: 2.8, ...FLAT, a: 0, hingeEase: 'snap' },
-      { t: 3.35, ...OTHER },
-      { t: 3.6, ...OTHER },
-      { t: 4.4, ...REST },
-    ],
+    inspect: inspectOf([
+      { at: 0.14, pose: DIP },
+      { at: 0.7, pose: FWD.flat, hold: 0.3 },
+      { at: 1.4, pose: FWD.look, hold: 0.3 },
+      { at: 2.25, pose: FWD.turn, hold: 0.35 },
+      { at: 3.05, pose: FWD.flat },
+      { at: 3.65, pose: FWD.other, hold: 0.25 },
+      { at: 4.45, pose: {} },
+    ]),
+    inspectHinges: hinges(press('a', 1.95, 0, 1.6), swing('a', 2.75, 1.6, 0, 0.1, 0.06)),
   },
 };
 
@@ -697,7 +749,7 @@ function compile(keys: MoveKeys): KnifeMoves {
     draw: clip(keys.draw),
     redraw: clip(keys.redraw ?? retimed(keys.draw, REDRAW, SPENT)),
     idle: clip(keys.idle ?? NO_IDLE),
-    inspect: clip(keys.inspect),
+    inspect: clip(keys.inspect, keys.inspectHinges),
     rest: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, ...keys.rest },
     through: keys.through ?? {},
   };

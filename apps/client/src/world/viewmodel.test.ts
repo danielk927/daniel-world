@@ -95,8 +95,8 @@ describe('the inspect animation', () => {
       least = Math.min(least, rz);
       most = Math.max(most, rz);
     }
-    expect(least).toBeLessThan(-0.3);
-    expect(most).toBeGreaterThan(0.8);
+    expect(least).toBeLessThan(-0.15);
+    expect(most).toBeGreaterThan(0.9);
   });
 
   it('moves smoothly, without jumping between its phases', () => {
@@ -332,7 +332,7 @@ function knifeUp(skin: KnifeSkin): Viewmodel {
 
 /**
  * Plays the arm a frame at a time, following three points of the knife in the hand on screen: its
- * tip, its middle, and a point beside its length, which a spin about the length moves. `speed` is
+ * tip, its middle, and a point beside its length, which a roll about the length moves. `speed` is
  * the most any moves in a frame, `jolt` the most the way any moves changes from one frame to the
  * next: what the eye sees as the knife jumping.
  */
@@ -404,13 +404,11 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('pressing I over and over with 
     return motion;
   })();
   /**
-   * What starting over may not much exceed: the quicker of the two, since an inspect of slow turns
-   * is gentler than the snap up that draws the knife, and starting one over is not.
+   * What starting over may not much exceed: the inspect's own motion, and nothing quicker. (It was
+   * once the quicker of that and the draw's snap up, which let a restart jolt the knife 10 times as
+   * hard as the inspect itself does.)
    */
-  const own = {
-    speed: Math.max(inspected.speed, drawn.speed),
-    jolt: Math.max(inspected.jolt, drawn.jolt),
-  };
+  const own = inspected;
 
   it('starts the inspect over without jolting the knife, wherever it is cut', () => {
     for (let cut = 0.05; cut < inspect; cut += 0.05) {

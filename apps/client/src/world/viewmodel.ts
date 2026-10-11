@@ -89,7 +89,7 @@ const INTERRUPT_BLEND = 0.1;
  * long enough that pressing I over and over never jolts the knife much harder than an inspect
  * itself does, short enough that every press visibly starts it over.
  */
-const INSPECT_BLEND = 0.5;
+const INSPECT_BLEND = 0.75;
 /** How quickly the motion a cut carries on with dies away, per second. */
 const CARRY = 10;
 /**
