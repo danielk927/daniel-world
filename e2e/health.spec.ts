@@ -98,9 +98,10 @@ test("a knife takes one of a cook's three health, and the third knocks them out"
     await expect(target.locator('.health-segment.is-full')).toHaveCount(2);
     await expect(target.locator('.health')).toHaveAttribute('data-health', '2');
     expect((await world(target)).knockedOut).toBe(false);
-    expect(await wore(target, '.impact-flash', 'is-hurt')).toBe(true);
+    // Each cue is on the page of whoever it is for, which has heard of the hit in its own time.
+    await expect.poll(() => wore(target, '.impact-flash', 'is-hurt')).toBe(true);
     expect(await wore(target, '.impact-flash', 'is-playing')).toBe(false);
-    expect(await wore(thrower, '.hit-marker', 'is-playing')).toBe(true);
+    await expect.poll(() => wore(thrower, '.hit-marker', 'is-playing')).toBe(true);
     await expect(target.getByRole('status').filter({ hasText: 'Hit.' })).toHaveText(
       'Hit. 2 health left.',
     );
@@ -135,7 +136,7 @@ test("a knife takes one of a cook's three health, and the third knocks them out"
     expect((await world(target)).health).toBe(0);
     await expect(bar(target)).toHaveAttribute('aria-valuetext', '0 of 3');
     await expect(target.locator('.health-segment.is-full')).toHaveCount(0);
-    expect(await wore(target, '.impact-flash', 'is-playing')).toBe(true);
+    await expect.poll(() => wore(target, '.impact-flash', 'is-playing')).toBe(true);
     await expect(thrower.locator('.hit-banner')).toContainText('Target');
     for (const page of [thrower, target, watcher]) {
       await expect(page.locator('.kill-feed')).toContainText('Thrower knocked out Target');

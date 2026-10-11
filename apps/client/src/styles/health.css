@@ -40,12 +40,15 @@
   background: var(--ink);
 }
 
-/* One hit from a knockout: the last segment, and the heart, turn to the warning color. */
+/*
+ * One hit from a knockout: the last segment, and the heart, turn to the warning color. Knocked out,
+ * with every segment gone, the heart stays in it, rather than going back to ivory as if all were well.
+ */
 .health[data-health='1'] .health-segment.is-full {
   background: var(--danger);
 }
 
-.health[data-health='1'] .health-heart svg {
+.health:is([data-health='1'], [data-health='0']) .health-heart svg {
   fill: var(--danger);
 }
 
