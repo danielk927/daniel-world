@@ -1,7 +1,8 @@
 /* A smaller controls hint where the full one would crowd the chat and the bottom right corner. */
 @media (max-width: 1360px) {
   :root {
-    --hint-reach: 288px;
+    /* The smaller hint is 330 px a side. */
+    --hint-reach: 360px;
   }
 
   .hint {
@@ -14,8 +15,11 @@
   }
 }
 
-/* Below this the hint would run into the chat, the loadout and the minimap; the menu lists them too. */
-@media (max-width: 1080px) {
+/*
+ * Below this the hint would leave the chat under 220 px, and run into the corner on a narrower
+ * window still; the menu lists the keys too.
+ */
+@media (max-width: 1240px) {
   .hint {
     display: none;
   }

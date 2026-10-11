@@ -3,8 +3,11 @@
 /* How far the HUD, the chat and the toasts keep from the edges of the screen. */
 :root {
   --hud-edge: clamp(16px, 2.8vw, 40px);
-  /* Half the controls hint's width and a gap: how near the middle the chat may come. */
-  --hint-reach: 320px;
+  /*
+   * Half the controls hint's width (369 px, its six items) and a gap: how near the middle the chat
+   * may come. Measured, so that adding or dropping a hint means measuring again.
+   */
+  --hint-reach: 400px;
 }
 
 .hud {
