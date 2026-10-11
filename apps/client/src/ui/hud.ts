@@ -125,7 +125,8 @@ export class Hud {
     el('div', { class: 'hud-room-line' }, [this.status, this.fps]),
     this.statusAnnouncement,
   ]);
-  private readonly left = el('div', { class: 'hud-left' }, [this.mapSlot, this.room]);
+  /** The room first, so a screen reader reads it before the map; the styles put the map first. */
+  private readonly left = el('div', { class: 'hud-left' }, [this.room, this.mapSlot]);
   private readonly right = el('div', { class: 'hud-right' }, [
     el('section', { class: 'hud-players', attrs: { 'aria-label': 'Players in this room' } }, [
       this.playerCount,
@@ -192,7 +193,9 @@ export class Hud {
     const covered = (): boolean =>
       this.element.classList.contains('is-covered') ||
       this.element.classList.contains('is-computer');
-    labels.keepClear(this.left);
+    // The map and the room each by themselves: the strip between them has nothing in it.
+    labels.keepClear(this.mapSlot);
+    labels.keepClear(this.room);
     labels.keepClear(this.right);
     // Under the crosshair while the mouse is free; it fades, keeping its size.
     labels.keepClear(this.lookCue, () => this.lookCueShown && !covered());

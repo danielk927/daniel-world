@@ -28,5 +28,8 @@ test('the plonge by the east wall opens while the walk-in is shut', async ({ bro
   expect(found, 'the cursor should find the plonge in front of the wall').not.toBeNull();
   await page.keyboard.press('KeyE');
   await expect(page.getByRole('dialog', { name: 'Education and contact' })).toBeVisible();
+  // The panel's dark side would wash out a long room name, so the map and the room give way to it.
+  await expect(page.locator('.minimap')).toBeHidden();
+  await expect(page.locator('.hud-room-title')).toBeHidden();
   await page.context().close();
 });

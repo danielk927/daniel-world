@@ -5,6 +5,10 @@
   --hud-edge: clamp(16px, 2.8vw, 40px);
   /* Half the controls hint's width and a gap: how near the middle the chat may come. */
   --hint-reach: 320px;
+  /* The widest a name in the player list may be, so how far in from the right the list reaches. */
+  --players-reach: min(300px, 30vw);
+  /* Half a short toast's width ("Reconnected") and a gap: how near the middle the room may come. */
+  --toast-reach: 72px;
 }
 
 .hud {
@@ -12,7 +16,10 @@
   inset: 0;
 }
 
-/* The map and the room go too: the panel's dark side would wash out a long room name. */
+/*
+ * The map and the room go too: a panel's dark side would wash out a long room name, and the pause
+ * menu names the room itself.
+ */
 .hud.is-covered :is(.crosshair, .prompt, .look-cue, .hud-left, .hud-players, .hint, .hud-corner) {
   visibility: hidden;
 }
