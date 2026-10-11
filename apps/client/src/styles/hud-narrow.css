@@ -14,7 +14,11 @@
   }
 }
 
-/* Below this the hint would run into the chat, the loadout and the minimap; the menu lists them too. */
+/*
+ * Below this the chat, which leaves the hint its half of the width, would be under 220 px wide
+ * (the loadout is clear of the hint far below this; the chat is what gives out); the menu lists
+ * the controls too.
+ */
 @media (max-width: 1080px) {
   .hint {
     display: none;
@@ -32,10 +36,37 @@
   }
 }
 
+/* On a short window an open chat, a third of its height, would run up over the map: the map goes. */
+@media (max-height: 520px) {
+  .hud-map {
+    display: none;
+  }
+}
+
+/*
+ * Below this the map and "The lobby" leave no room beside a notice at the middle: it comes down
+ * under the room, which may then reach the middle.
+ */
+@media (max-width: 880px) {
+  :root {
+    --toast-reach: 0px;
+  }
+
+  .toasts {
+    top: calc(var(--hud-edge) + 56px);
+  }
+}
+
 @media (max-width: 640px) {
   .hint,
   .hud-players,
+  .hud-map,
   .hud-corner {
     display: none;
+  }
+
+  /* No map beside it: the room needs only room for "The lobby". */
+  .hud-left {
+    --least: 140px;
   }
 }

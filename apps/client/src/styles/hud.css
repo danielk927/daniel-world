@@ -5,6 +5,10 @@
   --hud-edge: clamp(16px, 2.8vw, 40px);
   /* Half the controls hint's width and a gap: how near the middle the chat may come. */
   --hint-reach: 320px;
+  /* The widest a name in the player list may be, so how far in from the right the list reaches. */
+  --players-reach: min(300px, 30vw);
+  /* Half a short toast's width ("Reconnected") and a gap: how near the middle the room may come. */
+  --toast-reach: 72px;
 }
 
 .hud {
@@ -12,7 +16,11 @@
   inset: 0;
 }
 
-.hud.is-covered :is(.crosshair, .prompt, .look-cue, .hud-players, .hint, .hud-corner) {
+/*
+ * The map and the room go too: a panel's dark side would wash out a long room name, and the pause
+ * menu names the room itself.
+ */
+.hud.is-covered :is(.crosshair, .prompt, .look-cue, .hud-left, .hud-players, .hint, .hud-corner) {
   visibility: hidden;
 }
 
@@ -121,6 +129,14 @@
 /* At the kitchen computer the screen is the game; DOOM's own controls replace the kitchen's. */
 .hud.is-computer :is(.crosshair, .prompt, .look-cue, .hint, .hud-corner) {
   visibility: hidden;
+}
+
+/*
+ * The map goes and the room takes the corner: seated at the desk there is nowhere to go, and on a
+ * squarer window the map would lie over the monitor.
+ */
+.hud.is-computer .hud-map {
+  display: none;
 }
 
 .computer-hint {

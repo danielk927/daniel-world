@@ -10,9 +10,9 @@ const KNIFE_HEIGHT = 20;
 const KNIFE_WIDTH = 76;
 
 /**
- * What is in hand and what Q switches to, in the bottom right corner over the minimap: the knife
- * over the bare hand, Q beside the pair, the one in hand bright with the brass bar under it and the
- * other dim. After a throw the knife fills back in from the handle as the next one is drawn.
+ * What is in hand and what Q switches to, in the bottom right corner: the knife over the bare
+ * hand, Q beside the pair, the one in hand bright with the brass bar under it and the other dim.
+ * After a throw the knife fills back in from the handle as the next one is drawn.
  */
 export class Loadout {
   readonly element: HTMLElement;

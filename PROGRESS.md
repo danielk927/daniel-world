@@ -173,6 +173,15 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - `scripts/hands.ts --every 1` shoots every frame of an inspect.
 - Lint, typecheck, 996 unit tests, 45 E2E tests and the build pass.
 
+### The minimap in the top left (2026-10-11)
+
+- The minimap moved from the bottom right to the top left corner, with the room name and its connection beside it, and the loadout has the bottom right to itself.
+- A menu or panel takes the map and the room with it, the kitchen computer and a window under 520 px tall take the map (the room moves to the corner), and a long party code ends in an ellipsis before the middle, where notices show, and before the players' column; under 880 px wide notices come down under the room.
+- Labels keep clear of the map and of the room's words each by itself, so the strip between them shows them, and the room comes first in the page for a screen reader.
+- `e2e/menus.spec.ts` measures where the map, the room and the loadout sit at three window sizes, a long code and a notice against the room from 800x600 up, the open chat against the map and the short windows, and a station label in the strip; `computer.spec.ts` and `stations.spec.ts` check the map and room at the desk and under a panel.
+- `punchUntil` in the E2E helpers gives the door's punches a budget that grows with the hits: on a starved machine the chef spec ran out of its 15 s with the same code that passed on a quiet one.
+- Lint, typecheck, 1009 unit tests, 49 E2E tests and the build pass; the screenshots were taken again.
+
 ### How to run it
 
 ```bash

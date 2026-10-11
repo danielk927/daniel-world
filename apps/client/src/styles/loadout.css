@@ -1,4 +1,4 @@
-/* ---------- Bottom right corner: loadout over the minimap ---------- */
+/* ---------- Bottom right corner: the loadout ---------- */
 
 /* As far from the edges as the chat, the controls and the players, so the corners line up. */
 .hud-corner {
@@ -11,13 +11,11 @@
   gap: 20px;
 }
 
-/* Q beside the knife over the fist, with nothing behind them; in from the disc's edge, where it
-   curves away under them. */
+/* Q beside the knife over the fist, with nothing behind them. */
 .loadout {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-right: 16px;
 }
 
 .loadout-slots {

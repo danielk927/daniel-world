@@ -162,7 +162,7 @@ export class Game {
     this.hud = new Hud(overlay);
     this.loadout = new Loadout(this.hud.corner);
     this.minimap = new Minimap(
-      this.hud.corner,
+      this.hud.mapSlot,
       world.stations.entries.map((entry) => entry.color),
     );
     this.chat = new Chat(overlay, {
@@ -885,6 +885,9 @@ export class Game {
     if (this.mode !== 'computer') return;
     this.desk.stepAway();
     this.computerGuide.hide();
+    // A notice from the computer was for the desk (one says to step away): it does not follow the
+    // cook back to the map and the room beside it.
+    this.toasts.clear();
     this.mode = 'playing';
     this.input.enabled = true;
     this.hud.setComputer('off');
