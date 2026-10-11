@@ -1077,7 +1077,7 @@ function skeleton(): KnifeModel {
           BLADE * 1.3,
           {
             bevel: 0.0012,
-            // The loop takes a finger, which the knife hangs from when spun.
+            // The loop at the butt, a finger's width across.
             holes: [slot(0.134, 0.206, -0.0075, 0.0065), hole([0.231, 0], 0.0104)],
           },
         ),

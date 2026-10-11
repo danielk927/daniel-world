@@ -95,7 +95,7 @@ describe('the hand round each knife', () => {
     });
   }
 
-  it("threads the karambit's ring on the index finger, at rest and all through its spin", () => {
+  it("threads the karambit's ring on the index finger, at rest and all through its inspect", () => {
     const vm = holding('karambit');
     expect(ringOffFinger(vm, 'karambit')).toBeLessThan(0.002);
     expect(ringLean(vm)).toBeLessThan(0.62);
