@@ -977,7 +977,8 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 
 ### Health and the scoreboard (2026-10-11)
 
-Daniel asked for a KDA dashboard on Tab and, for assists to mean anything, a health bar with three hits to a knockout.
+Daniel asked for a KDA dashboard that opens when Tab is pressed, and, separately, for a health bar with three hits to a knockout.
+An assist (a hit on a cook that somebody else then knocks out) can only happen once a hit need not knock a cook out, so the two are built together.
 The protocol is version 9; the room server half reaches visitors only with `npm run deploy:aws`, and until then the live site (version 8) and the new client do not talk, so visitors play solo.
 
 - **Three health, and a knife takes one.**
@@ -992,7 +993,8 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
 - **What each screen shows.**
   The cook hit gets the health bar dropping with a pulse, a short flare of the screen's edges (the knockout's flash, shorter and softer, and gone with reduced motion like it) and a smaller shake of the view; the thrower gets the hit marker on the crosshair (and only a knockout names the cook, as before); everyone else sees the cook rock back when the knife reaches them as drawn, 0.3 s, instead of the knife vanishing into a standing cook as if it had hit nothing (`Avatars.playHit`).
   A hit that arrives after its cook has respawned, which a screen too busy to run its timers could deliver, is dropped (`Multiplayer.life`), as the timers are when the room is left.
-- **Health is in the bottom right corner, under the knife**, as Daniel's other change moves the minimap away from there.
+- **Health is in the bottom right corner, under the knife.**
+  The minimap is being moved to the top left in another change, so nothing here is sized around the one at the bottom right now: the corner is the loadout and the health bar.
   Three segments read as three hits at a glance and match the interface's one mark (a short rounded bar), where a number would be a second kind of thing; ivory while whole, a hairline once gone, the last in `--danger` (the one place a warning color is for a warning), a hairline of the night round each so it holds on the white walls as the crosshair does.
   A small heart before them says what they are: on its own the row, under the knife and the brass bar that marks it, read as part of the loadout in the first screenshots.
   It is a `meter` named Health with "2 of 3" as its value, and a hit is said once to a screen reader ("Hit. 1 health left, one more knocks you out."); the knockout's card says the rest.
@@ -1019,3 +1021,12 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
   Retuning him (a shorter rest, or his hits counting more) is a separate call from this one; his lines are on knocking someone out and on being knocked out only, and a hit that leaves someone standing, or him, says nothing.
 - **Tests.**
   `health.test.ts` and `scores.test.ts` in the server (through `testRoom.ts`) cover three hits, health back on the respawn only, protection, a thrower who left with the knife in the air, the assist's every case, scores dropped with their cook, and Chef Skinner on both ends; `input.test.ts` the held key; `multiplayer.test.ts` hits and scores as the client takes them; the E2E suite drives two and three pages (`health.spec.ts`, `scoreboard.spec.ts`) and asks the room server what it counts (`RoomView` has each cook's health and score), and `hitUntil` in `helpers.ts` throws until the server has a cook at a health, a knife at a time, since the room counts every knife that reaches them.
+- **After a review: out of order, and room for the hint.**
+  - Each hit and knockout is shown as its knife arrives on that screen, from the flight's own clock, which stalls on a busy page, so two events a tick apart can be shown in the opposite order to the room's.
+    The screen keeps the health it has shown this life (`Multiplayer.shownHealth`) and drops a hit that would give any back, and any hit after the knockout; the health bar (`loweredTo`) and the game (nothing is taken while down) each refuse it too.
+    A knockout shown after its cook has respawned is a line in the feed, not a knockout, and its score still counts.
+  - The controls hint has six items now, 369 px a side at its full size and 330 at the smaller (measured, not guessed), and the chat's reach and the width below which the hint goes were still the five-item ones: the chat ran 48 px under it at 1440.
+    The reach is 400 and 360 px, which leaves the chat 32 px clear at every width (a chat 280 px wide at 1440, 226 at the narrowest), and the hint goes under 1240 px, where the chat would be left under 220.
+  - The scoreboard's rows shrink with the window so a full room of 16 fits down to a window 480 px tall.
+    It does not scroll: while the key is held nothing can scroll it, so a list cut off in a shorter window is moved to keep this player's own row in view.
+  - At no health the heart stays in the warning color, as at one, rather than going back to ivory as if all were well.
