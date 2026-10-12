@@ -46,9 +46,9 @@
 }
 
 /*
- * In a window still too short for 16 rows the list is cut off; it is moved to keep this player's
- * own row in view (`Scoreboard`), and has no scrollbar, since there is no way to use one while the
- * key is held.
+ * In a window still too short for 16 rows the rows that do not fit are left out (`Scoreboard`,
+ * keeping this player's own and the column names), and there is no scrollbar, since there is no
+ * way to use one while the key is held.
  */
 .scoreboard-scroll {
   width: 100%;
@@ -124,17 +124,31 @@
   color: var(--accent);
 }
 
+.scoreboard-row.is-cut {
+  display: none;
+}
+
 .scoreboard-row.is-self .scoreboard-number {
   font-weight: 700;
 }
 
 /*
  * Nothing of the kitchen's own words shows through it: the labels, the prompt, the crosshair, the
- * chat (which a narrow window runs under the table) and, for a cook held down while they look, the
- * knockout card would print over it. The veil of the fall stays.
+ * chat and the controls hint (which a narrow or short window runs under the table) and, for a cook
+ * held down while they look, the knockout card would print over it. The veil of the fall stays.
  */
 .ui:has(> .scoreboard:not([hidden]))
-  :is(.labels, .crosshair, .prompt, .look-cue, .hit-marker, .hit-banner, .knockout-body, .chat) {
+  :is(
+    .labels,
+    .crosshair,
+    .prompt,
+    .look-cue,
+    .hit-marker,
+    .hit-banner,
+    .knockout-body,
+    .chat,
+    .hint
+  ) {
   visibility: hidden;
 }
 

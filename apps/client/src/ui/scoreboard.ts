@@ -46,6 +46,7 @@ export class Scoreboard {
   private readonly body = el('tbody');
   /** What the table is in, which cuts it off in a window too short for every row. */
   private readonly scroller = el('div', { class: 'scoreboard-scroll' });
+  private readonly head: HTMLElement;
   private rows: readonly ScoreRow[] = [];
   private key = '';
   private drawn = '';
@@ -71,10 +72,13 @@ export class Scoreboard {
         ]),
       ],
     );
-    this.scroller.append(
-      el('table', { class: 'scoreboard-table' }, [el('thead', {}, [header]), this.body]),
-    );
+    this.head = el('thead', {}, [header]);
+    this.scroller.append(el('table', { class: 'scoreboard-table' }, [this.head, this.body]));
     parent.append(this.element);
+    // A window made shorter while the key is held.
+    window.addEventListener('resize', () => {
+      if (this.shown) this.fit();
+    });
   }
 
   /** Whether the scoreboard is up. */
@@ -95,7 +99,7 @@ export class Scoreboard {
     this.key = key;
     if (!this.shown) return;
     this.draw();
-    this.keepSelfInView();
+    this.fit();
   }
 
   setShown(shown: boolean): void {
@@ -103,24 +107,25 @@ export class Scoreboard {
     // Drawn as it comes up, not as each change comes in while it is away.
     if (shown) this.draw();
     this.element.hidden = !shown;
-    if (shown) this.keepSelfInView();
+    if (shown) this.fit();
   }
 
   /**
-   * In a window too short for every row, the list is cut off, and nothing can scroll it while the
-   * key is held: show the part with this player's own line in it, as far up as it goes.
+   * In a window too short for every row, the rows that do not fit are left out, rather than the list
+   * being scrolled, which nothing can do while the key is held and which would take the column
+   * names with it: those that fit are the ones ending with this player's own row, if it would
+   * otherwise be cut off, so it is always there, or else the top of the list.
    */
-  private keepSelfInView(): void {
-    const row = this.body.querySelector<HTMLElement>('.is-self');
+  private fit(): void {
+    const rows = [...this.body.children] as HTMLElement[];
+    for (const row of rows) row.classList.remove('is-cut');
     const box = this.scroller;
-    if (!row || box.scrollHeight <= box.clientHeight) {
-      box.scrollTop = 0;
-      return;
-    }
-    const top = row.offsetTop;
-    const bottom = top + row.offsetHeight;
-    if (bottom > box.clientHeight) box.scrollTop = bottom - box.clientHeight;
-    else box.scrollTop = 0;
+    if (rows.length === 0 || box.scrollHeight <= box.clientHeight) return;
+    const room = box.clientHeight - this.head.offsetHeight;
+    const capacity = Math.max(1, Math.floor(room / rows[0]!.offsetHeight));
+    const self = rows.findIndex((row) => row.classList.contains('is-self'));
+    const start = self >= capacity ? self - capacity + 1 : 0;
+    rows.forEach((row, i) => row.classList.toggle('is-cut', i < start || i >= start + capacity));
   }
 
   private draw(): void {

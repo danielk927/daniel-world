@@ -289,7 +289,7 @@ test('Tab works with the pointer locked as without it, and lets go when the menu
   await page.context().close();
 });
 
-test('a full room of sixteen fits the scoreboard down to a window 480 px tall, and a shorter one keeps your own row in view', async ({
+test('a full room of sixteen fits the scoreboard down to a window 480 px tall, and a shorter one keeps your own row and the column names', async ({
   browser,
 }) => {
   const page = await enterWorld(browser, { name: 'Packed', online: false });
@@ -327,17 +327,30 @@ test('a full room of sixteen fits the scoreboard down to a window 480 px tall, a
       `every row of sixteen in a window ${height} px tall`,
     ).toBeGreaterThanOrEqual(-0.5);
   }
-  // Shorter than that the list is cut off, and nothing can scroll it while the key is held: put
-  // away and brought up again, it shows the part with this player's own row, the last.
+  // Shorter than that the rows that do not fit are left out, not scrolled (nothing can scroll the
+  // list while the key is held, and the column names would go with it): the ones kept end with
+  // this player's own row, the last, and the column names stay.
   await page.setViewportSize({ width: 960, height: 420 });
   await waitForFrames(page, 2);
-  await page.keyboard.up('Tab');
-  await expect(board(page)).toBeHidden();
-  await page.keyboard.down('Tab');
-  await expect(board(page)).toBeVisible();
-  const shown = await clearances();
-  expect(shown.at(-1)!, 'the last row, this player, is in view').toBeGreaterThanOrEqual(-0.5);
-  expect(Math.min(...shown), 'and the list is cut off above it').toBeLessThan(0);
+  const kept = await page.evaluate(() => {
+    const box = document.querySelector('.scoreboard-scroll')!.getBoundingClientRect();
+    const inside = (e: Element) => {
+      const r = e.getBoundingClientRect();
+      return r.height > 0 && r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5;
+    };
+    const rows = [...document.querySelectorAll('.scoreboard-row')];
+    const shown = rows.filter((row) => row.getClientRects().length > 0);
+    const heads = [...document.querySelectorAll('.scoreboard-table thead th')];
+    return {
+      shown: shown.length,
+      own: inside(rows.at(-1)!),
+      shownInside: shown.every(inside),
+      heads: heads.every(inside),
+    };
+  });
+  expect(kept.shown, 'some of the sixteen are left out').toBeLessThan(16);
+  expect(kept.shown, 'and most are kept').toBeGreaterThan(8);
+  expect(kept).toMatchObject({ own: true, shownInside: true, heads: true });
   await page.keyboard.up('Tab');
   await page.context().close();
 });
