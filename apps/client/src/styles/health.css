@@ -3,13 +3,13 @@
 /*
  * A heart and a segment for each hit a knife takes to knock this cook out, under the knife in the
  * corner: whole ivory while it is there, a hairline once it is gone. Like the crosshair, each holds
- * on the white walls with a hairline of the night round it. Inset as the knife is, from the disc.
+ * on the white walls with a hairline of the night round it. Its right edge is the knife's, and the
+ * corner's.
  */
 .health {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-right: 16px;
 }
 
 .health-heart svg {
