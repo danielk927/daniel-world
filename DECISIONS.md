@@ -789,6 +789,8 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 
 ### The knife clear of the hand (2026-10-10)
 
+Superseded in part by "Inspects from the wrist, not the finger" (2026-10-11): no knife spins on or about a finger now, or turns in the fist.
+
 - **Daniel saw knives phase through the hand in their animations, and they did, through its middle.**
   Every knife was stepped through its draw, idle, inspect, throw and redraw, a switch to the fist and back, and every way one cuts another short, and each frame measured how deep the knife as drawn reaches into the hand as skinned: up to 13 mm, through the middle of the palm, for 11 of the 12 knives.
   Rendered on the real GPU at those frames, the karambit's and the bayonet's handles lay inside the open palm, and folding blades crossed the fingers.
@@ -950,6 +952,8 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 
 ### The knife moves as a hand could move it (2026-10-10)
 
+Superseded in part by "Inspects from the wrist, not the finger" (2026-10-11): no knife spins on or about a finger now, or turns in the fist.
+
 - **Daniel saw some knives teleport round the hand in their inspects (the falchion, the butterfly and the bayonet), and they did, on the way between the grip and the index finger.**
   Stepped a frame at a time, a point of the bayonet or the falchion moved 14 cm in two frames at 60 Hz and the knife's pivot left the hand at up to 5 m/s, stopped dead in front of the fingertip and came back, at 300 to 700 m/s² (twice as hard at 120 Hz as at 60, the mark of a jump), for every knife spun on the finger by its spine or by a ring at its butt, in its inspect and its draw.
   The way there was three moves one after another (out of the palm and round to ahead of the fingertip, a stop, then back along the finger), each eased by itself and all of it eased again by the key, which bunched the knife's whole way into the middle 40 ms of a 0.2 s key.
@@ -1102,3 +1106,79 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
     It does not scroll: while the key is held nothing can scroll it, and scrolling would take the column names away, so in a shorter window the rows that do not fit are left out, keeping the column names and ending with this player's own row if it would otherwise be cut off.
   - The controls hint goes while the scoreboard is up, as the chat and the labels do: for the twelve seconds it shows after a cook comes in, on a window 1241 px wide or more with a full room, it touched the last row from about 850 px tall down, and over it below 500.
   - At no health the heart stays in the warning color, as at one, rather than going back to ivory as if all were well.
+
+### Inspects from the wrist, not the finger (2026-10-11)
+
+- **Daniel found the inspects physically impossible, and they were, however smoothly they had been made to move.**
+  The bayonet, falchion, huntsman, M9, talon, skeleton, karambit and gut knife were thrown up off their grip and spun end over end on, or about, the index finger, the butterfly did an aerial, and every knife was turned a half turn about its length in a closed fist: a hand holding a knife does none of that.
+  `viewmodelMotion.test.ts` could not have said so, since it bounded how fast a knife left the hand and not that it did.
+  This supersedes the spins on the finger in "The knife clear of the hand" and "The knife moves as a hand could move it", which stay as history, and wherever else below a knife spins on its ring or its spine ("Every knife moves as its own", the karambit's, talon's and skeleton's rings).
+- **The knife is rigid in the hand, and the arm and the wrist do everything.**
+  A pose lost `spin`, `flip` and `hang` (and with them the route round the finger and its Bezier arc, the spine and ring pivots, the turning grip, `POINT_POSE` and `proximalAt`), and gained `flex` and `dev`: the wrist flexing toward the palm or back, and swinging toward the thumb or the little finger, turning hand and knife together about the wrist, with the sleeve taking 0.4 of the turn so the cuff never gapes.
+  The forearm rolls with the arm's own `rz`, and the elbow and shoulder take the rest (`x`, `y`, `z`, `rx`, `ry`).
+  A knife's `pivot` is gone from its model; the three with a ring at the butt keep it as `ring`, which the karambit's grip still threads its index finger through.
+- **A person's wrist is the range.**
+  Flexion from -1.2 to 1.3 rad, swing from -0.5 to 0.45, the forearm rolling less than 1.5 rad either way: `viewmodelGrounded.test.ts` holds every clip to them.
+  Searching what a right hand holding a knife blade up can show, within those ranges, found that one flat can face the eye to within 36 degrees, and the other only to about 50 to 60 degrees off, whatever the elbow does; so the other side is shown three-quarter, the arm crossing to the left of the view with the forearm up and the back of the hand toward the eye.
+- **Each knife has its own inspect, in its own order and time** (`knifeMoves.ts`, 3.1 to 4.4 s, each pose held 0.4 to 0.9 s):
+  the chef's knife is lifted, shown flat, rolled through its spine to the other side and lowered;
+  the karambit's claw is lifted, swung out horizontal by the wrist and forearm, and hung the other way, the ring on the finger throughout;
+  the butterfly's free handle swings round its pin and its blade folds between the handles and out again;
+  the M9 shows its saw back and swings its blade to catch the light, the bayonet is quick and crisp (a swing, its edge, the other side), and the huntsman is weighed in the hand and shown slowly (0.36 m/s at most, the heaviest);
+  the falchion is rolled over in one long sweep to show its belly and bent at the wrist, the gut knife shows its hook, the talon its claw and then its point, the skeleton knife is held up to the light, the stiletto looks along its needle, is pressed partway back and springs open, and the flip knife is eased partway shut by the thumb and snapped open by the wrist.
+- **A hinge sweeps through a fist more freely than a fist would let it, so the fingers close on a folding knife almost always.**
+  Measured with the clearance test's own solids, a flip knife's blade swung through its whole half turn reaches 0.9 mm past the grip's depth, and the butterfly's handles 1.9 mm, inside the 2.5 mm the test allows, so neither loosens the hand at all, which is what a hand on the handle of a folding knife does.
+  The stiletto's blade, closed, reaches past its butt and sweeps through the little finger and the heel of the hand (3.9 mm past), so its hand loosens for its flick in the draw (`loose`, keyed ahead of the blade, and let go by a spring a reflex quick), its inspect only presses the blade back to 1.6 rad, short of that sweep, and a cut that swings it through (`through`, in its moves) loosens the hand for the swing.
+  The hand had been let go whenever a blade moved, an open hand with a closed knife standing beside it, which looked as impossible as the spins; that was dropped.
+- **Everything is a minimum-jerk curve.**
+  Poses were eased from key to key by cubic curves, whose acceleration jumps at every key, so at 120 Hz the hand's jerk was twice what it was at 60, the mark of a corner (turn jerk up to 24 000 rad/s³, the hand's up to 1 000 m/s³).
+  Keys now flow through a quintic Hermite curve with no acceleration at either end, at a speed that never overshoots its neighbours (Fritsch and Butland's), and stop at a hold or a turn; `smooth` and the blend of every cut are the same minimum-jerk curve, and a flick (`snap`) is that curve reaching its top speed early, so a spring let go or a wrist snapped is fast and not instant.
+  `knifeSkins.test.ts` checks that no key makes an arm or wrist channel's acceleration jump, and `viewmodelMotion.test.ts` that the hand's jerk is no more at 120 Hz than at 60.
+- **A knife's weight is its timing and its anticipation**: the huntsman is lifted slowest, with the deepest dip before it, weighed, and overshoots its draw most; the skeleton knife and the stiletto are quick and dip least.
+  A small dip before every lift, and a draw that arrives a touch past rest (as far as the knife's weight carries it) and settles, are the anticipation and the follow-through.
+- **Every draw is rekeyed**, and none spins or tosses now: the karambit, bayonet, huntsman, falchion, talon and skeleton drew by spinning on the finger, the M9 and the gut knife by turning in the fist (and the chef's redraw by a whole turn); all twelve now come up with the wrist turning into place, and settle.
+  The flip knife and the butterfly flick their blade open with a wrist snap in a closed hand, the stiletto in a loosened one.
+- **`viewmodelGrounded.test.ts` is new, and fails on the old moves.**
+  Through every knife's draw and inspect at 60 and 120 Hz, the knife's grip stays within 3 mm of where the fingers hold it, in the hand's own frame, and the knife turns within 0.1 rad of how it is held; the old moves failed it in all 12 inspects (the grip up to 10.6 cm away, the knife up to 3 rad round) and 8 of the 12 draws.
+  Hinges stay between their stops, and a knife with none opens none.
+  `viewmodelMotion.test.ts` is tighter for the new moves: the knife does not move in the hand, the hand in view stays under 1 m/s, 10 m/s², 300 m/s³, 9 rad/s, 70 rad/s² and 1 700 rad/s³ (the old moves failed 20 of its 24 checks), and the fingers under 1 m/s and 40 m/s².
+- **The numbers, the 12 inspects at 60 and 120 Hz, before and after**: the knife's tip peaked at 3.8 m/s, 82 m/s² and 7 300 m/s³ (the karambit) and peaks now at 0.9, 7.7 and 199 (the flip knife's snap); the hand in view, at 1.0 m/s, 15 m/s² and 1 006 m/s³, now at 0.8, 8.4 and 188; its turn, at 9.1 rad/s, 150 rad/s² and 23 700 rad/s³, now 8.5, 54 and 1 600 (the flip knife's wrist snap, where the median knife is 460).
+- An inspect started over blends in over 0.5 s (it was 0.3 s, and the knife's turns 0.7 s), a restart may jolt as hard as a draw's snap up (the knife's inspect is gentler now, so the reference is the quicker of the two), and the clearance checks, longer for longer inspects, may take four minutes a knife on a busy machine.
+- `scripts/hands.ts --every 1` shoots every frame of an inspect, which is how each was looked at for a pop between frames, a finger through a handle and a pose a wrist cannot reach.
+
+### Inspects that read like CS2's and Valorant's (2026-10-11)
+
+- **A review of the grounded inspects found the mechanics sound and the inspects not yet natural**: nine things, all fixed here, each measured by probes of what the eye sees (`viewmodelInspectShown.test.ts` is their guard).
+- **Both flats of every blade are shown.**
+  The M9, huntsman, talon and skeleton never turned their +X flat to the eye (best edge on, 0.00), the karambit never showed its -X flat, and the others reached only 0.73 (43 degrees off) with the back of the hand a flat paddle filling the frame.
+  A flat's side is fixed in the hand: in a forward grip the far flat's normal is back of the hand (0.58), toward the fingers (0.67) and the little finger's side (0.46), so it can face the eye only with the fingers reaching toward it.
+  Searching the wrist's range for it (`flex` -0.95 to 1.05, `dev` -0.4 to 0.35, the forearm's roll under 1.25 rad, the arm near and across) found `FWD.other`: the forearm rolled right over, the wrist extended, the fist low and the blade above it, 0.93 (22 degrees off) with the fingers 0.75 toward the eye.
+  Every forward knife now shows its resting flat to 0.97 or more and the far one to 0.93 (the huntsman too: its weight is in its timing, not a smaller pose).
+  The karambit's other side is seen from the back of the hand and was first shown 0.60 (53 degrees off) with the threshold set to pass it, which was wrong: a search with the arm free to turn in across the view (`ry` to 0.9) and the fist, the blade and the sleeve's end kept in view found 0.80 (37 degrees off), `CLAW.other`: the forearm rolled right over the other way (`rz` -1.24), the wrist extended (`flex` -0.95, `dev` -0.4, within the range), the claw sweeping up out of the fist across the view.
+  The poses the first search liked best (0.90) put the fist at the bottom edge of the screen, and were dropped for it.
+  The poses are in `FWD`, `CHEF` and `CLAW` in `knifeMoves.ts`, each found by the search and checked on retina frames.
+- **Nothing is held still between two stops.**
+  Every inspect but the chef's spent 35 to 50 percent of its length frozen (tip under 15 px/s, nothing turning), in holds up to 0.98 s: a hold was two identical keys, whose Fritsch and Butland slope is nothing at both, a full stop.
+  `inspectOf` builds an inspect from beats (a pose, when to arrive, how long to stay), and the hand leaves each a tenth of the way on toward the next, so the motion slows into a pose, creeps on through it and picks up again; no hold is shorter than a quarter of a second (a hold of a tenth made a corner whose jerk doubled at 120 Hz).
+  The test fails an inspect whose hand and blade are both still (tip under 1.2 cm/s, turn under 0.04 rad/s) for 0.2 s outside its first and last 0.2 s; the probes now find no run over 0.2 s in any of the 12.
+- **The arm never ends in mid-air, in any view the player can have.**
+  The karambit's `CLAW.other` first brought the sleeve's elbow end into view, 20 px above the bottom of the screen with floor beneath it, for 0.7 s; a fix for the default view then still showed it at a field of view of 86 or more (the setting goes to 100, 107 sprinting) and on a 21:9 screen, up to a quarter of the way up the screen, which no pose within the wrist's range fixes (hiding it at 107 degrees capped the far flat at 0.74).
+  So the sleeve is long now, 1.2 m, narrowing over its first 0.36 m as before (its look at the wrist is unchanged) and straight beyond: its far end goes behind the eye however the wrist turns and however wide the view.
+  The test checks the far rim is out of every view, 60, 72, 100 and 107 degrees on 16:10, 16:9 and 21:9, through every knife's draw and inspect at 60 and 120 Hz; a probe also found it out of view through a throw, the fist, a punch and a draw again, for all twelve.
+- **The knife is big and near the middle**: a blade's tip to grip peaked at 278 to 392 px of 900, now 337 to 417 (1500 px per meter of the knife at least, the test's mark), the knife brought 12 cm nearer the eye and across, with the fist and the blade in view throughout.
+- **I is answered at once.**
+  Every inspect started from the idle counted it as a cut and blended in over 0.9 s from rest, which held the knife back: ten knives moved 5 px only 0.30 to 0.42 s after the key (0.08 s for the chef's, which has no idle) and the 12 mm dip before the lift was left at 0.2 to 2 mm.
+  An inspect now begins outright when the arm is at rest and not moving (`armAtRest`), and blends in only out of something else: over 0.75 s out of an inspect, 0.3 s out of the draw's flourish, 0.1 s out of an idle on the move.
+  The tip moves 5 px within 0.05 to 0.083 s of the key for all twelve and the whole dip shows (`viewmodelInspectShown.test.ts`, which fails 22 of those on the previous commit); the dips begin 0.13 to 0.24 s in, not 0.1 to 0.14, since the quicker start had made them the hand's hardest jerk (400 m/s³ against a bound of 300).
+- **A restart is held to one reference for every knife**: the hardest any knife's own inspect moves and jolts it, not its own, since a hand takes up a new inspect no more gently because the last was a gentle one, and the gentlest (the karambit's 0.9 mm, the huntsman's) forced every restart slow (a 0.9 s blend, a carry of 5 per second, the tip 10 cm and 1 rad off its path).
+  Back at 0.75 s and 10 per second: the worst restart over every cut is 2.4 mm, 1.4 times the hardest inspect's own 1.76 mm (the test allows 2 times, and 1.5 for I pressed over and over).
+- **A return to rest is never rushed.**
+  The flip knife, butterfly and stiletto came back from their far side in 0.45 to 0.55 s, the fastest motion in any inspect (the flip knife's tip at about 1850 px/s); each takes 0.75 s now, the others 0.7 to 0.95.
+- **Character**: every knife has its own order and timing: the bayonet opens on a look along the blade and closes on its edge, the gut knife shows its hook on the spine first, the falchion turns into its far side before its near, the skeleton knife is held to the light first, the huntsman is let down and taken up again as if weighed and is the slowest, and the flip knife, butterfly and stiletto work their hinges between.
+- **A hinge swung by the wrist snaps to its stop and bounces** (`swing` in `knifeMoves.ts`): 0.1 to 0.2 s to the stop, a rebound of a tenth of a radian or so, and settling, instead of a symmetric minimum-jerk sweep over 0.35 s like a motor; the flip knife's blade opens in 0.1 s, its wrist snapping on it, the thumb pressing it shut slowly (`press`).
+  To key a hinge at its own moment without squeezing the hand's keys round it, a clip has two tracks, the arm and wrist, and the hinges and fingers (`clip(keys, hinges)`).
+- **A restart is measured against the inspect's own motion.**
+  The test had been loosened to the quicker of the inspect's and the draw's, which allowed a restart ten to eighteen times the inspect's jolt; it is back to the inspect's (since made the same for every knife, see below), with a restart blending in over 0.75 s (it was 0.5) and what a cut carries on dying away over 0.1 s as before.
+- A knife's clearance check has 90 s (the slowest takes 27 s alone), and the spins left in comments and a test title are gone.
+- **The numbers**: both flats shown to 0.80 or better, 12 of 12 (5 knives had a flat never turned to the eye; the test's mark is 0.75, 41 degrees); longest still run 0.2 s or less in all 12 (holds of 0.3 to 0.98 s before); the blade at its biggest 337 to 417 px (278 to 392 before); restart jolt 1.4 to 1.9 times the inspect's (reference loosened before); the hand in view peaks at 0.9 m/s, 6.3 m/s² and 121 m/s³, 9.0 rad/s, 59 rad/s² and 1 103 rad/s³ over the 12 inspects at 60 and 120 Hz, the knife's tip at 1.2 m/s, 8.3 m/s² and 161 m/s³ (4690c9b: 0.8, 8.4, 188; 8.5, 54, 1 602; 0.9, 7.7, 199).
+  The new test fails on the previous inspects in 21 of its 36 checks, every knife among them.

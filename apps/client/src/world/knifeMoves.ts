@@ -28,19 +28,21 @@ export interface ArmPose {
   rz: number;
   /** The knife is in the hand (not thrown yet, or drawn again). */
   knife: boolean;
-  /** The knife turned about its own length, through the grip. */
-  spin: number;
-  /** The knife turned end over end, in the plane of its blade, about its pivot (a finger ring). */
-  flip: number;
+  /**
+   * The wrist flexing: hand and knife turned together about the wrist, about the line of the
+   * knuckles, toward the palm (positive) or back toward the back of the hand (negative).
+   */
+  flex: number;
+  /** The wrist swinging, about the back of the hand's normal, toward the thumb (positive) or the little finger. */
+  dev: number;
   /** The knife's own moving parts: a folding blade, a butterfly's blade and its free handle. */
   a: number;
   b: number;
   /**
-   * How far the knife has slid from being gripped by its handle (0) to hanging from its pivot (1),
-   * as a knife spun on a finger through its ring hangs from the ring. Keyed, it moves at an even
-   * pace between keys (see HANG).
+   * How far the fingers have loosened on the handle, from firm (0) to off it (1), where a blade or
+   * handle swings through the place they hold it: the fingers loosen, and close again after.
    */
-  hang: number;
+  loose: number;
 }
 
 /** Every channel a clip can key, in the order they are stored. */
@@ -51,36 +53,27 @@ export const CHANNELS = [
   'rx',
   'ry',
   'rz',
-  'spin',
-  'flip',
+  'flex',
+  'dev',
   'a',
   'b',
-  'hang',
+  'loose',
 ] as const;
 export type Channel = (typeof CHANNELS)[number];
-/**
- * Channels that turn something, which wrap: a whole turn is the same as none. A folding blade and
- * a butterfly's free handle (`a` and `b`) are hinges, not turns: each swings one way between open
- * and shut, and the other way round is through the hand holding it.
- */
-export const TURNS: readonly Channel[] = ['spin', 'flip'];
-/** The first channel that moves the knife rather than the arm. */
-const KNIFE_CHANNELS = CHANNELS.indexOf('spin');
-/**
- * How far the knife is between the grip and the index finger moves at an even pace whatever the
- * key's ease: the view model eases each part of that way (the hand opening, the knife going round
- * onto the finger, the fingers folding) in and out by itself, and easing them all again would bunch
- * the knife's whole way there into the middle few frames of the key.
- */
-const HANG = CHANNELS.indexOf('hang');
+/** The first channel that is the knife's own mechanism, and the grip on it, not the arm or the wrist. */
+const HINGES = CHANNELS.indexOf('a');
 
 /**
- * How a key is arrived at: `smooth` eases in and out (the hand moves, then settles), `linear` keeps
- * a spin going through it, `in` and `out` accelerate or decelerate, `back` overshoots a little and
- * settles, like a hand snapping into place.
+ * How a key is arrived at. `flow` carries the motion through the key on a smooth curve, slowing to
+ * a stop at it only where the motion turns round or holds; `smooth` is a stop at every key, the way
+ * a hand goes from one place to rest in another (the minimum-jerk curve: speed and acceleration both
+ * start and end at nothing). `snap` is a flick: it too starts from nothing, but is at its top speed
+ * early, as a spring let go or a wrist snapped is, and not in an instant. `linear` keeps a speed going through it, `in` and `out`
+ * accelerate or decelerate, `back` overshoots a little and settles, like a hand snapping into place.
  */
-export type Ease = 'smooth' | 'linear' | 'in' | 'out' | 'back' | 'sine';
-const EASES: readonly Ease[] = ['smooth', 'linear', 'in', 'out', 'back', 'sine'];
+export type Ease = 'flow' | 'smooth' | 'linear' | 'in' | 'out' | 'back' | 'snap';
+const EASES: readonly Ease[] = ['flow', 'smooth', 'linear', 'in', 'out', 'back', 'snap'];
+const FLOW = EASES.indexOf('flow');
 
 export const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 export const easeInCubic = (t: number): number => t * t * t;
@@ -92,85 +85,169 @@ export const easeOutBack = (t: number): number => {
   return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
 };
 
+/** The minimum-jerk curve from 0 to 1: speed and acceleration are nothing at both ends. */
+export const minimumJerk = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
+
 function ease(kind: number, t: number): number {
   switch (kind) {
-    case 1:
-      return t;
     case 2:
-      return easeInCubic(t);
+      return t;
     case 3:
-      return easeOutCubic(t);
+      return easeInCubic(t);
     case 4:
-      return easeOutBack(t);
+      return easeOutCubic(t);
     case 5:
-      return 0.5 - 0.5 * Math.cos(Math.PI * t);
+      return easeOutBack(t);
+    case 6:
+      return minimumJerk(1 - (1 - t) ** 1.5);
     default:
-      return easeInOutCubic(t);
+      return minimumJerk(t);
   }
 }
 
 /** A key: a time, and any channels that change there; the rest carry on from the key before. */
-export type Key = { readonly t: number; readonly ease?: Ease; readonly knifeEase?: Ease } & {
+export type Key = { readonly t: number; readonly ease?: Ease; readonly hingeEase?: Ease } & {
   readonly [C in Channel]?: number;
 };
 
-/** A compiled clip: flat arrays, so sampling it never allocates. */
-export interface Clip {
-  readonly duration: number;
+/** A key of the hinges and the fingers alone: a time, how it is arrived at, and what changes. */
+export type HingeKey = { readonly t: number; readonly ease?: Ease } & {
+  readonly [C in 'a' | 'b' | 'loose']?: number;
+};
+
+/** A run of channels keyed together: flat arrays, so sampling it never allocates. */
+interface Track {
+  /** The first channel (in CHANNELS) it has, and how many. */
+  readonly first: number;
+  readonly width: number;
   readonly times: Float64Array;
-  /** CHANNELS.length values per key. */
+  /** `width` values per key. */
   readonly values: Float64Array;
-  /** How each key is arrived at, for the arm and for the knife. */
-  readonly armEase: Uint8Array;
-  readonly knifeEase: Uint8Array;
+  /** How fast each channel goes at each key where the motion flows through it. */
+  readonly slopes: Float64Array;
+  /** How each key is arrived at. */
+  readonly eases: Uint8Array;
 }
 
-/** Compile keys (in time order, the first at 0) into a clip. Channels not keyed start at 0. */
-export function clip(keys: readonly Key[]): Clip {
-  const n = CHANNELS.length;
+/**
+ * A compiled clip: the arm and the wrist keyed on one track, the knife's hinges and the fingers on
+ * another, so that a blade can snap open at its own moment without the hand's keys being squeezed
+ * round it. Flat arrays, so sampling it never allocates.
+ */
+export interface Clip {
+  readonly duration: number;
+  readonly arm: Track;
+  readonly hinge: Track;
+}
+
+/**
+ * The speed a motion flowing through a key goes at, from the keys either side: nothing where the
+ * motion turns round or holds, and otherwise a weighted mean of the two slopes (Fritsch and Butland's),
+ * which never overshoots either neighbor.
+ */
+function flowSlope(
+  times: Float64Array,
+  values: Float64Array,
+  n: number,
+  i: number,
+  c: number,
+): number {
+  const h0 = times[i]! - times[i - 1]!;
+  const h1 = times[i + 1]! - times[i]!;
+  const d0 = (values[i * n + c]! - values[(i - 1) * n + c]!) / h0;
+  const d1 = (values[(i + 1) * n + c]! - values[i * n + c]!) / h1;
+  if (d0 * d1 <= 0) return 0;
+  const w0 = 2 * h1 + h0;
+  const w1 = h1 + 2 * h0;
+  return (w0 + w1) / (w0 / d0 + w1 / d1);
+}
+
+/** Compile keys (in time order, the first at 0) into a track of `width` channels from `first`. */
+function track(
+  keys: readonly { readonly t: number; readonly [channel: string]: unknown }[],
+  first: number,
+  width: number,
+  easeOf: (key: { readonly [channel: string]: unknown }) => Ease | undefined,
+): Track {
   const times = new Float64Array(keys.length);
-  const values = new Float64Array(keys.length * n);
-  const armEase = new Uint8Array(keys.length);
-  const knifeEase = new Uint8Array(keys.length);
+  const values = new Float64Array(keys.length * width);
+  const eases = new Uint8Array(keys.length);
   keys.forEach((key, i) => {
     if (i > 0 && key.t <= keys[i - 1]!.t) throw new Error('keys must move forward in time');
     times[i] = key.t;
-    CHANNELS.forEach((channel, c) => {
-      values[i * n + c] = key[channel] ?? (i > 0 ? values[(i - 1) * n + c]! : 0);
-    });
-    armEase[i] = EASES.indexOf(key.ease ?? 'smooth');
-    knifeEase[i] = EASES.indexOf(key.knifeEase ?? key.ease ?? 'smooth');
+    for (let c = 0; c < width; c++) {
+      const given = key[CHANNELS[first + c]!];
+      values[i * width + c] =
+        typeof given === 'number' ? given : i > 0 ? values[(i - 1) * width + c]! : 0;
+    }
+    eases[i] = EASES.indexOf(easeOf(key) ?? 'flow');
   });
-  return { duration: keys[keys.length - 1]!.t, times, values, armEase, knifeEase };
+  // A channel flows through a key only if the curve is the flowing one on both sides of it.
+  const slopes = new Float64Array(keys.length * width);
+  for (let i = 1; i < keys.length - 1; i++) {
+    if (eases[i] !== FLOW || eases[i + 1] !== FLOW) continue;
+    for (let c = 0; c < width; c++) slopes[i * width + c] = flowSlope(times, values, width, i, c);
+  }
+  return { first, width, times, values, slopes, eases };
 }
 
-/** Wrap an angle into (-π, π]. */
-function wrap(angle: number): number {
-  return angle - Math.PI * 2 * Math.round(angle / (Math.PI * 2));
+/**
+ * Compile keys (in time order, the first at 0) into a clip. Channels not keyed start at 0. The
+ * hinges and the fingers follow the same keys, unless `hinges` keys them on their own.
+ */
+export function clip(keys: readonly Key[], hinges?: readonly HingeKey[]): Clip {
+  const arm = track(keys, 0, HINGES, (key) => key.ease as Ease | undefined);
+  const hinge = hinges
+    ? track(hinges, HINGES, CHANNELS.length - HINGES, (key) => key.ease as Ease | undefined)
+    : track(
+        keys,
+        HINGES,
+        CHANNELS.length - HINGES,
+        (key) => (key.hingeEase ?? key.ease) as Ease | undefined,
+      );
+  const end = (t: Track): number => t.times[t.times.length - 1]!;
+  return { duration: Math.max(end(arm), end(hinge)), arm, hinge };
 }
 
-/** The pose `t` seconds into a clip. Past its end it holds its last key, turns unwound. */
-export function sample(c: Clip, t: number, out: ArmPose): ArmPose {
-  const n = CHANNELS.length;
-  const last = c.times.length - 1;
-  out.knife = true;
-  if (last === 0 || t >= c.duration) {
-    for (let ch = 0; ch < n; ch++) out[CHANNELS[ch]!] = c.values[last * n + ch]!;
-    for (const turn of TURNS) out[turn] = wrap(out[turn]);
-    return out;
+/** Sample one track `t` seconds in into `out`. Past its last key it holds it. */
+function sampleTrack(tr: Track, t: number, out: ArmPose): void {
+  const { first, width, times, values, slopes, eases } = tr;
+  const last = times.length - 1;
+  if (last === 0 || t >= times[last]!) {
+    for (let c = 0; c < width; c++) out[CHANNELS[first + c]!] = values[last * width + c]!;
+    return;
   }
   let i = 0;
-  while (i < last - 1 && t >= c.times[i + 1]!) i++;
-  const t0 = c.times[i]!;
-  const span = c.times[i + 1]! - t0;
-  const k = Math.max(0, Math.min(1, (t - t0) / span));
-  const armK = ease(c.armEase[i + 1]!, k);
-  const knifeK = ease(c.knifeEase[i + 1]!, k);
-  for (let ch = 0; ch < n; ch++) {
-    const a = c.values[i * n + ch]!;
-    const b = c.values[(i + 1) * n + ch]!;
-    out[CHANNELS[ch]!] = a + (b - a) * (ch < KNIFE_CHANNELS ? armK : ch === HANG ? k : knifeK);
+  while (i < last - 1 && t >= times[i + 1]!) i++;
+  const t0 = times[i]!;
+  const h = times[i + 1]! - t0;
+  const k = Math.max(0, Math.min(1, (t - t0) / h));
+  const kind = eases[i + 1]!;
+  for (let c = 0; c < width; c++) {
+    const a = values[i * width + c]!;
+    const b = values[(i + 1) * width + c]!;
+    if (kind === FLOW) {
+      // A quintic Hermite curve through both keys, at the speeds flowing through them and with no
+      // acceleration at either, so that the acceleration is the same either side of every key.
+      const k3 = k * k * k;
+      const k4 = k3 * k;
+      const k5 = k4 * k;
+      out[CHANNELS[first + c]!] =
+        (1 - 10 * k3 + 15 * k4 - 6 * k5) * a +
+        (k - 6 * k3 + 8 * k4 - 3 * k5) * h * slopes[i * width + c]! +
+        (10 * k3 - 15 * k4 + 6 * k5) * b +
+        (-4 * k3 + 7 * k4 - 3 * k5) * h * slopes[(i + 1) * width + c]!;
+    } else {
+      out[CHANNELS[first + c]!] = a + (b - a) * ease(kind, k);
+    }
   }
+}
+
+/** The pose `t` seconds into a clip. Past its end it holds its last key. */
+export function sample(c: Clip, t: number, out: ArmPose): ArmPose {
+  out.knife = true;
+  sampleTrack(c.arm, t, out);
+  sampleTrack(c.hinge, t, out);
   return out;
 }
 
@@ -200,6 +277,11 @@ export interface KnifeMoves {
   readonly inspect: Clip;
   /** Where the arm rests with this knife, from the usual rest: a karambit is held higher. */
   readonly rest: Readonly<Offset>;
+  /**
+   * The angles between which a hinge sweeps through the fingers, if it does: the hand loosens before
+   * it is swung through them, and not otherwise.
+   */
+  readonly through: Readonly<Partial<Record<'a' | 'b', readonly [number, number]>>>;
 }
 
 /** An offset of the arm, in camera space. */
@@ -213,7 +295,6 @@ export interface Offset {
 }
 
 const REDRAW = THROW.drawTo - THROW.drawFrom;
-const TAU = Math.PI * 2;
 const PI = Math.PI;
 
 interface MoveKeys {
@@ -222,7 +303,10 @@ interface MoveKeys {
   redraw?: readonly Key[];
   idle?: readonly Key[];
   inspect: readonly Key[];
+  /** The hinges and the fingers' own keys through the inspect, if they are not the arm's. */
+  inspectHinges?: readonly HingeKey[];
   rest?: Partial<Offset>;
+  through?: KnifeMoves['through'];
 }
 
 /** The draw's first key: below the screen. */
@@ -235,396 +319,428 @@ const REST = {
   rx: 0,
   ry: 0,
   rz: 0,
-  spin: 0,
-  flip: 0,
+  flex: 0,
+  dev: 0,
   a: 0,
   b: 0,
-  hang: 0,
+  loose: 0,
 } as const;
 
+/** Some of a pose's channels. */
+type Pose = { readonly [C in Channel]?: number };
+
 /**
- * Every knife's moves. A turn carried on through a key keeps its speed there: an ease in or out
- * reaches three times its average speed at its fast end, so an `in` ending, or an `out` starting,
- * at a `linear` key's speed meets it without a jump, as a spin flicked up to speed, carried round
- * and caught does (the bayonet's, the karambit's). Nothing turns faster than about 24 rad/s, under
- * four turns a second, and the trip between the grip and the index finger takes about a third of a
- * second (`viewmodelMotion.test.ts` holds every knife to what a hand could do).
+ * Where the hand takes each knife to show it, as offsets from rest, each found by searching what a
+ * wrist and a forearm reach (`viewmodelGrounded.test.ts` holds every clip to their range) for a view
+ * of the knife: the arm brings it up, across and near, so the blade fills a good part of the view
+ * and its middle is near the middle of it, and the forearm rolls and the wrist flexes to turn it.
+ * One flat of a blade is seen from the palm's side at rest; the other is seen only from the back of
+ * the hand, with the fingers reaching toward the eye, the fist low and the blade above it.
  */
+const FWD = {
+  /** The flat the knife rests showing, face on. */
+  flat: { x: -0.08, y: 0.14, z: 0.12, rx: 0.18, ry: 0.03, rz: 0.08, flex: 0.27, dev: 0.18 },
+  /** The same, rolled a little to tilt the blade across the view. */
+  turn: { x: -0.08, y: 0.14, z: 0.12, rx: 0.18, ry: 0.03, rz: 0.6, flex: 0.1, dev: 0.18 },
+  /** The other flat, face on. */
+  other: { x: -0.15, y: 0.14, z: 0.1, rx: 0.54, ry: -0.56, rz: 1.25, flex: -0.95, dev: 0 },
+  /** The spine up, from the back of the hand. */
+  spine: { x: -0.1, y: 0.14, z: 0.1, rx: -0.1, ry: -0.3, rz: 0.9, flex: -0.5, dev: 0.2 },
+  /** The edge toward the eye. */
+  edge: { x: -0.1, y: 0.14, z: 0.1, rx: 0.06, ry: 0.11, rz: -0.48, flex: 0.96, dev: 0.15 },
+  /** Looking along the blade, its tip toward the eye. */
+  look: { x: -0.06, y: 0.12, z: 0.1, rx: 0.35, ry: 0.2, rz: 0.5, flex: 0.1, dev: 0.3 },
+} as const satisfies Record<string, Pose>;
+/** The chef's knife, held edge on and blade up, which the forearm and wrist turn the same way. */
+const CHEF = {
+  flat: { x: -0.09, y: 0.12, z: 0.11, rx: -0.09, ry: 0.13, rz: -0.22, flex: 0.51, dev: 0.14 },
+  spine: { x: -0.11, y: 0.12, z: 0.12, rx: 0.08, ry: -0.23, rz: 0.03, flex: -0.13, dev: 0.23 },
+  other: { x: -0.12, y: 0.12, z: 0.09, rx: 0.3, ry: -0.46, rz: 1.08, flex: -0.95, dev: 0.09 },
+} as const satisfies Record<string, Pose>;
+/** The karambit, held with its ring on the index finger and its claw out of the fist's heel. */
+const CLAW = {
+  /** The claw's flat, seen from the palm's side. */
+  flat: { x: -0.06, y: 0.14, z: 0.13, rx: 0.04, ry: -0.04, rz: -0.19, flex: 0.02, dev: 0.21 },
+  /**
+   * Its other side, seen from the back of the hand: the forearm rolled right over the other way, the
+   * wrist extended, the arm turned in across the view, the claw sweeping up out of the fist.
+   */
+  other: { x: -0.09, y: 0.16, z: 0.11, rx: 0.02, ry: 0.9, rz: -1.24, flex: -0.95, dev: -0.4 },
+  /** The edge of the claw's inside curve to the eye. */
+  edge: { x: -0.07, y: 0.16, z: 0.14, rx: 0.24, ry: 0.25, rz: -0.29, flex: 0.7, dev: 0.14 },
+} as const satisfies Record<string, Pose>;
+/** A hand's small dip before it lifts, so the lift has something to push off. */
+const DIP = { y: -0.012, rx: 0.04 } as const satisfies Pose;
+
+/** A pose `k` of the way from rest: a heavy knife is turned less. */
+function part(pose: Pose, k: number): Pose {
+  return Object.fromEntries(Object.entries(pose).map(([c, v]) => [c, (v ?? 0) * k]));
+}
+
+/**
+ * A knife drawn: the hand comes up from below the screen with its wrist turning into place (`from`
+ * where it starts, `mid` as it comes into view), arrives a touch past rest, as far as the knife's
+ * weight carries it (`weight`: a heavy knife overshoots more), and settles.
+ */
+function rise(time: number, from: Pose, mid: Pose, weight = 1): readonly Key[] {
+  const over = part(mid, -0.25);
+  return [
+    { ...DOWN, ...from },
+    { ...REST, t: time * 0.4, y: -0.045, rx: 0.12, ...mid },
+    { ...REST, t: time * 0.68, ...over, y: 0.012 * weight, rx: -0.035 * weight },
+    { ...REST, t: time },
+  ];
+}
+
+/** The arm and wrist's channels, which a beat of an inspect sets and a drift settles. */
+const ARM_CHANNELS = CHANNELS.slice(0, HINGES);
+const ARM_AT_REST = Object.fromEntries(ARM_CHANNELS.map((c) => [c, 0])) as Pose;
+
+/** A pose to show: arrive at `at` seconds, stay `hold` seconds, and go on. */
+interface Beat {
+  readonly at: number;
+  /** The arm and the wrist; any channel not given is at rest. */
+  readonly pose: Pose;
+  readonly hold?: number;
+  /** How far toward the next pose the hand has settled by the end of the hold (a tenth). */
+  readonly drift?: number;
+  readonly ease?: Ease;
+}
+
+/**
+ * An inspect from the poses it shows, in order, the last back at rest. A hold is never a stop: the
+ * hand leaves a pose a little on toward the next, as one settles and begins to move on, so the
+ * motion slows into a pose, creeps on through it, and picks up again, the way a hand does and a
+ * pose held between two stops does not.
+ */
+function inspectOf(beats: readonly Beat[]): readonly Key[] {
+  const keys: Key[] = [{ t: 0, ...ARM_AT_REST }];
+  beats.forEach((beat, i) => {
+    const next = beats[i + 1]?.pose ?? ARM_AT_REST;
+    keys.push({
+      ...ARM_AT_REST,
+      ...beat.pose,
+      t: beat.at,
+      ...(beat.ease ? { ease: beat.ease } : {}),
+    });
+    if (!beat.hold) return;
+    const settled = Object.fromEntries(
+      ARM_CHANNELS.map((c) => {
+        const from = beat.pose[c] ?? 0;
+        return [c, from + ((next[c] ?? 0) - from) * (beat.drift ?? 0.1)];
+      }),
+    );
+    keys.push({ ...settled, t: beat.at + beat.hold });
+  });
+  return keys;
+}
+
+/**
+ * A hinge swung to its stop from `from` at `t`: it goes at once and hits the stop, bounces back a
+ * little and settles, as a blade or a handle swung by the wrist does.
+ */
+function swing(
+  channel: 'a' | 'b',
+  t: number,
+  from: number,
+  to: number,
+  over = 0.17,
+  bounce = 0.13,
+): readonly HingeKey[] {
+  const back = to - Math.sign(to - from) * bounce;
+  return [
+    { t, [channel]: from },
+    { t: t + over, [channel]: to, ease: 'snap' },
+    { t: t + over + 0.11, [channel]: back, ease: 'smooth' },
+    { t: t + over + 0.26, [channel]: to, ease: 'smooth' },
+  ];
+}
+
+/** A hinge pressed slowly from `from` to `to` over `over` seconds from `t`, by the thumb. */
+function press(
+  channel: 'a' | 'b',
+  t: number,
+  from: number,
+  to: number,
+  over = 0.5,
+): readonly HingeKey[] {
+  return [
+    { t, [channel]: from },
+    { t: t + over, [channel]: to, ease: 'smooth' },
+  ];
+}
+
+/** Hinge keys from runs of them, in time order, the first at 0 and what is not keyed at rest. */
+function hinges(...runs: (readonly HingeKey[])[]): readonly HingeKey[] {
+  return [{ t: 0, a: 0, b: 0, loose: 0 }, ...runs.flat()];
+}
+
 const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
-  // The chef's knife: up from below with a snap, and a long look turning it over (DECISIONS.md).
   kitchen: {
-    draw: [DOWN, { t: 0.22, ...REST, ease: 'back' }],
-    redraw: [
-      { t: 0, ...SPENT, spin: TAU },
-      { t: REDRAW, ...REST, ease: 'back', knifeEase: 'out' },
-    ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.5, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, ry: 0, rz: 1.2, spin: PI / 2 },
-      { t: 1.15, x: -0.075, y: 0.072, z: 0.055, rx: -0.14, ry: 0.05, rz: 1.28, spin: PI / 2 + 0.1 },
-      { t: 1.6, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, ry: 0, rz: 1.2, spin: (PI * 3) / 2 },
-      { t: 2.05, x: -0.06, y: 0.075, z: 0.05, rx: -0.3, ry: 0, rz: 0.7, spin: (PI * 3) / 2 + 0.1 },
-      { t: 2.6, ...REST, spin: TAU },
-    ],
+    draw: rise(0.55, {}, {}, 1.2),
+    inspect: inspectOf([
+      { at: 0.24, pose: DIP },
+      { at: 0.85, pose: part(CHEF.flat, 0.55) },
+      { at: 1.4, pose: CHEF.flat, hold: 0.35 },
+      { at: 2.2, pose: CHEF.spine },
+      { at: 2.85, pose: CHEF.other, hold: 0.35 },
+      { at: 3.65, pose: part(CHEF.spine, 0.45) },
+      { at: 4.3, pose: {} },
+    ]),
   },
 
-  // The karambit spins round the finger in its ring, on the draw and twice over on the inspect.
   karambit: {
     rest: { y: 0.05 },
-    draw: [
-      // Spun up round the pointing finger, the ring out along it, then caught by the handle.
-      { ...DOWN, flip: -TAU * 1.5, hang: 1 },
-      { t: 0.32, y: -0.04, rx: 0.1, flip: -TAU * 0.35, ease: 'out', knifeEase: 'linear' },
-      { t: 0.61, flip: 0, ease: 'smooth', knifeEase: 'out' },
-      { t: 0.9, ...REST, knifeEase: 'smooth' },
-    ],
+    draw: rise(0.62, { rz: -0.4, flex: -0.6 }, { rz: 0.15, flex: 0.3 }),
     idle: [
       { t: 0, ...REST },
       { t: 2.2, ...REST },
-      { t: 2.8, ry: -0.04, rz: 0.07, ease: 'sine' },
-      { t: 3.6, ry: 0, rz: 0, ease: 'sine' },
+      { t: 2.8, ry: -0.04, rz: 0.07, ease: 'smooth' },
+      { t: 3.6, ry: 0, rz: 0, ease: 'smooth' },
       { t: 6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      // The ring slides out along the finger, the claw swings up over it, held up to the light...
-      { t: 0.35, x: -0.02, y: 0.025, hang: 1 },
-      { t: 0.75, x: -0.04, y: 0.05, z: 0.01, rx: -0.1, ry: 0.1, rz: 0.15, flip: -PI },
-      { t: 1.3, x: -0.045, y: 0.056, rx: -0.15, ry: 0.24, rz: 0.32, flip: -PI - 0.14 },
-      // ...then let it spin twice round the finger, swing back down, and catch it.
-      {
-        t: 1.55,
-        x: -0.035,
-        y: 0.045,
-        rx: -0.05,
-        ry: 0.1,
-        rz: 0.15,
-        flip: -PI - 0.14 - 1.5,
-        knifeEase: 'in',
-      },
-      { t: 2.057, flip: -PI - TAU * 2 + 1.8, knifeEase: 'linear' },
-      { t: 2.357, x: -0.03, y: 0.04, flip: -PI - TAU * 2, knifeEase: 'out' },
-      { t: 2.78, flip: -TAU * 3, knifeEase: 'smooth' },
-      { t: 3.15, ...REST, flip: -TAU * 3 },
-    ],
+    inspect: inspectOf([
+      { at: 0.2, pose: DIP },
+      { at: 0.8, pose: part(CLAW.flat, 0.6) },
+      { at: 1.35, pose: CLAW.flat, hold: 0.35 },
+      { at: 2.2, pose: CLAW.edge, hold: 0.2 },
+      { at: 3.3, pose: CLAW.other, hold: 0.3 },
+      { at: 4.4, pose: {} },
+    ]),
   },
 
-  // The butterfly rises closed and flips open, and its inspect is a flipping routine.
   butterfly: {
     draw: [
-      // Shut the way round that opens away from the palm, through the fingers, which let go.
-      { ...DOWN, spin: 0, a: -PI, b: PI },
-      { t: 0.18, y: -0.06, rx: 0.15, a: -PI, b: PI, ease: 'out' },
-      // The free handle swings away with the blade, then back round to close on the grip.
-      { t: 0.36, y: 0.01, rx: -0.05, rz: 0.15, a: 0, b: PI, knifeEase: 'in' },
-      { t: 0.56, y: 0, rx: 0, rz: 0, a: 0, b: 0, knifeEase: 'out' },
-      { t: 0.72, ...REST, ease: 'back' },
+      { ...DOWN, a: -PI, b: PI },
+      { ...REST, t: 0.2, y: -0.05, rx: 0.14, a: -PI, b: PI },
+      {
+        ...REST,
+        t: 0.4,
+        y: 0.012,
+        rx: -0.05,
+        rz: 0.15,
+        flex: -0.25,
+        a: 0,
+        b: PI,
+        hingeEase: 'snap',
+      },
+      { ...REST, t: 0.62, y: 0.01, rz: 0.03, flex: 0.08, hingeEase: 'snap' },
+      { ...REST, t: 0.86 },
     ],
     idle: [
       { t: 0, ...REST },
       { t: 2.5, ...REST },
-      { t: 2.75, b: 0.35, rz: 0.04, ease: 'sine', knifeEase: 'out' },
-      { t: 3.05, b: 0, rz: 0, ease: 'sine', knifeEase: 'in' },
+      { t: 2.75, b: 0.35, rz: 0.04, ease: 'smooth', hingeEase: 'snap' },
+      { t: 3.15, b: 0, rz: 0, ease: 'smooth' },
       { t: 5.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.35, x: -0.07, y: 0.08, z: 0.02, rx: -0.12, rz: 0.35 },
-      // Closed: the free handle swings round over the edge, then the blade folds into the grip.
-      { t: 0.62, b: PI, knifeEase: 'sine' },
-      { t: 0.86, a: -PI, b: PI, rz: 0.2, knifeEase: 'sine' },
-      // Open again: the blade swings out and the handle comes home.
-      { t: 1.12, x: -0.075, y: 0.085, a: 0, rz: 0.5, knifeEase: 'sine' },
-      { t: 1.38, b: 0, knifeEase: 'sine' },
-      // An aerial: the whole knife tossed round the index finger once.
-      { t: 1.73, x: -0.07, y: 0.09, rz: 0.3, flip: 0, hang: 1 },
-      { t: 2.13, x: -0.07, y: 0.11, rz: 0.25, flip: -PI, knifeEase: 'in' },
-      { t: 2.53, x: -0.07, y: 0.12, rz: 0.2, flip: -TAU, knifeEase: 'out' },
-      { t: 2.88, hang: 0 },
-      // And a look along the open blade, and the wrist turns it over to show the other side.
-      { t: 3.33, x: -0.07, y: 0.07, z: 0.04, rx: -0.15, ry: 0.2, rz: 1.05, spin: PI / 2 },
-      { t: 3.83, x: -0.072, y: 0.072, rz: 1.12, spin: (PI * 3) / 2 },
-      { t: 4.38, ...REST, flip: -TAU, spin: TAU },
-    ],
+    inspect: inspectOf([
+      { at: 0.17, pose: DIP },
+      { at: 0.65, pose: FWD.flat, hold: 0.25 },
+      { at: 1.4, pose: FWD.turn, hold: 0.25 },
+      { at: 2.15, pose: FWD.spine },
+      { at: 2.85, pose: FWD.flat },
+      { at: 3.4, pose: FWD.other, hold: 0.25 },
+      { at: 4.4, pose: {} },
+    ]),
+    inspectHinges: hinges(
+      swing('b', 1.15, 0, PI),
+      swing('a', 1.7, 0, -PI, 0.2, 0.12),
+      swing('a', 2.4, -PI, 0, 0.2, 0.12),
+      swing('b', 2.9, PI, 0),
+    ),
   },
 
-  // The M9 rolls in the fingers as it comes up, and its inspect is a wrist roll and a spin.
   m9: {
-    draw: [
-      { ...DOWN, spin: -TAU },
-      { t: 0.3, y: -0.02, rx: 0.05, spin: -1.366, knifeEase: 'linear' },
-      { t: 0.55, ...REST, ease: 'back', knifeEase: 'out' },
-    ],
+    draw: rise(0.58, { rz: -0.6, flex: 0.4 }, { rz: 0.15, flex: -0.15 }),
     idle: [
       { t: 0, ...REST },
       { t: 3, ...REST },
-      { t: 3.6, rz: 0.05, spin: 0.12, ease: 'sine' },
-      { t: 4.4, rz: 0, spin: 0, ease: 'sine' },
+      { t: 3.6, rz: 0.05, flex: 0.1, ease: 'smooth' },
+      { t: 4.4, rz: 0, flex: 0, ease: 'smooth' },
       { t: 6.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.5, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, rz: 1.2, spin: PI / 2 },
-      { t: 1.1, x: -0.074, y: 0.072, z: 0.055, rx: -0.14, ry: 0.05, rz: 1.26, spin: PI / 2 + 0.08 },
-      { t: 1.55, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, ry: 0, rz: 1.2, spin: (PI * 3) / 2 },
-      // Tip it up, then spin it round the index finger end over end.
-      { t: 1.95, x: -0.05, y: 0.06, z: 0.03, rx: -0.3, rz: 0.5, spin: TAU, flip: 0 },
-      { t: 2.3, hang: 1 },
-      { t: 2.7, x: -0.04, y: 0.055, rz: 0.4, flip: PI, knifeEase: 'in' },
-      { t: 3.1, x: -0.03, y: 0.05, rz: 0.3, flip: TAU, knifeEase: 'out' },
-      { t: 3.45, hang: 0 },
-      { t: 3.85, ...REST, spin: TAU, flip: TAU },
-    ],
+    inspect: inspectOf([
+      { at: 0.16, pose: DIP },
+      { at: 0.7, pose: FWD.flat, hold: 0.4 },
+      { at: 1.65, pose: FWD.spine, hold: 0.3 },
+      { at: 2.55, pose: FWD.other, hold: 0.3 },
+      { at: 3.4, pose: FWD.look },
+      { at: 4.25, pose: {} },
+    ]),
   },
 
-  // The bayonet flips end over end about the index finger, the trick it is known for.
   bayonet: {
-    draw: [
-      { ...DOWN, flip: TAU, hang: 1 },
-      { t: 0.28, y: -0.03, rx: 0.08, flip: TAU / 7, knifeEase: 'linear' },
-      { t: 0.42, flip: 0, knifeEase: 'out' },
-      { t: 0.68, ...REST, ease: 'back', knifeEase: 'smooth' },
-    ],
+    draw: rise(0.5, { rz: 0.5, flex: -0.6 }, { rz: -0.1, flex: 0.25 }, 0.9),
     idle: [
       { t: 0, ...REST },
       { t: 3.2, ...REST },
-      { t: 3.8, ry: 0.06, rz: -0.04, ease: 'sine' },
-      { t: 4.6, ry: 0, rz: 0, ease: 'sine' },
+      { t: 3.8, ry: 0.06, rz: -0.04, ease: 'smooth' },
+      { t: 4.6, ry: 0, rz: 0, ease: 'smooth' },
       { t: 7, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.35, x: -0.03, y: 0.05, z: -0.02, rx: -0.1, rz: 0.25 },
-      // Twice round the finger in one spin: flicked up to speed, round, and caught.
-      { t: 0.7, hang: 1 },
-      { t: 0.95, flip: 1.5, knifeEase: 'in' },
-      { t: 1.465, flip: TAU * 2 - 1.8, knifeEase: 'linear' },
-      { t: 1.765, flip: TAU * 2, knifeEase: 'out' },
-      { t: 2.1, hang: 0 },
-      // Then a long look at the flat.
-      { t: 2.55, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, rz: 1.2, spin: PI / 2 },
-      { t: 3.1, x: -0.074, y: 0.072, rz: 1.25, spin: PI / 2 + 0.1 },
-      { t: 3.55, x: -0.07, y: 0.07, rz: 1.2, spin: (PI * 3) / 2 },
-      { t: 4.1, ...REST, spin: TAU, flip: TAU * 2 },
-    ],
+    inspect: inspectOf([
+      { at: 0.13, pose: part(DIP, 0.6) },
+      { at: 0.65, pose: FWD.look, hold: 0.2 },
+      { at: 1.35, pose: FWD.flat, hold: 0.3 },
+      { at: 2.15, pose: FWD.other, hold: 0.3 },
+      { at: 3.2, pose: FWD.edge },
+      { at: 3.95, pose: {} },
+    ]),
   },
 
-  // The flip knife comes up closed and flicks open; its inspect folds it and flicks it again.
   flip: {
     draw: [
       { ...DOWN, a: PI },
-      { t: 0.22, y: -0.05, rx: 0.12, a: PI, ease: 'out' },
-      { t: 0.32, y: -0.02, rx: -0.08, rz: -0.1, a: 0.2, knifeEase: 'in' },
-      { t: 0.4, a: 0, knifeEase: 'out' },
-      { t: 0.6, ...REST, ease: 'back' },
+      { ...REST, t: 0.22, y: -0.05, rx: 0.12, a: PI },
+      { ...REST, t: 0.36, y: -0.015, rx: -0.06, rz: -0.12, flex: -0.3, a: PI },
+      { ...REST, t: 0.5, y: 0.01, rx: -0.04, rz: -0.05, flex: 0.15, hingeEase: 'snap' },
+      { ...REST, t: 0.72 },
     ],
     idle: [
       { t: 0, ...REST },
       { t: 2.8, ...REST },
-      { t: 3.0, a: 0.07, rz: -0.03, ease: 'sine', knifeEase: 'out' },
-      { t: 3.25, a: 0, rz: 0, ease: 'sine', knifeEase: 'in' },
+      { t: 3.0, a: 0.07, rz: -0.03, ease: 'smooth', hingeEase: 'snap' },
+      { t: 3.3, a: 0, rz: 0, ease: 'smooth' },
       { t: 6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.45, x: -0.06, y: 0.06, z: 0.04, rx: -0.1, rz: 1.1, spin: PI / 2 },
-      { t: 1.0, x: -0.065, y: 0.065, rz: 1.18, spin: PI / 2 + 0.1 },
-      // Turned back, fold it shut away from the thumb...
-      { t: 1.3, x: -0.04, y: 0.04, rz: 0.6, spin: 0 },
-      { t: 1.55, a: PI, knifeEase: 'smooth' },
-      { t: 1.8, a: PI },
-      // ...and flick it open, the wrist snapping, then look at the other side.
-      { t: 1.92, rx: -0.12, rz: 0.4, a: 0, knifeEase: 'out' },
-      { t: 2.3, x: -0.07, y: 0.07, z: 0.04, rx: -0.12, rz: 1.2, spin: -PI / 2 },
-      { t: 2.75, x: -0.072, y: 0.072, rz: 1.24, spin: -PI / 2 - 0.1 },
-      { t: 3.3, ...REST, spin: 0 },
-    ],
+    inspect: inspectOf([
+      { at: 0.17, pose: DIP },
+      { at: 0.65, pose: FWD.flat, hold: 0.25, drift: 0.18 },
+      { at: 1.3, pose: FWD.turn, hold: 0.25, drift: 0.18 },
+      { at: 2.0, pose: FWD.spine },
+      { at: 2.4, pose: { ...FWD.turn, flex: -0.1, dev: 0.1 } },
+      { at: 2.72, pose: { ...FWD.flat, flex: 0.3 } },
+      { at: 3.35, pose: FWD.other, hold: 0.25, drift: 0.18 },
+      { at: 4.35, pose: {} },
+    ]),
+    inspectHinges: hinges(press('a', 1.15, 0, 1.6, 0.6), swing('a', 2.5, 1.6, 0, 0.1, 0.1)),
   },
 
-  // The huntsman turns end over end round the finger as it is drawn, and is weighed in the hand.
   huntsman: {
-    draw: [
-      { ...DOWN, flip: -TAU, hang: 1 },
-      { t: 0.3, y: -0.02, rx: 0.06, flip: -0.739, knifeEase: 'linear' },
-      { t: 0.42, flip: 0, knifeEase: 'out' },
-      { t: 0.68, ...REST, ease: 'back', knifeEase: 'smooth' },
-    ],
+    draw: rise(0.72, { flex: -0.3 }, { flex: 0.1 }, 1.7),
     idle: [
       { t: 0, ...REST },
       { t: 2.6, ...REST },
-      { t: 3.3, y: 0.004, rx: -0.04, ease: 'sine' },
-      { t: 4.1, y: 0, rx: 0, ease: 'sine' },
+      { t: 3.3, y: 0.004, rx: -0.04, ease: 'smooth' },
+      { t: 4.1, y: 0, rx: 0, ease: 'smooth' },
       { t: 6.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.5, x: -0.07, y: 0.065, z: 0.05, rx: -0.1, rz: 1.15, spin: PI / 2 },
-      { t: 1.2, x: -0.072, y: 0.068, rz: 1.22, spin: PI / 2 + 0.1 },
-      // Tossed up off the finger, it turns over once and is caught.
-      { t: 1.5, x: -0.05, y: 0.05, rz: 0.6, spin: PI / 2, flip: 0 },
-      { t: 1.85, y: 0.07, hang: 1 },
-      { t: 2.25, y: 0.11, flip: -PI, knifeEase: 'in' },
-      { t: 2.65, y: 0.05, flip: -TAU, knifeEase: 'out' },
-      { t: 3.0, hang: 0 },
-      { t: 3.45, x: -0.07, y: 0.07, rz: 1.2, spin: (PI * 3) / 2 },
-      { t: 3.9, x: -0.072, y: 0.072, rz: 1.25, spin: (PI * 3) / 2 + 0.1 },
-      { t: 4.4, ...REST, spin: TAU, flip: -TAU },
-    ],
+    inspect: inspectOf([
+      { at: 0.3, pose: { y: -0.025, rx: 0.07 } },
+      { at: 1.0, pose: part(FWD.flat, 0.9), hold: 0.4, drift: 0.25 },
+      // Weighed: let down in the hand, and taken up again, past where it was.
+      { at: 1.8, pose: { ...part(FWD.flat, 0.9), y: 0.09, z: 0.09, rx: 0.28 } },
+      { at: 2.5, pose: { ...part(FWD.flat, 0.9), y: 0.15 }, hold: 0.3, drift: 0.25 },
+      { at: 3.35, pose: FWD.other, hold: 0.35, drift: 0.2 },
+      { at: 4.45, pose: {} },
+    ]),
   },
 
-  // The falchion rolls over the finger and round, its signature flourish.
   falchion: {
-    draw: [
-      { ...DOWN, flip: -PI, hang: 1 },
-      { t: 0.3, y: -0.03, rx: 0.06, flip: -0.37, knifeEase: 'linear' },
-      { t: 0.42, flip: 0, knifeEase: 'out' },
-      { t: 0.7, ...REST, ease: 'back', knifeEase: 'smooth' },
-    ],
+    draw: rise(0.68, { x: 0.05, dev: -0.35, rz: 0.4 }, { x: -0.03, dev: 0.1, rz: -0.15 }, 1.1),
     idle: [
       { t: 0, ...REST },
       { t: 2.4, ...REST },
-      { t: 3.0, rz: -0.05, ry: 0.05, ease: 'sine' },
-      { t: 3.8, rz: 0, ry: 0, ease: 'sine' },
+      { t: 3.0, rz: -0.05, ry: 0.05, ease: 'smooth' },
+      { t: 3.8, rz: 0, ry: 0, ease: 'smooth' },
       { t: 6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.45, x: -0.05, y: 0.06, z: 0.02, rx: -0.15, rz: 0.4 },
-      // Over the finger and round.
-      { t: 0.8, hang: 1 },
-      { t: 1.3, x: -0.06, y: 0.08, rz: 0.7, flip: -PI, knifeEase: 'in' },
-      { t: 1.8, x: -0.05, y: 0.06, rz: 0.4, flip: -TAU, knifeEase: 'out' },
-      { t: 2.15, hang: 0 },
-      { t: 2.6, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, rz: 1.2, spin: PI / 2 },
-      { t: 3.15, x: -0.074, y: 0.072, rz: 1.25, spin: PI / 2 + 0.1 },
-      { t: 3.55, x: -0.07, y: 0.07, rz: 1.2, spin: (PI * 3) / 2 },
-      { t: 4.05, ...REST, spin: TAU, flip: -TAU },
-    ],
+    inspect: inspectOf([
+      { at: 0.17, pose: DIP },
+      { at: 0.7, pose: FWD.turn },
+      { at: 1.65, pose: FWD.other, hold: 0.5 },
+      { at: 2.75, pose: FWD.flat, hold: 0.4 },
+      { at: 3.7, pose: FWD.look },
+      { at: 4.4, pose: {} },
+    ]),
   },
 
-  // The gut knife twists quickly into the hand and shows off its hook from both sides.
   gut: {
-    draw: [
-      { ...DOWN, spin: TAU },
-      { t: 0.25, y: -0.03, rx: 0.08, spin: PI / 2, knifeEase: 'linear' },
-      { t: 0.5, ...REST, ease: 'back', knifeEase: 'out' },
-    ],
+    draw: rise(0.52, { rz: 0.8, flex: -0.5 }, { rz: 0.1, flex: 0.1 }, 0.9),
     idle: [
       { t: 0, ...REST },
       { t: 3, ...REST },
-      { t: 3.5, rz: 0.07, ease: 'sine' },
-      { t: 4.2, rz: 0, ease: 'sine' },
+      { t: 3.5, rz: 0.07, ease: 'smooth' },
+      { t: 4.2, rz: 0, ease: 'smooth' },
       { t: 6.5, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      // The hook to the eye, then the other side.
-      { t: 0.45, x: -0.06, y: 0.07, z: 0.04, rx: -0.2, ry: 0.3, rz: 1.0, spin: PI / 2 },
-      { t: 1.1, x: -0.062, y: 0.074, rx: -0.25, ry: 0.35, rz: 1.05, spin: PI / 2 + 0.1 },
-      { t: 1.5, x: -0.06, y: 0.07, rx: -0.2, ry: -0.2, rz: 1.0, spin: (PI * 3) / 2 },
-      { t: 2.1, x: -0.062, y: 0.072, ry: -0.25, rz: 1.05, spin: (PI * 3) / 2 + 0.1 },
-      // A quick twirl about its length and home.
-      {
-        t: 2.55,
-        x: -0.03,
-        y: 0.04,
-        rx: -0.1,
-        ry: 0,
-        rz: 0.4,
-        spin: (PI * 3) / 2 + 0.1 + 3.489,
-        knifeEase: 'in',
-      },
-      { t: 3.1, ...REST, spin: TAU * 2, knifeEase: 'out' },
-    ],
+    inspect: inspectOf([
+      { at: 0.16, pose: DIP },
+      // The hook, on its spine, first; then the flat, and the other side.
+      { at: 0.75, pose: FWD.spine, hold: 0.4, drift: 0.18 },
+      { at: 1.65, pose: FWD.flat, hold: 0.35, drift: 0.18 },
+      { at: 2.6, pose: FWD.other, hold: 0.4, drift: 0.18 },
+      { at: 3.95, pose: {} },
+    ]),
   },
 
-  // The talon spins on its ring the other way from the karambit, and is turned to show the claw.
   talon: {
-    draw: [
-      // Spun up hanging from its ring, upright again on the finger, then caught by the handle.
-      { ...DOWN, flip: TAU, hang: 1 },
-      { t: 0.3, y: -0.02, rx: 0.06, flip: TAU / 7, ease: 'out', knifeEase: 'linear' },
-      { t: 0.45, flip: 0, knifeEase: 'out' },
-      { t: 0.72, ...REST, knifeEase: 'smooth' },
-    ],
+    draw: rise(0.74, { rz: -0.5, flex: -0.5 }, { rz: 0.1, flex: 0.1 }),
     idle: [
       { t: 0, ...REST },
       { t: 2.6, ...REST },
-      { t: 3.2, ry: 0.05, rz: -0.06, ease: 'sine' },
-      { t: 4.0, ry: 0, rz: 0, ease: 'sine' },
+      { t: 3.2, ry: 0.05, rz: -0.06, ease: 'smooth' },
+      { t: 4.0, ry: 0, rz: 0, ease: 'smooth' },
       { t: 6.4, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      // Turned over to show the claw...
-      { t: 0.45, x: -0.06, y: 0.06, z: 0.03, rx: -0.15, ry: 0.3, rz: 0.85, spin: 0.25 },
-      { t: 1.05, x: -0.064, y: 0.064, ry: 0.36, rz: 0.95, spin: 0.4 },
-      // ...then onto the index finger by its ring, spun twice round it, and caught.
-      { t: 1.35, x: -0.04, y: 0.07, rx: -0.05, ry: 0.1, rz: 0.3, spin: 0, hang: 1 },
-      { t: 1.6, flip: 1.75, knifeEase: 'in' },
-      { t: 1.95, flip: TAU * 1.5, knifeEase: 'linear' },
-      { t: 2.38, x: -0.03, y: 0.05, rz: 0.15, flip: TAU * 2, knifeEase: 'out' },
-      { t: 2.95, ...REST, flip: TAU * 2 },
-    ],
+    inspect: inspectOf([
+      { at: 0.17, pose: DIP },
+      { at: 0.7, pose: FWD.turn },
+      { at: 1.35, pose: FWD.flat, hold: 0.4 },
+      { at: 2.35, pose: FWD.other, hold: 0.3 },
+      { at: 3.4, pose: FWD.look },
+      { at: 4.25, pose: {} },
+    ]),
   },
 
-  // The skeleton knife spins on the loop at its butt.
   skeleton: {
-    draw: [
-      // Spun up on the finger through its loop, upright again, then caught by the handle.
-      { ...DOWN, flip: -TAU, hang: 1 },
-      { t: 0.3, y: -0.02, rx: 0.06, flip: -TAU / 7, knifeEase: 'linear' },
-      { t: 0.45, flip: 0, knifeEase: 'out' },
-      { t: 0.7, ...REST, ease: 'back', knifeEase: 'smooth' },
-    ],
+    draw: rise(0.6, { flex: 0.5 }, { flex: -0.2 }, 0.7),
     idle: [
       { t: 0, ...REST },
       { t: 2.8, ...REST },
-      { t: 3.4, ry: -0.04, rz: 0.05, ease: 'sine' },
-      { t: 4.2, ry: 0, rz: 0, ease: 'sine' },
+      { t: 3.4, ry: -0.04, rz: 0.05, ease: 'smooth' },
+      { t: 4.2, ry: 0, rz: 0, ease: 'smooth' },
       { t: 6.6, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.45, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, rz: 1.2, spin: PI / 2 },
-      { t: 1.05, x: -0.074, y: 0.072, rz: 1.26, spin: PI / 2 + 0.1 },
-      // Onto the index finger through its loop, round it twice, and caught.
-      { t: 1.35, x: -0.04, y: 0.07, rx: -0.05, rz: 0.3, spin: 0, hang: 1 },
-      { t: 1.6, flip: -1.75, knifeEase: 'in' },
-      { t: 1.95, flip: -TAU * 1.5, knifeEase: 'linear' },
-      { t: 2.38, x: -0.03, y: 0.05, flip: -TAU * 2, knifeEase: 'out' },
-      { t: 2.95, ...REST, flip: -TAU * 2 },
-    ],
+    inspect: inspectOf([
+      { at: 0.13, pose: part(DIP, 0.6) },
+      { at: 0.6, pose: FWD.flat, hold: 0.3 },
+      { at: 1.45, pose: FWD.other, hold: 0.4 },
+      { at: 2.5, pose: FWD.flat },
+      { at: 3.4, pose: {} },
+    ]),
   },
 
-  // The stiletto's blade swings out of its handle, with a click, on the draw and the inspect.
+  // The stiletto's blade, closed, reaches past the butt, and sweeps through the little finger and the
+  // heel of the hand as it opens: the hand loosens for the flick, which the draw does.
   stiletto: {
+    through: { a: [1.75, 3.1] },
     draw: [
       { ...DOWN, a: PI },
-      { t: 0.24, y: -0.04, rx: 0.1, a: PI, ease: 'out' },
-      { t: 0.33, a: 0, rz: -0.08, knifeEase: 'out' },
-      { t: 0.58, ...REST, ease: 'back' },
+      { ...REST, t: 0.24, y: -0.04, rx: 0.1, a: PI },
+      { ...REST, t: 0.33, y: -0.015, rx: -0.04, rz: 0.05, a: PI, loose: 1 },
+      { ...REST, t: 0.47, y: 0.008, rx: -0.03, rz: -0.08, flex: 0.1, loose: 1, hingeEase: 'snap' },
+      { ...REST, t: 0.56, y: 0.004 },
+      { ...REST, t: 0.74 },
     ],
     idle: [
       { t: 0, ...REST },
       { t: 3, ...REST },
-      { t: 3.6, rz: 0.04, spin: -0.1, ease: 'sine' },
-      { t: 4.4, rz: 0, spin: 0, ease: 'sine' },
+      { t: 3.6, rz: 0.04, flex: 0.08, ease: 'smooth' },
+      { t: 4.4, rz: 0, flex: 0, ease: 'smooth' },
       { t: 6.8, ...REST },
     ],
-    inspect: [
-      { t: 0, ...REST },
-      { t: 0.5, x: -0.07, y: 0.07, z: 0.05, rx: -0.1, rz: 1.2, spin: PI / 2 },
-      { t: 1.1, x: -0.073, y: 0.072, rz: 1.25, spin: PI / 2 + 0.08 },
-      // Turned back, folded away from the thumb, then out again with a flick.
-      { t: 1.4, x: -0.05, y: 0.05, rz: 0.7, spin: 0 },
-      { t: 1.65, a: PI, knifeEase: 'smooth' },
-      { t: 1.9, a: PI },
-      { t: 2.0, rz: 0.55, a: 0, knifeEase: 'out' },
-      { t: 2.45, x: -0.07, y: 0.07, rz: 1.2, spin: -PI / 2 },
-      { t: 2.9, x: -0.073, y: 0.072, rz: 1.25, spin: -PI / 2 - 0.08 },
-      { t: 3.4, ...REST, spin: 0 },
-    ],
+    inspect: inspectOf([
+      { at: 0.17, pose: DIP },
+      { at: 0.65, pose: FWD.flat, hold: 0.3 },
+      { at: 1.3, pose: FWD.look, hold: 0.3 },
+      { at: 2.1, pose: FWD.turn, hold: 0.3 },
+      { at: 2.9, pose: FWD.flat },
+      { at: 3.45, pose: FWD.other, hold: 0.2 },
+      { at: 4.4, pose: {} },
+    ]),
+    inspectHinges: hinges(press('a', 1.8, 0, 1.6), swing('a', 2.65, 1.6, 0, 0.1, 0.06)),
   },
 };
 
@@ -635,8 +751,9 @@ function compile(keys: MoveKeys): KnifeMoves {
     draw: clip(keys.draw),
     redraw: clip(keys.redraw ?? retimed(keys.draw, REDRAW, SPENT)),
     idle: clip(keys.idle ?? NO_IDLE),
-    inspect: clip(keys.inspect),
+    inspect: clip(keys.inspect, keys.inspectHinges),
     rest: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, ...keys.rest },
+    through: keys.through ?? {},
   };
 }
 

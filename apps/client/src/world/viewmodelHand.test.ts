@@ -43,7 +43,7 @@ function indexProximal(vm: Viewmodel): [Vector3, Vector3] {
 /** How far a knife's ring is from the index finger's proximal phalanx, in the arm's own units. */
 function ringOffFinger(vm: Viewmodel, skin: KnifeSkin): number {
   vm.scene.updateMatrixWorld(true);
-  const [pz, py] = knifeModel(skin).pivot;
+  const [pz, py] = knifeModel(skin).ring!;
   const ring = parts(vm).model.localToWorld(new Vector3(0, py, pz));
   const [knuckle, joint] = indexProximal(vm);
   const scale = parts(vm).arm.getWorldScale(new Vector3()).x;
@@ -95,7 +95,7 @@ describe('the hand round each knife', () => {
     });
   }
 
-  it("threads the karambit's ring on the index finger, at rest and all through its spin", () => {
+  it("threads the karambit's ring on the index finger, at rest and all through its inspect", () => {
     const vm = holding('karambit');
     expect(ringOffFinger(vm, 'karambit')).toBeLessThan(0.002);
     expect(ringLean(vm)).toBeLessThan(0.62);
@@ -107,34 +107,21 @@ describe('the hand round each knife', () => {
     }
   });
 
-  for (const skin of ['talon', 'skeleton'] as const) {
-    it(`hangs the ${skin} by its ring from the index finger when it is spun`, () => {
-      const vm = holding(skin);
-      vm.startInspect();
-      // Hanging from its ring, mid-spin.
-      step(vm, 1.65);
-      expect(ringOffFinger(vm, skin)).toBeLessThan(0.001);
-      expect(ringLean(vm)).toBeLessThan(0.05);
-    });
-  }
-
-  it('lets go of the handle while a knife spins, and closes on it again', () => {
-    const vm = holding('karambit');
+  it('loosens the fingers as the stiletto flicks its blade out through them, and closes on the handle', () => {
     const little = FINGERS.length - 1;
-    const curl = (): number => {
-      const pose = (vm as unknown as { handPose: Float32Array }).handPose;
-      // The little finger's knuckle bend.
-      return pose[little * FINGER_STRIDE + 2]!;
-    };
-    const gripped = curl();
-    vm.startInspect();
-    let loosest = gripped;
-    for (let t = 0; t < 2.2; t += 1 / 60) {
+    // The little finger's knuckle bend.
+    const curl = (vm: Viewmodel): number =>
+      (vm as unknown as { handPose: Float32Array }).handPose[little * FINGER_STRIDE + 2]!;
+    const vm = new Viewmodel();
+    vm.setLook(knifeLook('stiletto', undefined));
+    vm.setShown(true);
+    let loosest = Infinity;
+    for (let t = 0; t < 2; t += 1 / 60) {
       step(vm, 1 / 60);
-      loosest = Math.min(loosest, curl());
+      loosest = Math.min(loosest, curl(vm));
     }
+    const gripped = curl(holding('stiletto'));
     expect(loosest).toBeLessThan(gripped - 0.3);
-    step(vm, knifeMoves('karambit').inspect.duration);
-    expect(curl()).toBeCloseTo(gripped, 2);
+    expect(curl(vm)).toBeCloseTo(gripped, 2);
   });
 });

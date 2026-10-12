@@ -23,39 +23,33 @@ const blank = (): ArmPose => ({
   ry: 0,
   rz: 0,
   knife: true,
-  spin: 0,
-  flip: 0,
+  flex: 0,
+  dev: 0,
   a: 0,
   b: 0,
-  hang: 0,
+  loose: 0,
 });
 const ARM: readonly Channel[] = ['x', 'y', 'z', 'rx', 'ry', 'rz'];
-const TURNS: readonly Channel[] = ['spin', 'flip'];
+/** The wrist turning the hand and the knife in it together. */
+const WRIST: readonly Channel[] = ['flex', 'dev'];
 /** A folding blade and a butterfly's free handle swing between open and shut; they never wrap. */
 const HINGES: readonly Channel[] = ['a', 'b'];
-/** How far an angle is from a whole number of turns. */
-const offTurn = (angle: number): number =>
-  Math.abs(angle - Math.PI * 2 * Math.round(angle / (Math.PI * 2)));
 
-/** The biggest change in any channel between two samples 1/6000 s apart; a whole turn is none. */
+/** The biggest change in any channel between two samples 1/6000 s apart. */
 function largestJump(c: Clip, channels: readonly Channel[]): number {
   let worst = 0;
   const step = 1 / 6000;
   for (let t = 0; t < c.duration; t += step) {
     const a = sample(c, t, blank());
     const b = sample(c, t + step, blank());
-    for (const k of channels) {
-      const d = b[k] - a[k];
-      worst = Math.max(worst, TURNS.includes(k) ? offTurn(d) : Math.abs(d));
-    }
+    for (const k of channels) worst = Math.max(worst, Math.abs(b[k] - a[k]));
   }
   return worst;
 }
 
 function atRest(pose: ArmPose): void {
-  for (const k of ARM) expect(pose[k]).toBeCloseTo(0, 6);
-  for (const k of TURNS) expect(offTurn(pose[k])).toBeCloseTo(0, 6);
-  for (const k of HINGES) expect(pose[k]).toBeCloseTo(0, 6);
+  for (const k of [...ARM, ...WRIST, ...HINGES, 'loose' as const])
+    expect(pose[k]).toBeCloseTo(0, 6);
 }
 
 describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => {
@@ -74,7 +68,7 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => 
     }
     // Nothing reaches past the tip, so a stuck knife is stuck by its point.
     expect(tipZ).toBeGreaterThan(-0.004);
-    for (const [z, y] of [model.grip, model.center, model.pivot]) {
+    for (const [z, y] of [model.grip, model.center, ...(model.ring ? [model.ring] : [])]) {
       expect(Number.isFinite(z) && Number.isFinite(y)).toBe(true);
       expect(z).toBeGreaterThan(0);
     }
@@ -155,22 +149,48 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s', (skin: KnifeSkin) => 
     atRest(sample(moves.idle, moves.idle.duration, blank()));
   });
 
-  it('moves smoothly: the arm never jumps, and the knife only turns as fast as a flick', () => {
+  it('moves smoothly: the arm never jumps, the wrist turns as fast as a flick and no faster', () => {
     for (const c of [moves.draw, moves.inspect, moves.idle]) {
       if (c.duration === 0) continue;
       expect(largestJump(c, ARM)).toBeLessThan(0.006);
-      // Spun in the fingers at no more than 9 turns a second...
-      expect(largestJump(c, ['spin', 'flip'])).toBeLessThan(0.0095);
-      // ...and a folding blade flicked open in no less than about a twentieth of a second.
-      expect(largestJump(c, ['a', 'b'])).toBeLessThan(0.025);
+      // A wrist turns at no more than about 15 rad/s, a snap...
+      expect(largestJump(c, WRIST)).toBeLessThan(0.0025);
+      // ...and a folding blade is flicked open in no less than about a twentieth of a second.
+      expect(largestJump(c, HINGES)).toBeLessThan(0.025);
+      expect(largestJump(c, ['loose'])).toBeLessThan(0.025);
     }
     // The redraw is squeezed into a third of a second, so it is quicker.
     expect(largestJump(moves.redraw, ARM)).toBeLessThan(0.012);
-    expect(largestJump(moves.redraw, [...TURNS, ...HINGES])).toBeLessThan(0.04);
+    expect(largestJump(moves.redraw, WRIST)).toBeLessThan(0.005);
+    expect(largestJump(moves.redraw, HINGES)).toBeLessThan(0.04);
+  });
+
+  it('never jumps in acceleration, at a key or anywhere: a hand is pushed, not struck', () => {
+    // The arm and the wrist are minimum-jerk curves, with no acceleration at a stop and the same
+    // either side of a key they flow through. (A hinge may be let go like a spring, and is not held to it.)
+    const h = 5e-7;
+    const pose = (c: Clip, t: number, k: Channel): number => sample(c, t, blank())[k];
+    for (const c of [moves.draw, moves.redraw, moves.inspect, moves.idle]) {
+      if (c.duration === 0) continue;
+      for (const key of [...c.arm.times, ...c.hinge.times]) {
+        for (const k of [...ARM, ...WRIST]) {
+          // Second differences just before and just after the key.
+          const before =
+            (pose(c, key - 2 * h, k) - 2 * pose(c, key - h, k) + pose(c, key, k)) / h ** 2;
+          const after =
+            (pose(c, key, k) - 2 * pose(c, key + h, k) + pose(c, key + 2 * h, k)) / h ** 2;
+          if (key - 2 * h < 0 || key + 2 * h > c.duration) continue;
+          expect(Math.abs(after - before), `${k} at ${key.toFixed(2)} s`).toBeLessThan(0.5);
+        }
+      }
+    }
   });
 
   it('keys only the channels a pose has', () => {
-    expect(moves.inspect.values.length % CHANNELS.length).toBe(0);
+    const { arm, hinge } = moves.inspect;
+    expect(arm.values.length).toBe(arm.times.length * arm.width);
+    expect(hinge.values.length).toBe(hinge.times.length * hinge.width);
+    expect(arm.width + hinge.width).toBe(CHANNELS.length);
   });
 
   it('is drawn, thrown and inspected in the hand on screen', () => {

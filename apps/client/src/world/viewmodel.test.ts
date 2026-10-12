@@ -24,16 +24,13 @@ const blank = (): ArmPose => ({
   ry: 0,
   rz: 0,
   knife: true,
-  spin: 0,
-  flip: 0,
+  flex: 0,
+  dev: 0,
   a: 0,
   b: 0,
-  hang: 0,
+  loose: 0,
 });
 const keys = ['x', 'y', 'z', 'rx', 'ry', 'rz'] as const;
-/** How far an angle is from a whole number of turns: a whole turn looks the same as none. */
-const offTurn = (angle: number): number =>
-  Math.abs(angle - Math.PI * 2 * Math.round(angle / (Math.PI * 2)));
 
 function largestJump(pose: (t: number, out: ArmPose) => ArmPose, end: number): number {
   let worst = 0;
@@ -54,14 +51,15 @@ describe('the throw animation', () => {
     expect(throwPose(THROW.drawFrom + 0.001, blank()).knife).toBe(true);
   });
 
-  it('starts and ends at rest, with no spin left over', () => {
+  it('starts and ends at rest, the wrist straight', () => {
     const start = throwPose(0, blank());
     const end = throwPose(THROW.drawTo, blank());
     for (const k of keys) {
       expect(start[k]).toBeCloseTo(0, 6);
       expect(end[k]).toBeCloseTo(0, 6);
     }
-    expect(end.spin).toBe(0);
+    expect(end.flex).toBe(0);
+    expect(end.dev).toBe(0);
   });
 
   it('moves smoothly, without jumping between its phases', () => {
@@ -77,23 +75,28 @@ describe('the throw animation', () => {
 });
 
 describe('the inspect animation', () => {
-  it('starts and ends at rest, with the knife in hand and no spin left over', () => {
+  it('starts and ends at rest, with the knife in hand and the wrist straight', () => {
     const start = knifeInspectPose(0, blank());
     const done = knifeInspectPose(INSPECT, blank());
     for (const k of keys) {
       expect(start[k]).toBeCloseTo(0, 6);
       expect(done[k]).toBeCloseTo(0, 6);
     }
-    expect(done.spin).toBe(0);
+    expect(done.flex).toBe(0);
+    expect(done.dev).toBe(0);
     for (let t = 0; t <= INSPECT; t += 0.05) expect(knifeInspectPose(t, blank()).knife).toBe(true);
   });
 
-  it('turns the knife over to show its other side', () => {
+  it('rolls the forearm one way to show a flat of the blade and the other to show the other', () => {
+    let least = 0;
     let most = 0;
     for (let t = 0; t <= INSPECT; t += 0.01) {
-      most = Math.max(most, knifeInspectPose(t, blank()).spin);
+      const { rz } = knifeInspectPose(t, blank());
+      least = Math.min(least, rz);
+      most = Math.max(most, rz);
     }
-    expect(most).toBeGreaterThanOrEqual(Math.PI);
+    expect(least).toBeLessThan(-0.15);
+    expect(most).toBeGreaterThan(0.9);
   });
 
   it('moves smoothly, without jumping between its phases', () => {
@@ -304,26 +307,6 @@ describe('the view model', () => {
     expect(vm.inspecting).toBe(false);
   });
 
-  it('cuts a late inspect short into a throw without spinning the knife back', () => {
-    const vm = ready();
-    vm.startInspect();
-    step(vm, 2.3);
-    // How far the knife is turned about its length, as drawn.
-    const pose = (vm as unknown as { pose: ArmPose }).pose;
-    const spin = (): number => pose.spin;
-    vm.startThrow();
-    let previous = spin();
-    let worst = 0;
-    for (let i = 0; i < 6; i++) {
-      step(vm, 1 / 60);
-      worst = Math.max(worst, offTurn(spin() - previous));
-      previous = spin();
-    }
-    // Most of a turn is done: the rest is the short way home. Spinning back the long way, most of a
-    // turn in 0.1 s, would move over half a radian a frame.
-    expect(worst).toBeLessThan(0.35);
-  });
-
   it('reports how far the next knife is from ready', () => {
     const vm = ready();
     expect(vm.knifeReadiness).toBe(1);
@@ -349,7 +332,7 @@ function knifeUp(skin: KnifeSkin): Viewmodel {
 
 /**
  * Plays the arm a frame at a time, following three points of the knife in the hand on screen: its
- * tip, its middle, and a point beside its length, which a spin about the length moves. `speed` is
+ * tip, its middle, and a point beside its length, which a roll about the length moves. `speed` is
  * the most any moves in a frame, `jolt` the most the way any moves changes from one frame to the
  * next: what the eye sees as the knife jumping.
  */
@@ -396,17 +379,46 @@ class KnifeMotion {
   }
 }
 
+/** A knife's own inspect, played through from rest: how fast it moves the knife, how hard it jolts. */
+function inspected(skin: KnifeSkin): KnifeMotion {
+  const vm = knifeUp(skin);
+  const motion = new KnifeMotion(vm, skin);
+  motion.frame();
+  vm.startInspect();
+  motion.play(knifeMoves(skin).inspect.duration + 0.2);
+  return motion;
+}
+
+/**
+ * What starting an inspect over may not much exceed, the same for every knife: the hardest any
+ * knife's own inspect moves and jolts it. A restart is a hand taking up a new inspect, and a hand
+ * does not take one up more gently because the last one was a gentle one; measured against its own
+ * knife's inspect, the gentlest (the karambit's, the huntsman's) forced every restart slow.
+ */
+const hardest = KNIFE_SKINS.reduce(
+  (worst, skin) => {
+    const own = inspected(skin);
+    return { speed: Math.max(worst.speed, own.speed), jolt: Math.max(worst.jolt, own.jolt) };
+  },
+  { speed: 0, jolt: 0 },
+);
+
 describe.each(KNIFE_SKINS.map((skin) => [skin]))('pressing I over and over with the %s', (skin) => {
   const inspect = knifeMoves(skin).inspect.duration;
-  /** The knife's own inspect, played through: how fast it moves the knife, and how hard it jolts. */
-  const own = ((): KnifeMotion => {
-    const vm = knifeUp(skin);
+  const drawing = (): Viewmodel => {
+    const vm = new Viewmodel();
+    vm.setLook({ skin, finish: SKIN_FINISHES[skin][0]! });
+    return vm;
+  };
+  /** The draw itself, from coming into view to rest: the hand's snap up from below the screen. */
+  const drawn = ((): KnifeMotion => {
+    const vm = drawing();
     const motion = new KnifeMotion(vm, skin);
-    motion.frame();
-    vm.startInspect();
-    motion.play(inspect + 0.2);
+    vm.setShown(true);
+    motion.play(1.2);
     return motion;
   })();
+  const own = hardest;
 
   it('starts the inspect over without jolting the knife, wherever it is cut', () => {
     for (let cut = 0.05; cut < inspect; cut += 0.05) {
@@ -443,16 +455,6 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('pressing I over and over with 
   });
 
   it('inspects out of its draw, wherever it is cut, about as smoothly as it draws', () => {
-    const drawing = (): Viewmodel => {
-      const vm = new Viewmodel();
-      vm.setLook({ skin, finish: SKIN_FINISHES[skin][0]! });
-      return vm;
-    };
-    /** The draw itself, from coming into view to rest. */
-    const draw = drawing();
-    const drawn = new KnifeMotion(draw, skin);
-    draw.setShown(true);
-    drawn.play(1.2);
     const frames = Math.ceil(knifeMoves(skin).draw.duration / FRAME);
     for (let k = 1; k < frames; k++) {
       const vm = drawing();
@@ -465,27 +467,5 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('pressing I over and over with 
       expect(motion.speed, `${k} frames in`).toBeLessThan(drawn.speed * 1.5);
       expect(motion.jolt, `${k} frames in`).toBeLessThan(drawn.jolt * 1.5);
     }
-  });
-});
-
-describe('starting an inspect over', () => {
-  it('takes the knife the shorter way to where the inspect is headed, not a whole turn round', () => {
-    // Late in its inspect the karambit has spun to hang claw up over the ring: half a turn, where
-    // the inspect's opening swings it again. Starting over swings it back the shorter way, half a
-    // turn, as the inspect blends in, rather than spinning it a whole turn round to get there.
-    const vm = knifeUp('karambit');
-    vm.startInspect();
-    for (let t = 0; t < 2.3; t += FRAME) vm.update(FRAME, still as never, 0, 0, 0, true);
-    // How far it is turned end over end, as drawn.
-    const pose = (vm as unknown as { pose: ArmPose }).pose;
-    let previous = pose.flip;
-    let turned = 0;
-    expect(vm.startInspect()).toBe(true);
-    for (let i = 0; i < 18; i++) {
-      vm.update(FRAME, still as never, 0, 0, 0, true);
-      turned += offTurn(pose.flip - previous);
-      previous = pose.flip;
-    }
-    expect(turned).toBeLessThan(Math.PI * 1.2);
   });
 });

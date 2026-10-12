@@ -212,6 +212,16 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - A review of this change found, and fixed: a health bar that could be shown more health than it has, or a hit after the knockout, when two knives' flights are drawn out of order; a late knockout that could knock a respawned cook down again; a controls hint that ran under the chat (the chat's reach and the hint's breakpoint are measured for its six items now); a scoreboard that was cut off in a short window (16 rows fit down to 480 px, and the player's own row is kept in view below that); and three flaky checks (the landing camera's, the knocked out cook's look at the labels, the thrower's hit marker).
 - The server half reaches visitors only with `npm run deploy:aws`; until then the live site and a new client do not match versions and play solo.
 
+### Inspects from the wrist, not the finger (2026-10-11)
+
+- Every inspect and draw is now what a hand and wrist can do with a knife in them: the knife stays rigid in the fingers and the arm, the forearm's roll and the wrist (`flex`, `dev`) turn hand and knife together, with no toss, no spin on or about a finger and no turn in the fist; the old moves strayed 10.6 cm from the grip and turned the knife 3 rad in the hand.
+- Each knife has its own inspect, in its own order and weight: the karambit swings its claw out and hangs it the other way with the ring on the finger, the butterfly swings a handle round its pin and folds its blade in and out, the flip knife is eased partway shut and snapped open, the stiletto is pressed back and springs open, the huntsman is weighed, the falchion rolled over in one sweep, the M9 shows its saw back and a blade swung to the light, and so on.
+- Moves are minimum-jerk curves: a hand's acceleration never jumps, and its jerk is the same at 60 and 120 Hz (it doubled before); the hand in view peaks at 0.8 m/s, 8.4 m/s², 188 m/s³ and 8.5 rad/s (the old moves: the tip at 3.8 m/s, 7 300 m/s³).
+- `viewmodelGrounded.test.ts` holds the knife to its grip (3 mm, 0.1 rad) and the wrist and forearm to a person's range; `viewmodelMotion.test.ts` bounds the hand's jerk too and fails 20 of 24 checks on the old moves.
+- Then reviewed and reworked again so they read like CS2's and Valorant's: both flats of every blade shown within 41 degrees of face on (five knives had never turned one to the eye), the arm never ending in mid-air at any field of view or screen shape (the sleeve is long now), I answered within 0.1 s, the blade 340 to 420 px and near the middle of the view, nothing held frozen between two stops (35 to 50 percent of each inspect had been), hinges that snap to their stop and bounce, and a restart measured against the inspect's own motion (1.4 to 1.9 times its jolt).
+- `viewmodelInspectShown.test.ts` holds the first three; it fails 21 of its 36 checks on the inspects before.
+- Lint, typecheck, unit tests, the E2E suite and the build pass.
+
 ### How to run it
 
 ```bash

@@ -563,22 +563,6 @@ const fist = gripPose(0.003);
 export const FIST_POSE: HandPose = fist.pose;
 
 /**
- * The hand pointing, for a knife spun on the index finger: the index finger held out, a little
- * curled, and the others folded into a fist behind it with the thumb across them, so a knife
- * turning about the finger turns clear of the hand.
- */
-export const POINT_POSE: HandPose = (() => {
-  const pose = fist.pose.slice();
-  pose[CUP] = 0;
-  pose[SPREAD] = 0;
-  pose[BEND] = 0.12;
-  pose[MIDDLE_JOINT] = 0.16;
-  pose[LAST_JOINT] = 0.1;
-  wrapThumb(pose, fist, 1);
-  return pose;
-})();
-
-/**
  * The bare hand at rest: fingers relaxed and a little curled, fanned a touch, and the thumb's joint
  * and tip beside the index finger, a little toward the palm.
  */
@@ -623,26 +607,6 @@ export function letGo(grip: Grip): HandPose {
     radius: grip.radius + LET_GO_CLEAR,
   });
   return pose;
-}
-
-const fkAxis = new Vector3();
-
-/**
- * A point `along` a finger's proximal phalanx in a pose (a share of its length from the knuckle),
- * and the way the phalanx runs, in hand space. Never allocates.
- */
-export function proximalAt(
-  pose: HandPose,
-  f: number,
-  along: number,
-  point: Vector3,
-  direction: Vector3,
-): void {
-  const a = f * FINGER_STRIDE;
-  knucklePosition(f, pose[a + CUP]!, point);
-  fkQ.copy(fkCup).multiply(knuckle(pose[a + SPREAD]!, pose[a + BEND]!, fkKnuckle));
-  direction.copy(fkAxis.set(0, 0, -1)).applyQuaternion(fkQ);
-  point.addScaledVector(direction, along * FINGERS[f]!.lengths[0]);
 }
 
 // ---------- Placing the hand on a handle ----------

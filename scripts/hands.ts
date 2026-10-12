@@ -4,12 +4,15 @@
  *
  *   node scripts/hands.ts [--out <dir>] [--dpr 1] [--looks karambit/doppler,m9/tiger]
  *                         [--at rest,0.3,0.55,menu] [--every 1] [--time 20:00] [--quality high]
+ *                         [--fov 72] [--size 1440x900]
  *
  * `--at` takes `rest`, shares of each knife's inspect (0.3 is 30 % of the way through it) and `menu`,
  * the knife on the Knives page of the pause menu.
  * `--every <frames>` shoots one whole inspect instead, every so many display frames (1 is every
  * frame at 60 Hz), into a folder per knife named by how far into the inspect each frame is, to see
  * how the knife moves from one frame to the next.
+ * `--fov` is the player's field of view setting (60 to 100) and `--size` the window, to see the hand
+ * in the widest views a player can have (100 degrees on 2100x900).
  * Starts the Vite dev client and a room server if they are not up (WORLD_CLIENT_PORT and
  * WORLD_SERVER_PORT move them), enters a private party alone with each knife equipped, and holds
  * the page's clock (Playwright's fake clock) so every frame is taken at exactly the same moment of
@@ -37,6 +40,8 @@ const { values } = parseArgs({
     every: { type: 'string' },
     time: { type: 'string', default: '20:00' },
     quality: { type: 'string', default: 'high' },
+    fov: { type: 'string', default: '72' },
+    size: { type: 'string', default: '1440x900' },
   },
 });
 const outDir = resolve(root, values.out);
@@ -90,15 +95,21 @@ async function main(): Promise<void> {
       for (const look of values.looks.split(',')) {
         const [skin, finish] = look.split('/');
         const context = await browser.newContext({
-          viewport: { width: 1440, height: 900 },
+          viewport: {
+            width: Number(values.size.split('x')[0]),
+            height: Number(values.size.split('x')[1]),
+          },
           deviceScaleFactor: Number(values.dpr),
         });
         await context.addInitScript(
-          ([skin, finish]) => {
+          ([skin, finish, fov]) => {
             localStorage.removeItem('world.renderLevel');
-            localStorage.setItem('world.settings', JSON.stringify({ knife: { skin, finish } }));
+            localStorage.setItem(
+              'world.settings',
+              JSON.stringify({ knife: { skin, finish }, fov: Number(fov) }),
+            );
           },
-          [skin, finish],
+          [skin, finish, values.fov],
         );
         const page = await context.newPage();
         await page.clock.install();
@@ -121,7 +132,8 @@ async function main(): Promise<void> {
         });
         // Let the draw play out and the knife settle, then hold the clock.
         await page.waitForTimeout(3000);
-        await page.clock.pauseAt(Date.now() + 1000);
+        // Far enough ahead that a machine too busy to answer for a second does not overtake it.
+        await page.clock.pauseAt(Date.now() + 5000);
         await run(page, 1500);
         const name = `${skin}-${finish}`;
         if (values.every) {

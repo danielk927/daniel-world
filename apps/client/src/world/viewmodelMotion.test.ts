@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { KNIFE_SKINS, knifeLook, type KnifeSkin } from '@world/shared';
 import { knifeModel } from './knifeModel.ts';
 import { knifeMoves } from './knifeMoves.ts';
-import { Viewmodel, knifeHand } from './viewmodel.ts';
+import { Viewmodel } from './viewmodel.ts';
 
 /**
  * The knife in the hand on screen moves as a hand could move it, through every knife's draw and
@@ -15,28 +15,40 @@ import { Viewmodel, knifeHand } from './viewmodel.ts';
  * is followed through the inspect. What a hinge does (a blade flicked open, a butterfly's handles)
  * is the knife's own, and not followed. Each bound is on how fast something goes, and on how much
  * that changes from one frame to the next, over the frame: a jump shows in both, and grows with the
- * frame rate, where a quick but smooth move does not. Going onto the index finger, the spine-hung
- * knives used to leave the hand in two frames at 5 m/s, then stop dead (300 to 700 m/s² of their
- * pivot), and the karambit turned over in one frame (180 rad/s).
+ * frame rate, where a quick but smooth move does not.
+ *
+ * The hand in view is bounded through its speed, acceleration and jerk, and its jerk must not grow
+ * with the frame rate: a hand's acceleration does not jump (a hand is a muscle, and takes a moment
+ * to push), so the jerk of a smooth move is the same at 60 Hz and at 120, where a move that
+ * started or stopped on a corner, or carried on at one speed through a key and stopped dead,
+ * would show twice the jerk at the higher rate. The inspects used to be eased from pose to pose with
+ * cubic curves, whose acceleration jumps at every key, and to turn on the finger at up to 3.7 m/s
+ * and 24 000 rad/s³.
  */
 
 const BOUNDS = {
-  /** The knife's pivot (where the fingers hold it, or the finger it turns on), in the hand. */
-  knifeSpeed: 1.5,
-  knifeAcceleration: 50,
-  /** About 5 turns a second: a quick spin round a finger. */
-  knifeTurn: 30,
-  knifeTurnChange: 1000,
+  /** The knife in the hand, in the hand's own frame: it does not move there at all. */
+  knifeSpeed: 0.05,
+  knifeAcceleration: 5,
+  knifeTurn: 0.1,
+  knifeTurnChange: 20,
   /** Each joint of the fingers and thumb, in the hand. */
-  fingerSpeed: 2,
-  fingerAcceleration: 150,
-  /** The hand in view, through the inspect. */
-  handSpeed: 1.5,
-  handAcceleration: 40,
-  handTurn: 12,
-  handTurnChange: 250,
+  fingerSpeed: 1,
+  fingerAcceleration: 40,
+  /** The hand in view, through the inspect: how fast it goes, in m/s, and how hard it is pushed. */
+  handSpeed: 1,
+  handAcceleration: 10,
+  handJerk: 300,
+  /** How fast the hand in view turns, in rad/s, its angular acceleration and its jerk. */
+  handTurn: 9,
+  handTurnChange: 70,
+  handTurnJerk: 1700,
 } as const;
 type Bound = keyof typeof BOUNDS;
+/** The bounds on jerk, which must be the same at every frame rate. */
+const JERKS: readonly Bound[] = ['handJerk', 'handTurnJerk'];
+/** How much more jerk a smooth move may show at 120 Hz than at 60, over what finite steps add. */
+const JERK_GROWTH = 1.4;
 
 const camera = { position: { x: 0, y: 0, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 } };
 
@@ -60,6 +72,8 @@ interface State {
   fingerSpeeds?: Vector3[];
   handSpeed?: Vector3;
   handTurn?: Vector3;
+  handAcceleration?: Vector3;
+  handTurnChange?: Vector3;
 }
 
 /** The turn taking `from` to `to` over `dt`, as an angular velocity. */
@@ -96,7 +110,8 @@ function measure(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): Worst {
     vm.startInspect();
     seconds = moves.inspect.duration + 0.5;
   }
-  const pivot = knifeHand(knifeModel(skin)).pivot;
+  const [gz, gy] = knifeModel(skin).grip;
+  const pivot = new Vector3(0, gy, gz);
   const bones = parts.hand.mesh.skeleton.bones;
   const wrist = parts.hand.wrist;
   const worst = new Worst();
@@ -146,8 +161,15 @@ function measure(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): Worst {
           worst.see('fingerAcceleration', speed.distanceTo(fingerSpeeds[i]!) / dt, t),
         );
         if (move === 'inspect') {
-          worst.see('handAcceleration', now.handSpeed.distanceTo(handSpeed) / dt, t);
-          worst.see('handTurnChange', now.handTurn.distanceTo(handTurn) / dt, t);
+          now.handAcceleration = now.handSpeed.clone().sub(handSpeed).divideScalar(dt);
+          now.handTurnChange = now.handTurn.clone().sub(handTurn).divideScalar(dt);
+          worst.see('handAcceleration', now.handAcceleration.length(), t);
+          worst.see('handTurnChange', now.handTurnChange.length(), t);
+          const { handAcceleration, handTurnChange } = before;
+          if (handAcceleration && handTurnChange) {
+            worst.see('handJerk', now.handAcceleration.distanceTo(handAcceleration) / dt, t);
+            worst.see('handTurnJerk', now.handTurnChange.distanceTo(handTurnChange) / dt, t);
+          }
         }
       }
     }
@@ -159,12 +181,24 @@ function measure(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): Worst {
 describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s in the hand on screen', (skin) => {
   for (const move of ['inspect', 'draw'] as const) {
     it(`moves as a hand could move it through its ${move}, at 60 and 120 frames a second`, () => {
+      const at = new Map<number, Worst>();
       for (const hz of [60, 120]) {
-        for (const [bound, { value, at }] of measure(skin, move, hz).most) {
-          expect(value, `${bound} ${at.toFixed(3)} s into its ${move} at ${hz} Hz`).toBeLessThan(
+        const worst = measure(skin, move, hz);
+        at.set(hz, worst);
+        for (const [bound, { value, at: when }] of worst.most) {
+          expect(value, `${bound} ${when.toFixed(3)} s into its ${move} at ${hz} Hz`).toBeLessThan(
             BOUNDS[bound],
           );
         }
+      }
+      // No corner: a smooth move's jerk is the same at both rates.
+      for (const bound of JERKS) {
+        const slow = at.get(60)!.most.get(bound)?.value ?? 0;
+        const fast = at.get(120)!.most.get(bound);
+        expect(
+          fast?.value ?? 0,
+          `${bound} ${fast?.at.toFixed(3)} s into its ${move}: ${slow.toFixed(0)} at 60 Hz`,
+        ).toBeLessThan(slow * JERK_GROWTH + 10);
       }
     });
   }
