@@ -105,9 +105,10 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - The plain alternative to the world is the resume, a PDF served as it is: `apps/client/public/Doyoon-Kim-resume.pdf`, which Vite copies to the site's root.
   Every way to it (the landing's link, the pause menu, the phone, no-WebGL and failed-load paths, the no-JavaScript page in `index.html`) uses `RESUME_URL`, `RESUME_LABEL` and `resumeAttrs` from `src/resume.ts` (`resume.test.ts` checks `index.html` agrees).
   The words say it is a PDF ("View the resume (PDF)"), and not "Resume" alone, which the pause menu's own button already is.
-  A page with a world or a cook to keep (the landing, the pause menu) opens it in a tab of its own, `noopener`; the pages with nothing left to show open it in place.
+  A page with a world or a cook to keep (the landing's quiet row, the pause menu) opens it in a tab of its own, `noopener`; where it is the way in (a phone, no WebGL, a failed load, no JavaScript) it opens in place.
   To change the resume, replace the file under the same name: the stack uploads it with the pages (revalidated on every visit, CloudFront cleared by the deploy), never in `assets/`, where a name is cached for a year.
   There is no generated portfolio page any more; `content.ts` feeds the kitchen's panels only.
+  The old `/portfolio.html` redirects to the PDF on both hosts: a permanent redirect in `vercel.json`, and a CloudFront Function on the default behavior in `infra` (`redirectCode`), both tested.
 - The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 - Chef Skinner is in a room only once its walk-in's door has burst (`WalkInChef`), a second after the tenth hit, and every room keeps a place for him while `CHEF` is on (15 visitors, 16 without him).

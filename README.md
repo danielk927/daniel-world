@@ -147,6 +147,7 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
 - **S3** holds the built client; the bucket is private, encrypted, and readable only by the distribution.
   Every deploy uploads the new build and invalidates the cache.
   The files Vite names by their content (everything under `assets/`) are cached for a year and never deleted, so a tab opened before a deploy can still lazy-load the build it started with (the kitchen computer, DOOM, the post-processing); the pages, the favicon and the resume PDF are revalidated on every visit, and go up only after the files they name.
+  A CloudFront Function on the site's behavior sends the old `/portfolio.html` to the PDF (`vercel.json` does the same on Vercel).
 - **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
   Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
   CloudFront reaches it by an Elastic IP's public DNS name, which survives a stop and start (AWS maintenance included), unlike the instance's own address.

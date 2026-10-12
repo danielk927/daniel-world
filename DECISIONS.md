@@ -1018,24 +1018,29 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 - **Every way in points at it, worded "View the resume (PDF)"**: the landing's quiet row, the main action on a phone or tablet, with no WebGL or when the kitchen fails to load (where Enter, focused on it, follows it), the pause menu, and the no-JavaScript page in `index.html`.
   The words say it is a PDF, so nobody is surprised by a viewer or a download, and lead with a verb, since the pause menu's own "Resume" puts the game back and a second "Resume (PDF)" beside it would read as the same thing.
   `src/resume.ts` has the address, the words and the link's attributes, so the places cannot drift (`resume.test.ts` also checks that `index.html`, which cannot import it, agrees).
-- **Where it opens**: a tab of its own, `rel="noopener"`, from the landing's quiet row and the pause menu, and in place from the main action where the world cannot run.
+- **Where it opens**: a tab of its own, `rel="noopener"`, from the landing's quiet row and the pause menu, and in place from the main action where the PDF is the way in.
   The pause menu must not take the tab: the old link to the portfolio left the page, and with it the room, so a cook who wanted to read it was dropped and had to enter again (the E2E spec checks the cook is still in the room afterwards).
   The landing's row keeps the kitchen behind it loaded and the name typed, for a visitor who comes back to enter it.
-  Where there is no world to keep (no WebGL, no JavaScript, a phone, a failed load) the PDF is the way in, so it opens in place, and Back comes home; on a phone the browser's own PDF viewer handles it either way.
-- **What went**: `portfolio.html`, `portfolio.ts`, `portfolioPage.ts` and its test, `styles/portfolio.css`, the Vite plugin that wrote the page and the build's second page, the HTML half of `ui/markup.ts` (`toHtml`, `escapeHtml`) with its test, and the portfolio shots in `docs/screenshots`.
+  Where the PDF is the way in it opens in place, and Back comes home: with no WebGL, no JavaScript or a failed load there is no kitchen to come back to, and on a phone or tablet the kitchen is loaded behind the landing but has no touch controls, so a visitor who took the PDF is not going back to it (a second tab on a phone is also easy to lose).
+- **What went**: `portfolio.html`, `portfolio.ts`, `portfolioPage.ts` and its test, `styles/portfolio.css`, the Vite plugin that wrote the page and the build's second page, `ui/markup.ts` with its test, and the portfolio shots in `docs/screenshots`.
   In `content.ts`, `lore` (the portfolio's list of sections, with its contact and kitchen notes paragraphs that no station had), `site.intro` and `site.links` went, and the content test that checked every station's items were on the portfolio page; the test of the email, LinkedIn and GitHub links now reads the plonge's.
-  `ui/markup.ts` stays for the station panel, though with the page gone `loreContent.ts` could build elements with `el` and drop it.
+  `ui/markup.ts` was there so one piece of code could draw the station panel in the browser and write the page at build time; with the page gone it only duplicated `el`, so `loreContent.ts` builds the panel's elements with `el` directly (checked: the DOM of all 13 stations and dishes is identical before and after).
   This reverses two earlier calls: that roles and projects are written once and shared by the stations and the portfolio page (2026-10-06), and that the portfolio is written into `portfolio.html` by the build (2026-10-09).
   `content.ts` feeds the kitchen's panels only now, and the PDF is separate, so a change to a role or a project is made in both.
-- **Hosting needed no change to the stack.**
+- **Hosting needed no change for the PDF itself.**
   Vite copies `public/` to the root of the build, and the stack's second upload takes everything in the build but `assets/`: the PDF goes up under its own name with `no-cache` (revalidated on every visit, not cached for a year like the content-named files), is pruned if a later build drops it, and the deploy's `/*` invalidation clears CloudFront, so a new resume shows on the next deploy.
   Its `Content-Type` is not named in the stack: `aws s3 sync` guesses it from the extension (with Python's `mimetypes`), as it does for `index.html` and the favicon, and that table gives `application/pdf` for `.pdf` (checked locally, not against a real deploy).
   Naming one for the whole upload would have mislabeled the pages, and a deployment of its own for one file was more machinery than the same inference the site already depends on.
-  `infra/test` now says where the PDF goes and how it is cached.
+  `infra/test` checks the PDF is in the pages' upload and not the year-cached one, and that no Content-Type is named for the upload.
   Vercel serves `apps/client/dist` as static files with no rewrites in `vercel.json`, so the PDF is served from the root there too (not checked on the live site; nothing was deployed).
-- **The old address is gone**: `/portfolio.html` is an error page now (a missing key in the private bucket behind CloudFront, Vercel's own 404 there; neither checked live), so a link saved to it breaks.
-  A redirect to the PDF is one entry in `vercel.json` but a CloudFront Function on the AWS side, and nothing links there any more, so it is not done.
-- **What the PDF holds that `content.ts` keeps off the site**: the phone number, and the expected graduation month (2026-10-06: "Never the graduation date or the phone number", enforced by `content.test.ts` for what `content.ts` says).
-  It is served as given, unmodified, as he asked, and nothing tests the file itself.
-  Whether to publish them is his call: if not, take them out in his Overleaf source and replace the file.
-  Two smaller things in it, also left as they are: its email link points at `mailto:x@x.com` (the words beside it are right), and it has no title, so a tab shows the file name.
+- **The old address redirects to the PDF**, on both hosts, because Daniel asked for it (a link saved to `/portfolio.html` should open the resume, not an error page).
+  `vercel.json` has a permanent redirect (a 308) from `/portfolio.html` to `/Doyoon-Kim-resume.pdf`.
+  On AWS a CloudFront Function (JavaScript runtime 2.0, viewer-request) on the distribution's default behavior answers that one path with a 301 and a relative `Location`, so it holds on any domain, and hands every other request on as it came.
+  It answers at the edge before any cache or the bucket is asked, so the bucket needs no page of that name; it is not on the `/ws*` behavior, so the WebSocket upgrades are untouched, and the other behavior settings (HTTPS redirect, caching, security headers, compression) are as they were.
+  The cost is the function's invocation on every request the site serves, billed per invocation; a behavior for that one path alone would have run it only there, but at the price of a second behavior and origin to keep, for a function this small.
+  The match is the exact path: no query string carried over, no other spelling (`/Portfolio.html`, `/portfolio`) caught, none of which ever served the page.
+  `infra/test` runs the function's code on fake events (the path redirects, nine other paths pass through untouched) and checks where it is attached; `resume.test.ts` checks the `vercel.json` entry.
+  Not deployed, so none of it has run on the real hosts.
+- **The PDF is published as it is, by Daniel's decision**, though it holds what `content.ts` keeps off the site: the phone number, and the expected graduation month (2026-10-06: "Never the graduation date or the phone number", enforced by `content.test.ts` for what `content.ts` says, which stands for the panels in the kitchen).
+  He decided to keep both, and the email link in it, which points at `mailto:x@x.com` while the words beside it are right; its missing title (a tab shows the file name) stays too.
+  Nothing tests the file's contents.

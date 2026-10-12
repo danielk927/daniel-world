@@ -46,7 +46,7 @@ Build an original implementation. Do not copy code, assets, or content from that
    - HUD: room code, player list and count, connection status.
    - Text chat (Enter to open, 120 char max, plain text only).
    - Rooms: default public `lobby`, plus private parties by code. Max 16 players per room. The pause menu starts a party (custom or random code), joins one, or returns to the lobby in place, and shares an invite link (`/?room=<code>`) with a copy button.
-6. **Plain alternative**: `/Doyoon-Kim-resume.pdf`, Daniel's resume as a PDF served as it is, for mobile, no-WebGL, no JavaScript, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it. (It replaced a portfolio page generated from `content.ts`; see DECISIONS.md.)
+6. **Plain alternative**: `/Doyoon-Kim-resume.pdf`, Daniel's resume as a PDF served as it is, for mobile, no-WebGL, no JavaScript, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it. (It replaced a portfolio page generated from `content.ts`; `/portfolio.html` redirects to it. See DECISIONS.md.)
 7. **Offline mode**: if the server is unreachable, the world still works in single player with a small notice, and retries in the background.
 8. **Knives**: every cook carries an endless supply in every room, and a left click throws one; holding the button keeps throwing, about one every 0.8 s, as fast as each knife is drawn (the server allows one every 0.7 s).
    Q switches between the knife and the bare hand, which punches instead (others see the jab; it hits nothing), and I inspects the knife, as in CS2.

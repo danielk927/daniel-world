@@ -11,7 +11,7 @@ import truffleCroissantPhoto from './assets/dishes/truffle-croissant.webp';
  * `public/` (`resume.ts`), so a change to a role or a project is made in both places.
  *
  * The few places that still want Daniel's own words are marked TODO(daniel).
- * Never publish the graduation date or the phone number here.
+ * Never put the graduation date or the phone number here (the resume PDF has them, as Daniel chose).
  */
 
 export interface LoreLink {

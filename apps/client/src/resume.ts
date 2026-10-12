@@ -18,9 +18,10 @@ export const RESUME_URL = '/Doyoon-Kim-resume.pdf';
 export const RESUME_LABEL = 'View the resume (PDF)';
 
 /**
- * The link's attributes. A page that has something to keep, a world and the cook in it, opens the
- * PDF in a tab of its own, `noopener` so the tab it opens cannot reach back; a page that has
- * nothing left to show (no WebGL, a phone, no JavaScript) goes to it in place, and Back returns.
+ * The link's attributes. A page with something to keep, a world and the cook in it, opens the PDF
+ * in a tab of its own, `noopener` so the tab it opens cannot reach back. Where the PDF is the way
+ * in (no WebGL, no JavaScript, a failed load, or a phone, where the kitchen has no touch controls)
+ * there is nothing to come back to, so it goes there in place, and Back returns.
  */
 export function resumeAttrs(newTab: boolean): Record<string, string> {
   return newTab ? { href: RESUME_URL, target: '_blank', rel: 'noopener' } : { href: RESUME_URL };
