@@ -277,8 +277,9 @@ export class Landing {
   }
 
   /**
-   * The resume as the screen's main action. It goes in this tab: with no world to keep, there is
-   * nothing to leave open, and Back comes home.
+   * The resume as the screen's main action, where it is the way in (no WebGL, a failed load, or a
+   * phone, where the kitchen has no touch controls). It goes in this tab: there is no world worth
+   * keeping open, and Back comes home.
    */
   private mainResumeLink(): HTMLAnchorElement {
     return el('a', {
