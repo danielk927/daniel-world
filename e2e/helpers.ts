@@ -342,21 +342,40 @@ export const RESUME_FILE = readFileSync(
 
 /**
  * Do what follows a link to the resume (`activate`: a click, or the Enter key) and check it goes
- * where it should: the resume's address, in a tab of its own or in this one, and the file that
- * comes is the resume itself, under the name a saved copy keeps. Headless Chromium has no PDF
- * viewer, so it hands a PDF to a download, which is where the file shows; a visitor's browser shows
- * it in the tab.
+ * where it should: the resume's address, asked for by a tab of its own or by this one, and answered
+ * as a PDF of the size of the file. It watches the response rather than the page, so it holds
+ * whether the browser shows the PDF in its viewer (a visitor's does, and so does a headed
+ * Chromium) or, as headless Chromium has no viewer, saves it as a download. The file itself is
+ * compared in resume.spec.ts, which fetches it. A link that opens in place leaves its tab blank.
  */
 export async function followResume(
   page: Page,
   activate: () => Promise<void>,
   options: { newTab: boolean },
 ): Promise<void> {
+  const served = page.context().waitForEvent('response', {
+    predicate: (response) => new URL(response.url()).pathname === RESUME_URL,
+  });
   const opened = options.newTab ? page.waitForEvent('popup') : Promise.resolve(null);
-  const [download] = await Promise.all([page.waitForEvent('download'), activate()]);
-  await opened;
-  expect(download.url()).toBe(new URL(RESUME_URL, page.url()).href);
-  expect(download.suggestedFilename()).toBe(RESUME_URL.slice(1));
-  expect(readFileSync(await download.path()).equals(RESUME_FILE)).toBe(true);
-  if (!options.newTab) expect(page.context().pages()).toHaveLength(1);
+  await Promise.all([served, opened, activate()]);
+
+  const response = await served;
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toMatch(/^application\/pdf\b/);
+  expect(Number(response.headers()['content-length'])).toBe(RESUME_FILE.length);
+  const askedBy = response.frame().page();
+  if (options.newTab) {
+    // A tab of its own asked for it, and this one was not taken there.
+    expect(askedBy).toBe(await opened);
+    expect(askedBy).not.toBe(page);
+    expect(new URL(page.url()).pathname).not.toBe(RESUME_URL);
+  } else {
+    // This tab asked for it, and no other was opened.
+    expect(askedBy).toBe(page);
+    expect(page.context().pages()).toHaveLength(1);
+    // Closing a context whose tab has a PDF viewer still starting never returns (Chromium with a
+    // viewer, in a phone's emulation), so the tab is moved off it first. Call this last: the tab
+    // is left blank. The move may be cut off by the viewer's own, which is no matter.
+    await page.goto('about:blank').catch(() => undefined);
+  }
 }

@@ -36,8 +36,10 @@ test('the landing links to the resume in a tab of its own, and stays as it was',
   // The generated portfolio page is gone: nothing leads to it.
   await expect(page.locator('a[href*="portfolio"]')).toHaveCount(0);
 
+  // A name typed before reading it is still there after, with the way into the kitchen.
+  await page.getByLabel('Your name').fill('Reader');
   await followResume(page, () => link.click(), { newTab: true });
-  // The kitchen behind the landing, and the name the visitor typed, are where they were.
+  await expect(page.getByLabel('Your name')).toHaveValue('Reader');
   await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeEnabled();
   expect(new URL(page.url()).pathname).toBe('/');
 });
@@ -70,7 +72,8 @@ test.describe('in the kitchen', () => {
 
     await followResume(page, () => link.click(), { newTab: true });
 
-    // Leaving the page would have left the room: it is still here, with the menu open.
+    // This page was not taken to the PDF (that would have left the room): the cook is still in
+    // it, with the menu open.
     await expect(menu).toBeVisible();
     expect((await world(page)).connection).toBe('online');
     expect((await server.room('e2e-resume'))?.players.map((p) => p.name)).toContain('Reader');

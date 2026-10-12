@@ -32,7 +32,7 @@ test('on a phone the resume is the way in, and the kitchen a quiet second choice
   const resume = page.getByRole('link', { name: RESUME_LABEL });
   await expect(resume).toBeVisible({ timeout: 30_000 });
   await expect(resume).toHaveAttribute('href', RESUME_URL);
-  // Nothing else is open on the phone, so it goes to the PDF in this tab, and Back comes home.
+  // The way in on a phone, where the kitchen has no touch controls: the PDF in this tab, and Back comes home.
   await expect(resume).not.toHaveAttribute('target', /.*/);
   await expect(resume).toBeFocused();
   // Still there for a tablet with a keyboard, but no longer the main action.
@@ -71,6 +71,9 @@ test('a kitchen that fails to load says so and offers the resume, on a desktop o
     await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeHidden();
     await expect(page.locator('#loading')).toHaveCount(0);
     expect(errors.length).toBeGreaterThan(0);
+    // It is the way in: no tab of its own, since there is no kitchen to come back to.
+    await expect(resume).not.toHaveAttribute('target', /.*/);
+    await followResume(page, () => resume.click(), { newTab: false });
     await context.close();
   }
 });
