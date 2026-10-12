@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { RESUME_LABEL } from '../apps/client/src/resume.ts';
 import { enterWorld, turnTo, waitForFrames, world } from './helpers.ts';
 
 /** Where keyboard focus is: inside the pause menu, and the name of what holds it. */
@@ -26,9 +27,9 @@ test('Tab and Shift+Tab stay in the pause menu, and only on what the keyboard ca
   await knives.click();
   await expect(knives).toBeFocused();
 
-  // Back from the current tab, the first stop in the menu, round to the last: the plain portfolio.
+  // Back from the current tab, the first stop in the menu, round to the last: the resume.
   await page.keyboard.press('Shift+Tab');
-  expect(await focus(page)).toEqual({ inMenu: true, name: 'Plain portfolio' });
+  expect(await focus(page)).toEqual({ inMenu: true, name: RESUME_LABEL });
 
   // And on from the last, round to the current tab, never to a tab the arrow keys own.
   await page.keyboard.press('Tab');
@@ -45,7 +46,7 @@ test('Tab and Shift+Tab stay in the pause menu, and only on what the keyboard ca
   }
   expect(stops).not.toContain('Party');
   expect(stops).not.toContain('Start party');
-  expect(stops.at(-1)).toBe('Plain portfolio');
+  expect(stops.at(-1)).toBe(RESUME_LABEL);
   await page.context().close();
 });
 

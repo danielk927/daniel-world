@@ -5,6 +5,7 @@ import {
   type QualityChoice,
   type Settings,
 } from '../game/settings.ts';
+import { RESUME_LABEL, resumeAttrs } from '../resume.ts';
 import type { Quality } from '../util/capabilities.ts';
 import { el, trapFocus } from './dom.ts';
 import { KnivesPanel } from './knivesPanel.ts';
@@ -196,10 +197,11 @@ export class PauseMenu {
             el('kbd', { class: 'pause-esc', text: 'Esc', attrs: { 'aria-hidden': 'true' } }),
             this.resumeButton,
             leaveButton,
+            // In a tab of its own: leaving this one would leave the room the cook is in.
             el('a', {
-              class: 'text-link pause-portfolio',
-              text: 'Plain portfolio',
-              attrs: { href: '/portfolio.html' },
+              class: 'text-link pause-resume',
+              text: RESUME_LABEL,
+              attrs: resumeAttrs(true),
             }),
           ]),
         ]),

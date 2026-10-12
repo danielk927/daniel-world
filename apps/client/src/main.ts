@@ -36,7 +36,7 @@ async function boot(): Promise<void> {
     onEnter: (name, room) => game?.enter(name, room),
   });
 
-  /** The world cannot run here: the portfolio becomes the way in, saying why. */
+  /** The world cannot run here: the resume becomes the way in, saying why. */
   const unsupported = (message: string): void => {
     loading.hide();
     app.classList.add('no-webgl');
@@ -47,13 +47,13 @@ async function boot(): Promise<void> {
   const webgl = probeWebGL();
   if (!webgl.supported) {
     unsupported(
-      'Your browser or device cannot run the 3D world (WebGL 2 is unavailable). The portfolio has everything in it.',
+      'Your browser or device cannot run the 3D world (WebGL 2 is unavailable). You can read the resume instead.',
     );
     return;
   }
   if (isTouchOnly()) {
-    landing.suggestPortfolio(
-      'The world is made for a keyboard and mouse. On a phone or tablet, the portfolio page is the better way in.',
+    landing.suggestResume(
+      'The world is made for a keyboard and mouse. On a phone or tablet, the resume is the better way in.',
     );
   }
 
@@ -102,11 +102,11 @@ async function boot(): Promise<void> {
   } catch (error) {
     // Code that would not load (a deploy landed while the page loaded), or a renderer that would
     // not start after the probe said it could: rather than a loading screen up forever, the
-    // portfolio, as without WebGL.
+    // resume, as without WebGL.
     console.error('The kitchen did not load.', error);
     canvas?.remove();
     unsupported(
-      'The kitchen did not load. Reload the page to try again, or read the portfolio, which has everything in it.',
+      'The kitchen did not load. Reload the page to try again, or read the resume instead.',
     );
     return;
   }

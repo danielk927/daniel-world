@@ -34,7 +34,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 
 ## Experience
 
-1. **Landing screen**: Daniel's name and headline, the cook's name (prefilled with a random adjective + animal, saved in `localStorage`), "Enter the kitchen", and a quiet row with the live player count for the lobby, "Private party" (opening a party code field; empty = public `lobby`) and "Plain portfolio". On a touch-only device "View the portfolio" is the main action instead.
+1. **Landing screen**: Daniel's name and headline, the cook's name (prefilled with a random adjective + animal, saved in `localStorage`), "Enter the kitchen", and a quiet row with the live player count for the lobby, "Private party" (opening a party code field; empty = public `lobby`) and "View the resume (PDF)", which opens in a tab of its own. On a touch-only device that link is the main action instead, opening in place.
 2. **World**: a three-star French kitchen at real scale, laid out after the French Laundry, where the players are the cooks: a stainless cooking suite with brass trim under a lit hood, charcoal-topped islands, white tiled walls under a barrel vault with skylights, garden windows, live flames and steam, and The Bear's "Every Second Counts" sign. The walls are the boundary.
    It is rendered to a cinematic standard, not low-poly: smooth and rounded forms, physically based materials whose detail is painted procedurally at its real size (brushed stainless, copper, glazed tile, stone, butcher block), reflections of the room itself, contact shadows, and props and dishes modeled to look good enough to eat.
    It is evening service, lit after Gusteau's kitchen in Ratatouille: the blue hour outside the windows and skylights, warm light from the kitchen's own lamps inside, in pools.
@@ -46,7 +46,7 @@ Build an original implementation. Do not copy code, assets, or content from that
    - HUD: room code, player list and count, connection status.
    - Text chat (Enter to open, 120 char max, plain text only).
    - Rooms: default public `lobby`, plus private parties by code. Max 16 players per room. The pause menu starts a party (custom or random code), joins one, or returns to the lobby in place, and shares an invite link (`/?room=<code>`) with a copy button.
-6. **Portfolio fallback**: `/portfolio.html`, a clean static page rendering the same `content.ts` data, for mobile, no-WebGL, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it.
+6. **Plain alternative**: `/Doyoon-Kim-resume.pdf`, Daniel's resume as a PDF served as it is, for mobile, no-WebGL, no JavaScript, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it. (It replaced a portfolio page generated from `content.ts`; `/portfolio.html` redirects to it. See DECISIONS.md.)
 7. **Offline mode**: if the server is unreachable, the world still works in single player with a small notice, and retries in the background.
 8. **Knives**: every cook carries an endless supply in every room, and a left click throws one; holding the button keeps throwing, about one every 0.8 s, as fast as each knife is drawn (the server allows one every 0.7 s).
    Q switches between the knife and the bare hand, which punches instead (others see the jab; it hits nothing), and I inspects the knife, as in CS2.
@@ -79,11 +79,11 @@ Work through these in order.
 After each one: run all checks, fix failures, commit locally with a clear message, and update `PROGRESS.md`.
 
 - **M0 Scaffold**: monorepo, three workspaces, scripts (`dev`, `build`, `lint`, `typecheck`, `test`, `e2e`), `.gitignore`, and a project `CLAUDE.md` with commands, map, conventions, and how to verify.
-- **M1 Single-player world**: landing screen, environment, controls, collisions, lore objects with info panels, content file, pause menu, portfolio fallback page.
+- **M1 Single-player world**: landing screen, environment, controls, collisions, lore objects with info panels, content file, pause menu, the plain alternative (first a portfolio page, now the resume PDF).
 - **M2 Room server**: rooms, protocol, shared simulation, tick loop, validation, rate limiting, heartbeat, with unit tests (including simulation determinism between client and server).
 - **M3 Multiplayer client**: connect and join, prediction and reconciliation, remote avatars with interpolation and name tags, HUD, chat, emotes, reconnect with backoff, offline mode.
 - **M4 E2E**: Playwright tests (Chromium with software WebGL, for example `--use-angle=swiftshader`) that open two browser contexts and verify through `window.__world`: both join `lobby` and see 2 players, moving player A changes A's position as seen by B, chat from A arrives at B, a private room code isolates players, closing A drops B's count to 1, and with the server stopped the world still loads in single-player mode.
-- **M5 Polish**: visual QA with Playwright screenshots of landing, world, info panel, and portfolio page saved to `docs/screenshots/`; fix anything that looks off; performance check with 16 simulated bot clients; remove dead code; write `README.md` with a deployment section (for example client on GitHub Pages or Vercel, server on Fly.io or Railway) without actually deploying.
+- **M5 Polish**: visual QA with Playwright screenshots of landing, world, info panel, and the phone landing saved to `docs/screenshots/`; fix anything that looks off; performance check with 16 simulated bot clients; remove dead code; write `README.md` with a deployment section (for example client on GitHub Pages or Vercel, server on Fly.io or Railway) without actually deploying.
 - **M6 Stretch, only if everything above is green**: a lightweight game mode in private rooms, such as tag or a foam-blaster round, with a simple scoreboard.
   Tag was built, then replaced by knife throwing in every room (see Experience, item 8).
 

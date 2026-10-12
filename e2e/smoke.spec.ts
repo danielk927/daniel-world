@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { enterWorld } from './helpers.ts';
+import { RESUME_LABEL, RESUME_URL } from '../apps/client/src/resume.ts';
+import { enterWorld, followResume } from './helpers.ts';
 
 test('landing screen loads over the 3D world', async ({ page }) => {
   await page.goto('/');
@@ -18,7 +19,7 @@ test('landing screen loads over the 3D world', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Party code' })).toBeFocused();
 });
 
-test('on a phone the portfolio is the way in, and the kitchen a quiet second choice', async ({
+test('on a phone the resume is the way in, and the kitchen a quiet second choice', async ({
   browser,
 }) => {
   const phone = await browser.newContext({
@@ -28,20 +29,24 @@ test('on a phone the portfolio is the way in, and the kitchen a quiet second cho
   });
   const page = await phone.newPage();
   await page.goto('/');
-  const portfolio = page.getByRole('link', { name: 'View the portfolio' });
-  await expect(portfolio).toBeVisible({ timeout: 30_000 });
-  await expect(portfolio).toHaveAttribute('href', '/portfolio.html');
-  await expect(portfolio).toBeFocused();
+  const resume = page.getByRole('link', { name: RESUME_LABEL });
+  await expect(resume).toBeVisible({ timeout: 30_000 });
+  await expect(resume).toHaveAttribute('href', RESUME_URL);
+  // The way in on a phone, where the kitchen has no touch controls: the PDF in this tab, and Back comes home.
+  await expect(resume).not.toHaveAttribute('target', /.*/);
+  await expect(resume).toBeFocused();
   // Still there for a tablet with a keyboard, but no longer the main action.
   const enter = page.getByRole('button', { name: 'Enter the kitchen' });
   await expect(enter).toBeVisible();
   await expect(enter).not.toHaveClass(/button-primary/);
-  // The quiet row's own link would only repeat it.
-  await expect(page.getByRole('link', { name: 'Plain portfolio' })).toBeHidden();
+  // The quiet row's own link would only repeat it: the one link to the resume is the main action.
+  await expect(page.getByRole('link', { name: RESUME_LABEL })).toHaveCount(1);
+  await expect(page.locator('.landing-row .landing-link', { hasText: 'PDF' })).toBeHidden();
+  await followResume(page, () => resume.tap(), { newTab: false });
   await phone.close();
 });
 
-test('a kitchen that fails to load says so and offers the portfolio, on a desktop or a phone', async ({
+test('a kitchen that fails to load says so and offers the resume, on a desktop or a phone', async ({
   browser,
 }) => {
   for (const device of [
@@ -57,14 +62,18 @@ test('a kitchen that fails to load says so and offers the portfolio, on a deskto
     // A deploy lands while the page loads: the game's code it asks for is gone.
     await page.route(/\/assets\/game-[^/]*\.js$/, (route) => route.abort());
     await page.goto('/');
-    const portfolio = page.getByRole('link', { name: 'View the portfolio' });
-    await expect(portfolio).toBeVisible({ timeout: 30_000 });
-    await expect(portfolio).toHaveCount(1);
-    await expect(portfolio).toBeFocused();
+    const resume = page.getByRole('link', { name: RESUME_LABEL });
+    await expect(resume).toBeVisible({ timeout: 30_000 });
+    await expect(resume).toHaveCount(1);
+    await expect(resume).toHaveAttribute('href', RESUME_URL);
+    await expect(resume).toBeFocused();
     await expect(page.locator('.landing-notice')).toContainText('did not load');
     await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeHidden();
     await expect(page.locator('#loading')).toHaveCount(0);
     expect(errors.length).toBeGreaterThan(0);
+    // It is the way in: no tab of its own, since there is no kitchen to come back to.
+    await expect(resume).not.toHaveAttribute('target', /.*/);
+    await followResume(page, () => resume.click(), { newTab: false });
     await context.close();
   }
 });
@@ -82,26 +91,17 @@ test('an invite link opens the private party with its code in', async ({ page })
   );
 });
 
-test('portfolio page renders every section', async ({ page }) => {
-  await page.goto('/portfolio.html');
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(10);
-});
-
-test('without JavaScript the world points to the portfolio, which has everything', async ({
-  browser,
-}) => {
+test('without JavaScript the world points to the resume, a PDF', async ({ browser }) => {
   // With scripts off Playwright cannot wait out the landing's fade-in before clicking, so the
   // visitor asks for no motion and it shows at once.
   const context = await browser.newContext({ javaScriptEnabled: false, reducedMotion: 'reduce' });
   const page = await context.newPage();
   await page.goto('/');
+  await expect(page.locator('.landing-notice')).toContainText('needs JavaScript');
+  const resume = page.getByRole('link', { name: RESUME_LABEL });
+  await expect(resume).toHaveAttribute('href', RESUME_URL);
   // Clicked as a visitor would, so nothing may lie over it.
-  await page.getByRole('link', { name: 'View the portfolio' }).click({ timeout: 5_000 });
-  await expect(page).toHaveURL(/\/portfolio\.html$/);
-  await expect(page).toHaveTitle('Doyoon (Daniel) Kim - Portfolio');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Doyoon (Daniel) Kim');
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(10);
-  await expect(page.getByRole('link', { name: 'Enter the 3D kitchen' }).first()).toBeVisible();
+  await followResume(page, () => resume.click({ timeout: 5_000 }), { newTab: false });
   await context.close();
 });
 

@@ -37,7 +37,7 @@ export function pickQuality(probe: WebGLProbe, choice: 'auto' | Quality = 'auto'
   return probe.software ? 'low' : 'high';
 }
 
-/** Phones and tablets without a mouse. They get pointed at the portfolio page. */
+/** Phones and tablets without a mouse. They get pointed at the resume. */
 export function isTouchOnly(): boolean {
   return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 }

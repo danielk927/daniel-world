@@ -101,12 +101,12 @@
   height: 14px;
 }
 
-.landing-portfolio {
+.landing-resume {
   margin-top: clamp(28px, 7.5vh, 68px);
 }
 
 /*
- * The quiet row: who is online, the private party and the plain portfolio. The party stays in the
+ * The quiet row: who is online, the private party and the resume. The party stays in the
  * middle whatever the count says, so nothing shifts when it comes in.
  */
 .landing-row {

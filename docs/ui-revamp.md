@@ -37,7 +37,7 @@ The mockups are static HTML over real frames of the kitchen at 8 p.m.; build to 
    Say what a thing is or does, in as few words as it takes.
 9. **No French station names in the game.**
    Labels, panels and prompts name the resume section only (Experience, Products, Systems and ML...).
-   The French names are only the stations' ids, with a comment by each in `content.ts`; the portfolio page names the sections too.
+   The French names are only the stations' ids, with a comment by each in `content.ts`.
 
 ## Tokens and parts
 
@@ -64,9 +64,10 @@ Centered, over an even `--dim` of the whole view:
 - "Doyoon (Daniel) Kim" in the display face, the bar, then "CS + Statistics @ UChicago".
 - The name field (label "Your name" in plain case, the reroll as a ring inside the line).
 - One main action, "Enter the kitchen" (`.button-large`, no key ring beside it).
-- One quiet row at the bottom: the online count with a brass dot, "Private party" (a disclosure that opens the party code field; it opens by itself when the link carries a room), and the plain portfolio link.
+- One quiet row at the bottom: the online count with a brass dot, "Private party" (a disclosure that opens the party code field; it opens by itself when the link carries a room), and "View the resume (PDF)", which opens the PDF in a tab of its own so the world behind the landing stays.
 - Notices (touch devices, no WebGL, kicked back to the landing) are one plain line of text, not a box.
-- On a touch-only device, and where the world cannot run (no WebGL, or it failed to load), "View the portfolio" is the main action, in the display face with the bar; on a touch device "Enter the kitchen" stays, as a quiet button under the name.
+- On a touch-only device, and where the world cannot run (no WebGL, or it failed to load), "View the resume (PDF)" is the main action, in the display face with the bar, opening the PDF in place (with no world, nothing is left to come back to, and on a touch device the kitchen has no touch controls); on a touch device "Enter the kitchen" stays, as a quiet button under the name.
+- Every link to the resume says it is a PDF and leads with a verb ("View the resume (PDF)"), since the pause menu's own "Resume" puts the game back.
 
 Behind it the camera moves slowly through the kitchen: a closed loop through the aisles round the cooking suite, at about head height, looking ahead and a little in toward the suite, about two minutes a lap.
 It must not allocate per frame, must not pass through fixtures, and holds the old still establishing shot when motion is reduced.
@@ -124,16 +125,12 @@ On `--dark-from-left`:
 - Sliders: a hairline track, a brass run and a ringed knob.
 - Switches stay `role="switch"` but read as "Off On" with the bar under the current word.
 - Choices (graphics) are words with the bar under the chosen one.
-- Bottom left: Resume with its Esc ring, Leave the kitchen, and the Plain portfolio link.
+- Bottom left: Resume with its Esc ring, Leave the kitchen, and the "View the resume (PDF)" link, which opens in a tab of its own (leaving this one would leave the room).
 - Party, Knives and Controls follow the same rows, words and rings; the knife grid is icons and names with the bar under the equipped one, no tiles.
 - The dialog's accessible name stays "Paused".
-
-### Portfolio page (`portfolio.ts`, `styles/portfolio.css`)
-
-The same system for the plain page: the night background, Gabarito titles with the bar, Rubik text, entries as in the station panel, links as text links, the stack as dotted words, no boxes or pills.
 
 ## Checking
 
 - `npm run lint && npm run typecheck && npm test`, and `npm run e2e` for anything a test drives.
 - Accessible names the tests rely on change only where this spec changes the words (the landing heading and its main button, the prompt's visible text); update the tests and `scripts/screenshots.ts` with them.
-- Look at the real thing: `node scripts/screenshots.ts` (real GPU, `?quality=high&time=20:00`), and check at least one bright view and a 390 px phone for anything on the landing or the portfolio.
+- Look at the real thing: `node scripts/screenshots.ts` (real GPU, `?quality=high&time=20:00`), and check at least one bright view and a 390 px phone for anything on the landing.

@@ -6,6 +6,10 @@ import {
   AllowedMethods,
   CachePolicy,
   Distribution,
+  Function as CloudFrontFunction,
+  FunctionCode,
+  FunctionEventType,
+  FunctionRuntime,
   HttpVersion,
   OriginProtocolPolicy,
   OriginRequestPolicy,
@@ -52,6 +56,9 @@ export const SERVER_PORT = 3001;
 export const SERVER_PATH = '/ws';
 /** Where Vite puts the files it names by their content (its default `build.assetsDir`). */
 export const SITE_ASSETS_DIR = 'assets';
+/** The page the site had before the resume PDF replaced it, and where a link saved to it goes now. */
+export const OLD_PORTFOLIO_PATH = '/portfolio.html';
+export const RESUME_PATH = '/Doyoon-Kim-resume.pdf';
 
 // Pinned Node.js runtime for the instance, verified by checksum before it is used.
 const NODE_VERSION = 'v24.21.0';
@@ -238,6 +245,16 @@ export class WorldStack extends Stack {
       autoDeleteObjects: true,
     });
 
+    // A link saved to the old portfolio page lands on the resume. A CloudFront Function answers at
+    // the edge before any cache or origin is asked, so the bucket needs no page of that name. It
+    // runs for the site's requests only (the room server's /ws* behavior has none), and is billed
+    // per invocation, which for a personal site is a rounding error.
+    const redirectOldPortfolio = new CloudFrontFunction(this, 'RedirectOldPortfolio', {
+      comment: `Sends ${OLD_PORTFOLIO_PATH} to ${RESUME_PATH}, and passes everything else on`,
+      runtime: FunctionRuntime.JS_2_0,
+      code: FunctionCode.fromInline(redirectCode(OLD_PORTFOLIO_PATH, RESUME_PATH)),
+    });
+
     const distribution = new Distribution(this, 'Distribution', {
       comment: "Daniel's World",
       defaultRootObject: 'index.html',
@@ -249,6 +266,9 @@ export class WorldStack extends Stack {
         cachePolicy: CachePolicy.CACHING_OPTIMIZED,
         responseHeadersPolicy: ResponseHeadersPolicy.SECURITY_HEADERS,
         compress: true,
+        functionAssociations: [
+          { function: redirectOldPortfolio, eventType: FunctionEventType.VIEWER_REQUEST },
+        ],
       },
       additionalBehaviors: {
         [`${SERVER_PATH}*`]: {
@@ -311,6 +331,26 @@ export class WorldStack extends Stack {
     });
     new CfnOutput(this, 'ServerLogGroup', { value: logGroup.logGroupName });
   }
+}
+
+/**
+ * The code of a CloudFront Function (viewer-request) that answers a request for the path `from`
+ * with a permanent redirect to `to` and passes every other request on untouched. The Location is
+ * relative, so it holds on the distribution's own domain and on any custom one. `request.uri` is
+ * the path alone, so a query string does not stop the match, and is not carried over.
+ */
+export function redirectCode(from: string, to: string): string {
+  return `function handler(event) {
+  var request = event.request;
+  if (request.uri === ${JSON.stringify(from)}) {
+    return {
+      statusCode: 301,
+      statusDescription: 'Moved Permanently',
+      headers: { location: { value: ${JSON.stringify(to)} } },
+    };
+  }
+  return request;
+}`;
 }
 
 /**

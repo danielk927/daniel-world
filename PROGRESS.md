@@ -4,7 +4,7 @@
 
 Daniel's World is a first-person, multiplayer French brigade kitchen: visitors are cooks, the eight stations serve the sections of Daniel's resume, his five favorite dishes wait on the pass under their heat lamps, and everyone in a room sees everyone else in real time.
 Around that: knives to throw (twelve CS2-style skins, a little spread on every throw), a walk-in cooler that bursts open after ten hits and lets out Chef Skinner, locked inside it, and a RISC-V computer running DOOM.
-The plain portfolio page renders the same content, written into `portfolio.html` at build time so it works without JavaScript.
+The plain alternative is Daniel's resume, a PDF served as it is (`/Doyoon-Kim-resume.pdf`), linked from the landing and the pause menu.
 
 The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and not yet pushed:
 
@@ -181,6 +181,18 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - `e2e/menus.spec.ts` measures where the map, the room and the loadout sit at three window sizes, a long code and a notice against the room from 800x600 up, the open chat against the map and the short windows, and a station label in the strip; `computer.spec.ts` and `stations.spec.ts` check the map and room at the desk and under a panel.
 - `punchUntil` in the E2E helpers gives the door's punches a budget that grows with the hits: on a starved machine the chef spec ran out of its 15 s with the same code that passed on a quiet one.
 - Lint, typecheck, 1009 unit tests, 49 E2E tests and the build pass; the screenshots were taken again.
+
+### The resume PDF replaces the portfolio page (2026-10-11)
+
+- The plain alternative to the world is Daniel's resume as a PDF, `apps/client/public/Doyoon-Kim-resume.pdf`, served as he made it.
+  Every way in says "View the resume (PDF)": the landing's quiet row and the pause menu (each in a tab of its own, so the world and the room stay), and the main action on a phone, without WebGL, when the kitchen fails to load and without JavaScript (in place).
+- The generated portfolio page is gone, with its build step, styles, tests, `ui/markup.ts` (the station panel builds its elements with `el` now, its DOM unchanged) and the `content.ts` sections only it used.
+- `/portfolio.html` redirects to the PDF on both hosts: a permanent redirect in `vercel.json`, and a CloudFront Function (viewer-request, default behavior only) in the stack that answers that path with a 301 and passes everything else on; `infra/test` runs its code on fake events.
+- The PDF itself needed no change to the stack (it goes up with the pages, revalidated on every visit and cleared by the deploy).
+  Nothing was deployed, so neither redirect has run on a real host.
+- `e2e/resume.spec.ts` fetches the PDF from the served site (200, `application/pdf`, `%PDF-`, the committed file), follows the landing's and the pause menu's links into a tab of its own and checks the cook is still in the room; the phone, no-WebGL (Enter), failed-load and no-JavaScript specs follow theirs in place.
+- It holds the phone number and the expected graduation month that `content.ts` keeps off the site, and its email link points at `x@x.com`; Daniel chose to publish it as it is (DECISIONS.md).
+- Lint, typecheck, 1007 unit tests, 51 E2E tests and the build pass; the landing, pause and phone shots were taken again, and the link was followed in a headed browser (the PDF opens in its viewer from the landing, the pause menu, and a page with JavaScript blocked).
 
 ### How to run it
 
