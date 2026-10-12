@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { RESUME_LABEL, RESUME_URL, resumeAttrs } from './resume.ts';
 
 const clientFile = (path: string): URL => new URL(`../${path}`, import.meta.url);
+const repoFile = (path: string): URL => new URL(`../../../${path}`, import.meta.url);
 
 describe('the resume', () => {
   it('is a PDF in public/, which the build copies to the site root under the same name', () => {
@@ -28,10 +29,23 @@ describe('the resume', () => {
 
   it('is the link the page without JavaScript has, in the same words', () => {
     const page = readFileSync(clientFile('index.html'), 'utf8');
-    const noscript = /<noscript>\s*<!--[\s\S]*?-->\s*<section[\s\S]*?<\/noscript>/.exec(page)?.[0];
+    // The noscript block that holds the landing, not the one in the head that only hides the loading bar.
+    const noscript = [...page.matchAll(/<noscript>[\s\S]*?<\/noscript>/g)].find((block) =>
+      block[0].includes('<a'),
+    );
     expect(noscript, 'the no-JavaScript landing').toBeDefined();
-    const link = /<a\s[^>]*href="([^"]*)"[^>]*>\s*([^<]*?)\s*<\/a>/.exec(noscript!);
+    const link = /<a\s[^>]*href="([^"]*)"[^>]*>\s*([^<]*?)\s*<\/a>/.exec(noscript![0]);
     expect(link?.[1]).toBe(RESUME_URL);
     expect(link?.[2]).toBe(RESUME_LABEL);
+  });
+
+  it('is where a link saved to the old portfolio page goes, on Vercel as on AWS', () => {
+    const { redirects } = JSON.parse(readFileSync(repoFile('vercel.json'), 'utf8')) as {
+      redirects?: { source: string; destination: string; permanent?: boolean }[];
+    };
+    // Permanent (a 308), to the PDF, for that one path.
+    expect(redirects).toEqual([
+      { source: '/portfolio.html', destination: RESUME_URL, permanent: true },
+    ]);
   });
 });

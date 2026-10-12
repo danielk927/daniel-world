@@ -1,12 +1,16 @@
 import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { App, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { RESUME_URL } from '../../apps/client/src/resume.ts';
 import {
   LOG_MAX_SIZE,
   LOG_ROTATIONS,
+  OLD_PORTFOLIO_PATH,
+  RESUME_PATH,
   SERVER_PATH,
   SERVER_PORT,
   SITE_ASSETS_DIR,
@@ -23,7 +27,7 @@ const AMI_CONTEXT_KEY =
 const CACHED_AMI = 'ami-0123456789abcdef0';
 
 /** The resume, as the client's public/ folder has it and the build copies it to the site's root. */
-const RESUME_FILE = 'Doyoon-Kim-resume.pdf';
+const RESUME_FILE = RESUME_URL.slice(1);
 
 /**
  * Evaluates a template value the way CloudFormation would, taking Refs and GetAtts (`Id` or
@@ -142,34 +146,11 @@ describe('WorldStack', () => {
     expect(pages.Properties.DestinationBucketKeyPrefix).toBeUndefined();
     expect(uploads(pages).sort()).toEqual([RESUME_FILE, 'favicon.svg', 'index.html']);
     expect(pages.DependsOn).toContain(hashedId);
-  });
-
-  it('serves the resume with the pages: uploaded, revalidated on every visit, and fresh after a deploy', () => {
-    const [hashedId, hashed] = resources('Custom::CDKBucketDeployment').find(
-      ([, d]) => d.Properties.DestinationBucketKeyPrefix === `${SITE_ASSETS_DIR}/`,
-    )!;
-    const [, pages] = resources('Custom::CDKBucketDeployment').find(([id]) => id !== hashedId)!;
-
-    // Under its own name at the site's root, not in assets/, where a name is cached for a year and a
-    // new resume would not show until the old one expired.
-    expect(uploads(pages)).toContain(RESUME_FILE);
-    expect(uploads(hashed)).not.toContain(RESUME_FILE);
-    // Checked again on every visit (a conditional request, so the same file costs nothing), and
-    // the pages' upload clears CloudFront's copies, so a new resume shows on the next deploy.
-    expect(pages.Properties).toMatchObject({
-      SystemMetadata: { 'cache-control': 'no-cache' },
-      DistributionPaths: ['/*'],
-    });
-    // The PDF is not named in the deployment: `aws s3 sync` gives each file the Content-Type its
-    // extension implies (application/pdf, as it does text/html for index.html), and a deployment
-    // names one for every file it uploads, which would mislabel the pages.
+    // The resume is one of those pages: revalidated on every visit, so a new one shows after the
+    // next deploy, and never in assets/ (checked above), where a name is cached for a year. No
+    // Content-Type is named for the upload: `aws s3 sync` takes each file's from its extension
+    // (application/pdf for the resume), and one named for all would mislabel the pages.
     expect(pages.Properties).not.toHaveProperty('SystemMetadata.content-type');
-    // Served from the bucket by the default behavior, as the pages are: /ws* is the only other path.
-    template.hasResourceProperties('AWS::CloudFront::Distribution', {
-      DistributionConfig: Match.objectLike({
-        CacheBehaviors: [Match.objectLike({ PathPattern: `${SERVER_PATH}*` })],
-      }),
-    });
   });
 
   it('routes /ws* to the room server with caching off and upgrade headers forwarded', () => {
@@ -197,6 +178,72 @@ describe('WorldStack', () => {
         ]),
       }),
     });
+  });
+
+  it('sends the old portfolio address to the resume at the edge, for the site only', () => {
+    expect(RESUME_PATH).toBe(RESUME_URL);
+    const functions = resources('AWS::CloudFront::Function');
+    expect(functions).toHaveLength(1);
+    const [functionId, redirect] = functions[0]!;
+    expect(redirect.Properties).toMatchObject({ AutoPublish: true });
+    expect(redirect.Properties.FunctionConfig).toMatchObject({ Runtime: 'cloudfront-js-2.0' });
+
+    // Asked first on the site's own requests (viewer-request), and on those only: the room
+    // server's /ws* behavior has no function, so its WebSocket upgrades are never touched.
+    const distribution = Object.values(
+      template.findResources('AWS::CloudFront::Distribution'),
+    )[0] as {
+      Properties: {
+        DistributionConfig: {
+          DefaultCacheBehavior: Record<string, unknown>;
+          CacheBehaviors: Record<string, unknown>[];
+        };
+      };
+    };
+    const { DefaultCacheBehavior, CacheBehaviors } = distribution.Properties.DistributionConfig;
+    expect(DefaultCacheBehavior.FunctionAssociations).toEqual([
+      { EventType: 'viewer-request', FunctionARN: { 'Fn::GetAtt': [functionId, 'FunctionARN'] } },
+    ]);
+    expect(CacheBehaviors).toHaveLength(1);
+    expect(CacheBehaviors[0]).not.toHaveProperty('FunctionAssociations');
+    expect(CacheBehaviors[0]).not.toHaveProperty('LambdaFunctionAssociations');
+    // Nothing else of the site's behavior moved with it.
+    expect(DefaultCacheBehavior).toMatchObject({
+      ViewerProtocolPolicy: 'redirect-to-https',
+      Compress: true,
+    });
+
+    // The code, run as CloudFront runs it, on a fake event: a permanent redirect for that path
+    // alone, and every other request handed on as it came.
+    const code = redirect.Properties.FunctionCode as string;
+    const handler = runInNewContext(`${code}\nhandler`) as (event: unknown) => unknown;
+    const request = (uri: string) => ({
+      method: 'GET',
+      uri,
+      querystring: {},
+      headers: { host: { value: 'example.cloudfront.net' } },
+      cookies: {},
+    });
+    expect(handler({ request: request(OLD_PORTFOLIO_PATH) })).toEqual({
+      statusCode: 301,
+      statusDescription: 'Moved Permanently',
+      headers: { location: { value: RESUME_URL } },
+    });
+    const passed = [
+      '/',
+      '/index.html',
+      '/favicon.svg',
+      RESUME_URL,
+      `/${SITE_ASSETS_DIR}/main-B8FjIsg3.js`,
+      '/portfolio',
+      `${OLD_PORTFOLIO_PATH}/`,
+      '/Portfolio.html',
+      `/old${OLD_PORTFOLIO_PATH}`,
+    ];
+    for (const uri of passed) {
+      const original = request(uri);
+      expect(handler({ request: original }), uri).toBe(original);
+    }
   });
 
   it('reaches the room server at an Elastic IP, by a name that survives stop, start and deploys', () => {

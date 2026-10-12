@@ -3,5 +3,12 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build -w @world/client",
   "outputDirectory": "apps/client/dist",
-  "framework": null
+  "framework": null,
+  "redirects": [
+    {
+      "source": "/portfolio.html",
+      "destination": "/Doyoon-Kim-resume.pdf",
+      "permanent": true
+    }
+  ]
 }
