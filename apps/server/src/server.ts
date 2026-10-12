@@ -309,6 +309,7 @@ export function startServer(options: ServerOptions): Promise<WorldServer> {
       players: room.playerList(),
       self: room.snapshotOf(player),
       knives: room.stuckKnives(),
+      scores: room.scoreList(),
       cooler: room.coolerState(),
     });
     log(`${name} (#${player.id}) joined ${code} (${room.visitors} visitors)`);

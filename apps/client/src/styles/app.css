@@ -9,11 +9,13 @@
 @import './chat.css';
 @import './nametags.css';
 @import './loadout.css';
+@import './health.css';
 @import './minimap.css';
 @import './labels.css';
 @import './knockout.css';
 @import './impact.css';
 @import './killfeed.css';
+@import './scoreboard.css';
 @import './toast.css';
 @import './pause.css';
 @import './motion.css';

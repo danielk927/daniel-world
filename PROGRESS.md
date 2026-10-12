@@ -13,6 +13,7 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - **Every plate on the pass lit** by its own heat lamp.
 - **A review of every part of the code**, by area and then a second pass (server, client, interface, rendering, infrastructure, kitchen computer, docs, tests), and fixes for what it found: a socket that could crash the room server, cooldowns that could be skipped, a dead network still shown as online, the knockout card and menus, focus and contrast, the walk-in door's knives, the quality governor, a safer AWS stack, and an E2E suite that holds on a busy machine.
 - **Chef Skinner locked in the walk-in** of every room, as its spec has it (`docs/superpowers/specs/2026-10-09-caged-chef-design.md`): nowhere until someone breaks the door, then loose until the room empties.
+- **Health and a scoreboard** (2026-10-11): every cook has three health and a knife takes one, so it takes three hits to knock a cook out; the room keeps kills, deaths and assists for everyone in it, and holding Tab shows them.
 
 ### Live deployment
 
@@ -20,7 +21,7 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
   CloudFront serves the S3 site and proxies `/ws` to EC2 instance `i-0d43c69c81a9b7a5f` (t4g.micro); logs go to CloudWatch log group `DanielWorld-ServerLogsD9948953-dzKBRdipDtL4`.
 - **Vercel:** https://daniel-world-nine.vercel.app, with `VITE_SERVER_URL=wss://d1ivv0s5bbzyx0.cloudfront.net/ws`, so both front ends share one room server.
 - Verified live: two browsers joined, saw each other and chatted (27 ms ping); the instance refuses direct connections and has no SSH.
-- `main` is ahead of the live site: protocol version 8 and a reworked stack.
+- `main` is ahead of the live site: protocol version 9 (health and the scoreboard) and a reworked stack.
   Pushing redeploys the Vercel front end at once, while the room server follows only with `npm run deploy:aws` (see "What needs Daniel's input").
 - Cost is about $10/month (instance plus public IPv4), less on the free tier. `npm run destroy -w @world/infra` removes it all.
 - GitHub: https://github.com/danielk927/daniel-world (public).
@@ -193,6 +194,23 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - `e2e/resume.spec.ts` fetches the PDF from the served site (200, `application/pdf`, `%PDF-`, the committed file), follows the landing's and the pause menu's links into a tab of its own and checks the cook is still in the room; the phone, no-WebGL (Enter), failed-load and no-JavaScript specs follow theirs in place.
 - It holds the phone number and the expected graduation month that `content.ts` keeps off the site, and its email link points at `x@x.com`; Daniel chose to publish it as it is (DECISIONS.md).
 - Lint, typecheck, 1007 unit tests, 51 E2E tests and the build pass; the landing, pause and phone shots were taken again, and the link was followed in a headed browser (the PDF opens in its viewer from the landing, the pause menu, and a page with JavaScript blocked).
+
+### Health and the scoreboard (2026-10-11)
+
+- **Three health, and a knife takes one.**
+  The room server keeps every cook's health; the third hit is the knockout it always was (same `kill`, fall, countdown and respawn), health is full again on the respawn and comes back no other way.
+  A hit that leaves a cook standing is a new `hit` message (knife, thrower, victim, the health left, and `at`, so each screen shows it when the knife arrives on it, as for a kill).
+  Protocol version 9.
+- **What a hit looks like**: the victim's screen flares at its edges (shorter and softer than a knockout's), the view shakes a little, and a segment of the health bar goes with a pulse; the thrower's crosshair marks the hit; everyone else sees the cook rock back as the knife reaches them.
+- **The health bar** is a heart and three segments in the bottom right corner under the knife (ivory, a hairline once gone, the last one and the heart in the warning color); a `meter` named Health reading "2 of 3", with each hit said once to a screen reader.
+- **Scores**: the server counts kills (landing the knockout), deaths and assists (a hit on a cook since they last stood up, whom somebody else then knocked out; once however many hits) for every cook in the room, Chef Skinner included, for as long as they are in it.
+  The welcome carries everyone's, a knockout carries the tallies it changed, and a screen takes them as the knife arrives, so the scoreboard never gives a knockout away.
+- **Tab** held shows the scoreboard (name in its cook's color, yours marked "you" in brass, best first: most kills, then fewest deaths) over an even dim, and letting go, a menu, the chat or another window hides it; the browser's focus never moves while playing; it works with and without pointer lock, offline it shows just you.
+- Chef Skinner's rules are unchanged, so he takes about three times as long to knock a cook out (measured: his first hit 13 to 59 s in, his first knockout 56 to 180 s, against a cook pacing the aisle).
+- Tests: server unit tests (`health.test.ts`, `scores.test.ts`, welcome scores in `server.test.ts`, the old one-hit tests moved to three), protocol schema tests, `input.test.ts` for the held key, `multiplayer.test.ts` for hits and scores on the client, `avatars.test.ts` for the recoil, and E2E `health.spec.ts` and `scoreboard.spec.ts` (two and three pages, the room server asked what it counts).
+- Lint, typecheck, 1110 unit tests, all 58 E2E tests (the new specs three times over, and with `E2E_CPU_THROTTLE=4`, and again after merging the minimap in the top left, with the menus spec twice over) and the build pass; `node scripts/perf.ts` holds 60 fps at governor level 0 with 16 players (1.6 ms of frame CPU, 84 draw calls, 715 k triangles, the same as before), and at dpr 2 matches the commit before under the same load.
+- A review of this change found, and fixed: a health bar that could be shown more health than it has, or a hit after the knockout, when two knives' flights are drawn out of order; a late knockout that could knock a respawned cook down again; a controls hint that ran under the chat (the chat's reach and the hint's breakpoint are measured for its six items now); a scoreboard that was cut off in a short window (16 rows fit down to 480 px, and the player's own row is kept in view below that); and three flaky checks (the landing camera's, the knocked out cook's look at the labels, the thrower's hit marker).
+- The server half reaches visitors only with `npm run deploy:aws`; until then the live site and a new client do not match versions and play solo.
 
 ### How to run it
 

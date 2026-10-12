@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { ALL_KEYS, KNIFE_MAX_STUCK, MAX_PITCH } from './constants.ts';
+import {
+  ALL_KEYS,
+  KNIFE_MAX_STUCK,
+  MAX_HEALTH,
+  MAX_PITCH,
+  MAX_PLAYERS_PER_ROOM,
+} from './constants.ts';
 import { COOLER_HITS_TO_OPEN } from './cooler.ts';
 import { KNIFE_FINISHES, KNIFE_SKINS } from './skins.ts';
 import { COOLER_DOOR } from './world.ts';
@@ -185,6 +191,23 @@ export const coolerStateSchema = z.object({
   dents: z.array(coolerDentSchema).max(COOLER_HITS_TO_OPEN),
 });
 
+const tally = z.number().int().nonnegative();
+
+/**
+ * One cook's score in the room: knockouts they landed, times they were knocked out, and assists,
+ * hits on a cook who was then knocked out by somebody else. It lasts as long as the cook is in the
+ * room, so a cook who leaves and rejoins starts again from nothing.
+ */
+export const scoreSchema = z.object({
+  id: playerId,
+  kills: tally,
+  deaths: tally,
+  assists: tally,
+});
+
+/** At most a tally for each place in a room. */
+const scoresSchema = z.array(scoreSchema).max(MAX_PLAYERS_PER_ROOM);
+
 export const welcomeSchema = z.object({
   t: z.literal('welcome'),
   v: z.number().int(),
@@ -195,6 +218,8 @@ export const welcomeSchema = z.object({
   self: playerSnapshotSchema,
   /** Knives already stuck around the room, oldest first. */
   knives: z.array(stuckKnifeSchema).max(KNIFE_MAX_STUCK),
+  /** Everyone's score in the room, a tally for each of `players`. */
+  scores: scoresSchema,
   /** The walk-in's door. Absent means nobody has touched it. Open already means open at once. */
   cooler: coolerStateSchema.optional(),
 });
@@ -253,13 +278,35 @@ export const knifeStuckSchema = z.object({
   at: finite.nonnegative(),
 });
 
-/** A knife hit `to`, `at` seconds into its flight, and knocked them out. */
+/**
+ * A knife hit `to`, `at` seconds into its flight, and left them standing with `health` to spare.
+ * The hit that takes the last of a cook's health is a `kill`, not this.
+ */
+export const hitSchema = z.object({
+  t: z.literal('hit'),
+  knife: knifeId,
+  from: playerId,
+  to: playerId,
+  health: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_HEALTH - 1),
+  at: finite.nonnegative(),
+});
+
+/**
+ * A knife hit `to`, `at` seconds into its flight, and took the last of their health: they are
+ * knocked out. `scores` are the tallies this changed (the thrower's, the victim's, and those of the
+ * cooks who had hit the victim before), whole, for every screen to take when the knife arrives.
+ */
 export const killSchema = z.object({
   t: z.literal('kill'),
   knife: knifeId,
   from: playerId,
   to: playerId,
   at: finite.nonnegative(),
+  scores: scoresSchema,
 });
 
 /**
@@ -307,6 +354,7 @@ export const serverMessageSchema = z.discriminatedUnion('t', [
   errorSchema,
   knifeThrownSchema,
   knifeStuckSchema,
+  hitSchema,
   killSchema,
   respawnSchema,
   coolerHitSchema,
@@ -319,6 +367,9 @@ export type SnapshotMessage = z.infer<typeof snapshotSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 export type StuckKnife = z.infer<typeof stuckKnifeSchema>;
 export type KnifeThrownMessage = z.infer<typeof knifeThrownSchema>;
+export type HitMessage = z.infer<typeof hitSchema>;
+export type KillMessage = z.infer<typeof killSchema>;
+export type Score = z.infer<typeof scoreSchema>;
 export type CoolerState = z.infer<typeof coolerStateSchema>;
 export type CoolerHitMessage = z.infer<typeof coolerHitSchema>;
 

@@ -155,7 +155,9 @@ describe('the camera behind the landing', () => {
     }
   });
 
-  it('looks ahead and a little in toward the suite, turning smoothly', () => {
+  // Two minutes of frames at 60 a second, each with a ray cast: a second or two alone, many times
+  // that on a machine busy with other suites, which the default five seconds did not allow.
+  it('looks ahead and a little in toward the suite, turning smoothly', { timeout: 60_000 }, () => {
     const view = new LandingCamera();
     const camera = new PerspectiveCamera(72, 16 / 10, 0.05, 200);
     const look = new Vector3();
@@ -210,51 +212,57 @@ describe('the camera behind the landing', () => {
     }
   });
 
-  it('swoops into the game from anywhere on the loop without coming near anything', () => {
-    const problems: string[] = [];
-    const lastPosition = new Vector3();
-    const look = new Vector3();
-    const lastLook = new Vector3();
-    let fastest = 0;
-    let fastestTurn = 0;
-    let longest = 0;
-    for (let i = 0; i < 120; i++) {
-      // Spawn points from the middle of the aisle to both its ends.
-      for (const t of [0, 0.25, 0.4999, 0.5, 0.75]) {
-        const spawn = spawnPoint(t);
-        const view = new LandingCamera();
-        const start = new PerspectiveCamera();
-        view.update(start, (i / 120) * LAP_SECONDS, false);
-        const startPosition = start.position.clone();
-        const startLook = forward(start, new Vector3());
-        lastPosition.copy(startPosition);
-        lastLook.copy(startLook);
-        let frame = 0;
-        const { camera, seconds, facing } = swoopFrom(loopAt(0) + i / 120, spawn, (camera) => {
-          const near = tooClose(camera.position);
-          if (near.length > 0) problems.push(`${where(camera.position)} near ${near.join(', ')}`);
-          if (frame++ % 6 === 0 && sightline(camera) < SIGHTLINE) {
-            problems.push(`${where(camera.position)} looks close up at something`);
-          }
-          fastest = Math.max(fastest, camera.position.distanceTo(lastPosition) / FRAME);
-          forward(camera, look);
-          fastestTurn = Math.max(fastestTurn, look.angleTo(lastLook) / FRAME);
-          lastPosition.copy(camera.position);
-          lastLook.copy(look);
-        });
-        longest = Math.max(longest, seconds);
-        expect(camera.position.distanceTo(new Vector3(spawn.x, EYE_HEIGHT, spawn.z))).toBeLessThan(
-          1e-6,
-        );
-        expect(camera.quaternion.angleTo(facing)).toBeLessThan(1e-6);
+  // 600 swoops stepped frame by frame, each frame checked against every fixture: a few seconds
+  // alone, many times that on a machine busy with other suites, which the default five did not allow.
+  it(
+    'swoops into the game from anywhere on the loop without coming near anything',
+    { timeout: 60_000 },
+    () => {
+      const problems: string[] = [];
+      const lastPosition = new Vector3();
+      const look = new Vector3();
+      const lastLook = new Vector3();
+      let fastest = 0;
+      let fastestTurn = 0;
+      let longest = 0;
+      for (let i = 0; i < 120; i++) {
+        // Spawn points from the middle of the aisle to both its ends.
+        for (const t of [0, 0.25, 0.4999, 0.5, 0.75]) {
+          const spawn = spawnPoint(t);
+          const view = new LandingCamera();
+          const start = new PerspectiveCamera();
+          view.update(start, (i / 120) * LAP_SECONDS, false);
+          const startPosition = start.position.clone();
+          const startLook = forward(start, new Vector3());
+          lastPosition.copy(startPosition);
+          lastLook.copy(startLook);
+          let frame = 0;
+          const { camera, seconds, facing } = swoopFrom(loopAt(0) + i / 120, spawn, (camera) => {
+            const near = tooClose(camera.position);
+            if (near.length > 0) problems.push(`${where(camera.position)} near ${near.join(', ')}`);
+            if (frame++ % 6 === 0 && sightline(camera) < SIGHTLINE) {
+              problems.push(`${where(camera.position)} looks close up at something`);
+            }
+            fastest = Math.max(fastest, camera.position.distanceTo(lastPosition) / FRAME);
+            forward(camera, look);
+            fastestTurn = Math.max(fastestTurn, look.angleTo(lastLook) / FRAME);
+            lastPosition.copy(camera.position);
+            lastLook.copy(look);
+          });
+          longest = Math.max(longest, seconds);
+          expect(
+            camera.position.distanceTo(new Vector3(spawn.x, EYE_HEIGHT, spawn.z)),
+          ).toBeLessThan(1e-6);
+          expect(camera.quaternion.angleTo(facing)).toBeLessThan(1e-6);
+        }
       }
-    }
-    expect(problems).toEqual([]);
-    // Never faster than the old straight swoop at its peak (12.6 m/s), turning evenly, in four and a half seconds at most.
-    expect(fastest).toBeLessThan(12.6);
-    expect((fastestTurn * 180) / Math.PI).toBeLessThan(125);
-    expect(longest).toBeLessThanOrEqual(4.5);
-  });
+      expect(problems).toEqual([]);
+      // Never faster than the old straight swoop at its peak (12.6 m/s), turning evenly, in four and a half seconds at most.
+      expect(fastest).toBeLessThan(12.6);
+      expect((fastestTurn * 180) / Math.PI).toBeLessThan(125);
+      expect(longest).toBeLessThanOrEqual(4.5);
+    },
+  );
 
   it('follows the cook to where the room places them, without a jump', () => {
     // The room's welcome places the cook along the aisle a moment after the swoop sets off.
@@ -278,10 +286,11 @@ describe('the camera behind the landing', () => {
     }
   });
 
-  // Hundreds of rays against the outside view: about a second alone, many under a busy machine.
+  // Hundreds of rays against the outside view: about a second alone, many times that under a busy
+  // machine (47 seconds at a load average of 200).
   it(
     'sees the view outside through every pane and skylight, all the way round',
-    { timeout: 30_000 },
+    { timeout: 120_000 },
     () => {
       const outside = paintOutside(lookAt(19.8));
       const mesh = new Mesh(outside.geometry, new MeshBasicMaterial({ side: FrontSide }));

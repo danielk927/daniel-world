@@ -13,7 +13,7 @@ export const SNAPSHOT_EVERY_TICKS = 3;
 export const INTERPOLATION_DELAY_MS = 100;
 
 /** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 export const DEFAULT_SERVER_PORT = 3001;
 
 // Rooms and players.
@@ -106,6 +106,11 @@ export const KNIFE_MAX_STUCK = 60;
 /** A knife hits a player when it passes through this cylinder around their feet, toque included. */
 export const KNIFE_HIT_RADIUS = 0.42;
 export const KNIFE_HIT_HEIGHT = 1.95;
+/**
+ * What a cook can take: a knife hit costs one, and the hit that takes the last knocks them out. A
+ * cook is on their feet with all of it, and gets it all back when they respawn, never in between.
+ */
+export const MAX_HEALTH = 3;
 /** A knocked-out cook lies on the floor this long before respawning. */
 export const DEATH_SECONDS = 3;
 /** A respawned cook cannot be hit for this long. */

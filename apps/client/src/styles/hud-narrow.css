@@ -1,7 +1,8 @@
 /* A smaller controls hint where the full one would crowd the chat and the bottom right corner. */
 @media (max-width: 1360px) {
   :root {
-    --hint-reach: 288px;
+    /* The smaller hint is 330 px a side. */
+    --hint-reach: 360px;
   }
 
   .hint {
@@ -16,10 +17,10 @@
 
 /*
  * Below this the chat, which leaves the hint its half of the width, would be under 220 px wide
- * (the loadout is clear of the hint far below this; the chat is what gives out); the menu lists
- * the controls too.
+ * (the loadout and the health bar are clear of the hint far below this, 123 px at 1241; the chat
+ * is what gives out); the menu lists the controls too.
  */
-@media (max-width: 1080px) {
+@media (max-width: 1240px) {
   .hint {
     display: none;
   }

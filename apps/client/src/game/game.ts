@@ -5,6 +5,7 @@ import {
   EYE_HEIGHT,
   KNIFE_COOLDOWN_INPUTS,
   Keys,
+  MAX_HEALTH,
   PLAYER_COLORS,
   SPAWN,
   TICK_SECONDS,
@@ -21,6 +22,7 @@ import { JoinError, joinRoom, type JoinedRoom } from '../net/connection.ts';
 import { Chat } from '../ui/chat.ts';
 import { ComputerGuide } from '../ui/computerGuide.ts';
 import { el } from '../ui/dom.ts';
+import { Health } from '../ui/health.ts';
 import { Hud } from '../ui/hud.ts';
 import { Impact } from '../ui/impact.ts';
 import { KillFeed, type KillParty } from '../ui/killFeed.ts';
@@ -31,6 +33,7 @@ import { Minimap } from '../ui/minimap.ts';
 import type { Landing } from '../ui/landing.ts';
 import { InfoPanel } from '../ui/panel.ts';
 import { PauseMenu } from '../ui/pause.ts';
+import { Scoreboard } from '../ui/scoreboard.ts';
 import { Toasts } from '../ui/toast.ts';
 import type { WorldScene } from '../world/scene.ts';
 import { computerViewpoint } from '../world/computer.ts';
@@ -50,6 +53,8 @@ import type { Quality } from '../util/capabilities.ts';
 
 export type Mode = 'landing' | 'entering' | 'playing' | 'chat' | 'paused' | 'panel' | 'computer';
 
+/** How hard a hit that leaves the cook standing shakes the view, as a part of a knockout's. */
+const HURT_FLINCH = 0.55;
 /** Seconds to glide between standing and sitting square in front of the computer. */
 const COMPUTER_GLIDE = 0.55;
 const MAX_CATCH_UP_TICKS = 5;
@@ -77,6 +82,10 @@ export class Game {
   private readonly toasts: Toasts;
   private readonly minimap: Minimap;
   private readonly loadout: Loadout;
+  /** This player's health, by the knife. */
+  readonly health: Health;
+  /** Everyone's kills, deaths and assists, up while Tab is held. */
+  readonly scoreboard: Scoreboard;
   private readonly knockout: Knockout;
   private readonly killFeed: KillFeed;
   private readonly impact: Impact;
@@ -161,6 +170,7 @@ export class Game {
     this.labels.element.hidden = true;
     this.hud = new Hud(overlay);
     this.loadout = new Loadout(this.hud.corner);
+    this.health = new Health(this.hud.corner);
     this.minimap = new Minimap(
       this.hud.mapSlot,
       world.stations.entries.map((entry) => entry.color),
@@ -176,6 +186,7 @@ export class Game {
     this.knockout = new Knockout(overlay);
     this.killFeed = new KillFeed(this.hud.feedSlot);
     this.impact = new Impact(overlay);
+    this.scoreboard = new Scoreboard(overlay);
     this.viewmodel = world.viewmodel;
     this.panel = new InfoPanel(overlay);
     this.pause = new PauseMenu(
@@ -239,6 +250,7 @@ export class Game {
 
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKey = (code) => this.onKey(code);
+    this.input.onHold = (code, down) => this.onHold(code, down);
     this.input.onPrimary = () => this.primary();
     this.panel.onClose = (look) => void this.resume(look);
     canvas.addEventListener('click', () => void this.onCanvasClick());
@@ -300,11 +312,13 @@ export class Game {
         avatars: this.world.avatars,
         labels: this.labels,
         hud: this.hud,
+        scoreboard: this.scoreboard,
         chat: this.chat,
         worldTime: () => this.elapsed,
         knives: this.world.knives,
         notify: (message) => this.toasts.show(message),
-        onKill: (thrower, victim, role) => this.onKill(thrower, victim, role),
+        onKill: (thrower, victim, role, late) => this.onKill(thrower, victim, role, late),
+        onHit: (thrower, victim, health, role) => this.onHit(thrower, victim, health, role),
         onBackOnFeet: () => this.backOnFeet(),
         onFatal: (code) => this.leave(joinFailureMessage(code, room)),
         onStatus: () => this.onConnectionStatus(),
@@ -575,15 +589,36 @@ export class Game {
     thrower: KillParty,
     victim: KillParty,
     role: 'thrower' | 'victim' | 'witness',
+    late: boolean,
   ): void {
     this.killFeed.add(thrower, victim, role !== 'witness');
-    if (role === 'victim') this.knockOut(thrower);
+    if (role === 'victim' && !late) this.knockOut(thrower);
     else if (role === 'thrower') this.impact.landed(victim);
+  }
+
+  /** A knife hit someone and left them standing, as it arrives on this screen. */
+  private onHit(
+    _thrower: KillParty,
+    _victim: KillParty,
+    health: number,
+    role: 'thrower' | 'victim' | 'witness',
+  ): void {
+    if (role === 'victim') {
+      // A hit shown after the knockout it came before (the knives' flights are drawn on clocks
+      // that stall on a busy page) changes nothing: down on the floor, there is nothing left to take.
+      if (this.knockedOut) return;
+      this.health.hurt(health);
+      this.impact.hurt();
+      this.rig.hit(HURT_FLINCH);
+    } else if (role === 'thrower') {
+      this.impact.struck();
+    }
   }
 
   private knockOut(by: KillParty): void {
     if (this.mode === 'computer') this.leaveComputer();
     this.knockedOut = true;
+    this.health.set(0);
     this.throwAt = null;
     if (this.mode === 'chat') this.chat.close();
     this.impact.hit();
@@ -606,6 +641,8 @@ export class Game {
   }
 
   private backOnFeet(): void {
+    // Back on their feet or newly come, they have all their health.
+    this.health.set(MAX_HEALTH);
     if (!this.knockedOut) return;
     this.knockedOut = false;
     this.rig.setKnockedOut(false);
@@ -630,6 +667,11 @@ export class Game {
       // Esc, under pointer lock: the browser takes the key, so it means stepping away.
       this.leaveComputer();
     }
+  }
+
+  /** Tab shows the scoreboard for as long as it is held, while playing on one's feet or down. */
+  private onHold(code: string, down: boolean): void {
+    if (code === 'Tab') this.scoreboard.setShown(down && this.mode === 'playing');
   }
 
   private onKey(code: string): boolean {

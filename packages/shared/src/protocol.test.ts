@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_KEYS, Keys, MAX_PLAYERS_PER_ROOM, PLAYER_COLORS } from './constants.ts';
+import { ALL_KEYS, Keys, MAX_HEALTH, MAX_PLAYERS_PER_ROOM, PLAYER_COLORS } from './constants.ts';
 import { COOLER_HITS_TO_OPEN } from './cooler.ts';
 import {
   chefSpares,
@@ -7,6 +7,8 @@ import {
   parseClientMessage,
   parseServerMessage,
   samePrefs,
+  type KillMessage,
+  type ServerMessage,
   type WelcomeMessage,
 } from './protocol.ts';
 
@@ -127,11 +129,22 @@ describe('parseServerMessage', () => {
 
   it('round trips the knife events', () => {
     const knife = { id: 3, x: 1, y: -0.04, z: 2, dx: 0, dy: -1, dz: 0 };
-    const messages = [
+    const messages: ServerMessage[] = [
       { t: 'knife', id: 3, from: 1, seq: 40, x: 0, y: 1.6, z: 5, vx: 0, vy: 0, vz: -18 },
       { t: 'stuck', knife, at: 0.3 },
-      { t: 'kill', knife: 4, from: 1, to: 2, at: 0.12 },
-    ] as const;
+      { t: 'hit', knife: 5, from: 1, to: 2, health: 2, at: 0.12 },
+      {
+        t: 'kill',
+        knife: 4,
+        from: 1,
+        to: 2,
+        at: 0.12,
+        scores: [
+          { id: 1, kills: 1, deaths: 0, assists: 0 },
+          { id: 2, kills: 0, deaths: 1, assists: 0 },
+        ],
+      },
+    ];
     for (const message of messages) expect(parseServerMessage(encode(message))).toEqual(message);
     // A blade direction is a unit vector.
     expect(
@@ -154,6 +167,104 @@ describe('parseServerMessage', () => {
     const changed = { t: 'prefs', id: 4, prefs: { chef: false } } as const;
     expect(parseServerMessage(encode(changed))).toEqual(changed);
     expect(parseServerMessage('{"t":"prefs","id":4,"prefs":{"chef":"no"}}')).toBeNull();
+  });
+
+  it('round trips a hit that leaves the cook standing, with the health they have left', () => {
+    for (let health = 1; health < MAX_HEALTH; health++) {
+      const hit = { t: 'hit', knife: 5, from: 1, to: 2, health, at: 0 } as const;
+      expect(parseServerMessage(encode(hit))).toEqual(hit);
+    }
+  });
+
+  it.each([
+    ['no health left, which is a knockout', { health: 0 }],
+    ['all the health there is, which is no hit at all', { health: MAX_HEALTH }],
+    ['more health than there is', { health: MAX_HEALTH + 1 }],
+    ['negative health', { health: -1 }],
+    ['half a point of health', { health: 1.5 }],
+    ['health that is not a number', { health: '2' }],
+    ['no health', { health: undefined }],
+    ['no victim', { to: undefined }],
+    ['no thrower', { from: undefined }],
+    ['no knife', { knife: undefined }],
+    ['a flight time before the throw', { at: -0.1 }],
+  ])('rejects a hit with %s', (_label, change) => {
+    const hit = { t: 'hit', knife: 5, from: 1, to: 2, health: 2, at: 0.1, ...change };
+    expect(parseServerMessage(JSON.stringify(hit))).toBeNull();
+  });
+
+  it("round trips every cook's tally, in the welcome and with a knockout", () => {
+    const scores = [
+      { id: 1, kills: 12, deaths: 3, assists: 0 },
+      { id: 2, kills: 0, deaths: 0, assists: 7 },
+    ];
+    const welcome: WelcomeMessage = {
+      t: 'welcome',
+      v: 9,
+      id: 1,
+      room: 'lobby',
+      tick: 3,
+      players: [],
+      self: {
+        id: 1,
+        x: 0,
+        y: 0,
+        z: 5.6,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        yaw: 0,
+        pitch: 0,
+        grounded: true,
+        dead: false,
+        armed: true,
+        ack: -1,
+      },
+      knives: [],
+      scores,
+    };
+    expect(parseServerMessage(encode(welcome))).toEqual(welcome);
+    const kill: KillMessage = { t: 'kill', knife: 4, from: 1, to: 2, at: 0.12, scores };
+    expect(parseServerMessage(encode(kill))).toEqual(kill);
+    // Unknown properties of a tally are dropped, as anywhere else.
+    const extra = { ...kill, scores: [{ ...scores[0], rank: 1 }] };
+    expect(parseServerMessage(JSON.stringify(extra))).toEqual({ ...kill, scores: [scores[0]] });
+    // A room holds no more cooks than there are places, so a tally for each is all there can be.
+    const crowd = Array.from({ length: MAX_PLAYERS_PER_ROOM + 1 }, (_, id) => ({
+      id,
+      kills: 0,
+      deaths: 0,
+      assists: 0,
+    }));
+    expect(parseServerMessage(JSON.stringify({ ...kill, scores: crowd }))).toBeNull();
+    expect(parseServerMessage(JSON.stringify({ ...welcome, scores: crowd }))).toBeNull();
+  });
+
+  it.each([
+    ['a negative count', { kills: -1, deaths: 0, assists: 0 }],
+    ['half a kill', { kills: 0.5, deaths: 0, assists: 0 }],
+    ['counts that are not numbers', { kills: '1', deaths: 0, assists: 0 }],
+    ['a tally without assists', { assists: undefined }],
+    ['a tally without deaths', { deaths: undefined }],
+    ['a tally without kills', { kills: undefined }],
+    ['a tally of nobody', { id: undefined, kills: 0, deaths: 0, assists: 0 }],
+    ['a tally of a negative id', { id: -3, kills: 0, deaths: 0, assists: 0 }],
+  ])('rejects a knockout with %s', (_label, change) => {
+    const kill = {
+      t: 'kill',
+      knife: 4,
+      from: 1,
+      to: 2,
+      at: 0.12,
+      scores: [{ id: 1, kills: 0, deaths: 0, assists: 0, ...change }],
+    };
+    expect(parseServerMessage(JSON.stringify(kill))).toBeNull();
+  });
+
+  it('rejects a knockout that says nothing of the score', () => {
+    expect(
+      parseServerMessage(JSON.stringify({ t: 'kill', knife: 4, from: 1, to: 2, at: 0.12 })),
+    ).toBeNull();
   });
 
   it("round trips hits on the walk-in's door, and the welcome's door", () => {
@@ -192,6 +303,7 @@ describe('parseServerMessage', () => {
         ack: -1,
       },
       knives: [],
+      scores: [],
       cooler: { dents },
     };
     expect(parseServerMessage(encode(welcome))).toEqual(welcome);

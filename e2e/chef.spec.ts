@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { COOLER, COOLER_HITS_TO_OPEN, ROOM_HALF_X } from '@world/shared';
+import { COOLER, COOLER_HITS_TO_OPEN, MAX_HEALTH, ROOM_HALF_X } from '@world/shared';
 import { ENTRANCE_LINES } from '../apps/server/src/chef.ts';
 import {
   enterWorld,
@@ -87,6 +87,15 @@ test('Chef Skinner is locked in the walk-in until its door bursts, then comes ou
     (w) => w.cooler.open && w.remotePlayers.some((p) => p.name === 'Chef Skinner'),
     'the boxer sees the door open and Chef Skinner in the room',
   );
+  // On the scoreboard like any cook, from nothing, as he comes into the room.
+  await expectWorld(
+    boxer,
+    (w) =>
+      w.scoreboard.rows.some(
+        (r) => r.name === 'Chef Skinner' && r.kills + r.deaths + r.assists === 0,
+      ),
+    'Chef Skinner is on the scoreboard',
+  );
   // Shouting about it...
   const log = boxer.getByRole('list', { name: 'Chat history' });
   await expect(log).toContainText('Chef Skinner is out of the walk-in');
@@ -147,19 +156,20 @@ test('a visitor who switches him off is left alone while he throws at others', a
   expect(await server.watchChef('lobby')).toBe(true);
 
   // Both pace; he throws at the one who has not turned him off, never the other.
-  // A knife of his landing anywhere, or in the pacer, shows he is throwing.
-  const seen = { knives: 0, pacerDown: false };
-  for (let i = 0; i < 150 && !seen.pacerDown && seen.knives < 3; i++) {
+  // A knife of his landing anywhere, or in the pacer, shows he is throwing: a miss sticks in the
+  // kitchen, a hit takes one of the pacer's three health, and the third knocks them out.
+  const seen = { knives: 0, pacerHit: false };
+  for (let i = 0; i < 150 && !seen.pacerHit && seen.knives < 3; i++) {
     const key = i % 2 === 0 ? 'KeyA' : 'KeyD';
     await Promise.all([reader.keyboard.down(key), pacer.keyboard.down(key)]);
     await reader.waitForTimeout(600);
     await Promise.all([reader.keyboard.up(key), pacer.keyboard.up(key)]);
     const [r, p] = await Promise.all([world(reader), world(pacer)]);
     expect(r.knockedOut, 'Reader is never knocked out').toBe(false);
-    seen.pacerDown ||= p.knockedOut;
+    seen.pacerHit ||= p.knockedOut || p.health < MAX_HEALTH;
     seen.knives = Math.max(seen.knives, r.knives.stuck + r.knives.flying);
   }
-  expect(seen.pacerDown || seen.knives >= 3, 'he has been throwing').toBe(true);
+  expect(seen.pacerHit || seen.knives >= 3, 'he has been throwing').toBe(true);
   const [readerId, pacerId] = [(await world(reader)).selfId, (await world(pacer)).selfId];
   const picked = await server.chefTargets('lobby');
   expect(picked?.watching, 'the same Chef Skinner throughout').toBe(true);

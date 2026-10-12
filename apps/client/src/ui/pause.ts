@@ -26,6 +26,7 @@ const CONTROLS: readonly (readonly [string, string])[] = [
   ['Throw a knife, or punch', 'Click'],
   ['Knife or bare hand', 'Q'],
   ['Inspect the knife', 'I'],
+  ['Scoreboard, while held', 'Tab'],
   ['Open or close a station', 'E'],
   ['Chat', 'Enter'],
   ['Menu', 'Esc'],

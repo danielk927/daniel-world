@@ -89,6 +89,7 @@ export function welcome(room: string): WelcomeMessage {
     players: [{ id: 7, name: 'Otter', color: '#ffffff', prefs: { chef: true } }],
     self,
     knives: [],
+    scores: [{ id: 7, kills: 0, deaths: 0, assists: 0 }],
   };
 }
 

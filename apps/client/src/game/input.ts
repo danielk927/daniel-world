@@ -14,6 +14,13 @@ const MOVEMENT_KEYS: Record<string, number> = {
   ShiftRight: Keys.Sprint,
 };
 
+/**
+ * Keys that do something while they are held, and stop when they are let go, rather than once as
+ * they are pressed: Tab shows the scoreboard. The browser would move focus with them, so while play
+ * is on they are kept from doing that, repeats included.
+ */
+const HOLD_KEYS: ReadonlySet<string> = new Set(['Tab']);
+
 /** Radians per pixel at sensitivity 1. */
 const BASE_RADIANS_PER_PIXEL = 0.0022;
 
@@ -41,6 +48,12 @@ export class Input {
   /** Called for non-movement key presses while enabled, e.g. Enter, Q or I. */
   /** Return true if the key was handled, which also cancels its default browser action. */
   onKey: ((code: string) => boolean) | null = null;
+  /**
+   * Called as a held key (`HOLD_KEYS`) goes down, once however long it is held, and as it comes up,
+   * which includes the player being made to let go of it (`releaseAll`: a menu, the chat, another
+   * window), so whatever it shows never stays up.
+   */
+  onHold: ((code: string, down: boolean) => void) | null = null;
   /** Called when the left button goes down while playing with the pointer locked. */
   onPrimary: (() => void) | null = null;
   onLockChange: ((locked: boolean) => void) | null = null;
@@ -111,10 +124,12 @@ export class Input {
 
   /** Forget held keys, e.g. when a menu opens so the player does not keep walking. */
   readonly releaseAll = (): void => {
+    const holds = [...this.heldCodes].filter((code) => HOLD_KEYS.has(code));
     this.held = 0;
     this.heldCodes.clear();
     this.dragging = false;
     this.primaryHeld = false;
+    for (const code of holds) this.onHold?.(code, false);
   };
 
   private recomputeHeld(): void {
@@ -126,6 +141,16 @@ export class Input {
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     // Already handled by a dialog, or typed into a field.
     if (event.defaultPrevented || isTextField(event.target)) return;
+    if (HOLD_KEYS.has(event.code)) {
+      // The browser's own shortcuts with it (Ctrl+Tab between tabs) are not ours to take.
+      if (!this.enabled || event.ctrlKey || event.metaKey || event.altKey) return;
+      // Every press, repeats too: any one of them would move focus off the game.
+      event.preventDefault();
+      if (this.heldCodes.has(event.code)) return;
+      this.heldCodes.add(event.code);
+      this.onHold?.(event.code, true);
+      return;
+    }
     const bit = MOVEMENT_KEYS[event.code];
     if (bit !== undefined) {
       if (!this.enabled) return;
@@ -140,7 +165,9 @@ export class Input {
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
-    if (this.heldCodes.delete(event.code)) this.recomputeHeld();
+    if (!this.heldCodes.delete(event.code)) return;
+    this.recomputeHeld();
+    if (HOLD_KEYS.has(event.code)) this.onHold?.(event.code, false);
   };
 
   private readonly onMouseDown = (event: MouseEvent): void => {

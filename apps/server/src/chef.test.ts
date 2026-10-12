@@ -6,6 +6,7 @@ import {
   EYE_HEIGHT,
   KNIFE_MAX_FLIGHT_SECONDS,
   Keys,
+  MAX_HEALTH,
   PLAY_HALF_X,
   PLAY_HALF_Z,
   PLAYER_RADIUS,
@@ -217,7 +218,7 @@ function kitchen(plans: readonly CookPlan[], seed = 7) {
     return walkIn.chef;
   };
   const chefId = (): number | undefined => walkIn.chef?.player.id;
-  const fromChef = <T extends 'knife' | 'kill' | 'chat'>(t: T) =>
+  const fromChef = <T extends 'knife' | 'hit' | 'kill' | 'chat'>(t: T) =>
     heard.filter(
       (m): m is Extract<ServerMessage, { t: T }> =>
         m.t === t && (m.t === 'chat' ? m.id : m.from) === chefId(),
@@ -321,10 +322,11 @@ describe('Chef Skinner, locked in the walk-in', () => {
     expect(k.room.players.size).toBe(0);
   });
 
-  it('can be knocked out where he stands, and gets back up in the kitchen', () => {
-    const k = kitchen([{ keys: still }]);
-    const chef = k.letOut();
-    // A cook in the doorway throws at him as he stands at the back, shouting.
+  /**
+   * A cook in the doorway, who throws at him as he stands at the back, shouting: `tick` plays one
+   * tick of theirs, with a throw if asked.
+   */
+  function cookAtTheDoor(k: ReturnType<typeof kitchen>, chef: Chef) {
     const thrower = k.room.add({ id: 500, name: 'Thrower', spawn: AT_THE_DOOR, send: () => {} });
     const s = thrower.state;
     const eye = { x: s.x, y: s.y + EYE_HEIGHT, z: s.z };
@@ -335,6 +337,31 @@ describe('Chef Skinner, locked in the walk-in', () => {
       k.room.enqueueInput(thrower, { seq: seq++, keys: keys | Keys.Armed, ...aim });
       k.step();
     };
+    return { thrower, tick };
+  }
+
+  it('takes a hit on his feet, with two more to take, and goes on shouting', () => {
+    const k = kitchen([{ keys: still }]);
+    const chef = k.letOut();
+    const { thrower, tick } = cookAtTheDoor(k, chef);
+    tick(Keys.Throw);
+    for (let i = 0; i < seconds(0.5) && chef.player.health === MAX_HEALTH; i++) tick(0);
+    expect(chef.player.health).toBe(MAX_HEALTH - 1);
+    expect(chef.player.deadUntil).toBeNull();
+    expect(k.heard.filter((m) => m.t === 'hit')).toMatchObject([
+      { from: thrower.id, to: chef.player.id, health: MAX_HEALTH - 1 },
+    ]);
+    // Nothing of a knockout: no line from him for it, and the room has no knockout to count.
+    expect(k.heard.some((m) => m.t === 'kill')).toBe(false);
+    expect(k.fromChef('chat').map((m) => m.text)).toEqual([expect.any(String)]);
+  });
+
+  it('can be knocked out where he stands, and gets back up in the kitchen', () => {
+    const k = kitchen([{ keys: still }]);
+    const chef = k.letOut();
+    const { tick } = cookAtTheDoor(k, chef);
+    // Down to his last hit as he stands at the back, which is all the time he stands there for.
+    chef.player.health = 1;
     tick(Keys.Throw);
     for (let i = 0; i < seconds(0.5) && chef.player.deadUntil === null; i++) tick(0);
     expect(k.fromChef('kill')).toEqual([]);
@@ -406,8 +433,34 @@ describe('Chef Skinner, once out', () => {
       const end = k.track[t]!;
       expect(Math.hypot(end.x - start.x, end.z - start.z)).toBeLessThan(0.3);
     }
-    // And some of them land.
-    expect(k.fromChef('kill').some((m) => m.to === k.cooks[0]!.id)).toBe(true);
+    // And some of them land: a hit now, and no more than a hit, until the third.
+    const cook = k.cooks[0]!;
+    expect(k.fromChef('hit').some((m) => m.to === cook.id)).toBe(true);
+    expect(k.fromChef('hit').every((m) => m.health >= 1 && m.health < MAX_HEALTH)).toBe(true);
+  });
+
+  it('knocks a cook on the move out in the end, with the third hit, and scores it', () => {
+    const k = kitchen([{ keys: pacing }]);
+    const chef = k.letOut();
+    const cook = k.cooks[0]!;
+    // Three hits take him a minute or two of throwing, a few every ten seconds that mostly miss.
+    for (let i = 0; i < seconds(600) && k.fromChef('kill').length === 0; i++) k.step();
+    const [kill] = k.fromChef('kill');
+    expect(kill, 'a knockout in ten minutes').toMatchObject({ from: chef.player.id, to: cook.id });
+    // Two hits first, the cook's health going down one at a time, and nothing else on the way.
+    expect(
+      k
+        .fromChef('hit')
+        .filter((m) => m.to === cook.id)
+        .slice(0, 2)
+        .map((m) => m.health),
+    ).toEqual([2, 1]);
+    expect(chef.player.tally).toEqual({ kills: 1, deaths: 0, assists: 0 });
+    expect(cook.tally).toEqual({ kills: 0, deaths: 1, assists: 0 });
+    expect(kill!.scores).toEqual([
+      { id: chef.player.id, kills: 1, deaths: 0, assists: 0 },
+      { id: cook.id, kills: 0, deaths: 1, assists: 0 },
+    ]);
   });
 
   it('walks on when he loses his shot, never standing in one spot past a pause and a wind-up', () => {
@@ -430,12 +483,24 @@ describe('Chef Skinner, once out', () => {
     }
   });
 
-  it('has something to say when he knocks someone out', () => {
+  it('has something to say when he knocks someone out, and nothing for a hit that does not', () => {
     const k = kitchen([{ keys: pacing }]);
     k.letOut();
-    k.steps(seconds(120));
-    const lines = k.fromChef('chat').map((m) => m.text);
-    expect(lines.filter((line) => !ENTRANCE_LINES.includes(line)).length).toBeGreaterThan(0);
+    const said = (): string[] =>
+      k
+        .fromChef('chat')
+        .map((m) => m.text)
+        .filter((line) => !ENTRANCE_LINES.includes(line));
+    // Long enough for his first hit, which is not a knockout, and so says nothing.
+    for (let i = 0; i < seconds(600) && k.fromChef('hit').length === 0; i++) k.step();
+    expect(k.fromChef('hit').length).toBeGreaterThan(0);
+    expect(k.fromChef('kill')).toEqual([]);
+    expect(said()).toEqual([]);
+    // Then, as the third lands, he may speak (he does so most of the time, and not twice in a row).
+    for (let i = 0; i < seconds(600) && k.fromChef('kill').length === 0; i++) k.step();
+    expect(k.fromChef('kill').length).toBeGreaterThan(0);
+    k.steps(seconds(30));
+    expect(said().length).toBeGreaterThan(0);
   });
 });
 
@@ -460,10 +525,13 @@ describe('Chef Skinner, for a cook who has turned him off', () => {
     k.steps(seconds(120));
     expect(new Set(k.picks.map((p) => p.id))).toEqual(new Set([on.id]));
     expect(k.fromChef('knife').length).toBeGreaterThan(3);
-    const kills = k.fromChef('kill');
-    expect(kills.length).toBeGreaterThan(0);
-    expect(kills.every((m) => m.to === on.id)).toBe(true);
+    // Whatever of his lands, lands on the one who has not turned him off.
+    const landed = [...k.fromChef('hit'), ...k.fromChef('kill')];
+    expect(landed.length).toBeGreaterThan(0);
+    expect(landed.every((m) => m.to === on.id)).toBe(true);
     expect(off.deadUntil).toBeNull();
+    expect(off.health).toBe(MAX_HEALTH);
+    expect(off.tally).toEqual({ kills: 0, deaths: 0, assists: 0 });
   });
 
   it('gives up on them mid wind-up, the moment they turn him off', () => {

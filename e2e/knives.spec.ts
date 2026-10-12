@@ -11,8 +11,11 @@ import {
   enterWorld,
   expect,
   expectWorld,
+  hitUntil,
   startRoomServer,
+  type RoomServer,
   test,
+  throwKnife,
   turnTo,
   waitForFrames,
   waitUntilStill,
@@ -21,12 +24,7 @@ import {
 
 type Point = { readonly x: number; readonly y: number; readonly z: number };
 
-/** Left click the world, as a visitor throws. A press that does not move is a click, not a look. */
-async function throwKnife(page: Page): Promise<void> {
-  await page.mouse.click(480, 270);
-}
-
-test('a knife knocks out the cook it hits, who gets back up somewhere else', async ({
+test('three knives knock out the cook they hit, who gets back up somewhere else', async ({
   browser,
 }) => {
   const server = await startRoomServer();
@@ -34,11 +32,10 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
     const thrower = await enterWorld(browser, { name: 'Thrower', room: 'e2e-knives' });
     const target = await enterWorld(browser, { name: 'Target', room: 'e2e-knives' });
     await expectWorld(thrower, (w) => w.playerCount === 2, 'the thrower sees the target');
-    const a = await waitUntilStill(thrower);
     const b = await waitUntilStill(target);
-    // Both stand in the aisle by the dining room doors; face the target and throw.
-    await turnTo(thrower, Math.atan2(-(b.player.x - a.player.x), -(b.player.z - a.player.z)));
-    await throwKnife(thrower);
+    // Both stand in the aisle by the dining room doors: face the target and throw, a knife at a
+    // time. Two leave them standing (health.spec.ts watches them go); the third knocks them out.
+    await hitUntil(server, 'e2e-knives', thrower, target, 0);
 
     await expectWorld(target, (w) => w.knockedOut, 'the target is knocked out');
     await expect(target.getByRole('status').filter({ hasText: 'Knocked out by' })).toContainText(
@@ -88,15 +85,13 @@ test('a knife knocks out the cook it hits, who gets back up somewhere else', asy
  */
 async function knockOutInParty(
   browser: Browser,
+  server: RoomServer,
   room: string,
 ): Promise<{ thrower: Page; target: Page }> {
   const thrower = await enterWorld(browser, { name: 'Thrower', room });
   const target = await enterWorld(browser, { name: 'Target', room });
   await expectWorld(thrower, (w) => w.playerCount === 2, 'the thrower sees the target');
-  const a = await waitUntilStill(thrower);
-  const b = await waitUntilStill(target);
-  await turnTo(thrower, Math.atan2(-(b.player.x - a.player.x), -(b.player.z - a.player.z)));
-  await throwKnife(thrower);
+  await hitUntil(server, room, thrower, target, 0);
   const down = await expectWorld(target, (w) => w.knockedOut, 'the target is knocked out');
   expect(down.arm).toBe(false);
   expect(down.labels).toBe(false);
@@ -108,7 +103,7 @@ test('a cook who gets back up with the menu open finds the arm only once it clos
 }) => {
   const server = await startRoomServer();
   try {
-    const { thrower, target } = await knockOutInParty(browser, 'e2e-up');
+    const { thrower, target } = await knockOutInParty(browser, server, 'e2e-up');
     await target.keyboard.press('Escape');
     await expectWorld(target, (w) => w.mode === 'paused', 'the menu opens');
     // The respawn arrives under the menu: nothing comes up behind it.
@@ -130,24 +125,41 @@ test('a cook knocked out sees no labels and opens no station until back up', asy
 }) => {
   const server = await startRoomServer();
   try {
-    const { thrower, target } = await knockOutInParty(browser, 'e2e-down');
+    const { thrower, target } = await knockOutInParty(browser, server, 'e2e-down');
     // Into the menu and straight back out, still on the floor: the labels stay away. Done in the
     // page, a frame apart, so it fits in the time down even on a machine too busy for round trips.
-    const back = await target.evaluate(async () => {
-      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-      const escape = (at: EventTarget) =>
-        at.dispatchEvent(
-          new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
-        );
-      escape(window);
-      await frame();
-      const menu = window.__world!.mode;
-      escape(document.activeElement ?? document.body);
-      await frame();
-      const { mode, knockedOut, labels } = window.__world!;
-      return { menu, mode, knockedOut, labels };
+    // On one busier still the three seconds on the floor can run out before the page gets to look,
+    // so a look counts only if the page itself says the cook was down before it and after it; if
+    // not, they are knocked out again and the look is made again.
+    let back;
+    for (let attempt = 0; ; attempt++) {
+      back = await target.evaluate(async () => {
+        const startedDown = window.__world!.knockedOut;
+        const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+        const escape = (at: EventTarget) =>
+          at.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }),
+          );
+        escape(window);
+        await frame();
+        const menu = window.__world!.mode;
+        escape(document.activeElement ?? document.body);
+        await frame();
+        const { mode, knockedOut, labels } = window.__world!;
+        return { startedDown, menu, mode, knockedOut, labels };
+      });
+      if ((back.startedDown && back.knockedOut) || attempt >= 3) break;
+      await expectWorld(target, (w) => !w.knockedOut && w.mode === 'playing', 'up again', 8000);
+      await hitUntil(server, 'e2e-down', thrower, target, 0);
+      await expectWorld(target, (w) => w.knockedOut, 'knocked out again');
+    }
+    expect(back).toEqual({
+      startedDown: true,
+      menu: 'paused',
+      mode: 'playing',
+      knockedOut: true,
+      labels: false,
     });
-    expect(back).toEqual({ menu: 'paused', mode: 'playing', knockedOut: true, labels: false });
 
     // For the rest of the time down, the cursor goes over the view from the floor, where stations
     // are in sight, and E is pressed on anything that gets picked: nothing does, and nothing opens.

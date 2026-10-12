@@ -188,6 +188,38 @@ describe('room server', () => {
     expect(snap.players.map((p) => p.id).sort()).toEqual([welcomeA.id, welcomeB.id].sort());
   });
 
+  it("tells a newcomer everyone's score in its welcome, and drops a cook's with them when they leave", async () => {
+    const a = client();
+    const welcomeA = await a.join('Alice');
+    expect(welcomeA.scores).toEqual([{ id: welcomeA.id, kills: 0, deaths: 0, assists: 0 }]);
+    // Alice has been busy.
+    Object.assign(server.rooms.get('lobby')!.players.get(welcomeA.id)!.tally, {
+      kills: 4,
+      deaths: 2,
+      assists: 1,
+    });
+
+    const b = client();
+    const welcomeB = await b.join('Bob');
+    expect(welcomeB.scores).toEqual([
+      { id: welcomeA.id, kills: 4, deaths: 2, assists: 1 },
+      { id: welcomeB.id, kills: 0, deaths: 0, assists: 0 },
+    ]);
+    // Every cook in the welcome's players has a score, and nobody else does.
+    expect(welcomeB.scores.map((s) => s.id)).toEqual(welcomeB.players.map((p) => p.id));
+
+    // Scores last as long as the cook does: Alice back in the room is a new cook, from nothing.
+    a.ws.close();
+    await b.waitForMessage('leave', (m) => m.id === welcomeA.id);
+    const again = client();
+    const welcomeAgain = await again.join('Alice');
+    expect(welcomeAgain.id).not.toBe(welcomeA.id);
+    expect(welcomeAgain.scores).toEqual([
+      { id: welcomeB.id, kills: 0, deaths: 0, assists: 0 },
+      { id: welcomeAgain.id, kills: 0, deaths: 0, assists: 0 },
+    ]);
+  });
+
   it('moves a player from their inputs and acknowledges them', async () => {
     const a = client();
     const welcome = await a.join('Walker');

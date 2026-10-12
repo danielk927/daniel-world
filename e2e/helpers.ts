@@ -3,7 +3,7 @@ import { test as base, expect, type Browser, type Page } from '@playwright/test'
 import { EYE_HEIGHT, ROOM_HALF_X, STATIONS, type StationId } from '@world/shared';
 import type { WorldDebugState } from '../apps/client/src/debug.ts';
 import { RESUME_URL } from '../apps/client/src/resume.ts';
-import { roomServers } from './roomServer.ts';
+import { roomServers, type RoomServer } from './roomServer.ts';
 
 export type { WorldDebugState };
 export { expect };
@@ -75,6 +75,8 @@ export function world(page: Page): Promise<WorldDebugState> {
       punching: w.punching,
       computer: w.computer,
       knockedOut: w.knockedOut,
+      health: w.health,
+      scoreboard: w.scoreboard,
       arm: w.arm,
       labels: w.labels,
       knife: w.knife,
@@ -315,6 +317,45 @@ export async function punchUntil(page: Page, hits: number): Promise<void> {
       },
     )
     .toBe(true);
+}
+
+/** Left click the world, as a visitor throws. A press that does not move is a click, not a look. */
+export async function throwKnife(page: Page): Promise<void> {
+  await page.mouse.click(480, 270);
+}
+
+/**
+ * `thrower` throws knives at `target` until the room server, which has the last word on it, has
+ * `target` down to `health` (3 is whole, 0 knocked out). Both stand in the aisle by the dining
+ * room doors where they spawned, with nothing between them: the thrower turns to face the target
+ * and throws, a knife at a time, a click that comes while the arm is busy doing nothing. Each knife
+ * gets time to land before the next click, since the room counts every knife that reaches them.
+ */
+export async function hitUntil(
+  server: RoomServer,
+  room: string,
+  thrower: Page,
+  target: Page,
+  health: number,
+): Promise<void> {
+  const { selfId } = await world(target);
+  const healthOf = async (): Promise<number> => {
+    const players = (await server.room(room))?.players ?? [];
+    const cook = players.find((p) => p.id === selfId);
+    if (!cook) throw new Error(`the target (#${selfId}) is not in room ${room}`);
+    return cook.health;
+  };
+  const a = await waitUntilStill(thrower);
+  const b = await waitUntilStill(target);
+  await turnTo(thrower, Math.atan2(-(b.player.x - a.player.x), -(b.player.z - a.player.z)));
+  for (let throws = 0; throws < 12; throws++) {
+    const before = await healthOf();
+    if (before <= health) return;
+    await throwKnife(thrower);
+    // A knife thrown reaches the room within a second, however slowly the page draws.
+    for (let i = 0; i < 60 && (await healthOf()) >= before; i++) await thrower.waitForTimeout(50);
+  }
+  throw new Error(`never got #${selfId} down to ${health} health`);
 }
 
 /** Turn the view to a yaw by dragging the mouse, the way a visitor without pointer lock looks around. */

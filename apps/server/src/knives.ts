@@ -75,7 +75,8 @@ export type KnifeEvent =
       readonly from: number;
     }
   | {
-      readonly kind: 'kill';
+      /** The knife reached a cook; the room decides whether that was their last health. */
+      readonly kind: 'hit';
       readonly knife: number;
       readonly from: number;
       readonly to: number;
@@ -117,8 +118,8 @@ export class RoomKnives {
   /**
    * Fly every knife one tick. `candidates` are the players who can be hit right now; each knife is
    * checked against where its thrower saw them. Knives that land or hit someone are reported.
-   * A player is hit once: the first knife (the first thrown) to reach them this tick knocks them
-   * out, and any other flies on through them, as it would through anyone already down, so every
+   * A player is hit once a tick: the first knife (the first thrown) to reach them this tick hits
+   * them, and any other flies on through them, as it would through anyone already down, so every
    * knife still ends with a verdict. `coolerOpen`: the walk-in's doorway lets knives through.
    */
   step(tick: number, candidates: readonly KnifeCandidate[], coolerOpen = false): KnifeEvent[] {
@@ -169,7 +170,7 @@ export class RoomKnives {
 
   private land(knife: Flying, impact: KnifeImpact): KnifeEvent {
     if (impact.kind === 'player') {
-      return { kind: 'kill', knife: knife.id, from: knife.from, to: impact.id, at: impact.t };
+      return { kind: 'hit', knife: knife.id, from: knife.from, to: impact.id, at: impact.t };
     }
     const stuck: StuckKnife = {
       id: knife.id,

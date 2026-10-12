@@ -26,6 +26,20 @@
   }
 }
 
+/* A hit that leaves them standing: the same flare, softer and over sooner. */
+.impact-flash.is-hurt {
+  animation: impact-hurt 0.55s ease-out;
+}
+
+@keyframes impact-hurt {
+  0% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Back on their feet: a blink, so the jump to the spawn point reads as waking up. */
 .impact-blink {
   position: absolute;

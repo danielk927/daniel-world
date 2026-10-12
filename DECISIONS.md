@@ -1044,3 +1044,61 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
 - **The PDF is published as it is, by Daniel's decision**, though it holds what `content.ts` keeps off the site: the phone number, and the expected graduation month (2026-10-06: "Never the graduation date or the phone number", enforced by `content.test.ts` for what `content.ts` says, which stands for the panels in the kitchen).
   He decided to keep both, and the email link in it, which points at `mailto:x@x.com` while the words beside it are right; its missing title (a tab shows the file name) stays too.
   Nothing tests the file's contents.
+
+### Health and the scoreboard (2026-10-11)
+
+Daniel asked for a KDA dashboard that opens when Tab is pressed, and, separately, for a health bar with three hits to a knockout.
+An assist (a hit on a cook that somebody else then knocks out) can only happen once a hit need not knock a cook out, so the two are built together.
+The protocol is version 9; the room server half reaches visitors only with `npm run deploy:aws`, and until then the live site (version 8) and the new client do not talk, so visitors play solo.
+
+- **Three health, and a knife takes one.**
+  `MAX_HEALTH` is 3 in `packages/shared`.
+  The room server keeps each cook's health (`RoomPlayer.health`), as it keeps who is down, because it decides every hit; a client that kept its own could be told it was whole.
+  The third hit is the knockout it has always been (the same `kill` message, fall, countdown and respawn); health is full again when the cook stands up and comes back no other way, and there is no regeneration, so a cook at one health stays there until they are knocked out or leave.
+  Nothing else about a hit changed: the respawn protection, the one hit per cook per tick (a second knife that arrives on the same tick flies on through them and, with a cook now left standing, hits them on the next tick instead), the rewind to what the thrower saw, and Chef Skinner's `chefSpares` for a cook who turned him off.
+- **A hit is its own message, `hit`, and a knockout stays `kill`.**
+  A `hit` has the knife, thrower, victim, the health the victim has left (1 or 2: a hit that leaves none is a `kill`, so the schema refuses 0) and `at`, the seconds into the flight, which every screen takes to show it when the knife arrives on that screen, exactly as for a kill.
+  The other choice was one message with a health field that a knockout sets to 0; two messages keep a knockout's consequences (the fall, the card, the feed, the score) out of every handler of a mere hit.
+  The client's `Knives.resolve` outcome that was `kill` is now `hit`: a knife that reaches a cook is gone from the world either way.
+- **What each screen shows.**
+  The cook hit gets the health bar dropping with a pulse, a short flare of the screen's edges (the knockout's flash, shorter and softer, and gone with reduced motion like it) and a smaller shake of the view; the thrower gets the hit marker on the crosshair (and only a knockout names the cook, as before); everyone else sees the cook rock back when the knife reaches them as drawn, 0.3 s, instead of the knife vanishing into a standing cook as if it had hit nothing (`Avatars.playHit`).
+  A hit that arrives after its cook has respawned, which a screen too busy to run its timers could deliver, is dropped (`Multiplayer.life`), as the timers are when the room is left.
+- **Health is in the bottom right corner, under the knife.**
+  The minimap has moved to the top left, with the room beside it, so the corner is the loadout and the health bar and nothing here is sized around a map there.
+  Three segments read as three hits at a glance and match the interface's one mark (a short rounded bar), where a number would be a second kind of thing; ivory while whole, a hairline once gone, the last in `--danger` (the one place a warning color is for a warning), a hairline of the night round each so it holds on the white walls as the crosshair does.
+  A small heart before them says what they are: on its own the row, under the knife and the brass bar that marks it, read as part of the loadout in the first screenshots.
+  It is a `meter` named Health with "2 of 3" as its value, and a hit is said once to a screen reader ("Hit. 1 health left, one more knocks you out."); the knockout's card says the rest.
+  It sits in `hud.corner` after the loadout, so it stays by the knife whatever happens to the minimap there.
+- **The score is kept by the room server, per cook, for as long as the cook is in the room.**
+  A kill is landing the hit that takes the last health; a death is being knocked out; an assist is having hit a cook since they last stood up and not landing the knockout, once however many times they hit.
+  Hits are remembered per life (`hitBy`) and forgotten at the respawn, so a hit in one life earns nothing in the next; the cook who lands the knockout gets the kill and no assist; a cook who has left by the time of the knockout, whether they hit the victim earlier or threw the knife that finished them, gets nothing and has no row (the death is still counted).
+  Tallies live on the cook (`RoomPlayer.tally`), so they go when the cook goes and a visitor who comes back is a new cook from nothing, as the spec has it; Chef Skinner has one like anyone.
+- **Scores ride the messages that change them.**
+  A knockout is the only event that changes a score, so `kill` carries the whole tallies it changed (the thrower's, the victim's, each assist's) and the welcome carries everyone's, rather than a `scores` message of its own that would have to be paired with the kill to show when its knife arrives.
+  The client applies them when it announces the kill, so the scoreboard never gives a knockout away before its knife lands; a joiner starts at nothing, a leaver is dropped, offline it lists just this player.
+  Two knockouts close together can be shown in the opposite order to the room's (this player's own knife is drawn at once, another's a little after the server threw it), and each message has whole tallies, so a screen takes them field by field, the larger of what it has and what it is told: a tally only grows while its cook is in the room, and the welcome still replaces the lot.
+- **Tab is held, not toggled, and the browser never gets it while playing.**
+  `Input` takes `HOLD_KEYS`, calls `onHold` as one goes down (once) and up, and cancels the key's default on every press, repeats included, since any one would move focus off the game; it does so only while the player is `enabled`, which is only while playing, so Tab still moves focus in the menus (whose dialogs trap it), the chat, and on the landing, and the browser's own Ctrl/Cmd/Alt shortcuts with it are left alone.
+  Letting go happens whenever the player is made to let go of everything (`releaseAll`: a menu, the chat, the computer, another window), so the scoreboard cannot stay up after the key does.
+  Under pointer lock Tab still reaches the page, so it works with and without; at the kitchen computer every key is DOOM's, Tab included, as the controls hint there says.
+- **The scoreboard is a reading surface: an even dim, a title, the bar and a table.**
+  It has Kills, Deaths and Assists in words, not K, D and A, because a visitor to a personal site may never have seen a KDA; names are in their cook's color, yours is marked "you" in brass as in the player list; the order is most kills, then fewest deaths, then most assists, then who came in first, so two cooks level on everything never swap places.
+  The dim is `--dim`, as the landing's and the computer guide's: ivory small type needs about 0.8 over the brightest wall to read at 4.5:1, which a lighter veil would not give, and a column docked to a side would put it far from the middle of the view where Tab is glanced at.
+  It is drawn while it is up, not as scores change underneath it.
+  While it is up the kitchen's own words go (labels, prompt, crosshair, hit marker) and so does the knockout card of a cook held down, since a fifth of them would show through the dim and print over the table; the fall's veil stays, and Tab works while down.
+- **Chef Skinner is a third as dangerous, and his rules did not change.**
+  He still throws every 6 to 14 seconds at a cook on the move he can reach, so landing three takes a cook who keeps moving a minute or two (measured over eight seeds against a cook pacing the aisle: the first hit at 13 to 59 s, the first knockout at 56 to 180 s, about two hits for each knockout).
+  Retuning him (a shorter rest, or his hits counting more) is a separate call from this one; his lines are on knocking someone out and on being knocked out only, and a hit that leaves someone standing, or him, says nothing.
+- **Tests.**
+  `health.test.ts` and `scores.test.ts` in the server (through `testRoom.ts`) cover three hits, health back on the respawn only, protection, a thrower who left with the knife in the air, the assist's every case, scores dropped with their cook, and Chef Skinner on both ends; `input.test.ts` the held key; `multiplayer.test.ts` hits and scores as the client takes them; the E2E suite drives two and three pages (`health.spec.ts`, `scoreboard.spec.ts`) and asks the room server what it counts (`RoomView` has each cook's health and score), and `hitUntil` in `helpers.ts` throws until the server has a cook at a health, a knife at a time, since the room counts every knife that reaches them.
+- **After a review: out of order, and room for the hint.**
+  - Each hit and knockout is shown as its knife arrives on that screen, from the flight's own clock, which stalls on a busy page, so two events a tick apart can be shown in the opposite order to the room's.
+    The screen keeps the health it has shown this life (`Multiplayer.shownHealth`) and drops a hit that would give any back, and any hit after the knockout; the health bar (`loweredTo`) and the game (nothing is taken while down) each refuse it too.
+    A knockout shown after its cook has respawned is a line in the feed about them (their own, as an on-time one is), not a knockout to wait out, and its score still counts.
+  - The controls hint has six items now, 369 px a side at its full size and 330 at the smaller (measured, not guessed), and the chat's reach and the width below which the hint goes were still the five-item ones: the chat ran 48 px under it at 1440.
+    The reach is 400 and 360 px, which leaves the chat 32 px clear at every width (a chat 280 px wide at 1440, 226 at the narrowest), and the hint goes under 1240 px, where the chat would be left under 220.
+    Measured again once the minimap had moved: the corner is the loadout and the health bar only, 168 px wide, so the hint is 123 px clear of it at 1241, and the chat is still what gives out, so the same values hold (the minimap change's 1080 was for the five-item hint).
+  - The scoreboard's rows shrink with the window so a full room of 16 fits down to a window 480 px tall.
+    It does not scroll: while the key is held nothing can scroll it, and scrolling would take the column names away, so in a shorter window the rows that do not fit are left out, keeping the column names and ending with this player's own row if it would otherwise be cut off.
+  - The controls hint goes while the scoreboard is up, as the chat and the labels do: for the twelve seconds it shows after a cook comes in, on a window 1241 px wide or more with a full room, it touched the last row from about 850 px tall down, and over it below 500.
+  - At no health the heart stays in the warning color, as at one, rather than going back to ivory as if all were well.

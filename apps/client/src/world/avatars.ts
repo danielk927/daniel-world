@@ -96,6 +96,23 @@ function apronGeometry(): CylinderGeometry {
   return new CylinderGeometry(radius, radius, 0.25, 28, 1, true, front - width / 2, width);
 }
 
+/** A hit's recoil, from the knock to the cook standing straight again, in seconds. */
+export const RECOIL_SECONDS = 0.32;
+/** How far a cook rocks back at the most, in radians, the head snapping back further. */
+const RECOIL_TILT = 0.4;
+const RECOIL_HEAD = 0.35;
+
+/**
+ * How far a cook rocks back, 0 to 1, `since` seconds after a knife hit them: back fast, to the
+ * most in the first fifth, and forward again slower. Nothing before the hit or after it settles.
+ */
+export function recoil(since: number): number {
+  if (!(since > 0) || since >= RECOIL_SECONDS) return 0;
+  const t = since / RECOIL_SECONDS;
+  const x = t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8;
+  return x * x * (3 - 2 * x);
+}
+
 export interface AvatarPose extends Pose {
   /** Horizontal speed in m/s, drives the walk cycle. */
   speed: number;
@@ -110,6 +127,8 @@ interface Avatar {
   throwStart: number;
   /** World time the last punch started, or -Infinity. */
   punchStart: number;
+  /** World time a knife last hit this cook, or -Infinity. */
+  hitStart: number;
   /** 0 standing, 1 knocked out flat on their back. */
   fallAmount: number;
   /** The knife this cook carries. */
@@ -241,6 +260,7 @@ export class Avatars {
       airAmount: 0,
       throwStart: -Infinity,
       punchStart: -Infinity,
+      hitStart: -Infinity,
       fallAmount: 0,
       look: DEFAULT_LOOK,
       tagAnchor: new Vector3(0, -1000, 0),
@@ -336,6 +356,12 @@ export class Avatars {
     if (avatar) avatar.punchStart = time;
   }
 
+  /** Rock back: a knife has just hit this cook, who is still standing. */
+  playHit(id: number, time: number): void {
+    const avatar = this.avatars.get(id);
+    if (avatar) avatar.hitStart = time;
+  }
+
   private hideSlot(slot: number, look: KnifeLook): void {
     const knives = this.knifeMesh(look);
     knives.setMatrixAt(slot, this.hidden);
@@ -411,9 +437,10 @@ export class Avatars {
       this.s.set(1, 1, 1),
     );
 
-    // Body: squash while running, stretch in the air.
+    // Body: squash while running, stretch in the air, rocking back when hit.
     const stretch = 1 + avatar.airAmount * 0.08 - avatar.walkAmount * 0.03;
-    const lean = avatar.walkAmount * 0.12;
+    const knock = recoil(time - avatar.hitStart);
+    const lean = avatar.walkAmount * 0.12 - knock * RECOIL_TILT;
     this.setPart(
       0,
       BODY_Y + bob + idleBreath,
@@ -437,7 +464,7 @@ export class Avatars {
 
     // Head follows look pitch (softened) and bobs with the body.
     const headY = HEAD_Y + bob * 1.2 + idleBreath * 1.5 + avatar.airAmount * 0.05;
-    const headPitch = -pose.pitch * 0.45 - lean * 0.5;
+    const headPitch = -pose.pitch * 0.45 - lean * 0.5 + knock * RECOIL_HEAD;
     this.setPart(0, headY, -lean * 0.4, headPitch, 0, 0);
     this.place(this.heads, slot);
 

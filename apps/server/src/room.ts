@@ -2,6 +2,7 @@ import {
   DEATH_SECONDS,
   EYE_HEIGHT,
   KNIFE_COOLDOWN_INPUTS,
+  MAX_HEALTH,
   PUNCH_COOLDOWN_INPUTS,
   Keys,
   PLAYER_COLORS,
@@ -24,6 +25,7 @@ import {
   type PlayerSnapshot,
   type PlayerState,
   type Prefs,
+  type Score,
   type ServerMessage,
   type StuckKnife,
   COOLER_OPEN_DELAY_INPUTS,
@@ -80,6 +82,22 @@ export interface RoomPlayer {
   deadUntil: number | null;
   /** Knives pass through a freshly respawned player until this tick. */
   protectedUntil: number;
+  /**
+   * How many more hits a knife needs to knock this cook out: full while they stand fresh, one less
+   * with every hit, and nothing while they lie knocked out, until they respawn with all of it. It
+   * does not come back any other way.
+   */
+  health: number;
+  /**
+   * Knockouts this cook has landed, times they have been knocked out, and assists, for as long as
+   * they are in the room.
+   */
+  readonly tally: { kills: number; deaths: number; assists: number };
+  /**
+   * Who has hit this cook since they last stood up, for the assist each of them gets when somebody
+   * else knocks them out. Forgotten as they respawn.
+   */
+  readonly hitBy: Set<number>;
   /** Sequence of the input that last threw a knife. */
   lastThrowSeq: number;
   /** Sequence of the input that last punched. */
@@ -117,7 +135,7 @@ export class Room {
   readonly cooler = new RoomCooler();
   /** Scratch list of who can be hit this tick. */
   private readonly candidates: KnifeCandidate[] = [];
-  /** Told whenever a knife knocks someone out. */
+  /** Told whenever a knife knocks someone out, by taking the last of their health. */
   onKnockout: ((from: number, to: number) => void) | null = null;
   /** Told when the walk-in's door bursts open, once everyone has been told of the hit. */
   onCoolerBurst: (() => void) | null = null;
@@ -183,6 +201,9 @@ export class Room {
       received: -1,
       deadUntil: null,
       protectedUntil: 0,
+      health: MAX_HEALTH,
+      tally: { kills: 0, deaths: 0, assists: 0 },
+      hitBy: new Set(),
       lastThrowSeq: -Infinity,
       lastPunchSeq: -Infinity,
       armed: true,
@@ -240,6 +261,11 @@ export class Room {
 
   playerList(): PlayerInfo[] {
     return [...this.players.values()].map((p) => this.info(p));
+  }
+
+  /** Every cook's score in the room, for a newcomer's welcome. */
+  scoreList(): Score[] {
+    return [...this.players.values()].map((p) => ({ id: p.id, ...p.tally }));
   }
 
   snapshotOf(player: RoomPlayer): PlayerSnapshot {
@@ -421,9 +447,56 @@ export class Room {
     }
     // One of this tick's candidates, standing: a knife hits nobody another knife hit this tick.
     const victim = this.players.get(event.to)!;
+    victim.health--;
+    if (victim.health > 0) {
+      // Still standing. They remember who hit them, for the assist if somebody else finishes them
+      // (a thrower who has left since the knife flew has no assist to be given).
+      if (this.players.has(event.from)) victim.hitBy.add(event.from);
+      this.broadcast({
+        t: 'hit',
+        knife: event.knife,
+        from: event.from,
+        to: event.to,
+        health: victim.health,
+        at: event.at,
+      });
+      return;
+    }
     victim.deadUntil = this.tick + DEATH_TICKS;
-    this.broadcast({ t: 'kill', knife: event.knife, from: event.from, to: event.to, at: event.at });
+    const scores = this.score(event.from, victim);
+    this.broadcast({
+      t: 'kill',
+      knife: event.knife,
+      from: event.from,
+      to: event.to,
+      at: event.at,
+      scores,
+    });
     this.onKnockout?.(event.from, event.to);
+  }
+
+  /**
+   * Count a knockout: a kill for `from` (if they are still in the room), a death for `victim`, and
+   * an assist for each cook still here who hit the victim since they last stood up, other than the
+   * one who finished them. Returns the tallies this changed, whole, for the room to be told.
+   */
+  private score(from: number, victim: RoomPlayer): Score[] {
+    const changed: RoomPlayer[] = [];
+    const killer = this.players.get(from);
+    if (killer) {
+      killer.tally.kills++;
+      changed.push(killer);
+    }
+    for (const id of victim.hitBy) {
+      const assist = this.players.get(id);
+      if (!assist || assist === killer || assist === victim) continue;
+      assist.tally.assists++;
+      changed.push(assist);
+    }
+    victim.hitBy.clear();
+    victim.tally.deaths++;
+    changed.push(victim);
+    return changed.map((p) => ({ id: p.id, ...p.tally }));
   }
 
   /** Knocked-out players whose time is up stand up again at a spawn point, briefly protected. */
@@ -432,6 +505,8 @@ export class Room {
       if (player.deadUntil === null || player.deadUntil > this.tick) continue;
       Object.assign(player.state, this.standAt(this.nextSpawn()));
       player.deadUntil = null;
+      player.health = MAX_HEALTH;
+      player.hitBy.clear();
       player.protectedUntil = this.tick + PROTECTION_TICKS;
       const s = player.state;
       player.history.record(this.tick, s.x, s.y, s.z);
