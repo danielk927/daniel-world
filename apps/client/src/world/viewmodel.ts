@@ -89,9 +89,9 @@ const INTERRUPT_BLEND = 0.1;
  * long enough that pressing I over and over never jolts the knife much harder than an inspect
  * itself does, short enough that every press visibly starts it over.
  */
-const INSPECT_BLEND = 0.75;
+const INSPECT_BLEND = 0.9;
 /** How quickly the motion a cut carries on with dies away, per second. */
-const CARRY = 10;
+const CARRY = 5;
 /**
  * How stiffly the fingers open off a knife's handle and close on it again, per second: letting go
  * in under a tenth of a second, a reflex ahead of the blade, and taking hold again in about a third.

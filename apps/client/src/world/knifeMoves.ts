@@ -361,8 +361,11 @@ const CHEF = {
 const CLAW = {
   /** The claw's flat, seen from the palm's side. */
   flat: { x: -0.06, y: 0.14, z: 0.13, rx: 0.04, ry: -0.04, rz: -0.19, flex: 0.02, dev: 0.21 },
-  /** Its other side, seen from the back of the hand, the wrist bent right over. */
-  other: { x: -0.07, y: 0.13, z: 0.12, rx: 0.41, ry: 0.7, rz: 0.47, flex: 1, dev: 0.35 },
+  /**
+   * Its other side, seen from the back of the hand: the forearm rolled right over the other way, the
+   * wrist extended, the arm turned in across the view, the claw sweeping up out of the fist.
+   */
+  other: { x: -0.09, y: 0.16, z: 0.11, rx: 0.02, ry: 0.9, rz: -1.24, flex: -0.95, dev: -0.4 },
   /** The edge of the claw's inside curve to the eye. */
   edge: { x: -0.07, y: 0.16, z: 0.14, rx: 0.24, ry: 0.25, rz: -0.29, flex: 0.7, dev: 0.14 },
 } as const satisfies Record<string, Pose>;
@@ -499,11 +502,10 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     inspect: inspectOf([
       { at: 0.2, pose: DIP },
       { at: 0.8, pose: part(CLAW.flat, 0.6) },
-      { at: 1.4, pose: CLAW.flat, hold: 0.4 },
-      { at: 2.25, pose: CLAW.edge, hold: 0.25 },
-      { at: 3.05, pose: CLAW.other, hold: 0.3 },
-      { at: 3.85, pose: part(CLAW.flat, 0.5) },
-      { at: 4.35, pose: {} },
+      { at: 1.35, pose: CLAW.flat, hold: 0.35 },
+      { at: 2.2, pose: CLAW.edge, hold: 0.2 },
+      { at: 3.3, pose: CLAW.other, hold: 0.3 },
+      { at: 4.4, pose: {} },
     ]),
   },
 
@@ -534,18 +536,18 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: inspectOf([
       { at: 0.14, pose: DIP },
-      { at: 0.7, pose: FWD.flat, hold: 0.3 },
-      { at: 1.5, pose: FWD.turn, hold: 0.25 },
-      { at: 2.3, pose: FWD.spine },
-      { at: 3.0, pose: FWD.flat },
-      { at: 3.55, pose: FWD.other, hold: 0.3 },
+      { at: 0.65, pose: FWD.flat, hold: 0.25 },
+      { at: 1.4, pose: FWD.turn, hold: 0.25 },
+      { at: 2.15, pose: FWD.spine },
+      { at: 2.85, pose: FWD.flat },
+      { at: 3.4, pose: FWD.other, hold: 0.25 },
       { at: 4.4, pose: {} },
     ]),
     inspectHinges: hinges(
-      swing('b', 1.2, 0, PI),
-      swing('a', 1.8, 0, -PI, 0.2, 0.12),
-      swing('a', 2.5, -PI, 0, 0.2, 0.12),
-      swing('b', 3.0, PI, 0),
+      swing('b', 1.15, 0, PI),
+      swing('a', 1.7, 0, -PI, 0.2, 0.12),
+      swing('a', 2.4, -PI, 0, 0.2, 0.12),
+      swing('b', 2.9, PI, 0),
     ),
   },
 
@@ -604,15 +606,15 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: inspectOf([
       { at: 0.14, pose: DIP },
-      { at: 0.7, pose: FWD.flat, hold: 0.3 },
-      { at: 1.4, pose: FWD.turn, hold: 0.3 },
-      { at: 2.15, pose: FWD.spine },
-      { at: 2.55, pose: { ...FWD.turn, flex: -0.1, dev: 0.1 } },
-      { at: 2.88, pose: { ...FWD.flat, flex: 0.3 } },
-      { at: 3.6, pose: FWD.other, hold: 0.4 },
-      { at: 4.45, pose: {} },
+      { at: 0.65, pose: FWD.flat, hold: 0.25, drift: 0.18 },
+      { at: 1.3, pose: FWD.turn, hold: 0.25, drift: 0.18 },
+      { at: 2.0, pose: FWD.spine },
+      { at: 2.4, pose: { ...FWD.turn, flex: -0.1, dev: 0.1 } },
+      { at: 2.72, pose: { ...FWD.flat, flex: 0.3 } },
+      { at: 3.35, pose: FWD.other, hold: 0.25, drift: 0.18 },
+      { at: 4.35, pose: {} },
     ]),
-    inspectHinges: hinges(press('a', 1.2, 0, 1.6, 0.6), swing('a', 2.65, 1.6, 0, 0.1, 0.1)),
+    inspectHinges: hinges(press('a', 1.15, 0, 1.6, 0.6), swing('a', 2.5, 1.6, 0, 0.1, 0.1)),
   },
 
   huntsman: {
@@ -630,7 +632,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       // Weighed: let down in the hand, and taken up again, past where it was.
       { at: 1.8, pose: { ...part(FWD.flat, 0.9), y: 0.09, z: 0.09, rx: 0.28 } },
       { at: 2.5, pose: { ...part(FWD.flat, 0.9), y: 0.15 }, hold: 0.3, drift: 0.25 },
-      { at: 3.35, pose: part(FWD.other, 0.9), hold: 0.35, drift: 0.2 },
+      { at: 3.35, pose: FWD.other, hold: 0.35, drift: 0.2 },
       { at: 4.45, pose: {} },
     ]),
   },
@@ -666,9 +668,9 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     inspect: inspectOf([
       { at: 0.12, pose: DIP },
       // The hook, on its spine, first; then the flat, and the other side.
-      { at: 0.75, pose: FWD.spine, hold: 0.4 },
-      { at: 1.65, pose: FWD.flat, hold: 0.35 },
-      { at: 2.6, pose: FWD.other, hold: 0.4 },
+      { at: 0.75, pose: FWD.spine, hold: 0.4, drift: 0.18 },
+      { at: 1.65, pose: FWD.flat, hold: 0.35, drift: 0.18 },
+      { at: 2.6, pose: FWD.other, hold: 0.4, drift: 0.18 },
       { at: 3.95, pose: {} },
     ]),
   },
@@ -731,14 +733,14 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
     ],
     inspect: inspectOf([
       { at: 0.14, pose: DIP },
-      { at: 0.7, pose: FWD.flat, hold: 0.3 },
-      { at: 1.4, pose: FWD.look, hold: 0.3 },
-      { at: 2.25, pose: FWD.turn, hold: 0.35 },
-      { at: 3.05, pose: FWD.flat },
-      { at: 3.65, pose: FWD.other, hold: 0.25 },
-      { at: 4.45, pose: {} },
+      { at: 0.65, pose: FWD.flat, hold: 0.3 },
+      { at: 1.3, pose: FWD.look, hold: 0.3 },
+      { at: 2.1, pose: FWD.turn, hold: 0.3 },
+      { at: 2.9, pose: FWD.flat },
+      { at: 3.45, pose: FWD.other, hold: 0.2 },
+      { at: 4.4, pose: {} },
     ]),
-    inspectHinges: hinges(press('a', 1.95, 0, 1.6), swing('a', 2.75, 1.6, 0, 0.1, 0.06)),
+    inspectHinges: hinges(press('a', 1.8, 0, 1.6), swing('a', 2.65, 1.6, 0, 0.1, 0.06)),
   },
 };
 
