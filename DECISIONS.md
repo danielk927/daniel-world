@@ -1037,7 +1037,7 @@ Retries stay at 0 and workers at 1: a flaky test is a bug to find, and the tests
   `vercel.json` has a permanent redirect (a 308) from `/portfolio.html` to `/Doyoon-Kim-resume.pdf`.
   On AWS a CloudFront Function (JavaScript runtime 2.0, viewer-request) on the distribution's default behavior answers that one path with a 301 and a relative `Location`, so it holds on any domain, and hands every other request on as it came.
   It answers at the edge before any cache or the bucket is asked, so the bucket needs no page of that name; it is not on the `/ws*` behavior, so the WebSocket upgrades are untouched, and the other behavior settings (HTTPS redirect, caching, security headers, compression) are as they were.
-  The cost is the function's invocation on every request the site serves, billed per invocation; a behavior for that one path alone would have run it only there, but at the price of a second behavior and origin to keep, for a function this small.
+  The cost is the function's invocation on every request the site serves, billed per invocation; a behavior for that one path alone (on the bucket's own origin) would have run it only there, and kept an error in it from reaching any other request, but at the price of a second behavior to keep, for a function this small.
   The match is the exact path: no query string carried over, no other spelling (`/Portfolio.html`, `/portfolio`) caught, none of which ever served the page.
   `infra/test` runs the function's code on fake events (the path redirects, nine other paths pass through untouched) and checks where it is attached; `resume.test.ts` checks the `vercel.json` entry.
   Not deployed, so none of it has run on the real hosts.

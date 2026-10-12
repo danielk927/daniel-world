@@ -6,7 +6,7 @@ function isExternal(href: string): boolean {
 }
 
 /** A link; external ones open in a new tab. */
-export function link(label: string, href: string, className: string): HTMLAnchorElement {
+function link(label: string, href: string, className: string): HTMLAnchorElement {
   return el('a', {
     class: className,
     text: label,
