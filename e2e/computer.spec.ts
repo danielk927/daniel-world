@@ -45,6 +45,25 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
   expect((await world(page)).player).toEqual(running.player);
   await expect(guide).toBeHidden();
   await expect(page.locator('.computer-hint')).toBeVisible();
+  // Seated at the desk there is nowhere to go: the map gives way, and the room takes its corner.
+  await expect(page.locator('.minimap')).toBeHidden();
+  const edges = () =>
+    page.evaluate(() => ({
+      room: document.querySelector('.hud-room-title')!.getBoundingClientRect().left,
+      chat: document.querySelector('.chat')!.getBoundingClientRect().left,
+      map: document.querySelector('.minimap')!.getBoundingClientRect().right,
+    }));
+  const seated = await edges();
+  expect(seated.room, "the room takes the corner, on the chat's edge").toBeCloseTo(seated.chat, 0);
+  // A notice from the computer (one says to step away) is for the desk: it does not follow the cook.
+  await page.evaluate(() => {
+    const notice = document.createElement('div');
+    notice.className = 'toast';
+    notice.textContent =
+      'The kitchen computer crashed. Step away and sit down again to restart it.';
+    document.querySelector('.toasts')!.append(notice);
+  });
+  await expect(page.locator('.toasts .toast')).toHaveCount(1);
 
   // Esc steps away; the game pauses where it is, and the keys walk the kitchen again.
   await page.keyboard.press('Escape');
@@ -54,6 +73,10 @@ test('the kitchen computer runs DOOM, and pauses when the cook steps away', asyn
     'stepped away, DOOM paused',
   );
   await expect(page.locator('.computer-hint')).toBeHidden();
+  await expect(page.locator('.minimap')).toBeVisible();
+  await expect(page.locator('.toasts .toast')).toHaveCount(0);
+  const away = await edges();
+  expect(away.room, 'the room is beside the map again').toBeGreaterThan(away.map);
 
   // Holding E to sit down again: its auto-repeat is the same press, so it does not reach DOOM, and
   // the controls stay up.
