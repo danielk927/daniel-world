@@ -142,7 +142,7 @@ describe('Multiplayer', () => {
     latestSocket().receive(killOfSelf);
     expect(onKill).not.toHaveBeenCalled();
     vi.advanceTimersByTime(600);
-    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'victim');
+    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'victim', false);
     mp.close();
   });
 
@@ -396,7 +396,7 @@ describe('hits', () => {
     latestSocket().receive({ ...hitOnSelf, knife: 1, health: 1 });
     latestSocket().receive({ ...killOfSelf, knife: 2 });
     vi.advanceTimersByTime(1500);
-    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'victim');
+    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'victim', false);
     expect(onHit).not.toHaveBeenCalled();
     mp.close();
   });
@@ -416,7 +416,7 @@ describe('hits', () => {
     mp.close();
   });
 
-  it('puts a knockout whose cook has since respawned in the feed, without knocking them out', () => {
+  it('tells of a knockout whose cook has since respawned as about them, but late', () => {
     const { deps, onKill } = setup('lobby');
     const mp = new Multiplayer(deps);
     latestSocket().open();
@@ -427,7 +427,7 @@ describe('hits', () => {
     latestSocket().receive({ t: 'respawn', player: welcome('lobby').self });
     vi.advanceTimersByTime(1000);
     expect(onKill).toHaveBeenCalledOnce();
-    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'witness');
+    expect(onKill).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'victim', true);
     mp.close();
   });
 

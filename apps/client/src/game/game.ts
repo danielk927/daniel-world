@@ -317,7 +317,7 @@ export class Game {
         worldTime: () => this.elapsed,
         knives: this.world.knives,
         notify: (message) => this.toasts.show(message),
-        onKill: (thrower, victim, role) => this.onKill(thrower, victim, role),
+        onKill: (thrower, victim, role, late) => this.onKill(thrower, victim, role, late),
         onHit: (thrower, victim, health, role) => this.onHit(thrower, victim, health, role),
         onBackOnFeet: () => this.backOnFeet(),
         onFatal: (code) => this.leave(joinFailureMessage(code, room)),
@@ -589,9 +589,10 @@ export class Game {
     thrower: KillParty,
     victim: KillParty,
     role: 'thrower' | 'victim' | 'witness',
+    late: boolean,
   ): void {
     this.killFeed.add(thrower, victim, role !== 'witness');
-    if (role === 'victim') this.knockOut(thrower);
+    if (role === 'victim' && !late) this.knockOut(thrower);
     else if (role === 'thrower') this.impact.landed(victim);
   }
 

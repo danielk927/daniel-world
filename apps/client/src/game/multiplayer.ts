@@ -88,9 +88,15 @@ export interface MultiplayerDeps {
   onSpawn: (yaw: number) => void;
   /**
    * A knife knocked someone out, as it arrives on this screen. `role` says whether this player
-   * threw it, was hit by it, or only saw it.
+   * threw it, was hit by it, or only saw it. `late`: this player was the victim, but it arrives
+   * after they have respawned, so it is a line in the feed about them and no knockout to wait out.
    */
-  onKill: (thrower: KillParty, victim: KillParty, role: 'thrower' | 'victim' | 'witness') => void;
+  onKill: (
+    thrower: KillParty,
+    victim: KillParty,
+    role: 'thrower' | 'victim' | 'witness',
+    late: boolean,
+  ) => void;
   /**
    * A knife hit someone and left them standing with `health`, as it arrives on this screen.
    * `role` is as for `onKill`.
@@ -630,17 +636,10 @@ export class Multiplayer {
     this.deps.onHit(this.who(message.from), this.who(message.to), message.health, role);
   }
 
-  /** `late`: this player was the victim, but of a life that has ended; they only see it happen. */
+  /** `late`: this player was the victim, but of a life that has ended (see `onKill`). */
   private announceKill(from: number, to: number, late = false): void {
-    const role =
-      to === this.selfId
-        ? late
-          ? 'witness'
-          : 'victim'
-        : from === this.selfId
-          ? 'thrower'
-          : 'witness';
-    this.deps.onKill(this.who(from), this.who(to), role);
+    const role = to === this.selfId ? 'victim' : from === this.selfId ? 'thrower' : 'witness';
+    this.deps.onKill(this.who(from), this.who(to), role, late);
   }
 
   /** This player's next life begins, whole. */
