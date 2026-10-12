@@ -110,7 +110,7 @@ The minimap is top left, in the corner, the room name beside it (see the HUD abo
 It is a round disc of `--night` with an `--ink-faint` ring and an "N" tab on top, the kitchen drawn in ivory line, stations as small diamonds, players as dots of their color, you as a brass arrow.
 The mockup `docs/ui-revamp/world.jpg` shows it in the bottom right, under the loadout, which is where it began; it moved to the top left on 2026-10-11 (DECISIONS.md).
 
-The loadout is bottom right, alone there: the knife over the fist, Q as a ring beside the pair, a brass bar under what is in hand; the knife's readiness after a throw still shows.
+The loadout is bottom right, with the health bar under it and nothing else there: the knife over the fist, Q as a ring beside the pair, a brass bar under what is in hand; the knife's readiness after a throw still shows.
 Its right edge is the HUD's edge, the same as the player list's dots.
 No panel behind the loadout; if the icons vanish on the brightest walls, give each a small night disc like the map rather than a box.
 
@@ -122,7 +122,7 @@ A hit that leaves the cook standing flares the screen's edges, softer and shorte
 The thrower's crosshair marks every hit, and only a knockout names the cook.
 
 The scoreboard is held with Tab, a reading surface like the computer's guide: an even `--dim` of the whole view, the title "Scoreboard" in the display face with the bar, and a table of plain lines, the columns Kills, Deaths and Assists as small words over the numbers with one hairline under them.
-Each name is in its cook's color, yours marked "you" in brass before it, best first (most kills, then fewest deaths); the rows shrink so that a full room of 16 fits down to a window 480 px tall, and in a shorter one the list keeps your own row in view (it cannot be scrolled while the key is held).
+Each name is in its cook's color, yours marked "you" in brass before it, best first (most kills, then fewest deaths); the rows shrink so that a full room of 16 fits down to a window 480 px tall, and in a shorter one the rows that do not fit are left out, keeping the column names and your own row (nothing can scroll the list while the key is held).
 Nothing else in it is boxed, and letting go of Tab, opening a menu or the chat, or leaving the window hides it.
 
 ### Pause menu (`ui/pause.ts`, `party.ts`, `knivesPanel.ts`, `knifePreview.ts`, `styles/pause.css`)

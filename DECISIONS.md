@@ -1029,7 +1029,7 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
   The cook hit gets the health bar dropping with a pulse, a short flare of the screen's edges (the knockout's flash, shorter and softer, and gone with reduced motion like it) and a smaller shake of the view; the thrower gets the hit marker on the crosshair (and only a knockout names the cook, as before); everyone else sees the cook rock back when the knife reaches them as drawn, 0.3 s, instead of the knife vanishing into a standing cook as if it had hit nothing (`Avatars.playHit`).
   A hit that arrives after its cook has respawned, which a screen too busy to run its timers could deliver, is dropped (`Multiplayer.life`), as the timers are when the room is left.
 - **Health is in the bottom right corner, under the knife.**
-  The minimap is being moved to the top left in another change, so nothing here is sized around the one at the bottom right now: the corner is the loadout and the health bar.
+  The minimap has moved to the top left, with the room beside it, so the corner is the loadout and the health bar and nothing here is sized around a map there.
   Three segments read as three hits at a glance and match the interface's one mark (a short rounded bar), where a number would be a second kind of thing; ivory while whole, a hairline once gone, the last in `--danger` (the one place a warning color is for a warning), a hairline of the night round each so it holds on the white walls as the crosshair does.
   A small heart before them says what they are: on its own the row, under the knife and the brass bar that marks it, read as part of the loadout in the first screenshots.
   It is a `meter` named Health with "2 of 3" as its value, and a hit is said once to a screen reader ("Hit. 1 health left, one more knocks you out."); the knockout's card says the rest.
@@ -1059,9 +1059,11 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
 - **After a review: out of order, and room for the hint.**
   - Each hit and knockout is shown as its knife arrives on that screen, from the flight's own clock, which stalls on a busy page, so two events a tick apart can be shown in the opposite order to the room's.
     The screen keeps the health it has shown this life (`Multiplayer.shownHealth`) and drops a hit that would give any back, and any hit after the knockout; the health bar (`loweredTo`) and the game (nothing is taken while down) each refuse it too.
-    A knockout shown after its cook has respawned is a line in the feed, not a knockout, and its score still counts.
+    A knockout shown after its cook has respawned is a line in the feed about them (their own, as an on-time one is), not a knockout to wait out, and its score still counts.
   - The controls hint has six items now, 369 px a side at its full size and 330 at the smaller (measured, not guessed), and the chat's reach and the width below which the hint goes were still the five-item ones: the chat ran 48 px under it at 1440.
     The reach is 400 and 360 px, which leaves the chat 32 px clear at every width (a chat 280 px wide at 1440, 226 at the narrowest), and the hint goes under 1240 px, where the chat would be left under 220.
+    Measured again once the minimap had moved: the corner is the loadout and the health bar only, 168 px wide, so the hint is 123 px clear of it at 1241, and the chat is still what gives out, so the same values hold (the minimap change's 1080 was for the five-item hint).
   - The scoreboard's rows shrink with the window so a full room of 16 fits down to a window 480 px tall.
-    It does not scroll: while the key is held nothing can scroll it, so a list cut off in a shorter window is moved to keep this player's own row in view.
+    It does not scroll: while the key is held nothing can scroll it, and scrolling would take the column names away, so in a shorter window the rows that do not fit are left out, keeping the column names and ending with this player's own row if it would otherwise be cut off.
+  - The controls hint goes while the scoreboard is up, as the chat and the labels do: for the twelve seconds it shows after a cook comes in, on a window 1241 px wide or more with a full room, it touched the last row from about 850 px tall down, and over it below 500.
   - At no health the heart stays in the warning color, as at one, rather than going back to ivory as if all were well.
