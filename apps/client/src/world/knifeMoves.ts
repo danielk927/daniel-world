@@ -535,7 +535,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 5.5, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.14, pose: DIP },
+      { at: 0.17, pose: DIP },
       { at: 0.65, pose: FWD.flat, hold: 0.25 },
       { at: 1.4, pose: FWD.turn, hold: 0.25 },
       { at: 2.15, pose: FWD.spine },
@@ -580,7 +580,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 7, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.1, pose: part(DIP, 0.6) },
+      { at: 0.13, pose: part(DIP, 0.6) },
       { at: 0.65, pose: FWD.look, hold: 0.2 },
       { at: 1.35, pose: FWD.flat, hold: 0.3 },
       { at: 2.15, pose: FWD.other, hold: 0.3 },
@@ -605,7 +605,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 6, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.14, pose: DIP },
+      { at: 0.17, pose: DIP },
       { at: 0.65, pose: FWD.flat, hold: 0.25, drift: 0.18 },
       { at: 1.3, pose: FWD.turn, hold: 0.25, drift: 0.18 },
       { at: 2.0, pose: FWD.spine },
@@ -647,7 +647,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 6, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.14, pose: DIP },
+      { at: 0.17, pose: DIP },
       { at: 0.7, pose: FWD.turn },
       { at: 1.65, pose: FWD.other, hold: 0.5 },
       { at: 2.75, pose: FWD.flat, hold: 0.4 },
@@ -666,7 +666,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 6.5, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.12, pose: DIP },
+      { at: 0.16, pose: DIP },
       // The hook, on its spine, first; then the flat, and the other side.
       { at: 0.75, pose: FWD.spine, hold: 0.4, drift: 0.18 },
       { at: 1.65, pose: FWD.flat, hold: 0.35, drift: 0.18 },
@@ -685,7 +685,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 6.4, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.14, pose: DIP },
+      { at: 0.17, pose: DIP },
       { at: 0.7, pose: FWD.turn },
       { at: 1.35, pose: FWD.flat, hold: 0.4 },
       { at: 2.35, pose: FWD.other, hold: 0.3 },
@@ -704,7 +704,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 6.6, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.1, pose: part(DIP, 0.6) },
+      { at: 0.13, pose: part(DIP, 0.6) },
       { at: 0.6, pose: FWD.flat, hold: 0.3 },
       { at: 1.45, pose: FWD.other, hold: 0.4 },
       { at: 2.5, pose: FWD.flat },
@@ -732,7 +732,7 @@ const MOVES: Readonly<Record<KnifeSkin, MoveKeys>> = {
       { t: 6.8, ...REST },
     ],
     inspect: inspectOf([
-      { at: 0.14, pose: DIP },
+      { at: 0.17, pose: DIP },
       { at: 0.65, pose: FWD.flat, hold: 0.3 },
       { at: 1.3, pose: FWD.look, hold: 0.3 },
       { at: 2.1, pose: FWD.turn, hold: 0.3 },

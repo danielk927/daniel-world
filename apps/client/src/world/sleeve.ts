@@ -15,9 +15,16 @@ const SIDES = 48;
  */
 const COTTON = 2.5;
 
-const SLEEVE_LENGTH = 0.36;
+/**
+ * The sleeve is long, though only its wrist end is meant to be seen: its far end, where the elbow
+ * would be, goes well behind the eye however the wrist turns and however wide the view is (field of
+ * view and screen shape are the player's), and never shows in mid-air.
+ */
+export const SLEEVE_LENGTH = 1.2;
+/** How far from the wrist the sleeve narrows from its wrist radius to its elbow radius, and then stays. */
+const TAPER_LENGTH = 0.36;
 /** The sleeve's radius at the elbow, out of view, and at the wrist, where it hangs loose. */
-const ELBOW_RADIUS = 0.036;
+export const ELBOW_RADIUS = 0.036;
 const WRIST_RADIUS = 0.05;
 /** Where its hem rolls under, toward the cuff inside it. */
 const HEM = 0.007;
@@ -73,11 +80,14 @@ function turned(
  */
 export function sleeveGeometry(): BufferGeometry {
   const half = SLEEVE_LENGTH / 2;
-  const profile: [number, number][] = [[0, half]];
-  // Along the sleeve from the elbow to just short of the hem.
+  const profile: [number, number][] = [
+    [0, half],
+    [ELBOW_RADIUS, half],
+  ];
+  // Straight from the elbow to where it narrows, then along the taper to just short of the hem.
   for (let k = 0; k <= 16; k++) {
     const t = k / 16;
-    const z = half - t * (SLEEVE_LENGTH - HEM);
+    const z = -half + TAPER_LENGTH - t * (TAPER_LENGTH - HEM);
     profile.push([ELBOW_RADIUS + (WRIST_RADIUS - ELBOW_RADIUS) * t, z]);
   }
   // The hem, rolled under round a quarter circle and tucked in toward the cuff.
@@ -88,10 +98,14 @@ export function sleeveGeometry(): BufferGeometry {
   profile.push([WRIST_RADIUS - HEM - 0.002, -half + 0.001], [0.03, -half + 0.004]);
   return turned(profile, (angle, z, radius) => {
     if (radius < ELBOW_RADIUS * 0.5) return 0;
-    // 0 at the elbow, 1 at the wrist.
-    const toWrist = Math.min(1, Math.max(0, (half - z) / SLEEVE_LENGTH));
-    const long = Math.cos(angle * 3 + z * 9 + 0.6) * 0.6 + Math.cos(angle * 5 - z * 14 + 2.1) * 0.4;
-    const round = Math.sin(z * 70 + Math.cos(angle * 2) * 1.5) * toWrist * toWrist;
+    // 0 from the end of the taper to the elbow, 1 at the wrist; and where along the visible
+    // sleeve, as if it were the length it once was.
+    const fromWrist = z + half;
+    const toWrist = Math.min(1, Math.max(0, 1 - fromWrist / TAPER_LENGTH));
+    const where = fromWrist - TAPER_LENGTH / 2;
+    const long =
+      Math.cos(angle * 3 + where * 9 + 0.6) * 0.6 + Math.cos(angle * 5 - where * 14 + 2.1) * 0.4;
+    const round = Math.sin(where * 70 + Math.cos(angle * 2) * 1.5) * toWrist * toWrist;
     return (0.0009 + 0.0019 * toWrist) * long + 0.0011 * round;
   });
 }

@@ -2,7 +2,8 @@ import { PerspectiveCamera, Quaternion, Vector3, type Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import { KNIFE_SKINS, knifeLook, type KnifeSkin } from '@world/shared';
 import { knifeModel } from './knifeModel.ts';
-import { knifeMoves } from './knifeMoves.ts';
+import { knifeMoves, sample, type ArmPose } from './knifeMoves.ts';
+import { ELBOW_RADIUS, SLEEVE_LENGTH } from './sleeve.ts';
 import { Viewmodel } from './viewmodel.ts';
 
 /**
@@ -15,8 +16,10 @@ import { Viewmodel } from './viewmodel.ts';
  * - nothing is frozen: the knife is never still, hand and blade, for more than a moment, which a
  *   pose held between two stops is (the hold's two keys the same, so the hand stopped dead in it);
  * - the arm never ends in mid-air: the far end of the sleeve, where the elbow would be, is never in
- *   view, in any draw or inspect, at 60 and 120 Hz.
- *
+ *   view, in any draw or inspect, at 60 and 120 Hz, at any field of view the player can set (60 to
+ *   100, and 107 sprinting) on any screen from 16:10 to 21:9;
+ * - I is answered at once, from rest: the knife moves within a tenth of a second of the key, and the
+ *   dip before its lift is a dip, not a tenth of one swallowed by blending in out of the idle. *
  * The first inspects of the grounded rework held 35 to 50 percent of their length frozen, in holds
  * up to 2.3 s, showed one flat of five knives not at all and were small and to the right of the view.
  */
@@ -31,6 +34,14 @@ const FRAME = 1 / 60;
 
 const eye = new PerspectiveCamera(72, 1440 / 900, 0.05, 200);
 eye.updateMatrixWorld(true);
+/** The views a player can have: the field of view (vertical, degrees) and the screen's shape. */
+const VIEWS = [60, 72, 100, 107].flatMap((fov) =>
+  [1.6, 16 / 9, 21 / 9].map((aspect) => {
+    const camera = new PerspectiveCamera(fov, aspect, 0.05, 200);
+    camera.updateMatrixWorld(true);
+    return camera;
+  }),
+);
 const still = { position: { x: 0, y: 0, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 } };
 
 interface Parts {
@@ -98,10 +109,10 @@ function seen(skin: KnifeSkin) {
 }
 
 /**
- * The first frame, in seconds, at which the sleeve's elbow end (its rim, 0.18 along it, 0.036 across)
- * is in view in a draw or an inspect at `hz`, or null if it never is.
+ * Where and when the sleeve's elbow end (its rim, at the far end of the sleeve) is in any of the
+ * views in a draw or an inspect at `hz`, or null if it never is.
  */
-function elbowShown(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): number | null {
+function elbowShown(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): string | null {
   const dt = 1 / hz;
   const vm = new Viewmodel();
   vm.setLook(knifeLook(skin, undefined));
@@ -110,8 +121,9 @@ function elbowShown(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): numb
   const parts = vm as unknown as { sleeve: Object3D; scene: Object3D };
   let seconds = moves.draw.duration + 0.4;
   if (move === 'inspect') {
-    for (let t = 0; t < moves.draw.duration + 1.5; t += dt)
+    for (let t = 0; t < moves.draw.duration + 1.5; t += dt) {
       vm.update(dt, still as never, 0, 0, 0, true);
+    }
     vm.startInspect();
     seconds = moves.inspect.duration + 0.3;
   }
@@ -121,12 +133,29 @@ function elbowShown(skin: KnifeSkin, move: 'draw' | 'inspect', hz: number): numb
     parts.scene.updateMatrixWorld(true);
     for (let k = 0; k < 16; k++) {
       const a = (k / 16) * Math.PI * 2;
-      rim.set(Math.cos(a) * 0.036, Math.sin(a) * 0.036, 0.18);
-      const at = parts.sleeve.localToWorld(rim).project(eye);
-      if (at.z < 1 && Math.abs(at.x) < 1 && Math.abs(at.y) < 1) return frame * dt;
+      rim.set(Math.cos(a) * ELBOW_RADIUS, Math.sin(a) * ELBOW_RADIUS, SLEEVE_LENGTH / 2);
+      const world = parts.sleeve.localToWorld(rim);
+      for (const view of VIEWS) {
+        const at = world.clone().project(view);
+        if (at.z < 1 && Math.abs(at.x) < 1 && Math.abs(at.y) < 1) {
+          return `${(frame * dt).toFixed(2)} s, at ${view.fov} degrees on ${view.aspect.toFixed(2)}:1`;
+        }
+      }
     }
   }
   return null;
+}
+
+/** A knife up in the hand, its draw done and its idle under way, then I pressed. */
+function pressedFromIdle(skin: KnifeSkin): Viewmodel {
+  const vm = new Viewmodel();
+  vm.setLook(knifeLook(skin, undefined));
+  vm.setShown(true);
+  for (let t = 0; t < knifeMoves(skin).draw.duration + 1.5; t += FRAME) {
+    vm.update(FRAME, still as never, 0, 0, 0, true);
+  }
+  vm.startInspect();
+  return vm;
 }
 
 describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s inspect', (skin) => {
@@ -142,16 +171,50 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('the %s inspect', (skin) => {
     expect(shown.inView).toBe(true);
   });
 
-  it('never shows the end of its sleeve, in its draw or its inspect, at 60 and 120 Hz', () => {
+  it('never shows the end of its sleeve, in its draw or its inspect, in any view', () => {
     for (const move of ['draw', 'inspect'] as const) {
       for (const hz of [60, 120]) {
         const at = elbowShown(skin, move, hz);
-        expect(
-          at,
-          `the elbow end shows ${at?.toFixed(2)} s into its ${move} at ${hz} Hz`,
-        ).toBeNull();
+        expect(at, `the elbow end shows ${at} into its ${move} at ${hz} Hz`).toBeNull();
       }
     }
+  });
+
+  it('answers I from rest within a tenth of a second', () => {
+    const vm = pressedFromIdle(skin);
+    const parts = vm as unknown as { model: Object3D; scene: Object3D };
+    const tip = (): Vector3 => {
+      parts.scene.updateMatrixWorld(true);
+      return parts.model.localToWorld(new Vector3(0, 0, 0)).project(eye);
+    };
+    const start = tip();
+    let answered = Infinity;
+    for (let frame = 1; frame * FRAME <= 0.4; frame++) {
+      vm.update(FRAME, still as never, 0, 0, 0, true);
+      const at = tip();
+      if (Math.hypot((at.x - start.x) * 720, (at.y - start.y) * 450) > 5) {
+        answered = frame * FRAME;
+        break;
+      }
+    }
+    expect(answered, 'seconds until the tip has moved 5 px').toBeLessThan(0.11);
+  });
+
+  it('lets the dip before its lift show, from rest', () => {
+    const vm = pressedFromIdle(skin);
+    const pose = (vm as unknown as { pose: ArmPose }).pose;
+    const clip = knifeMoves(skin).inspect;
+    const out = {} as ArmPose;
+    let deepest = 0;
+    let own = 0;
+    for (let frame = 1; frame * FRAME <= 0.5; frame++) {
+      vm.update(FRAME, still as never, 0, 0, 0, true);
+      deepest = Math.min(deepest, pose.y);
+      own = Math.min(own, sample(clip, frame * FRAME, out).y);
+    }
+    expect(own, 'the clip dips').toBeLessThan(-0.005);
+    const said = `dips ${(deepest * 1000).toFixed(1)} mm of the clip's ${(own * 1000).toFixed(1)} mm`;
+    expect(deepest / own, said).toBeGreaterThan(0.75);
   });
 
   it('is never frozen in a pose held between two stops', () => {

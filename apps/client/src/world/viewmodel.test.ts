@@ -379,6 +379,30 @@ class KnifeMotion {
   }
 }
 
+/** A knife's own inspect, played through from rest: how fast it moves the knife, how hard it jolts. */
+function inspected(skin: KnifeSkin): KnifeMotion {
+  const vm = knifeUp(skin);
+  const motion = new KnifeMotion(vm, skin);
+  motion.frame();
+  vm.startInspect();
+  motion.play(knifeMoves(skin).inspect.duration + 0.2);
+  return motion;
+}
+
+/**
+ * What starting an inspect over may not much exceed, the same for every knife: the hardest any
+ * knife's own inspect moves and jolts it. A restart is a hand taking up a new inspect, and a hand
+ * does not take one up more gently because the last one was a gentle one; measured against its own
+ * knife's inspect, the gentlest (the karambit's, the huntsman's) forced every restart slow.
+ */
+const hardest = KNIFE_SKINS.reduce(
+  (worst, skin) => {
+    const own = inspected(skin);
+    return { speed: Math.max(worst.speed, own.speed), jolt: Math.max(worst.jolt, own.jolt) };
+  },
+  { speed: 0, jolt: 0 },
+);
+
 describe.each(KNIFE_SKINS.map((skin) => [skin]))('pressing I over and over with the %s', (skin) => {
   const inspect = knifeMoves(skin).inspect.duration;
   const drawing = (): Viewmodel => {
@@ -394,21 +418,7 @@ describe.each(KNIFE_SKINS.map((skin) => [skin]))('pressing I over and over with 
     motion.play(1.2);
     return motion;
   })();
-  /** The knife's own inspect, played through: how fast it moves the knife, and how hard it jolts. */
-  const inspected = ((): KnifeMotion => {
-    const vm = knifeUp(skin);
-    const motion = new KnifeMotion(vm, skin);
-    motion.frame();
-    vm.startInspect();
-    motion.play(inspect + 0.2);
-    return motion;
-  })();
-  /**
-   * What starting over may not much exceed: the inspect's own motion, and nothing quicker. (It was
-   * once the quicker of that and the draw's snap up, which let a restart jolt the knife 10 times as
-   * hard as the inspect itself does.)
-   */
-  const own = inspected;
+  const own = hardest;
 
   it('starts the inspect over without jolting the knife, wherever it is cut', () => {
     for (let cut = 0.05; cut < inspect; cut += 0.05) {

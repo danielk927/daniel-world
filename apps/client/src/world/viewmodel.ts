@@ -58,7 +58,7 @@ import {
   type KnifeModel,
 } from './knifeModel.ts';
 import type { Joint, KnifePart } from './knifeShapes.ts';
-import { cuffGeometry, sleeveGeometry } from './sleeve.ts';
+import { SLEEVE_LENGTH, cuffGeometry, sleeveGeometry } from './sleeve.ts';
 import { TexturePainter } from './surfaces/painter.ts';
 import { CLOTH } from './surfaces/recipes.ts';
 import { reflectProbe } from './surfaces/shading.ts';
@@ -85,13 +85,20 @@ export const PUNCH = { windUp: 0.05, hit: 0.13, recover: 0.42 } as const;
  */
 const INTERRUPT_BLEND = 0.1;
 /**
- * An inspect blends in over this long out of whatever it cuts short, another inspect included:
- * long enough that pressing I over and over never jolts the knife much harder than an inspect
- * itself does, short enough that every press visibly starts it over.
+ * An inspect started over, mid-inspect, blends in over this long: long enough that pressing I over
+ * and over never jolts the knife much harder than an inspect itself does, short enough that every
+ * press visibly starts it over.
  */
-const INSPECT_BLEND = 0.9;
+const INSPECT_BLEND = 0.75;
+/**
+ * An inspect cutting the draw's flourish short blends in over this long, quicker than a restart
+ * since the draw's snap up is more motion to take over; one starting from the idle, which is at
+ * rest or drifting, over INTERRUPT_BLEND, so that the knife answers the key at once and the dip
+ * before its lift is a dip.
+ */
+const FLOURISH_BLEND = 0.3;
 /** How quickly the motion a cut carries on with dies away, per second. */
-const CARRY = 5;
+const CARRY = 10;
 /**
  * How stiffly the fingers open off a knife's handle and close on it again, per second: letting go
  * in under a tenth of a second, a reflex ahead of the blade, and taking hold again in about a third.
@@ -315,7 +322,7 @@ const BARE_TURN = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.P
 const NO_TURN = new Quaternion();
 /** The sleeve and its cuff end at the wrist, wherever a grip puts it. */
 const CUFF_FROM_WRIST = 0.0195;
-const SLEEVE_FROM_WRIST = 0.1925;
+const SLEEVE_FROM_WRIST = SLEEVE_LENGTH / 2 + 0.0125;
 /**
  * How much of the turn from the forearm to the hand the forearm takes itself (as the elbow moves to
  * suit a grip), leaving the rest to the wrist.
@@ -771,9 +778,28 @@ export class Viewmodel {
    */
   startInspect(): boolean {
     if (!this.knifeInHand) return false;
-    this.interrupt(INSPECT_BLEND);
+    // From rest, the inspect simply begins: there is no motion to blend out of, and a blend would
+    // only hold the knife back, swallowing the dip before its lift. Out of anything else (an
+    // inspect, the draw's flourish, an idle on the move) it blends in.
+    if (this.inspecting || this.flourishing || !this.armAtRest()) {
+      this.interrupt(
+        this.inspecting ? INSPECT_BLEND : this.flourishing ? FLOURISH_BLEND : INTERRUPT_BLEND,
+      );
+    }
     this.sinceInspect = 0;
     return true;
+  }
+
+  /** The arm, wrist, blade and fingers are where they rest and not moving. */
+  private armAtRest(): boolean {
+    let off = 0;
+    let moving = 0;
+    for (let i = 0; i < CHANNELS.length; i++) {
+      const c = CHANNELS[i]!;
+      off += Math.abs(this.pose[c]);
+      moving += Math.abs(this.poseSpeed[c]);
+    }
+    return off < 0.003 && moving < 0.02;
   }
 
   /** The knife is in the hand in view, if still coming up: not thrown, nor on its way down. */
