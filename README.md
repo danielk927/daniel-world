@@ -64,8 +64,8 @@ Scores last as long as the cook is in the room, so leaving and coming back start
 
 All personal content lives in [`apps/client/src/content.ts`](apps/client/src/content.ts).
 It holds what the kitchen's seven stations (`stations`) and its dishes say when they are opened, taken from Daniel's resume, and his own words about each dish.
-Each station serves one part of it, and its label says which: the pass is About me, the saucier Experiences, the poissonnier Research, the rôtisseur Projects, the entremetier Hackathons, the garde manger Skills, and the plonge Education.
-The pâtisserie is only the kitchen's pastry corner, and cannot be opened.
+Each station serves one part of it, and its label says which: the pass is About me, the saucier Experiences, the poissonnier Research, the rôtisseur Projects, the entremetier Hackathons, the garde manger Skills, and the pâtisserie, the island across from it, Education.
+The plonge is only the kitchen's dish pit, and cannot be opened.
 The resume itself is a PDF, `apps/client/public/Doyoon-Kim-resume.pdf`, served as it is at `/Doyoon-Kim-resume.pdf`; replace the file under the same name to update it, and the next deploy shows the new one.
 It is not generated from `content.ts`, so a change to a role or project goes in both places.
 

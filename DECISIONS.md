@@ -1211,3 +1211,13 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
   A 24-character party code, 302 px at the new size, is whole from 800 px wide and ends in an ellipsis below.
 - **The check that keeps the graduation off the site lets "graduated" through**, which About me uses for high school; "graduate", "graduates", "graduating" and "graduation" are still caught, as is any year after this one.
 - **The screenshot script opens Hackathons**, the pâtisserie having nothing to open, and looks down at the station first, since the crosshair over it from where the cook stops misses.
+
+### Education on the pastry table (2026-10-12)
+
+- **Education moved from the plonge to the pâtisserie**, at Daniel's request, so it sits on the back island across from the garde manger's Skills; the plonge is now only the dish pit, out of `STATIONS` and `StationId`, and the pâtisserie is a station again where it was, with its own pink light.
+  It is still seven stations, and Education is still the last panel.
+  The pre-rinse spray over the east sink takes its x from the sink (7.2, as `kitchen.ts` and the knife solids have it), not from the station that was there.
+- **The guard for picking in front of the east wall moved to the croissant.**
+  `e2e/stations.spec.ts` had opened the plonge from the aisle with the walk-in shut, since a pick whose ten meter ray crossed the east wall used to be refused (2026-10-09); the truffle croissant from the spawn was the other case that fix named, and the spec opens it now.
+  A new spec walks to the pastry table and opens Education there, the map and the room giving way to its panel as before.
+- `stations.test.ts`' reach check aims at the pâtisserie from the north, past the windows: from the south its ray would pass the entremetier first.

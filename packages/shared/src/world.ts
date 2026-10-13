@@ -413,7 +413,7 @@ function crossesBesideDoorway(
 }
 
 export type StationId =
-  'passe' | 'saucier' | 'poissonnier' | 'rotisseur' | 'entremetier' | 'garde-manger' | 'plonge';
+  'passe' | 'saucier' | 'poissonnier' | 'rotisseur' | 'entremetier' | 'garde-manger' | 'patisserie';
 
 export interface Station {
   readonly id: StationId;
@@ -430,7 +430,7 @@ const ON_COUNTER = COUNTER_HEIGHT + 0.25;
 
 /**
  * The stations of the brigade that each hold a section of Daniel's resume, all clickable. The
- * pâtisserie is not one: its island is only the kitchen's pastry corner.
+ * plonge is not one: its sinks are only the kitchen's dish pit.
  */
 export const STATIONS: readonly Station[] = [
   { id: 'entremetier', x: -2.6, y: ON_COUNTER, z: PIANO_ROW, radius: 0.75 },
@@ -439,7 +439,7 @@ export const STATIONS: readonly Station[] = [
   { id: 'poissonnier', x: 2.6, y: ON_COUNTER, z: -PIANO_ROW, radius: 0.75 },
   { id: 'passe', x: 0, y: COUNTER_HEIGHT + 0.35, z: 4.3, radius: 1.0 },
   { id: 'garde-manger', x: 3.2, y: ON_COUNTER, z: -4.2, radius: 0.8 },
-  { id: 'plonge', x: 7.2, y: ON_COUNTER, z: 6.15, radius: 0.8 },
+  { id: 'patisserie', x: -3.2, y: COUNTER_HEIGHT + 0.4, z: -4.2, radius: 0.85 },
 ];
 
 /**

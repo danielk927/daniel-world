@@ -231,6 +231,12 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - The room name and status sit over the minimap in the top left, smaller; the map goes on a window under 584 px tall, where an open chat would meet it.
 - Lint, typecheck, 1237 unit tests, all 60 E2E tests (the changed specs again with `E2E_CPU_THROTTLE=4`) and the build pass; the screenshots were taken again.
 
+### Education on the pastry table (2026-10-12)
+
+- Education moved from the dish pit to the pâtisserie, the island across from Skills, at Daniel's request; the plonge is only the dish pit now, still seven stations.
+- `e2e/stations.spec.ts` opens Education at the pastry table, and keeps the old plonge spec's guard with the croissant: picked from the spawn with the walk-in shut, its ten meter ray past the east wall.
+- Lint, typecheck, 1237 unit tests, all 61 E2E tests (51 in a full run, and the 10 that ran while the machine slept passed again once it was awake) and the build pass; the screenshots were taken again.
+
 ### How to run it
 
 ```bash
