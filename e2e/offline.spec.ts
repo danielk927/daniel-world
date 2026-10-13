@@ -155,7 +155,7 @@ test('cooks in a private party find each other again after the server restarts',
     await menu.getByLabel('Party code').fill('e2e-restart');
     await menu.getByRole('button', { name: 'Start party' }).click();
     await expectWorld(host, (w) => w.room === 'e2e-restart', 'the host is in the party');
-    await menu.getByRole('button', { name: 'Resume' }).click();
+    await menu.getByRole('button', { name: 'Return to game' }).click();
     const guest = await enterWorld(browser, { name: 'Guest', room: 'e2e-restart' });
     const cooks = [host, guest];
     for (const page of cooks) {
@@ -292,7 +292,7 @@ test('a room server address the browser will not even open still lets visitors i
 
     // Leaving and coming back works, and leaves nothing trying on behind it.
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Leave the kitchen' }).click();
+    await page.getByRole('button', { name: 'Leave lobby' }).click();
     await page.getByRole('button', { name: 'Enter the kitchen' }).click();
     await expectWorld(
       page,

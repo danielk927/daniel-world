@@ -3,6 +3,7 @@ import {
   enterWorld,
   findWithCursor,
   grid,
+  MAP_VIEWPORT,
   turnTo,
   waitUntilStill,
   walkUntil,
@@ -10,7 +11,11 @@ import {
 } from './helpers.ts';
 
 test('the plonge by the east wall opens while the walk-in is shut', async ({ browser }) => {
-  const page = await enterWorld(browser, { name: 'Dishwasher', online: false });
+  const page = await enterWorld(browser, {
+    name: 'Dishwasher',
+    online: false,
+    viewport: MAP_VIEWPORT,
+  });
   expect((await world(page)).cooler.open).toBe(false);
   // From the spawn, along the aisle toward the dish pit in the south-east corner, then face east,
   // where the walk-in's wall is behind it.
@@ -23,11 +28,12 @@ test('the plonge by the east wall opens while the walk-in is shut', async ({ bro
   const found = await findWithCursor(
     page,
     grid([240, 900], [120, 440], { x: 30, y: 16 }),
-    'Press E to open Education and contact',
+    'Press E to open Education',
   );
   expect(found, 'the cursor should find the plonge in front of the wall').not.toBeNull();
+  await expect(page.locator('.minimap')).toBeVisible();
   await page.keyboard.press('KeyE');
-  await expect(page.getByRole('dialog', { name: 'Education and contact' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Education' })).toBeVisible();
   // The panel's dark side would wash out a long room name, so the map and the room give way to it.
   await expect(page.locator('.minimap')).toBeHidden();
   await expect(page.locator('.hud-room-title')).toBeHidden();

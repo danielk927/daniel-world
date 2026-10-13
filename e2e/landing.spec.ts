@@ -38,11 +38,11 @@ test('the landing counts the cooks in the lobby as they come and go', async ({ b
   const server = await startRoomServer();
   try {
     // It asks the server every few seconds while the landing shows.
-    await expect(count).toHaveText('Nobody online yet', { timeout: 15_000 });
+    await expect(count).toHaveText('0 Online', { timeout: 15_000 });
     const cook = await enterWorld(browser, { name: 'Early Bird' });
-    await expect(count).toHaveText('1 online', { timeout: 15_000 });
+    await expect(count).toHaveText('1 Online', { timeout: 15_000 });
     await cook.context().close();
-    await expect(count).toHaveText('Nobody online yet', { timeout: 15_000 });
+    await expect(count).toHaveText('0 Online', { timeout: 15_000 });
   } finally {
     await server.close();
   }

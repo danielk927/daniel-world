@@ -1,4 +1,4 @@
-/* ---------- HUD corners: the map and the room top left, the players top right ---------- */
+/* ---------- HUD corners: the room and the map top left, the players top right ---------- */
 
 /*
  * Plain words over the world, nothing behind them (docs/ui-revamp.md): weight and size carry them
@@ -6,19 +6,20 @@
  */
 
 /*
- * The map in the corner, as near the edges as the players are, and the room beside it. The row
- * stops short of the players, whose column can reach in a third of the way, and of the middle,
- * where a notice shows, so a long party code gives way with an ellipsis before it meets a long name
- * or a toast; but never short of the map, a gap and room for "The lobby".
+ * The room in the corner, as near the edges as the players are, and the map under it. A long party
+ * code may run on past the map, but stops short of the players, whose column can reach in a third
+ * of the way, and of the middle, where a notice shows, so it gives way with an ellipsis before it
+ * meets a long name or a toast; but never short of the map's own width.
  */
 .hud-left {
-  --least: 356px;
+  --least: 196px;
   position: absolute;
   top: var(--hud-edge);
   left: var(--hud-edge);
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 20px;
+  gap: 12px;
   max-width: max(
     var(--least),
     min(
@@ -28,12 +29,6 @@
   );
 }
 
-/* After the room in the page, for the screen reader, before it on the screen. */
-.hud-map {
-  order: -1;
-  flex-shrink: 0;
-}
-
 .hud-room {
   display: grid;
   /* A track that may be narrower than the name, which fills it, so its ellipsis has an edge to meet. */
@@ -41,13 +36,13 @@
   gap: 4px;
   min-width: 0;
   /* The display face's line box sits a little above its capitals. */
-  margin-top: -6px;
+  margin-top: -4px;
 }
 
 .hud-room-title {
   margin: 0;
   overflow: hidden;
-  font: 700 30px/1.15 var(--font-display);
+  font: 700 22px/1.15 var(--font-display);
   letter-spacing: -0.01em;
   color: var(--ink);
   text-overflow: ellipsis;
@@ -62,7 +57,7 @@
 /* The connection word, and the frame rate after it when shown, in small capitals. */
 .hud-status,
 .hud .hud-fps {
-  font: 600 12px/1 var(--font-body);
+  font: 600 11px/1 var(--font-body);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink);

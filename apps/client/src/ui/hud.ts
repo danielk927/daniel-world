@@ -33,7 +33,7 @@ export function rowsThatFit(space: number, row: number, gap: number): number {
   return Math.max(MIN_PLAYER_ROWS, Math.min(MAX_PLAYER_ROWS, rows));
 }
 
-/** The prompt read out in full: "Open Products" becomes "Press E to open Products". */
+/** The prompt read out in full: "Open Hackathons" becomes "Press E to open Hackathons". */
 export function promptSentence(action: string): string {
   return `Press E to ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
 }
@@ -108,7 +108,7 @@ export class Hud {
   ]);
   /** The bottom right corner, where the loadout is. */
   readonly corner = el('div', { class: 'hud-corner' });
-  /** The top left corner, where the minimap goes, with the room beside it. */
+  /** The top left corner, where the minimap goes, under the room. */
   readonly mapSlot = el('div', { class: 'hud-map' });
   /** Under the player list, top right: where the kill feed goes. */
   readonly feedSlot = el('div', { class: 'hud-feed' });
@@ -126,7 +126,7 @@ export class Hud {
     el('div', { class: 'hud-room-line' }, [this.status, this.fps]),
     this.statusAnnouncement,
   ]);
-  /** The room first, so a screen reader reads it before the map; the styles put the map first. */
+  /** The room first, over the map, so a screen reader reads it before the map too. */
   private readonly left = el('div', { class: 'hud-left' }, [this.room, this.mapSlot]);
   private readonly right = el('div', { class: 'hud-right' }, [
     el('section', { class: 'hud-players', attrs: { 'aria-label': 'Players in this room' } }, [
@@ -194,7 +194,7 @@ export class Hud {
     const covered = (): boolean =>
       this.element.classList.contains('is-covered') ||
       this.element.classList.contains('is-computer');
-    // The map and the room each by themselves: the strip between them has nothing in it.
+    // The map and the room each by themselves: beside the map, under the room, nothing is.
     labels.keepClear(this.mapSlot);
     labels.keepClear(this.room);
     labels.keepClear(this.right);
@@ -302,7 +302,7 @@ export class Hud {
 
   /**
    * What E does at the object under the crosshair, as a verb phrase in sentence case ("Open
-   * Products", "Play DOOM"), or null to clear it.
+   * Hackathons", "Play DOOM"), or null to clear it.
    */
   setPrompt(action: string | null): void {
     const next = action ?? '';

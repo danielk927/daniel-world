@@ -62,8 +62,8 @@ test.describe('in the kitchen', () => {
     await page.keyboard.press('Escape');
     const menu = page.getByRole('dialog', { name: 'Paused' });
     await expect(menu).toBeVisible();
-    // The Resume that puts the game back is another thing than the resume to read.
-    await expect(menu.getByRole('button', { name: 'Resume' })).toBeVisible();
+    // The way back to the game is another thing than the resume to read.
+    await expect(menu.getByRole('button', { name: 'Return to game' })).toBeVisible();
     const link = menu.getByRole('link', { name: RESUME_LABEL });
     await expect(link).toHaveAttribute('href', RESUME_URL);
     await expect(link).toHaveAttribute('target', '_blank');

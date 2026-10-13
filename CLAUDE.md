@@ -40,7 +40,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
 - `apps/server` - Node WebSocket room server (`ws`), and Chef Skinner, the knife-throwing cook locked in every room's walk-in until its door bursts (`chef.ts`).
   Runs TypeScript natively in dev (`node --watch src/index.ts`), bundled with esbuild for production.
 - `apps/client` - Vite + Three.js client.
-  `src/content.ts` holds all personal content (Daniel's resume; the few lines still wanting his words are marked `TODO(daniel)`).
+  `src/content.ts` holds all personal content (Daniel's resume, and his five favorite dishes in his own words).
   `index.html` is the 3D world; the plain alternative is the resume, a PDF in `public/` (`src/resume.ts` names it and every link to it).
   `src/computer/` is the kitchen computer: a RISC-V machine (interpreter and JIT) in a Web Worker that runs DOOM; `src/game/computerDesk.ts` hooks it into the game.
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
@@ -105,7 +105,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   The fonts' latin subset has no arrows, so draw them.
 - The plain alternative to the world is the resume, a PDF served as it is: `apps/client/public/Doyoon-Kim-resume.pdf`, which Vite copies to the site's root.
   Every way to it (the landing's link, the pause menu, the phone, no-WebGL and failed-load paths, the no-JavaScript page in `index.html`) uses `RESUME_URL`, `RESUME_LABEL` and `resumeAttrs` from `src/resume.ts` (`resume.test.ts` checks `index.html` agrees).
-  The words say it is a PDF ("View the resume (PDF)"), and not "Resume" alone, which the pause menu's own button already is.
+  The words say it is a PDF ("View the resume (PDF)"), and not "Resume" alone, which would read as the pause menu's way back into the game ("Return to game").
   A page with a world or a cook to keep (the landing's quiet row, the pause menu) opens it in a tab of its own, `noopener`; where it is the way in (a phone, no WebGL, a failed load, no JavaScript) it opens in place.
   To change the resume, replace the file under the same name: the stack uploads it with the pages (revalidated on every visit, CloudFront cleared by the deploy), never in `assets/`, where a name is cached for a year.
   There is no generated portfolio page any more; `content.ts` feeds the kitchen's panels only.

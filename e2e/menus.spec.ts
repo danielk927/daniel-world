@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { RESUME_LABEL } from '../apps/client/src/resume.ts';
-import { enterWorld, turnTo, waitForFrames, world } from './helpers.ts';
+import { enterWorld, MAP_VIEWPORT, turnTo, waitForFrames, world } from './helpers.ts';
 
 /** Where keyboard focus is: inside the pause menu, and the name of what holds it. */
 function focus(page: Page): Promise<{ inMenu: boolean; name: string }> {
@@ -53,7 +53,7 @@ test('Tab and Shift+Tab stay in the pause menu, and only on what the keyboard ca
 test('the HUD, the prompt and the hit flash draw over the labels in the world', async ({
   browser,
 }) => {
-  const page = await enterWorld(browser, { name: 'Looker', online: false });
+  const page = await enterWorld(browser, { name: 'Looker', online: false, viewport: MAP_VIEWPORT });
   const covered = await page.evaluate(() => {
     // Hit testing finds what is drawn on top, once everything takes the pointer.
     const style = document.createElement('style');
@@ -119,7 +119,7 @@ async function resize(page: Page, width: number, height: number): Promise<void> 
   await waitForFrames(page, 2);
 }
 
-test('the minimap is in the top left corner with the room beside it, and the loadout has the bottom right to itself', async ({
+test('the room and the minimap under it are in the top left corner, and the loadout has the bottom right to itself', async ({
   browser,
 }) => {
   const page = await enterWorld(browser, { name: 'Mapper', online: false });
@@ -127,33 +127,35 @@ test('the minimap is in the top left corner with the room beside it, and the loa
   for (const [width, height] of [
     [1280, 720],
     [1920, 1080],
-    [960, 540],
+    [960, 600],
   ] as const) {
     await resize(page, width, height);
     const at = await hudBoxes(page);
     const where = `at ${width}x${height}`;
 
-    // In the corner: the north tab's top and the map's left sit on the HUD's edge, as the chat's
-    // left and the players' top do, and the map lies in the top left of the window.
+    // In the corner: the room's and the map's left sit on the HUD's edge, as the chat's left does,
+    // the room's top on the players' (its line box a little above its capitals), and the map lies
+    // in the top left of the window.
     expect(at.mapParent, `the map is in the HUD's top left slot ${where}`).toBe('hud-map');
     expect(at.map.left, `the map's left edge is the chat's ${where}`).toBeCloseTo(at.chat.left, 0);
-    expect(at.north.top, `the north tab's top is the players' top ${where}`).toBeCloseTo(
-      at.players.top,
+    expect(at.title.left, `the room's left edge is the chat's ${where}`).toBeCloseTo(
+      at.chat.left,
+      0,
+    );
+    expect(at.room.top, `the room's top is on the players' top ${where}`).toBeCloseTo(
+      at.players.top - 4,
       0,
     );
     expect(at.map.right, `the map stays in the left of the window ${where}`).toBeLessThan(
       at.view.width / 4,
     );
-    expect(at.map.bottom, `the map stays in the top of the window ${where}`).toBeLessThan(
-      at.view.height / 2,
+    expect(at.map.top, `the map stays in the top of the window ${where}`).toBeLessThan(
+      at.view.height / 4,
     );
 
-    // The room name and status beside it, never over it, nor under it, nor over the players.
-    expect(at.title.left, `the room starts after the map ${where}`).toBeGreaterThanOrEqual(
-      at.map.right + 16,
-    );
-    expect(at.room.bottom, `the room is beside the map, not under it ${where}`).toBeLessThan(
-      at.map.bottom,
+    // The room name and status over it, never on it, nor over the players.
+    expect(at.room.bottom, `the room is over the map's north tab ${where}`).toBeLessThan(
+      at.north.top,
     );
     expect(overlap(at.room, at.map), `the room is clear of the map ${where}`).toBe(false);
     expect(overlap(at.room, at.players), `the room is clear of the players ${where}`).toBe(false);
@@ -198,8 +200,9 @@ test('a long party code, and a notice at the top middle, never meet the room nam
   });
 
   for (const [width, height] of [
+    [720, 600],
     [800, 600],
-    [960, 540],
+    [960, 600],
     [1024, 640],
     [1280, 720],
     [1440, 900],
@@ -225,11 +228,11 @@ test('a long party code, and a notice at the top middle, never meet the room nam
     expect(at.title.right, `the code stops short of the players ${where}`).toBeLessThanOrEqual(
       at.players.right - 0.3 * at.view.width,
     );
-    // Cut short with an ellipsis, up to the widest window, where it all fits.
+    // Cut short with an ellipsis in a narrow window, and whole from 800 px wide, where it fits.
     expect(
       await page.locator('.hud-room-title').evaluate((n) => n.scrollWidth > n.clientWidth),
       `the code is cut short ${where}`,
-    ).toBe(width < 1920);
+    ).toBe(width < 800);
   }
   await page.context().close();
 });
@@ -253,9 +256,9 @@ test('the open chat never runs over the map, and a window too short for both los
 
   for (const [width, height] of [
     [1280, 720],
-    [1280, 540],
-    [1440, 521],
-    [960, 540],
+    [1280, 584],
+    [1440, 584],
+    [960, 584],
   ] as const) {
     await resize(page, width, height);
     const at = await hudBoxes(page);
@@ -266,10 +269,10 @@ test('the open chat never runs over the map, and a window too short for both los
     expect(overlap(at.map, at.chat), `the chat is clear of the map ${where}`).toBe(false);
   }
 
-  // Below that there is not room for both: the map goes and the room takes the corner.
+  // Below that there is not room for both: the map goes and the room keeps the corner.
   for (const [width, height] of [
     [844, 390],
-    [1280, 500],
+    [1440, 583],
   ] as const) {
     await resize(page, width, height);
     const where = `at ${width}x${height}`;
@@ -278,17 +281,17 @@ test('the open chat never runs over the map, and a window too short for both los
       title: document.querySelector('.hud-room-title')!.getBoundingClientRect().left,
       chat: document.querySelector('.chat')!.getBoundingClientRect().left,
     }));
-    expect(left.title, `the room takes the corner ${where}`).toBeCloseTo(left.chat, 0);
+    expect(left.title, `the room keeps the corner ${where}`).toBeCloseTo(left.chat, 0);
   }
   await page.context().close();
 });
 
-test('station labels show in the strip between the map and the room name, where nothing is', async ({
+test('station labels show beside the map and under the room name, where nothing is', async ({
   browser,
 }) => {
   const page = await enterWorld(browser, { name: 'Strip Reader', online: false });
   await resize(page, 1280, 720);
-  const products = page.locator('.lore-label', { hasText: 'Products' });
+  const products = page.locator('.lore-label', { hasText: 'Hackathons' });
   const label = () =>
     products.evaluate((node) => {
       const { left, top, right, bottom } = node.getBoundingClientRect();
@@ -323,9 +326,9 @@ test('station labels show in the strip between the map and the room name, where 
   }
 
   // The pass's labels show from the spawn once the game has drawn a few frames.
-  await expect.poll(async () => (await label()).shown, { message: 'Products shows' }).toBe(true);
+  await expect.poll(async () => (await label()).shown, { message: 'Hackathons shows' }).toBe(true);
 
-  // Just right of the map and under the room's name: the corner's empty strip.
+  // Just right of the map and under the room's name: where the corner has nothing.
   const at = await hudBoxes(page);
   const x = at.map.right + 90;
   const y = Math.max(at.room.bottom, at.map.top) + 80;

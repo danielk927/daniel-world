@@ -17,7 +17,7 @@ describe('the resume', () => {
     expect(RESUME_URL).toMatch(/^\/[A-Za-z0-9]+(-[A-Za-z0-9]+)*\.pdf$/);
   });
 
-  it('is called a PDF by every link to it, and not "Resume" alone, which puts the game back', () => {
+  it('is called a PDF by every link to it, and not "Resume" alone, read as back to the game', () => {
     expect(RESUME_LABEL).toMatch(/\(PDF\)$/);
     expect(RESUME_LABEL).not.toBe('Resume');
   });

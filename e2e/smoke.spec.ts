@@ -107,9 +107,9 @@ test('without JavaScript the world points to the resume, a PDF', async ({ browse
 
 test('station labels that would overlap give way to the nearer one', async ({ browser }) => {
   const page = await enterWorld(browser, { name: 'Label Reader', online: false });
-  // From the spawn point the rotisseur's label (Systems and ML) and the poissonnier's (Research)
+  // From the spawn point the rotisseur's label (Projects) and the poissonnier's (Research)
   // line up behind each other: one of them shows, and nothing it shows over.
-  const pair = ['Systems and ML', 'Research'];
+  const pair = ['Projects', 'Research'];
   await expect
     .poll(
       () =>

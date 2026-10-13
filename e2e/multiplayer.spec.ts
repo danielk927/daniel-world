@@ -3,6 +3,7 @@ import {
   expect,
   expectWorld,
   faceStation,
+  MAP_VIEWPORT,
   type RoomServer,
   startRoomServer,
   test,
@@ -23,7 +24,8 @@ test.afterAll(async () => {
 });
 
 test('two players join the lobby and see each other', async ({ browser }) => {
-  const a = await enterWorld(browser, { name: 'Alice' });
+  // Alice's window is tall enough for the minimap, which she looks at last.
+  const a = await enterWorld(browser, { name: 'Alice', viewport: MAP_VIEWPORT });
   const b = await enterWorld(browser, { name: 'Bob' });
 
   // Just the two of them: Chef Skinner is locked in the walk-in.
@@ -170,7 +172,7 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   await waitUntilStill(page);
   await faceStation(page, 'entremetier');
   await page.mouse.move(480, 270);
-  await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Products');
+  await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Hackathons');
 
   // Record when the game asks for pointer lock. Chrome on macOS releases the lock as Esc comes
   // back up, so a lock taken back during the Esc that closed the panel is lost at once, and losing
@@ -185,7 +187,7 @@ test('Esc or E closes an info panel and returns to play', async ({ browser }) =>
   });
   const lockRequests = () =>
     page.evaluate(() => (window as unknown as { lockRequests: number }).lockRequests);
-  const dialog = page.getByRole('dialog', { name: 'Products' });
+  const dialog = page.getByRole('dialog', { name: 'Hackathons' });
   const paused = page.getByRole('dialog', { name: 'Paused' });
 
   await page.keyboard.press('KeyE');
@@ -249,13 +251,13 @@ test('Esc closes the menu or a panel wherever in it the visitor last clicked', a
   await walkUntil(page, 'KeyW', (p) => p.z < 2.4);
   await waitUntilStill(page);
   await faceStation(page, 'entremetier');
-  const dialog = page.getByRole('dialog', { name: 'Products' });
+  const dialog = page.getByRole('dialog', { name: 'Hackathons' });
   for (const click of [
     () => dialog.locator('.panel-title').click(),
     () => page.mouse.click(120, 270),
   ]) {
     await page.mouse.move(480, 270);
-    await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Products');
+    await expect(page.locator('.prompt-sentence')).toHaveText('Press E to open Hackathons');
     await page.keyboard.press('KeyE');
     await expect(dialog).toBeVisible();
     await click();

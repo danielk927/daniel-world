@@ -94,13 +94,13 @@ function arrowTo(
 /**
  * The pause menu, laid out like a game's: on the dark side of the screen, the state of play and
  * the room along the top, Party, Knives, Settings and Controls as a list of tabs with the open one
- * to their right, and Resume and Leave at the bottom. Settings apply as they change.
+ * to their right, and Return to game and Leave lobby at the bottom. Settings apply as they change.
  */
 export class PauseMenu {
   readonly element: HTMLElement;
   private readonly resumeButton = el('button', {
     class: 'button pause-resume',
-    text: 'Resume',
+    text: 'Return to game',
     attrs: { type: 'button', 'aria-keyshortcuts': 'Escape' },
   });
   private readonly note = el('p', { class: 'pause-note' });
@@ -127,7 +127,7 @@ export class PauseMenu {
   ) {
     const leaveButton = el('button', {
       class: 'button',
-      text: 'Leave the kitchen',
+      text: 'Leave lobby',
       attrs: { type: 'button' },
     });
     this.party = new PartyPanel(handlers);
@@ -469,7 +469,7 @@ export class PauseMenu {
     if (!this.element.hidden) return;
     this.element.hidden = false;
     this.releaseFocus = trapFocus(this.element);
-    // Focus waits on Resume for Enter; its ring shows once the keyboard moves it.
+    // Focus waits on Return to game for Enter; its ring shows once the keyboard moves it.
     this.resumeButton.focus({ preventScroll: true, focusVisible: false });
     this.syncKnives();
     this.syncFps();

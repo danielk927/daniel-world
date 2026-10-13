@@ -1,4 +1,4 @@
-import type { LoreItem, LoreSection } from '../content.ts';
+import type { LoreImage, LoreItem, LoreSection } from '../content.ts';
 import { el } from './dom.ts';
 
 function isExternal(href: string): boolean {
@@ -42,17 +42,22 @@ function renderItem(item: LoreItem): HTMLLIElement {
   ]);
 }
 
+/** A photo, whole: its own width and height keep its shape before it loads (panel.css sizes it). */
+function renderPhoto({ src, alt, width, height }: LoreImage): HTMLElement {
+  const img = el('img', {
+    attrs: { src, alt, width: String(width), height: String(height), decoding: 'async' },
+  });
+  img.style.setProperty('--photo-ratio', String(width / height));
+  return el('figure', { class: 'lore-photo' }, [img]);
+}
+
 /**
  * The body of a lore entry, as the station panel shows it. Its links (Email, GitHub...) are text
  * links, as the house style has them.
  */
 export function renderLoreBody(entry: LoreSection): HTMLElement {
   return el('div', { class: 'lore-body' }, [
-    entry.image
-      ? el('figure', { class: 'lore-photo' }, [
-          el('img', { attrs: { src: entry.image.src, alt: entry.image.alt, decoding: 'async' } }),
-        ])
-      : null,
+    entry.image ? renderPhoto(entry.image) : null,
     ...(entry.paragraphs ?? []).map((p) => el('p', { class: 'lore-paragraph', text: p })),
     entry.items?.length ? el('ul', { class: 'lore-items' }, entry.items.map(renderItem)) : null,
     entry.tags?.length

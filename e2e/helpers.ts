@@ -128,6 +128,12 @@ export async function waitForFrames(page: Page, count = 2): Promise<void> {
 }
 
 /**
+ * A window as small as the minimap shows in: it goes under 584 px tall, where an open chat would
+ * run over it (`hud-narrow.css`), so a spec that looks at the map enters with this.
+ */
+export const MAP_VIEWPORT = { width: 960, height: 600 } as const;
+
+/**
  * Open the site in a fresh browser context and walk through the landing screen like a visitor.
  * `path` opens another address first, such as an invite link; `prepare` runs before the page loads.
  */
@@ -139,11 +145,14 @@ export async function enterWorld(
     online?: boolean;
     path?: string;
     prepare?: (page: Page) => Promise<void>;
+    viewport?: { width: number; height: number };
   },
 ): Promise<Page> {
   test.info().setTimeout(test.info().timeout + ENTER_MS);
   // A modest viewport keeps several software-rendered pages responsive on one machine.
-  const context = await browser.newContext({ viewport: { width: 960, height: 540 } });
+  const context = await browser.newContext({
+    viewport: options.viewport ?? { width: 960, height: 540 },
+  });
   const page = await context.newPage();
   if (CPU_THROTTLE > 1) {
     const cdp = await context.newCDPSession(page);
