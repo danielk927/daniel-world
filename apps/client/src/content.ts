@@ -10,7 +10,6 @@ import truffleCroissantPhoto from './assets/dishes/truffle-croissant.webp';
  * the stations and the dishes say when they are opened. The resume itself is a PDF kept as it is in
  * `public/` (`resume.ts`), so a change to a role or a project is made in both places.
  *
- * The few places that still want Daniel's own words are marked TODO(daniel).
  * Never put the graduation date or the phone number here (the resume PDF has them, as Daniel chose).
  */
 
@@ -37,6 +36,9 @@ export interface LoreImage {
   readonly src: string;
   /** What the photo shows, for screen readers and when it fails to load. */
   readonly alt: string;
+  /** The file's size in pixels, so the panel keeps the photo's shape before it loads. */
+  readonly width: number;
+  readonly height: number;
 }
 
 /** A section of the resume, as a station's panel or a dish shows it. */
@@ -75,9 +77,9 @@ export const site = {
 // ---------- The resume, item by item ----------
 
 const aboutParagraphs = [
-  'Hi, I am Daniel. I study computer science and statistics at the University of Chicago, and I build from the GPU up: an LLM inference engine in C++ and CUDA, a synthetic data engine for microscopy, and gesture-controlled rehab games.',
-  'I have built LLM evaluation pipelines as an engineering intern at Anto Biosciences (YC F25), modeled thermal performance in fruit flies as a research assistant at UCLA, and won Best Hardware at LAHacks 2026 with a Braille transcriber.',
-  'Away from the keyboard I am on the Hong Kong National Kendo Team, and I love to cook, bake and eat. Welcome to my kitchen.',
+  'Hi, my name is Daniel! My family is originally from Korea, but I moved to Hong Kong at a young age and graduated high school there. I initially attended UCLA my first year, but transferred to the University of Chicago for my second year, where I now study computer science and statistics.',
+  "I'm interested in all things LLM, especially to do with inference. I'm currently working on making a smaller and simpler vLLM by making my own C++/CUDA LLM inference engine. I'm also extremely interested in startups, having worked at Anto Biosciences (YC F25) as an engineering intern and always building.",
+  "I also love cooking and eating, hence the theme of this website. Previously, I worked at a 1-Michelin star French restaurant and an Italian restaurant in Hong Kong. I'm also extremely active on Beli (follow me @danielk927), where you can find the best restaurant recommendations. These 5 dishes on the pass are my top 5 favorite dishes of all time.",
 ];
 
 const anto: LoreItem = {
@@ -89,7 +91,6 @@ const anto: LoreItem = {
     'Engineered system prompts with structured evaluation rubrics, which boosted prediction accuracy from 46% to 73%.',
     'Authored 7 data visualizations and scientific figures for preprints on tokenization methods in machine learning and on deep reinforcement learning for data sparsification, papers pending for NeurIPS and Nature.',
   ],
-  tags: ['Python', 'MIT SuperCloud', 'LLM-as-a-judge', 'Prompt engineering'],
 };
 
 const uclaLab: LoreItem = {
@@ -100,7 +101,7 @@ const uclaLab: LoreItem = {
     'Engineered thermal performance curve models with rTPC in R and Python scripts (Pandas and SciPy), and visualized the results in Matplotlib to find the thermal optimum zone in Drosophila. Paper pending for Science Advances.',
     'Created a data preprocessing pipeline in Pandas and NumPy to clean and normalize heterogeneous sleep data.',
   ],
-  tags: ['R', 'rTPC', 'Python', 'Pandas', 'SciPy', 'NumPy', 'Matplotlib'],
+  tags: ['R', 'Python', 'Pandas', 'SciPy', 'NumPy', 'Matplotlib'],
 };
 
 const readingProgram: LoreItem = {
@@ -108,7 +109,7 @@ const readingProgram: LoreItem = {
   subtitle: 'Mentored by William Chang, UCLA Applied Math Ph.D. student',
   meta: 'Jan 2026 - present',
   points: [
-    'Authored 2 research papers on bilevel optimization with SGD and functional scaling laws in feature learning, papers pending for AAAI and AISTATS.',
+    'Authored 2 research papers on bilevel optimization with SGD and functional scaling laws in feature learning.',
   ],
 };
 
@@ -131,7 +132,7 @@ const generativeOmics: LoreItem = {
     'Built a synthetic data platform that converted measured cell morphology into 1,000+ labeled microscopy images, reducing dataset preparation time by 39% through procedural cell modeling and physics-based rendering.',
     'Increased dataset generation throughput from 10 to 15 image-mask pairs a minute with parallel batch workers behind an asynchronous FastAPI service, with object storage and PostgreSQL metadata tracking.',
   ],
-  tags: ['FastAPI', 'PostgreSQL', 'Object storage', 'Physics-based rendering'],
+  tags: ['FastAPI', 'PostgreSQL'],
 };
 
 const sync: LoreItem = {
@@ -153,19 +154,17 @@ const bridge: LoreItem = {
     'Best Hardware Award: 1st place out of 300+ teams at LAHacks 2026.',
     'Engineered the pipeline with Faster-Whisper, the Claude API and a custom 3D-printed Braille encoder on an ESP32.',
   ],
-  tags: ['Faster-Whisper', 'Claude API', 'ESP32', '3D printing'],
+  tags: ['Faster-Whisper', 'Claude API', 'ESP32'],
 };
 
 const thisKitchen: LoreItem = {
   title: "Daniel's World",
   subtitle: 'This multiplayer 3D kitchen',
   meta: '2026',
-  href: 'https://github.com/danielk927/daniel-world',
-  description:
-    'A first-person personal site where every visitor is a cook in a classical French brigade kitchen, built from primitives in Three.js, with a WebSocket room server so everyone in it sees each other in real time.',
   points: [
-    'Client and server run the same deterministic 60 Hz movement simulation, with client-side prediction and reconciliation, so moving feels instant and every screen agrees.',
-    "The computer on the chef's desk runs the original DOOM on a RISC-V (RV32IM) machine written in TypeScript: DOOM's C source cross-compiled bare metal against a hand-written libc, and a JIT that translates RISC-V into JavaScript at about 3 billion guest instructions a second, in a Web Worker.",
+    'Synced 16 concurrent players per room in real time with zero client-server desyncs under load by building a server-authoritative Node.js WebSocket server with client-side prediction over a deterministic simulation.',
+    'Implemented AWS as infra in CDK, with WebSockets proxied via CloudFront to a self-healing EC2 origin.',
+    "Ran the game DOOM in the browser by writing a RISC-V emulator and a JIT compiler to JavaScript that runs 18x faster than its interpreter, and cross-compiling DOOM's C source bare-metal against a from-scratch libc.",
   ],
   tags: ['TypeScript', 'Three.js', 'Node.js', 'WebSockets', 'RISC-V', 'C'],
 };
@@ -208,16 +207,14 @@ const education: readonly LoreItem[] = [
   },
 ];
 
-/** The interests, as paragraphs and the resume's own list. */
-const interests = {
-  paragraphs: [
-    'I am on the Hong Kong National Kendo Team.',
-    'I love to cook and bake, hence the kitchen, and to eat: my five favorite dishes are on the pass, and I keep my restaurant rankings on Beli.',
-    // TODO(daniel): a line of your own here, for example your team or a favorite designer.
-    'I also watch the NBA, and I am into fashion.',
-  ],
-  tags: ['Kendo', 'Cooking and baking', 'Eating', 'Beli', 'Watching the NBA', 'Fashion'],
-} as const;
+/** The hackathons, each with what came of it, and the ones still to come. */
+const hackathons: readonly LoreItem[] = [
+  { title: 'LAHacks 2026', meta: 'Best Hardware Award' },
+  { title: 'UCLA Whopathon', meta: 'Best Overall Award' },
+  { title: 'SoCal Claude Builder Hackathon', meta: '1 of 100 selected' },
+  { title: 'LAHacks AI Hackathon 2026', meta: 'Pending' },
+  { title: 'CalHacks 2026', meta: 'Pending' },
+];
 
 // ---------- The kitchen ----------
 
@@ -225,78 +222,87 @@ export type DishContent = Readonly<Record<DishId, LoreEntry>>;
 
 /**
  * What each plate on the pass says when it is clicked: Daniel's five favorite dishes, with his own
- * photos of them and where each is from.
- * TODO(daniel): add a line of your own to any of them, for example when you ate it and with whom.
+ * photos of them, where each is from, and what he thought of it.
  */
 export const dishes: DishContent = {
   'char-siu': {
     id: 'char-siu',
-    title: 'Char siu',
+    title: 'Assorted Char Siu',
     place: 'Kamcentre Roast Goose, Hong Kong',
     color: '#c0533a',
     image: {
       src: charSiuPhoto,
       alt: 'A plate of glazed, charred char siu at Kamcentre Roast Goose',
+      width: 675,
+      height: 1200,
     },
     paragraphs: [
-      'Cantonese barbecued pork, roasted until the honey glaze lacquers and blackens at the edges.',
-      'Kamcentre is a roast meat restaurant in the South China Athletic Association in Causeway Bay, led by chef Fung Hou Tong, who once ran the roast meats at Yung Kee. Its signature char siu is cut from the pork collar, so some pieces are nearly all fat and the rest are wonderfully juicy.',
+      'Cantonese barbecued pork, roasted with honey maltose glaze and nicely charred at the edges.',
+      "Kamcentre is a roast meat restaurant in the South China Athletic Association in Causeway Bay, and it is my favorite restaurant in Hong Kong. I've been to countless restaurants serving char siu, including Yat Lok (1-Michelin star, personally had a terrible experience there) and Sun Kwai Heung (many people think they have the best char siu, but I personally found it too sweet). I will forever stand by the fact that the char siu here is by far the best in the world.",
     ],
   },
   beetroot: {
     id: 'beetroot',
-    title: 'Glazed beetroot and La Tur',
+    title: 'Glazed Beetroot and La Tur',
     place: 'The Four Horsemen, Brooklyn',
     color: '#b8325a',
     image: {
       src: beetrootPhoto,
       alt: 'Glazed beets beside a spoon of La Tur cheese on a white plate at The Four Horsemen',
+      width: 360,
+      height: 480,
     },
     paragraphs: [
-      'Soft, deeply caramelized beets in a glaze of brown butter and balsamic, next to a spoon of La Tur, a creamy Piedmontese cheese of cow, sheep and goat milk.',
-      'The Four Horsemen is a wine bar and restaurant in Williamsburg. Order the house bread too, to mop up the sauce.',
+      'Soft, deeply caramelized beets in a glaze of brown butter, next to a spoon of La Tur, a creamy Piedmontese cheese of cow, sheep and goat milk.',
+      "The Four Horsemen is a wine bar based in Williamsburg, Brooklyn. I've been following the restaurant for quite some time, even buying their physical cookbook, and when I finally snagged a reservation and ate there, everything blew my mind. It was the best, most complete meal of my life. I've also been to their sister restaurant next door, I Cavallini, but I found The Four Horsemen to be a better experience.",
     ],
   },
   roti: {
     id: 'roti',
-    title: 'Roti and dips',
+    title: 'Roti and Dips',
     place: 'Kabawa, New York',
     color: '#d98a3a',
     image: {
       src: rotiPhoto,
       alt: 'Flaky roti with small bowls of curried chickpeas, pepper sauce and chutney at Kabawa',
+      width: 900,
+      height: 1200,
     },
     paragraphs: [
-      'Flaky, buttery roti made fresh, to tear and dip into curried chickpeas, pepper jelly and fruit chutneys.',
-      "Kabawa is Momofuku's Caribbean restaurant in the East Village, led by chef Paul Carmichael, formerly of Momofuku Seiobo in Sydney.",
+      'Flaky, buttery roti made fresh to tear and dip into curried chickpeas, pepper jelly and fruit chutneys.',
+      'Kabawa is a Caribbean restaurant in the East Village, offering a $150 prix fixe course meal. I was so mind-blown by the pepper jelly dip that I asked the chef there how they made it. We wiped every single plate clean.',
     ],
   },
   'ricotta-toast': {
     id: 'ricotta-toast',
-    title: 'Ricotta toast',
+    title: 'Ricotta Toast',
     place: 'Theodora, Brooklyn',
     color: '#c9a04a',
     image: {
       src: ricottaToastPhoto,
       alt: 'Sourdough toast piped with whipped ricotta, honey and black pepper at Theodora',
+      width: 900,
+      height: 1200,
     },
     paragraphs: [
-      'Thick sourdough from Thea, the bakery two doors down, piped with whipped ricotta and finished with brown butter, honey, sage and black pepper.',
-      "Theodora is chef Tomer Blechman's wood-fired Mediterranean restaurant in Fort Greene.",
+      'Thick sourdough from Thea, its sister bakery, piped with whipped ricotta and finished with brown butter, honey, sage and black pepper.',
+      "Theodora is chef Tomer Blechman's Mediterranean restaurant in Fort Greene, Brooklyn. Their focus is on wood-fire cooking, so all their vegetables and meats are cooked on an open fire. The thing that truly stood out to me was their ricotta toast; it was the craziest, most balanced flavor bomb. My friends really liked their mackerel toast, so I would recommend that as well.",
     ],
   },
   'truffle-croissant': {
     id: 'truffle-croissant',
-    title: 'Black truffle croissant',
+    title: 'Black Truffle Croissant',
     place: 'Kasama, Chicago',
     color: '#8a6a3a',
     image: {
       src: truffleCroissantPhoto,
       alt: 'A croissant under pearl sugar and shaved black truffle, in a takeaway box from Kasama',
+      width: 900,
+      height: 1200,
     },
     paragraphs: [
-      'Laminated with European butter and filled with black truffle and Délice de Bourgogne, then finished with honey, pearl sugar and shaved black truffle.',
-      'Kasama, in Ukrainian Village, is a Filipino bakery by day and a tasting menu restaurant by night, run by chefs Tim Flores and Genie Kwon.',
+      'Laminated with European butter, filled with a decadent black truffle filling, then finished with honey, pearl sugar and shaved black truffle.',
+      "Kasama is a Filipino bakery by day and a tasting menu restaurant by night. It is the only 2-Michelin starred Filipino restaurant in the world! I initially had pretty low expectations because I thought this was the continuation of the trend of forcing truffle onto dishes, but the truffle taste was subtle and complemented the flaky croissant surprisingly well. Their breakfast sandwich is also another item they're known for, and the sandwich is super good.",
     ],
   },
 };
@@ -306,8 +312,9 @@ export type StationContent = Readonly<Record<StationId, LoreEntry>>;
 /**
  * What each station's panel says when it is opened in the kitchen. Each station of the brigade
  * serves the part of the resume that suits its work: the pass, the first thing a visitor sees,
- * introduces Daniel; the saucier, the senior station, holds his experience; the plonge, where every
- * cook starts and by the door to the dining room, holds his education and how to reach him.
+ * introduces Daniel; the saucier, the senior station, holds his experiences; the plonge, where every
+ * cook starts and by the door to the dining room, holds his education and how to reach him. The
+ * pâtisserie holds nothing: it is only the kitchen's pastry corner.
  */
 export const stations: StationContent = {
   // Le passe, the pass.
@@ -315,17 +322,14 @@ export const stations: StationContent = {
     id: 'passe',
     title: 'About me',
     color: '#ffb86b',
-    paragraphs: [
-      ...aboutParagraphs,
-      'Tonight the pass holds my five favorite dishes of all time, each one from a meal I actually ate.',
-    ],
+    paragraphs: aboutParagraphs,
     // The dishes by their own names and restaurants, so the list and their panels say the same.
     items: Object.values(dishes).map((dish) => ({ title: dish.title, meta: dish.place })),
   },
   // Saucier, sauces.
   saucier: {
     id: 'saucier',
-    title: 'Experience',
+    title: 'Experiences',
     color: '#e8a25c',
     items: [anto],
   },
@@ -339,18 +343,16 @@ export const stations: StationContent = {
   // Rôtisseur, roasts.
   rotisseur: {
     id: 'rotisseur',
-    title: 'Systems and ML',
+    title: 'Projects',
     color: '#e07a5f',
-    paragraphs: ['Projects in systems and machine learning, both still cooking.'],
-    items: [inferenceEngine, generativeOmics],
+    items: [thisKitchen, inferenceEngine, generativeOmics, sync, bridge],
   },
   // Entremetier, vegetables.
   entremetier: {
     id: 'entremetier',
-    title: 'Products',
+    title: 'Hackathons',
     color: '#8fd18a',
-    paragraphs: ['Projects built for people to use, from a hackathon weekend to NGO pilots.'],
-    items: [sync, bridge, thisKitchen],
+    items: hackathons,
   },
   // Garde manger, the cold kitchen.
   'garde-manger': {
@@ -359,21 +361,11 @@ export const stations: StationContent = {
     color: '#9fd8ef',
     items: skills,
   },
-  // Pâtisserie, pastry.
-  patisserie: {
-    id: 'patisserie',
-    title: 'Interests',
-    color: '#f4a6c6',
-    ...interests,
-  },
   // Plonge, the dish pit.
   plonge: {
     id: 'plonge',
-    title: 'Education and contact',
+    title: 'Education',
     color: '#a9b8ff',
-    paragraphs: [
-      'Every cook starts here, by the door to the dining room, so here is where I study and how to reach me. Email is the best way.',
-    ],
     items: education,
     links,
   },

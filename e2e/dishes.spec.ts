@@ -9,12 +9,12 @@ test('each dish on the pass opens its own panel, with its photo', async ({ brows
   const roti = await findWithCursor(
     page,
     column(480, 270, 540, 6),
-    'Press E to open Roti and dips',
+    'Press E to open Roti and Dips',
   );
   expect(roti, 'the cursor should find the roti').not.toBeNull();
 
   // A click throws a knife, even at a station; E is what opens it.
-  const dialog = page.getByRole('dialog', { name: 'Roti and dips' });
+  const dialog = page.getByRole('dialog', { name: 'Roti and Dips' });
   await page.mouse.click(roti!.x, roti!.y);
   await expectWorld(page, (w) => w.knives.flying + w.knives.stuck === 1, 'the click throws');
   await expect(dialog).toBeHidden();

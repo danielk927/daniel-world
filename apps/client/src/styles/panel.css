@@ -101,9 +101,10 @@
 
 /*
  * The text scrolls, and a scroller clips: the room left and above the text, taken back by the
- * margins, keeps the focus rings of links at the edge whole.
+ * margins, keeps the focus rings of links at the edge whole. Its height is what a photo may fill.
  */
 .panel-body {
+  container-type: size;
   min-height: 0;
   margin: calc(clamp(24px, 5.3vh, 48px) - 8px) 0 0 -8px;
   padding: 8px 25px 28px 8px;
@@ -158,7 +159,7 @@
   color: var(--ink-muted);
 }
 
-/* Which section of how many: "2 of 8". */
+/* Which section of how many: "2 of 7". */
 .panel-count {
   margin: 0;
   font-size: 12.5px;
@@ -180,26 +181,21 @@
   gap: 26px;
 }
 
-/* A photo at the top of an entry: a fixed frame, so the text never jumps when it loads. */
+/*
+ * A photo at the top of an entry, whole, never cropped: as wide as the column, or as the text's view
+ * is tall, whichever is less, so all of it shows at once. Its width and height attributes give it its
+ * shape before it loads, so the text never jumps.
+ */
 .lore-photo {
   margin: 0 0 6px;
-  aspect-ratio: 16 / 9;
-  /*
-   * Under a two-line name the photo gives way first, cropped wider, so the text still shows. The
-   * ratio would narrow the frame to keep its shape; the full width wins instead.
-   */
-  min-width: 100%;
-  max-height: 34vh;
-  overflow: hidden;
-  border-radius: 2px;
-  background: rgb(var(--night-rgb) / 0.6);
 }
 
 .lore-photo img {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: min(100%, 100cqb * var(--photo-ratio));
+  height: auto;
+  border-radius: 2px;
+  background: rgb(var(--night-rgb) / 0.6);
 }
 
 .lore-paragraph {
@@ -363,7 +359,7 @@
   color: var(--ink-muted);
 }
 
-/* The whole section's list (the interests) reads a little larger. */
+/* The whole section's list reads a little larger. */
 .tag-list-large {
   margin-top: 0;
   font-size: 13.5px;

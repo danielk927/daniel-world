@@ -222,6 +222,15 @@ The work of 2026-10-09 and 10, at Daniel's request, all committed on `main` and 
 - `viewmodelInspectShown.test.ts` holds the first three; it fails 21 of its 36 checks on the inspects before.
 - Lint, typecheck, unit tests, the E2E suite and the build pass.
 
+### Daniel's edits (2026-10-12)
+
+- About me, the five dishes and the Daniel's World bullets are in Daniel's own words, and the dishes' names are in title case ("Assorted Char Siu").
+- Experience is Experiences, without its tags; Systems and ML is Projects, with Products merged in and Daniel's World first, without its hyperlink; Education and contact is Education, without its line; and the tags and the "pending" line he asked to drop are gone.
+- Interests became Hackathons, on the entremetier where Products was; the pâtisserie is no longer a station (seven open), its corner drawn as before.
+- A dish's photo shows whole and uncropped, as big as the panel allows; the panel says "E to close"; the pause menu says "Return to game" and "Leave lobby"; the landing counts "0 Online".
+- The room name and status sit over the minimap in the top left, smaller; the map goes on a window under 584 px tall, where an open chat would meet it.
+- Lint, typecheck, 1237 unit tests, all 60 E2E tests (the changed specs again with `E2E_CPU_THROTTLE=4`) and the build pass; the screenshots were taken again.
+
 ### How to run it
 
 ```bash
@@ -262,7 +271,7 @@ npm run bots -- --count 5   # optional: some company
   That deploy replaces the room server's instance once (rooms drop, players reconnect), gives it an Elastic IP and moves CloudFront's `/ws` origin to it; afterwards check that `dig +short` on the `ServerOrigin` output prints the Elastic IP, and commit `infra/cdk.context.json`, which it writes.
 - **Chef Skinner locked in the walk-in** is all in the room server, so until `npm run deploy:aws` the live lobby keeps him walking it from its first visitor.
 - **Taste calls**: the landing's dim is deeper (for the small text's contrast); the new kitchen look; the bayonet, M9 and huntsman spins, whose blade the fist hides half of each turn.
-- **His words**: the two `TODO(daniel)` lines in `content.ts`, and whether "pending for NeurIPS and Nature" and "pending for AAAI and AISTATS" should read "under review at".
+- **His words**: whether "pending for NeurIPS and Nature" should read "under review at".
 - **`AGENTS.md`**: an untracked, out-of-date copy of an old `CLAUDE.md` in the checkout; delete it or regenerate it from `CLAUDE.md`.
 
 ## Milestones

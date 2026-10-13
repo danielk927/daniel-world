@@ -37,7 +37,7 @@ async function equipKarambit(page: Page): Promise<void> {
     'true',
   );
   // Back to the kitchen, where it is drawn.
-  await menu.getByRole('button', { name: 'Resume' }).click();
+  await menu.getByRole('button', { name: 'Return to game' }).click();
 }
 
 test('a cook equips the Karambit, and others see it thrown and stuck, late joiners too', async ({

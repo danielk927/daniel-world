@@ -67,7 +67,7 @@ Centered, over an even `--dim` of the whole view:
 - One quiet row at the bottom: the online count with a brass dot, "Private party" (a disclosure that opens the party code field; it opens by itself when the link carries a room), and "View the resume (PDF)", which opens the PDF in a tab of its own so the world behind the landing stays.
 - Notices (touch devices, no WebGL, kicked back to the landing) are one plain line of text, not a box.
 - On a touch-only device, and where the world cannot run (no WebGL, or it failed to load), "View the resume (PDF)" is the main action, in the display face with the bar, opening the PDF in place (with no world, nothing is left to come back to, and on a touch device the kitchen has no touch controls); on a touch device "Enter the kitchen" stays, as a quiet button under the name.
-- Every link to the resume says it is a PDF and leads with a verb ("View the resume (PDF)"), since the pause menu's own "Resume" puts the game back.
+- Every link to the resume says it is a PDF and leads with a verb ("View the resume (PDF)"), so "Resume" alone is never read as the pause menu's way back into the game ("Return to game").
 
 Behind it the camera moves slowly through the kitchen: a closed loop through the aisles round the cooking suite, at about head height, looking ahead and a little in toward the suite, about two minutes a lap.
 It must not allocate per frame, must not pass through fixtures, and holds the old still establishing shot when motion is reduced.
@@ -81,7 +81,7 @@ A column docked to the right edge on `--dark-from-right`, the station still in v
 The title is the section (display face, large) with the bar under it; no kicker, no station name.
 Entries: the name in Rubik 600, dates on the right in small uppercase, the role on its own line in `--ink-muted`, points with short brass dashes, the stack as one line of small uppercase words split by middle dots (never pills).
 The column scrolls natively with a thin brass scrollbar; no fades.
-A ring close button at the top right of the column; the footer says "E or Esc to close" with ring keys, and which section of how many this is.
+A ring close button at the top right of the column; the footer says "E to close" with a ring key (Esc closes it too, unsaid), and which section of how many this is.
 On narrow screens the column takes the full width on an even dark.
 
 ### Labels and name tags in the world (`ui/labels.ts`, `styles/labels.css`, `styles/nametags.css`)
@@ -93,11 +93,11 @@ Nothing behind or around any of it.
 
 ### HUD (`ui/hud.ts`, `chat.ts`, `toast.ts`, `killFeed.ts`, `knockout.ts`, `impact.ts`, `computerGuide.ts`, their styles)
 
-- Top left: the minimap in the corner, and beside it the room name in the display face, with under it the signal bars and the connection word (Online, Connecting, Solo).
-  The north tab's top, the room name's capitals and the player count share one line, the HUD's edge; the map and the room go while a menu or a panel is open, and the map goes at the kitchen computer and on a window under 520 px tall, where the room takes the corner.
-  A long party code ends in an ellipsis before the middle, where notices show, and before the players; under 880 px wide notices come down under the room.
+- Top left: the room name in the display face in the corner, with under it the signal bars and the connection word (Online, Connecting, Solo), and the minimap under them.
+  The room name's capitals and the player count share one line, the HUD's edge; the map and the room go while a menu or a panel is open, and the map goes at the kitchen computer and on a window under 584 px tall.
+  A long party code ends in an ellipsis before the middle, where notices show, and before the players.
 - Top right: the players, right-aligned, each with a dot of their color; yours marked "you" in brass.
-- The prompt under the crosshair: a ring key and the action ("Open Products", "Play DOOM"); its accessible text stays a full sentence.
+- The prompt under the crosshair: a ring key and the action ("Open Hackathons", "Play DOOM"); its accessible text stays a full sentence.
 - Bottom center: the controls hint as ring keys and words.
 - Bottom left: chat as plain lines, names in their color and weight 700, system lines in full ivory; the chat input is a line to write on.
 - Toasts and the kill feed: plain lines, no chips.
@@ -107,9 +107,9 @@ Nothing behind or around any of it.
 
 ### Minimap and loadout (`ui/minimap.ts`, `ui/loadout.ts`, `styles/minimap.css`, `styles/loadout.css`)
 
-The minimap is top left, in the corner, the room name beside it (see the HUD above).
+The minimap is top left, under the room name (see the HUD above).
 It is a round disc of `--night` with an `--ink-faint` ring and an "N" tab on top, the kitchen drawn in ivory line, stations as small diamonds, players as dots of their color, you as a brass arrow.
-The mockup `docs/ui-revamp/world.jpg` shows it in the bottom right, under the loadout, which is where it began; it moved to the top left on 2026-10-11 (DECISIONS.md).
+The mockup `docs/ui-revamp/world.jpg` shows it in the bottom right, under the loadout, which is where it began; it moved to the top left on 2026-10-11, and the room name went over it on 2026-10-12 (DECISIONS.md).
 
 The loadout is bottom right, with the health bar under it and nothing else there: the knife over the fist, Q as a ring beside the pair, a brass bar under what is in hand; the knife's readiness after a throw still shows.
 Its right edge is the HUD's edge, the same as the player list's dots.
@@ -137,7 +137,7 @@ On `--dark-from-left`:
 - Sliders: a hairline track, a brass run and a ringed knob.
 - Switches stay `role="switch"` but read as "Off On" with the bar under the current word.
 - Choices (graphics) are words with the bar under the chosen one.
-- Bottom left: Resume with its Esc ring, Leave the kitchen, and the "View the resume (PDF)" link, which opens in a tab of its own (leaving this one would leave the room).
+- Bottom left: Return to game with its Esc ring, Leave lobby, and the "View the resume (PDF)" link, which opens in a tab of its own (leaving this one would leave the room).
 - Party, Knives and Controls follow the same rows, words and rings; the knife grid is icons and names with the bar under the equipped one, no tiles.
 - The dialog's accessible name stays "Paused".
 

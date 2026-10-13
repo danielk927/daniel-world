@@ -13,7 +13,7 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { DEFAULT_SERVER_PORT } from '@world/shared';
+import { DEFAULT_SERVER_PORT, EYE_HEIGHT, STATIONS } from '@world/shared';
 import { startServer, type WorldServer } from '../apps/server/src/server.ts';
 import { reachable, start, startClient, stopAll, waitFor } from './processes.ts';
 
@@ -112,20 +112,29 @@ async function main(): Promise<void> {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${outDir}/pause.png` });
 
-    // A private room, alone, walking up to the pâtisserie and its croquembouche.
+    // A private room, alone, walking up to the entremetier, where the hackathons are.
     const reader = await context.newPage();
     await enter(reader, 'Reader', 'docs');
-    // Round the west end of the pass and the piano, then up to the pastry island.
+    // Round the west end of the pass into the line, then up to the piano's south-west station.
     await walkUntil(reader, 'KeyA', (p) => p.x < -5.3);
-    await walkUntil(reader, 'KeyW', (p) => p.z < -2.6);
-    await walkUntil(reader, 'KeyD', (p) => p.x > -3.2);
-    await walkUntil(reader, 'KeyW', (p) => p.z < -2.9);
+    await walkUntil(reader, 'KeyW', (p) => p.z < 2.9);
+    await walkUntil(reader, 'KeyD', (p) => p.x > -2.6);
+    await walkUntil(reader, 'KeyW', (p) => p.z < 2.4);
+    // Look down at it, as a visitor turns to what they mean to open.
+    const station = STATIONS.find((s) => s.id === 'entremetier')!;
+    const at = await reader.evaluate(() => window.__world!.player);
+    const [dx, dz] = [station.x - at.x, station.z - at.z];
+    await turnTo(
+      reader,
+      Math.atan2(-dx, -dz),
+      Math.atan2(station.y - (at.y + EYE_HEIGHT), Math.hypot(dx, dz)),
+    );
     await reader.mouse.move(720, 450);
-    await reader.getByText('Press E to open Interests').waitFor();
+    await reader.getByText('Press E to open Hackathons').waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/lore-object.png` });
     await reader.keyboard.press('KeyE');
-    await reader.getByRole('dialog', { name: 'Interests' }).waitFor();
+    await reader.getByRole('dialog', { name: 'Hackathons' }).waitFor();
     await reader.waitForTimeout(600);
     await reader.screenshot({ path: `${outDir}/info-panel.png` });
     // Done with it: a page left open keeps rendering and slows the next ones down.

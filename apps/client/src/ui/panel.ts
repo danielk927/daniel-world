@@ -60,12 +60,8 @@ export class InfoPanel {
           ]),
           this.body,
           el('footer', { class: 'panel-footer' }, [
-            el('p', { class: 'panel-keys' }, [
-              el('kbd', { text: 'E' }),
-              ' or ',
-              el('kbd', { text: 'Esc' }),
-              ' to close',
-            ]),
+            // Esc closes it too, as it does any dialog, unsaid.
+            el('p', { class: 'panel-keys' }, [el('kbd', { text: 'E' }), ' to close']),
             this.count,
           ]),
           // Last in the column, so Tab from the text reaches it after the links.

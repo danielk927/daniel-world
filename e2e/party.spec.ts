@@ -133,7 +133,7 @@ test('a cook starts a private party from the menu, a friend follows the invite l
     'the host rejoins the friend',
   );
   expect(await names(host)).toEqual(['Friend']);
-  await menu.getByRole('button', { name: 'Resume' }).click();
+  await menu.getByRole('button', { name: 'Return to game' }).click();
   await expectWorld(host, (w) => w.mode === 'playing', 'the host plays on in the party');
 
   await host.context().close();

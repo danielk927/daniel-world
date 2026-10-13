@@ -1182,3 +1182,32 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
 - A knife's clearance check has 90 s (the slowest takes 27 s alone), and the spins left in comments and a test title are gone.
 - **The numbers**: both flats shown to 0.80 or better, 12 of 12 (5 knives had a flat never turned to the eye; the test's mark is 0.75, 41 degrees); longest still run 0.2 s or less in all 12 (holds of 0.3 to 0.98 s before); the blade at its biggest 337 to 417 px (278 to 392 before); restart jolt 1.4 to 1.9 times the inspect's (reference loosened before); the hand in view peaks at 0.9 m/s, 6.3 m/s² and 121 m/s³, 9.0 rad/s, 59 rad/s² and 1 103 rad/s³ over the 12 inspects at 60 and 120 Hz, the knife's tip at 1.2 m/s, 8.3 m/s² and 161 m/s³ (4690c9b: 0.8, 8.4, 188; 8.5, 54, 1 602; 0.9, 7.7, 199).
   The new test fails on the previous inspects in 21 of its 36 checks, every knife among them.
+
+### Daniel's edits: Projects, Hackathons, whole photos and the room over the map (2026-10-12)
+
+- **His words, as he wrote them.**
+  The About me paragraphs, both paragraphs of every dish and the Daniel's World bullets are from Daniel's notes; the only changes are straight apostrophes, full stops after the bullets as the other bullets have, and three spellings ("prix fixe" for "prie-fix", "complemented" for "complimented", "2-Michelin" for "2-michelin").
+  The dishes' names are in title case ("Assorted Char Siu", "Glazed Beetroot and La Tur").
+- **Products went into Projects, and Hackathons took the entremetier**, which Daniel chose over leaving the vegetable station or the rôtisseur empty.
+  The rôtisseur's Projects lists Daniel's World first, then the inference engine, Generative Omics, Sync and Bridge.
+  The pâtisserie, left with nothing once Interests became Hackathons, is no longer a station: it is out of `STATIONS` and `StationId`, so it has no label, prompt, light or diamond on the map, and the panels count seven.
+  Its island and croquembouche are drawn as before, `props.ts` taking their middle from `KITCHEN.pastryIsland`, where the station's point was.
+  No simulation reads `STATIONS`, so the protocol version is unchanged.
+- **The hackathons still to come are rows like the others, their line saying "Pending"**, since a section has no subheadings.
+- **A dish's photo is shown whole.**
+  The photos are portrait (3:4, the char siu 9:16) and were cut to a 16:9 band across their middle.
+  Each is now as wide as the column or as tall as the panel's text area, whichever is less (`100cqb`, `.panel-body` being a size container), so all of it shows at once, and the text starts under it, a scroll away.
+  Its width and height are in `content.ts` and on the `img`, so the panel keeps its shape before it loads; `content.test.ts` reads each WebP's size from its header and checks them.
+  The beetroot photo is only 360 x 480, so it is upscaled at its size in the panel (about 290 x 390 px at 1440x900).
+- **The panel's footer says "E to close" only.**
+  Esc still closes it, as it closes any dialog: under pointer lock the browser takes Esc to free the mouse, and losing the lock in play opens the pause menu, so without it Esc would open the menu over the panel.
+- **The pause menu's buttons are "Return to game" and "Leave lobby"**, and the landing counts "0 Online" or "n Online" instead of "Nobody online yet".
+  The resume's links keep "View the resume (PDF)", so "Resume" alone is still never a link's whole name.
+- **The room name and status went over the map, smaller**, at Daniel's request: the name at 22 px (it was 30) and the status at 11 px (12), the name's capitals on the player count's line and the map's tab 12 px under the status.
+  The case against putting the room under the map (2026-10-11) was the name landing mid-screen among the stations' labels; over the map it stays in the dark band of the hood.
+  The map comes down 48 px, so an open chat meets it below 584 px tall at the widest edge (measured; it was 521), and the map goes there now.
+  That is under the E2E pages' 960x540, so the specs that look at the map enter at 960x600 (`MAP_VIEWPORT` in `e2e/helpers.ts`), and `stations.spec.ts` checks the map shows before a panel hides it.
+  The corner is at least the map's 196 px wide, so a short toast at the middle fits beside it at every width the map shows at, and the rule that brought toasts down under the room below 880 px is gone.
+  A 24-character party code, 302 px at the new size, is whole from 800 px wide and ends in an ellipsis below.
+- **The check that keeps the graduation off the site lets "graduated" through**, which About me uses for high school; "graduate", "graduates", "graduating" and "graduation" are still caught, as is any year after this one.
+- **The screenshot script opens Hackathons**, the pâtisserie having nothing to open, and looks down at the station first, since the crosshair over it from where the cook stops misses.

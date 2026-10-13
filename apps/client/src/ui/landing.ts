@@ -233,12 +233,7 @@ export class Landing {
 
   /** Live player count in the public lobby; null while offline. */
   setCount(players: number | null): void {
-    const text =
-      players === null
-        ? 'Server offline, play solo'
-        : players === 0
-          ? 'Nobody online yet'
-          : `${players} online`;
+    const text = players === null ? 'Server offline, play solo' : `${players} Online`;
     // Said again every few seconds; a screen reader hears it only when it changes.
     if (this.count.textContent !== text) this.count.textContent = text;
     this.count.classList.toggle('is-live', players !== null);

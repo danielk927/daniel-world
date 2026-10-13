@@ -13,7 +13,7 @@ export const RESUME_URL = '/Doyoon-Kim-resume.pdf';
 
 /**
  * What every link to it says: a document, and which kind, so nobody is surprised by a PDF viewer.
- * A verb leads, since the pause menu's own "Resume" puts the game back, and this does not.
+ * A verb leads, so "Resume" alone is never read as a way back into the game.
  */
 export const RESUME_LABEL = 'View the resume (PDF)';
 

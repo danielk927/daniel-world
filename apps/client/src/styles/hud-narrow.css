@@ -37,24 +37,13 @@
   }
 }
 
-/* On a short window an open chat, a third of its height, would run up over the map: the map goes. */
-@media (max-height: 520px) {
+/*
+ * On a short window an open chat, a third of its height, would run up over the map, under the room:
+ * the map goes. Measured: from 584 px tall it clears the map at the widest edge.
+ */
+@media (max-height: 583px) {
   .hud-map {
     display: none;
-  }
-}
-
-/*
- * Below this the map and "The lobby" leave no room beside a notice at the middle: it comes down
- * under the room, which may then reach the middle.
- */
-@media (max-width: 880px) {
-  :root {
-    --toast-reach: 0px;
-  }
-
-  .toasts {
-    top: calc(var(--hud-edge) + 56px);
   }
 }
 
@@ -66,7 +55,7 @@
     display: none;
   }
 
-  /* No map beside it: the room needs only room for "The lobby". */
+  /* No map under it: the room needs only room for "The lobby". */
   .hud-left {
     --least: 140px;
   }

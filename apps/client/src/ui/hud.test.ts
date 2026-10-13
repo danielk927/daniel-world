@@ -34,7 +34,7 @@ describe('rowsThatFit', () => {
 
 describe('promptSentence', () => {
   it('reads the action on screen as a full sentence', () => {
-    expect(promptSentence('Open Products')).toBe('Press E to open Products');
+    expect(promptSentence('Open Hackathons')).toBe('Press E to open Hackathons');
     expect(promptSentence('Play DOOM')).toBe('Press E to play DOOM');
   });
 });

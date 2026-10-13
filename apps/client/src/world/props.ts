@@ -1356,7 +1356,10 @@ function gardeManger(kit: Kit): void {
 
 /** Pâtisserie: a croquembouche, macarons, and a stand mixer, with a marble slab for the pastry. */
 function patisserie(kit: Kit): void {
-  const { x: cx, z: cz } = stationAt('patisserie');
+  // Not a station, so its middle is the island's.
+  const island = KITCHEN.pastryIsland;
+  const cx = (island.minX + island.maxX) / 2;
+  const cz = (island.minZ + island.maxZ) / 2;
   // A marble slab set on the charcoal top: cool, for working butter into dough.
   kit.rounded('stone', cx + 0.05, TOP + 0.01, cz, 3.3, 0.02, 0.8, 0.005, paint.marble, {
     finish: 0.4,
