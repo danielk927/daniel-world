@@ -68,11 +68,12 @@ describe('Stations', () => {
 
   it('does not pick stations beyond reach', () => {
     const s = new Stations(stations, dishes, false);
-    const target = station('plonge');
-    const far = target.clone().add(new Vector3(0, 0, PICK_DISTANCE + 1));
+    // From the north, past the windows, where no other station is in the way.
+    const target = station('patisserie');
+    const far = target.clone().add(new Vector3(0, 0, -(PICK_DISTANCE + 1)));
     expect(s.pick(rayAt(far, target))).toBe(-1);
-    const near = target.clone().add(new Vector3(0, 0, PICK_DISTANCE - 1));
-    expect(s.entryAt(s.pick(rayAt(near, target)))?.id).toBe('plonge');
+    const near = target.clone().add(new Vector3(0, 0, -(PICK_DISTANCE - 1)));
+    expect(s.entryAt(s.pick(rayAt(near, target)))?.id).toBe('patisserie');
   });
 
   it('fades its light out before moving it to a newly hovered station', () => {

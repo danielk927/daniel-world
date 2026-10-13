@@ -71,7 +71,7 @@ describe('content', () => {
   });
 
   it('links to Daniel by email, LinkedIn and GitHub', () => {
-    expect((stations.plonge.links ?? []).map((l) => l.href)).toEqual([
+    expect((stations.patisserie.links ?? []).map((l) => l.href)).toEqual([
       'mailto:dkim927@uchicago.edu',
       'https://www.linkedin.com/in/doyoondanielkim',
       'https://github.com/danielk927',

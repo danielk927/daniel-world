@@ -312,9 +312,9 @@ export type StationContent = Readonly<Record<StationId, LoreEntry>>;
 /**
  * What each station's panel says when it is opened in the kitchen. Each station of the brigade
  * serves the part of the resume that suits its work: the pass, the first thing a visitor sees,
- * introduces Daniel; the saucier, the senior station, holds his experiences; the plonge, where every
- * cook starts and by the door to the dining room, holds his education and how to reach him. The
- * pâtisserie holds nothing: it is only the kitchen's pastry corner.
+ * introduces Daniel; the saucier, the senior station, holds his experiences; the pâtisserie, across
+ * from the garde manger's skills, holds his education and how to reach him. The plonge holds
+ * nothing: it is only the kitchen's dish pit.
  */
 export const stations: StationContent = {
   // Le passe, the pass.
@@ -361,11 +361,11 @@ export const stations: StationContent = {
     color: '#9fd8ef',
     items: skills,
   },
-  // Plonge, the dish pit.
-  plonge: {
-    id: 'plonge',
+  // Pâtisserie, pastry.
+  patisserie: {
+    id: 'patisserie',
     title: 'Education',
-    color: '#a9b8ff',
+    color: '#f4a6c6',
     items: education,
     links,
   },
