@@ -210,9 +210,9 @@ const education: readonly LoreItem[] = [
 /** The hackathons, each with what came of it, and the ones still to come. */
 const hackathons: readonly LoreItem[] = [
   { title: 'LAHacks 2026', meta: 'Best Hardware Award' },
+  { title: 'LAHacks AI Hackathon 2026', meta: 'Company Award' },
   { title: 'UCLA Whopathon', meta: 'Best Overall Award' },
   { title: 'SoCal Claude Builder Hackathon', meta: '1 of 100 selected' },
-  { title: 'LAHacks AI Hackathon 2026', meta: 'Pending' },
   { title: 'CalHacks 2026', meta: 'Pending' },
 ];
 
