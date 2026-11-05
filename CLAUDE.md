@@ -41,7 +41,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   Runs TypeScript natively in dev (`node --watch src/index.ts`), bundled with esbuild for production.
 - `apps/client` - Vite + Three.js client.
   `src/content.ts` holds all personal content (Daniel's resume, and his five favorite dishes in his own words).
-  `index.html` is the 3D world; the plain alternative is the resume, a PDF in `public/` (`src/resume.ts` names it and every link to it).
+  `index.html` holds the intro, the first screen (`ui/intro.ts`), with the 3D world built behind it; the plain alternative is the resume, a PDF in `public/` (`src/resume.ts` names it and every link to it).
   `src/computer/` is the kitchen computer: a RISC-V machine (interpreter and JIT) in a Web Worker that runs DOOM; `src/game/computerDesk.ts` hooks it into the game.
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
 - `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
@@ -104,12 +104,14 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   Use the tokens in `styles/tokens.css` and the parts in `styles/controls.css`; each surface has its own stylesheet, imported in cascade order by `styles/app.css`.
   The fonts' latin subset has no arrows, so draw them.
 - The plain alternative to the world is the resume, a PDF served as it is: `apps/client/public/Doyoon-Kim-resume.pdf`, which Vite copies to the site's root.
-  Every way to it (the landing's link, the pause menu, the phone, no-WebGL and failed-load paths, the no-JavaScript page in `index.html`) uses `RESUME_URL`, `RESUME_LABEL` and `resumeAttrs` from `src/resume.ts` (`resume.test.ts` checks `index.html` agrees).
+  Every way to it (the intro in `index.html`, which is also the page without JavaScript, the landing's link, the pause menu, the phone, no-WebGL and failed-load paths) uses `RESUME_URL`, `RESUME_LABEL` and `resumeAttrs` from `src/resume.ts` (`resume.test.ts` checks `index.html` agrees).
   The words say it is a PDF ("View the resume (PDF)"), and not "Resume" alone, which would read as the pause menu's way back into the game ("Return to game").
-  A page with a world or a cook to keep (the landing's quiet row, the pause menu) opens it in a tab of its own, `noopener`; where it is the way in (a phone, no WebGL, a failed load, no JavaScript) it opens in place.
+  A page with a world or a cook to keep (the intro while the kitchen builds behind it, the landing's quiet row, the pause menu) opens it in a tab of its own, `noopener`; where it is the way in (a phone, no WebGL, a failed load, no JavaScript) it opens in place.
   To change the resume, replace the file under the same name: the stack uploads it with the pages (revalidated on every visit, CloudFront cleared by the deploy), never in `assets/`, where a name is cached for a year.
   There is no generated portfolio page any more; `content.ts` feeds the kitchen's panels only.
   The old `/portfolio.html` redirects to the PDF on both hosts: a permanent redirect in `vercel.json`, and a CloudFront Function on the default behavior in `infra` (`redirectCode`), both tested.
+- The intro comes first: "Play the game" leads to the landing ("Enter the kitchen"). On a desktop the kitchen is built behind the intro once the browser is idle (`buildKitchen` in `main.ts`: code, scene, shaders and one frame, then nothing draws until Play); a phone builds it only when asked. E2E, perf and screenshot scripts click Play first (`playFromIntro` in `e2e/helpers.ts`).
+- three.js compiles a program for what it draws into: the high tier draws the world into post-processing's buffers, so `WorldScene.compile` compiles against a render target (`compileFor`); `renderer.compileAsync` with no target compiles the canvas's variants, which the high tier never uses. Any light that comes and goes changes every lit program (the walk-in's is compiled after loading, `compileWalkInLight`); count `renderer.info.programs` before and after a lighting change.
 - The room server ends any connection whose inputs are not numbered one after another (the first may start anywhere), since cooldowns and the knife's spread go by those numbers; bots and tests that send inputs must count up by one.
 - The first player in a room spawns at `SPAWN`, by the dining room doors with the pass just ahead; E2E walking paths rely on that, strafing along the aisle or rounding the west end of the pass.
 - Chef Skinner is in a room only once its walk-in's door has burst (`WalkInChef`), a second after the tenth hit, and every room keeps a place for him while `CHEF` is on (15 visitors, 16 without him).

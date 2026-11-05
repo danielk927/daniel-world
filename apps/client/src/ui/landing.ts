@@ -62,7 +62,7 @@ export class Landing {
     text: RESUME_LABEL,
     attrs: resumeAttrs(true),
   });
-  /** What Enter (the key) does when the landing shows: the way in, or the resume without WebGL. */
+  /** What Enter (the key) does when the landing shows: the way in, or the resume on a phone. */
   private mainAction: HTMLElement;
   private readonly count = el('p', { class: 'landing-count', attrs: { 'aria-live': 'polite' } });
   private readonly notice = el('p', {
@@ -258,23 +258,8 @@ export class Landing {
   }
 
   /**
-   * The world cannot run (no WebGL, or it failed to load), so the resume becomes the way in: the
-   * one a phone was already offered, or a new one.
-   */
-  setUnsupported(message: string): void {
-    this.setNotice(message);
-    this.form.hidden = true;
-    this.row.hidden = true;
-    if (this.mainAction !== this.enterButton) return;
-    const resume = this.mainResumeLink();
-    this.form.after(resume);
-    this.mainAction = resume;
-  }
-
-  /**
-   * The resume as the screen's main action, where it is the way in (no WebGL, a failed load, or a
-   * phone, where the kitchen has no touch controls). It goes in this tab: there is no world worth
-   * keeping open, and Back comes home.
+   * The resume as the screen's main action on a phone, where the kitchen has no touch controls. It
+   * goes in this tab: there is no world worth keeping open, and Back comes home.
    */
   private mainResumeLink(): HTMLAnchorElement {
     return el('a', {

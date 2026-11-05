@@ -34,7 +34,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 
 ## Experience
 
-1. **Landing screen**: Daniel's name and headline, the cook's name (prefilled with a random adjective + animal, saved in `localStorage`), "Enter the kitchen", and a quiet row with the live player count for the lobby, "Private party" (opening a party code field; empty = public `lobby`) and "View the resume (PDF)", which opens in a tab of its own. On a touch-only device that link is the main action instead, opening in place.
+1. **Intro, then the landing screen**: the first screen shows before anything loads: Daniel's name, school and major, his notable achievements, "View the resume (PDF)" and "Play the game", so nobody has to play to read about him. On a desktop the kitchen builds behind it while the visitor reads, so Play shows the landing at once. The landing: Daniel's name and headline, the cook's name (prefilled with a random adjective + animal, saved in `localStorage`), "Enter the kitchen", and a quiet row with the live player count for the lobby, "Private party" (opening a party code field; empty = public `lobby`) and "View the resume (PDF)", which opens in a tab of its own. On a touch-only device the resume is the main action instead, opening in place.
 2. **World**: a three-star French kitchen at real scale, laid out after the French Laundry, where the players are the cooks: a stainless cooking suite with brass trim under a lit hood, charcoal-topped islands, white tiled walls under a barrel vault with skylights, garden windows, live flames and steam, and The Bear's "Every Second Counts" sign. The walls are the boundary.
    It is rendered to a cinematic standard, not low-poly: smooth and rounded forms, physically based materials whose detail is painted procedurally at its real size (brushed stainless, copper, glazed tile, stone, butcher block), reflections of the room itself, contact shadows, and props and dishes modeled to look good enough to eat.
    It is evening service, lit after Gusteau's kitchen in Ratatouille: the blue hour outside the windows and skylights, warm light from the kitchen's own lamps inside, in pools.
@@ -46,7 +46,7 @@ Build an original implementation. Do not copy code, assets, or content from that
    - HUD: room code, player list and count, connection status.
    - Text chat (Enter to open, 120 char max, plain text only).
    - Rooms: default public `lobby`, plus private parties by code. Max 16 players per room. The pause menu starts a party (custom or random code), joins one, or returns to the lobby in place, and shares an invite link (`/?room=<code>`) with a copy button.
-6. **Plain alternative**: `/Doyoon-Kim-resume.pdf`, Daniel's resume as a PDF served as it is, for mobile, no-WebGL, no JavaScript, and anyone who wants the plain version. Detect no-WebGL and touch devices and suggest it. (It replaced a portfolio page generated from `content.ts`; `/portfolio.html` redirects to it. See DECISIONS.md.)
+6. **Plain alternative**: `/Doyoon-Kim-resume.pdf`, Daniel's resume as a PDF served as it is, for mobile, no-WebGL, no JavaScript, and anyone who wants the plain version, linked from the intro. Detect no-WebGL and touch devices and suggest it. (It replaced a portfolio page generated from `content.ts`; `/portfolio.html` redirects to it. See DECISIONS.md.)
 7. **Offline mode**: if the server is unreachable, the world still works in single player with a small notice, and retries in the background.
 8. **Knives**: every cook carries an endless supply in every room, and a left click throws one; holding the button keeps throwing, about one every 0.8 s, as fast as each knife is drawn (the server allows one every 0.7 s).
    Q switches between the knife and the bare hand, which punches instead (others see the jab; it hits nothing), and I inspects the knife, as in CS2.
@@ -64,7 +64,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 
 - Clients send inputs (movement keys, look direction, jump) at 60 Hz; the server runs the shared simulation at 60 ticks per second and broadcasts snapshots at 20 Hz.
 - The local player uses client-side prediction with server reconciliation, so movement feels instant.
-- Remote players render ~100 ms in the past with interpolation.
+- Remote players render ~150 ms in the past with interpolation.
 - Validate every inbound message with the shared zod schemas and drop invalid ones. Clamp speed and position on the server.
 - Per-connection rate limiting; disconnect flooders. Heartbeat to drop dead connections. Broadcast join and leave.
 - Knives are server-authoritative: a throw is a key bit on an input, the server flies every knife with the shared simulation and decides hits against where the thrower saw the other players (rewound up to 400 ms), and clients replay each flight and end it where the server says.
@@ -75,7 +75,7 @@ Build an original implementation. Do not copy code, assets, or content from that
 
 - Looks and feels like a polished indie game, not a tech demo.
 - Holds 60 fps on a normal laptop with 16 players: share geometries and materials, keep draw calls low, no per-frame allocations in hot paths.
-- Loading screen while assets and shaders initialize.
+- The kitchen's assets and shaders load behind the intro; a loading screen shows only if the visitor asks for the game before they are ready.
 - UI overlays are keyboard accessible with good contrast.
 
 ## Milestones

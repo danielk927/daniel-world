@@ -27,16 +27,12 @@ describe('the resume', () => {
     expect(resumeAttrs(false)).toEqual({ href: RESUME_URL });
   });
 
-  it('is the link the page without JavaScript has, in the same words', () => {
+  it('is the link the intro has in the page, for visitors without JavaScript too, in the same words', () => {
     const page = readFileSync(clientFile('index.html'), 'utf8');
-    // The noscript block that holds the landing, not the one in the head that only hides the loading bar.
-    const noscript = [...page.matchAll(/<noscript>[\s\S]*?<\/noscript>/g)].find((block) =>
-      block[0].includes('<a'),
-    );
-    expect(noscript, 'the no-JavaScript landing').toBeDefined();
-    const link = /<a\s[^>]*href="([^"]*)"[^>]*>\s*([^<]*?)\s*<\/a>/.exec(noscript![0]);
-    expect(link?.[1]).toBe(RESUME_URL);
-    expect(link?.[2]).toBe(RESUME_LABEL);
+    const link = /<a\s[^>]*class="[^"]*\bintro-resume\b[^"]*"[^>]*>\s*([^<]*?)\s*<\/a>/.exec(page);
+    expect(link, 'the resume link on the intro').not.toBeNull();
+    expect(/href="([^"]*)"/.exec(link![0])?.[1]).toBe(RESUME_URL);
+    expect(link![1]).toBe(RESUME_LABEL);
   });
 
   it('is where a link saved to the old portfolio page goes, on Vercel as on AWS', () => {

@@ -160,9 +160,7 @@ export async function enterWorld(
   }
   await options.prepare?.(page);
   await page.goto(options.path ?? '/');
-  await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeVisible({
-    timeout: LOAD_MS,
-  });
+  await playFromIntro(page);
   await page.getByLabel('Your name').fill(options.name);
   if (options.room) {
     // The party's code field opens from the row along the bottom, unless an invite opened it.
@@ -175,6 +173,19 @@ export async function enterWorld(
   return page;
 }
 
+/**
+ * Choose the game on the intro, the first screen, and wait for the landing over the kitchen, which
+ * may still be loading.
+ */
+export async function playFromIntro(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Play the game' }).click();
+  await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeVisible({
+    timeout: LOAD_MS,
+  });
+  // It fades out over the landing; until then its name and resume link are there twice.
+  await expect(page.locator('#intro')).toBeHidden();
+}
+
 /** Reload a page in the world and enter again from the landing screen, as it fills it in. */
 export async function reenterWorld(
   page: Page,
@@ -182,7 +193,8 @@ export async function reenterWorld(
 ): Promise<void> {
   test.info().setTimeout(test.info().timeout + ENTER_MS);
   await page.reload();
-  await page.getByRole('button', { name: 'Enter the kitchen' }).click({ timeout: LOAD_MS });
+  await playFromIntro(page);
+  await page.getByRole('button', { name: 'Enter the kitchen' }).click();
   await expectInWorld(page, options.name, options.online ?? true);
 }
 

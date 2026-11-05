@@ -57,6 +57,15 @@ The old navy tokens (`--navy`, `--panel`, `--panel-border`, `--radius*`, `--shad
 
 ## Surfaces
 
+### Intro (`index.html`, `ui/intro.ts`, `styles/intro.css`)
+
+The first screen, added on 2026-11-05 (DECISIONS.md), centered on the house navy with nothing behind it, while the kitchen builds out of sight:
+
+- "Doyoon (Daniel) Kim" in the display face, the bar, then "CS + Statistics @ UChicago", as on the landing.
+- What Daniel has done, in his words: plain lines with short brass dashes, as the station panels list points, read left to right in a centered column.
+- Two ways on, side by side and alike, in the display face in full ivory, the bar coming up on hover: "View the resume (PDF)" and "Play the game", which leads to the landing.
+- On a touch-only device, and where the world cannot run, the resume takes the bar and the focus and opens in place, and one plain line under them says why; where the world cannot run, Play is gone.
+
 ### Landing (`ui/landing.ts`, `styles/landing.css`, `game/landingCamera.ts`)
 
 Centered, over an even `--dim` of the whole view:
@@ -73,7 +82,7 @@ Behind it the camera moves slowly through the kitchen: a closed loop through the
 It must not allocate per frame, must not pass through fixtures, and holds the old still establishing shot when motion is reduced.
 The swoop into the game starts from wherever the camera is.
 
-The loading screen matches: the name centered, a thin brass bar for progress, the status line under it.
+The loading screen matches: the name centered, a thin brass bar for progress, the status line under it. It shows only when Play comes before the kitchen behind the intro is ready.
 
 ### Station panel (`ui/panel.ts`, `ui/loreContent.ts`, `styles/panel.css`)
 

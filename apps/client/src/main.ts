@@ -4,10 +4,11 @@ import { dishes, stations } from './content.ts';
 import type { Game } from './game/game.ts';
 import { Settings } from './game/settings.ts';
 import { el } from './ui/dom.ts';
+import { Intro } from './ui/intro.ts';
 import { Landing } from './ui/landing.ts';
 import { loading } from './ui/loading.ts';
 import { SERVER_HTTP_URL } from './env.ts';
-import { isTouchOnly, pickQuality, probeWebGL } from './util/capabilities.ts';
+import { isTouchOnly, pickQuality, probeWebGL, type WebGLProbe } from './util/capabilities.ts';
 import { snapRefreshInterval } from './world/governor.ts';
 
 /** The display's refresh interval: the shortest of a few frame intervals, snapped to a standard rate. */
@@ -26,42 +27,22 @@ function measureRefreshInterval(frames = 20): Promise<number> {
   });
 }
 
-async function boot(): Promise<void> {
-  const app = document.getElementById('app')!;
-  const overlay = el('div', { class: 'ui' });
-  app.append(overlay);
-
-  let game: Game | null = null;
-  const landing = new Landing(overlay, {
-    onEnter: (name, room) => game?.enter(name, room),
-  });
-
-  /** The world cannot run here: the resume becomes the way in, saying why. */
-  const unsupported = (message: string): void => {
-    loading.hide();
-    app.classList.add('no-webgl');
-    landing.setUnsupported(message);
-    landing.show();
-  };
-
-  const webgl = probeWebGL();
-  if (!webgl.supported) {
-    unsupported(
-      'Your browser or device cannot run the 3D world (WebGL 2 is unavailable). You can read the resume instead.',
-    );
-    return;
-  }
-  if (isTouchOnly()) {
-    landing.suggestResume(
-      'The world is made for a keyboard and mouse. On a phone or tablet, the resume is the better way in.',
-    );
-  }
-
+/**
+ * Build the kitchen and the game in it, behind the intro: download the code, build the scene,
+ * compile its shaders and draw it once, so the game shows at once when the visitor asks for it.
+ * The game is not started; nothing draws until then.
+ */
+async function buildKitchen(
+  app: HTMLElement,
+  overlay: HTMLElement,
+  landing: Landing,
+  webgl: WebGLProbe,
+): Promise<Game> {
   let canvas: HTMLCanvasElement | null = null;
   try {
     loading.setText('Building the kitchen…');
     loading.setProgress(0.15);
-    // Let the loading screen paint before the heavy synchronous scene build.
+    // Let the page paint before the heavy synchronous scene build.
     await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
     // How often the display refreshes, measured while nothing heavy draws yet, for the governor.
     const refresh = measureRefreshInterval();
@@ -83,42 +64,103 @@ async function boot(): Promise<void> {
       import.meta.env.MODE !== 'production' &&
       new URLSearchParams(location.search).get('governor') === 'off';
     if (!ungoverned) world.startGovernor(await refresh);
-    loading.setProgress(1);
 
-    game = new Game(world, overlay, landing, settings, pickQuality(webgl));
+    const game = new Game(world, overlay, landing, settings, pickQuality(webgl));
     // The E2E suite's build only: pages it is not driving draw a few times a second (see the
     // module). An inline check, like the debug hooks', so other builds drop the chunk.
     if (import.meta.env.MODE === 'test') {
       const { drawOnlyWhileDriven } = await import('./testDrawing.ts');
       drawOnlyWhileDriven(world);
     }
-    game.start();
-
     // Debug hooks exist in dev and test builds only; this inline check lets production drop the chunk.
     if (import.meta.env.MODE !== 'production') {
       const { installDebugHooks } = await import('./debug.ts');
       installDebugHooks(game, world);
     }
+    // One frame behind the intro, so post-processing's shaders compile now and not on the first
+    // frame the visitor sees.
+    world.render();
+    loading.setProgress(1);
+    void world.compileWalkInLight();
+    return game;
   } catch (error) {
-    // Code that would not load (a deploy landed while the page loaded), or a renderer that would
-    // not start after the probe said it could: rather than a loading screen up forever, the
-    // resume, as without WebGL.
-    console.error('The kitchen did not load.', error);
     canvas?.remove();
-    unsupported(
-      'The kitchen did not load. Reload the page to try again, or read the resume instead.',
+    throw error;
+  }
+}
+
+/** Run `task` once the browser is idle, so the intro is on screen and answering first. */
+function whenIdle(task: () => void): void {
+  if ('requestIdleCallback' in window) requestIdleCallback(task, { timeout: 1000 });
+  else setTimeout(task, 100);
+}
+
+function boot(): void {
+  const app = document.getElementById('app')!;
+  const overlay = el('div', { class: 'ui' });
+  app.append(overlay);
+
+  let game: Game | null = null;
+  const landing = new Landing(overlay, {
+    onEnter: (name, room) => game?.enter(name, room),
+  });
+  const intro = new Intro(document.getElementById('intro')!, () => void play());
+  const webgl = probeWebGL();
+
+  /** The kitchen, built once, by whichever asks first: the idle preload or Play. */
+  let kitchen: Promise<Game | null> | null = null;
+  const loadKitchen = (): Promise<Game | null> =>
+    (kitchen ??= buildKitchen(app, overlay, landing, webgl).then(
+      (built) => (game = built),
+      (error: unknown) => {
+        // Code that would not load (a deploy landed while the page loaded), or a renderer that
+        // would not start after the probe said it could: the intro says so and offers the resume.
+        console.error('The kitchen did not load.', error);
+        loading.hide();
+        intro.show();
+        intro.unavailable(
+          'The kitchen did not load. Reload the page to try again, or read the resume instead.',
+        );
+        return null;
+      },
+    ));
+
+  let playing = false;
+  async function play(): Promise<void> {
+    if (playing) return;
+    playing = true;
+    // Over the intro, until the kitchen is ready.
+    if (!game) loading.show();
+    const built = await loadKitchen();
+    if (!built) return;
+    built.start();
+    // Two frames so the first real render is on screen before the intro (or the loading screen) fades.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        loading.hide();
+        intro.hide();
+        landing.show();
+        pollLobbyCount(landing);
+      }),
+    );
+  }
+
+  if (!webgl.supported) {
+    intro.unavailable(
+      'Your browser or device cannot run the 3D world (WebGL 2 is unavailable). You can read the resume instead.',
     );
     return;
   }
-
-  // Two frames so the first real render is on screen before the loading screen fades.
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      loading.hide();
-      landing.show();
-      pollLobbyCount(landing);
-    }),
-  );
+  if (isTouchOnly()) {
+    // The kitchen is built only if asked for: a phone need not build one it is told to skip.
+    const message =
+      'The world is made for a keyboard and mouse. On a phone or tablet, the resume is the better way in.';
+    intro.suggestResume(message);
+    landing.suggestResume(message);
+    return;
+  }
+  intro.keepForResume();
+  whenIdle(() => void loadKitchen());
 }
 
 /** Keep the landing page's lobby count fresh while it is visible. */
@@ -139,4 +181,4 @@ function pollLobbyCount(landing: Landing): void {
   window.setInterval(() => void refresh(), 4000);
 }
 
-void boot();
+boot();

@@ -7,6 +7,7 @@ import {
   PerspectiveCamera,
   Scene,
   WebGLRenderer,
+  WebGLRenderTarget,
 } from 'three';
 import type { DishContent, StationContent } from '../content.ts';
 import type { Quality } from '../util/capabilities.ts';
@@ -59,6 +60,8 @@ export class WorldScene {
   private readonly probe: ReflectionProbe | null;
   /** Ambient occlusion, bloom, tone mapping and the grade. High quality only. */
   private post: PostProcessing | null = null;
+  /** Stands in for post-processing's buffers while shaders compile (see `compileFor`). High tier. */
+  private readonly compileTarget: WebGLRenderTarget | null;
   /** Steps the high tier's cost down when the GPU falls behind; see governor.ts. */
   private governor: QualityGovernor | null = null;
   private frameDt = 0;
@@ -94,6 +97,7 @@ export class WorldScene {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = high;
     this.renderer.shadowMap.type = PCFShadowMap;
+    this.compileTarget = high ? new WebGLRenderTarget(1, 1) : null;
 
     // The sky outside covers every opening; this is the night above it, should a seam ever show.
     this.scene.background = new Color('#151f38');
@@ -212,7 +216,10 @@ export class WorldScene {
     this.post?.setSize(width, height);
   }
 
-  /** Compile every shader up front so the first frames in the world do not hitch. */
+  /**
+   * Compile every shader the visitor sees on arrival, so the first frames do not hitch. The
+   * walk-in's light, which changes every lit shader, is left to `compileWalkInLight`.
+   */
   async compile(): Promise<void> {
     // Post-processing and the area lights' tables are only for the high tier, so only it downloads
     // them, while loading.
@@ -225,22 +232,50 @@ export class WorldScene {
       this.post = new PostProcessing(this.renderer, this.scene, this.camera, this.viewmodel.scene);
       this.post.setSize(window.innerWidth, window.innerHeight);
     }
-    // The cold room and its mist are hidden until the walk-in opens, so show them to compile them,
-    // and compile everything both without and with its light, so the door opening never stalls.
+    await this.compileScene(false);
+    await this.compileFor(this.viewmodel.scene);
+    // With every shader ready, photograph the room for its reflections, as the visitor will see it.
+    this.probe?.capture(this.scene);
+  }
+
+  /**
+   * The walk-in's light is out of the lighting until its door opens, and every lit shader differs
+   * with it, so the door opening would stall while they all compile again. Called once the kitchen
+   * is up, so they compile in the background instead of holding up the loading.
+   */
+  compileWalkInLight(): Promise<void> {
+    return this.compileScene(true);
+  }
+
+  /**
+   * Compile the scene with the walk-in's light on or off, the cold room, its mist and the bulbs
+   * outside included: they are hidden until they show, and a shader compiles only for what shows.
+   * three.js gathers what to compile at once, so they show only for the call.
+   */
+  private async compileScene(coldLight: boolean): Promise<void> {
     this.cooler.mist.visible = true;
     if (this.coolerRoom) this.coolerRoom.visible = true;
     this.outside.showForCompile(true);
-    const coldLight = this.cooler.light.visible;
-    this.cooler.light.visible = false;
-    await this.renderer.compileAsync(this.scene, this.camera);
-    this.cooler.light.visible = true;
-    await this.renderer.compileAsync(this.scene, this.camera);
+    const lit = this.cooler.light.visible;
     this.cooler.light.visible = coldLight;
-    await this.renderer.compileAsync(this.viewmodel.scene, this.camera);
+    const compiled = this.compileFor(this.scene);
+    this.cooler.light.visible = lit;
     this.outside.showForCompile(false);
     this.showCooler();
-    // With every shader ready, photograph the room for its reflections, as the visitor will see it.
-    this.probe?.capture(this.scene);
+    await compiled;
+  }
+
+  /**
+   * three.js compiles a shader for what it draws into, and the high tier draws the world into
+   * post-processing's buffers, never straight to the canvas, so it compiles against a render target
+   * (`compileTarget`); the low tier draws to the canvas, and compiles for it.
+   */
+  private async compileFor(scene: Object3D): Promise<void> {
+    const target = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.compileTarget);
+    const compiled = this.renderer.compileAsync(scene, this.camera);
+    this.renderer.setRenderTarget(target);
+    await compiled;
   }
 
   /**

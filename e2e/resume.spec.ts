@@ -4,6 +4,7 @@ import {
   enterWorld,
   expect,
   followResume,
+  playFromIntro,
   startRoomServer,
   test,
   world,
@@ -22,12 +23,13 @@ test('the site serves the resume as the PDF in the repo, under the name a saved 
   expect(body.equals(RESUME_FILE)).toBe(true);
 });
 
-test('the landing links to the resume in a tab of its own, and stays as it was', async ({
+test('the intro and the landing link to the resume in a tab of their own, and stay as they were', async ({
   page,
 }) => {
   await page.goto('/');
+  // The intro: the kitchen loads behind it, so the PDF opens beside it.
   const link = page.getByRole('link', { name: RESUME_LABEL });
-  await expect(link).toBeVisible({ timeout: 30_000 });
+  await expect(link).toBeVisible();
   // Said plainly, before the click: a PDF, and a new tab.
   await expect(link).toHaveText('View the resume (PDF)');
   await expect(link).toHaveAttribute('href', RESUME_URL);
@@ -35,10 +37,16 @@ test('the landing links to the resume in a tab of its own, and stays as it was',
   await expect(link).toHaveAttribute('rel', 'noopener');
   // The generated portfolio page is gone: nothing leads to it.
   await expect(page.locator('a[href*="portfolio"]')).toHaveCount(0);
-
-  // A name typed before reading it is still there after, with the way into the kitchen.
-  await page.getByLabel('Your name').fill('Reader');
   await followResume(page, () => link.click(), { newTab: true });
+  await expect(page.getByRole('button', { name: 'Play the game' })).toBeVisible();
+
+  // The landing's quiet row does the same: a name typed before reading it is still there after,
+  // with the way into the kitchen.
+  await playFromIntro(page);
+  await page.getByLabel('Your name').fill('Reader');
+  const rowLink = page.getByRole('link', { name: RESUME_LABEL });
+  await expect(rowLink).toHaveAttribute('target', '_blank');
+  await followResume(page, () => rowLink.click(), { newTab: true });
   await expect(page.getByLabel('Your name')).toHaveValue('Reader');
   await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeEnabled();
   expect(new URL(page.url()).pathname).toBe('/');

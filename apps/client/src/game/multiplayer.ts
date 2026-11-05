@@ -320,7 +320,7 @@ export class Multiplayer {
     }));
   }
 
-  /** Per frame: interpolate every remote player ~100 ms in the past and pose their avatar. */
+  /** Per frame: interpolate every remote player ~150 ms in the past and pose their avatar. */
   update(now: number, dt: number): void {
     this.renderTime = this.clock.serverTime(now) - INTERPOLATION_DELAY_MS;
     this.frameDt = dt;

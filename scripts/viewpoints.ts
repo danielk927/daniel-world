@@ -114,6 +114,7 @@ async function main(): Promise<void> {
       for (const [key, value] of new URLSearchParams(values.params)) params.set(key, value);
       const started = Date.now();
       await page.goto(`${clientUrl}/?${params}`);
+      await page.getByRole('button', { name: 'Play the game' }).click();
       await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 60_000 });
       const loadMs = Date.now() - started;
       await page.addStyleTag({ content: '.ui, #loading { display: none !important; }' });

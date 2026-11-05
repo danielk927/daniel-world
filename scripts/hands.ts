@@ -119,6 +119,7 @@ async function main(): Promise<void> {
           governor: 'off',
         });
         await page.goto(`${clientUrl}/?${params}`);
+        await page.getByRole('button', { name: 'Play the game' }).click();
         await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 60_000 });
         await page.getByLabel('Your name').fill('Hands');
         await page.getByRole('button', { name: 'Private party' }).click();

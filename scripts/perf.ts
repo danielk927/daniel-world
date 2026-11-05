@@ -74,6 +74,7 @@ try {
   await page.goto(
     `${clientUrl}/?quality=high&time=20:00${uncapped ? '&governor=off' : ''}${values.params ? `&${values.params}` : ''}`,
   );
+  await page.getByRole('button', { name: 'Play the game' }).click();
   await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Private party' }).click();
   await page.getByRole('textbox', { name: 'Party code' }).fill(room);

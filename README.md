@@ -3,10 +3,13 @@
 A personal website that is a small multiplayer 3D world.
 Visitors walk a three-star kitchen, laid out after the French Laundry, in first person, open its stations to learn about Daniel, and see everyone else who is visiting as a cook in a toque with a name tag.
 There is also a plain alternative, [Daniel's resume as a PDF](apps/client/public/Doyoon-Kim-resume.pdf), for phones, browsers without WebGL, and anyone in a hurry.
+The first screen is a short intro, his name, what he studies and what he has done, with the resume and the game side by side; the kitchen builds behind it while the visitor reads, so the game opens at once.
 
 **Live:** https://d1ivv0s5bbzyx0.cloudfront.net (AWS: CloudFront, S3, EC2) and https://daniel-world-nine.vercel.app (Vercel front end on the same AWS room server).
 
 Everything also runs locally: no accounts, no API keys, no paid services, no downloaded models or textures.
+
+![The intro, the first screen](docs/screenshots/intro.png)
 
 ![Landing screen](docs/screenshots/landing.png)
 
@@ -100,7 +103,7 @@ Networking follows the usual pattern for fast-paced games:
 - The server runs the same simulation at 60 ticks per second and broadcasts snapshots 20 times a second.
   When a snapshot arrives, the client rewinds to the server's state and replays inputs the server has not seen yet.
   Because the simulation is deterministic and quantized, this lands exactly where prediction was.
-- Other players are drawn about 100 ms in the past, interpolated between snapshots.
+- Other players are drawn about 150 ms in the past, interpolated between snapshots.
 - Every inbound message is validated with the shared schemas.
   The server rate limits each connection, disconnects floods, drops dead connections with a heartbeat, caps connections per IP, and only simulates one input per tick per player, so speed hacks do not work.
 - If the server is unreachable, the world keeps working in single-player mode and reconnects in the background.
@@ -111,6 +114,7 @@ Rendering is built for a smooth 60 fps with a full room:
 - Avatars are instanced, and ambient motion (gas flames, steam) runs in shaders.
 - Surfaces are textured procedurally: the GPU paints every material's color, normal and roughness at load, at its real size, so nothing is downloaded, and a probe of the kitchen captured at load gives every material its reflections.
 - Name tags are DOM elements rather than extra draw calls.
+- Shaders compile while the visitor reads the intro, only the ones the frame draws with, against the render target the high tier draws into; the walk-in light's variants follow in the background.
 - Software renderers (no GPU) automatically get a lighter quality tier without shadows or accent lights.
   `?quality=high` or `?quality=low` overrides the choice.
 
@@ -219,5 +223,5 @@ Build the client with `VITE_SERVER_URL` set to the server's `wss://` URL, or to 
 
 - Unit and integration tests (Vitest) cover the simulation, protocol validation, rate limiting, rooms, the WebSocket server, prediction and interpolation.
 - End-to-end tests (Playwright, Chromium with SwiftShader software WebGL) open several browser contexts and assert on a read-only `window.__world` debug object that exists only in dev and test builds.
-  They cover the landing (on a phone, without WebGL, the live lobby count), lobby presence, movement replication, jumping and sprinting, name tags, chat, private parties and invite links, leaving, the stations' and dishes' panels, the menus' keyboard focus, knives (throwing, health and knockouts, the scoreboard, the spread, skins, inspecting, holding to keep throwing, punches), Chef Skinner, the walk-in, the kitchen computer, the resume's links (the landing, the pause menu, a phone, without WebGL or JavaScript) and the file itself, and offline play, reconnection and refusals.
+  They cover the intro and the landing (on a phone, without WebGL or JavaScript, the live lobby count), lobby presence, movement replication, jumping and sprinting, name tags, chat, private parties and invite links, leaving, the stations' and dishes' panels, the menus' keyboard focus, knives (throwing, health and knockouts, the scoreboard, the spread, skins, inspecting, holding to keep throwing, punches), Chef Skinner, the walk-in, the kitchen computer, the resume's links (the landing, the pause menu, a phone, without WebGL or JavaScript) and the file itself, and offline play, reconnection and refusals.
   On a busy machine they hold without retries: pages the test is not driving draw only a few times a second in the test build, the room server runs in its own process, and a failed test carries its log.
