@@ -69,7 +69,8 @@ All personal content lives in [`apps/client/src/content.ts`](apps/client/src/con
 It holds what the kitchen's seven stations (`stations`) and its dishes say when they are opened, taken from Daniel's resume, and his own words about each dish.
 Each station serves one part of it, and its label says which: the pass is About me, the saucier Experiences, the poissonnier Research, the rôtisseur Projects, the entremetier Hackathons, the garde manger Skills, and the pâtisserie, the island across from it, Education.
 The plonge is only the kitchen's dish pit, and cannot be opened.
-The resume itself is a PDF, `apps/client/public/Doyoon-Kim-resume.pdf`, served as it is at `/Doyoon-Kim-resume.pdf`; replace the file under the same name to update it, and the next deploy shows the new one.
+The resume is written in Overleaf, and the live site serves it from there at `/Doyoon-Kim-resume.pdf`: an edit shows within about ten minutes, with no deploy (see the deployment section).
+`apps/client/public/Doyoon-Kim-resume.pdf` is the copy served when Overleaf cannot be reached, and in local builds and tests; `node scripts/resume-from-overleaf.ts` refreshes it, with `OVERLEAF_SHARE_LINK` set to the project's viewer link.
 It is not generated from `content.ts`, so a change to a role or project goes in both places.
 
 ## Scripts
@@ -149,8 +150,9 @@ The room server is a long-running process that holds WebSocket connections and t
 `infra/` defines the whole production stack with the AWS CDK in TypeScript:
 
 ```text
-visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (private, Origin Access Control)
-                               └─ /ws*  ──▶ EC2 t4g.micro room server (Graviton, port 3001)
+visitor ──HTTPS──▶ CloudFront ─┬─ /*      ──▶ S3 bucket (private, Origin Access Control)
+                               ├─ resume  ──▶ Lambda compiling it from Overleaf (S3's copy if that fails)
+                               └─ /ws*    ──▶ EC2 t4g.micro room server (Graviton, port 3001)
 ```
 
 - **CloudFront** is the only public entry point.
@@ -159,6 +161,9 @@ visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (pri
   Every deploy uploads the new build and invalidates the cache.
   The files Vite names by their content (everything under `assets/`) are cached for a year and never deleted, so a tab opened before a deploy can still lazy-load the build it started with (the kitchen computer, DOOM, the post-processing); the pages, the favicon and the resume PDF are revalidated on every visit, and go up only after the files they name.
   A CloudFront Function on the site's behavior sends the old `/portfolio.html` to the PDF (`vercel.json` does the same on Vercel).
+- **Lambda** serves the resume (`infra/resume`): it opens the Overleaf project with its viewer link, compiles it and returns the PDF, which CloudFront keeps for ten minutes.
+  Its function URL answers only CloudFront's signed requests, and when it fails (Overleaf down, the link revoked), CloudFront serves the bucket's copy instead.
+  Vercel redirects the resume's path to this copy.
 - **EC2** runs the server bundle under systemd as an unprivileged user, on a pinned and checksum-verified Node.js.
   Its security group accepts only CloudFront's origin-facing IP ranges on port 3001; there is no SSH, and shell access goes through **Systems Manager Session Manager**.
   CloudFront reaches it by an Elastic IP's public DNS name, which survives a stop and start (AWS maintenance included), unlike the instance's own address.
@@ -176,6 +181,9 @@ First time only:
 ```bash
 aws login                                         # or aws configure / aws sso login
 npx cdk bootstrap -a "node infra/bin/world.ts"    # prepares the account for CDK deploys
+# The resume's Overleaf viewer link (Share, then the view link), kept out of this public repo:
+aws ssm put-parameter --name /daniel-world/overleaf-share-link --type String \
+  --value 'https://www.overleaf.com/project/<id>/share#<token>'
 ```
 
 Then deploy (and redeploy after changes) with:

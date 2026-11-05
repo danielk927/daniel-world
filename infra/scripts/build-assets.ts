@@ -2,6 +2,7 @@
  * Builds what the stack deploys into infra/build/:
  *   client/  the static site, configured to reach the room server on the same origin at /ws
  *   server/  the room server as one self-contained file (Node is the only runtime dependency)
+ *   resume/  the function that serves the resume from Overleaf (infra/resume), as one file
  */
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -33,4 +34,15 @@ run(
 );
 run(['run', 'build', '-w', '@world/server']);
 copyFileSync(resolve(root, 'apps/server/dist/index.js'), resolve(build, 'server/index.js'));
+run([
+  'exec',
+  '--',
+  'esbuild',
+  resolve(root, 'infra/resume/index.ts'),
+  '--bundle',
+  '--platform=node',
+  '--target=node24',
+  '--format=esm',
+  `--outfile=${resolve(build, 'resume/index.mjs')}`,
+]);
 console.log(`Assets ready in ${build}`);

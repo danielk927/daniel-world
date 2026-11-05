@@ -44,7 +44,7 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   `index.html` holds the intro, the first screen (`ui/intro.ts`), with the 3D world built behind it; the plain alternative is the resume, a PDF in `public/` (`src/resume.ts` names it and every link to it).
   `src/computer/` is the kitchen computer: a RISC-V machine (interpreter and JIT) in a Web Worker that runs DOOM; `src/game/computerDesk.ts` hooks it into the game.
 - `firmware` - C sources for the computer: vendored `doomgeneric`, a freestanding libc, `crt0.S`, the linker script, and the ABI header `machine.h`.
-- `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, CloudWatch, IAM). `npm run deploy:aws` deploys.
+- `infra` - AWS CDK stack (CloudFront + S3 site, EC2 room server, the resume's Lambda, CloudWatch, IAM). `npm run deploy:aws` deploys.
 - `e2e` - Playwright specs; they assert on `window.__world` debug state, not pixels.
   `helpers.ts` has what they share; the room server they start runs in a process of its own (`roomServer.ts`).
 - `scripts` - dev tooling (bots, screenshots, perf, viewpoints, computer-bench); `processes.ts` starts what they need and stops it with them.
@@ -107,7 +107,9 @@ firmware/doom/build.sh       # rebuild the DOOM firmware (needs `brew install ll
   Every way to it (the intro in `index.html`, which is also the page without JavaScript, the landing's link, the pause menu, the phone, no-WebGL and failed-load paths) uses `RESUME_URL`, `RESUME_LABEL` and `resumeAttrs` from `src/resume.ts` (`resume.test.ts` checks `index.html` agrees).
   The words say it is a PDF ("View the resume (PDF)"), and not "Resume" alone, which would read as the pause menu's way back into the game ("Return to game").
   A page with a world or a cook to keep (the intro while the kitchen builds behind it, the landing's quiet row, the pause menu) opens it in a tab of its own, `noopener`; where it is the way in (a phone, no WebGL, a failed load, no JavaScript) it opens in place.
-  To change the resume, replace the file under the same name: the stack uploads it with the pages (revalidated on every visit, CloudFront cleared by the deploy), never in `assets/`, where a name is cached for a year.
+  The resume is written in Overleaf, and the live site serves it from there: on AWS, CloudFront answers `RESUME_PATH` from a Lambda (`infra/resume`) that compiles the project with its viewer link and downloads the PDF, kept at the edge for `RESUME_CACHE_SECONDS` (10 minutes); Vercel redirects the path to the AWS copy.
+  The viewer link is in Parameter Store (`OVERLEAF_LINK_PARAMETER`), never in this public repo.
+  The PDF in `public/` is what CloudFront serves when Overleaf fails, and what local builds and the tests serve; refresh it with `node scripts/resume-from-overleaf.ts` (`OVERLEAF_SHARE_LINK` set to the viewer link). The stack uploads it with the pages (revalidated on every visit, CloudFront cleared by the deploy), never in `assets/`, where a name is cached for a year.
   There is no generated portfolio page any more; `content.ts` feeds the kitchen's panels only.
   The old `/portfolio.html` redirects to the PDF on both hosts: a permanent redirect in `vercel.json`, and a CloudFront Function on the default behavior in `infra` (`redirectCode`), both tested.
 - The intro comes first: "Play the game" leads to the landing ("Enter the kitchen"). On a desktop the kitchen is built behind the intro once the browser is idle (`buildKitchen` in `main.ts`: code, scene, shaders and one frame, then nothing draws until Play); a phone builds it only when asked. E2E, perf and screenshot scripts click Play first (`playFromIntro` in `e2e/helpers.ts`).

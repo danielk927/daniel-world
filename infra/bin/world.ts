@@ -14,4 +14,5 @@ new WorldStack(app, 'DanielWorld', {
   },
   clientDir: resolve(build, 'client'),
   serverDir: resolve(build, 'server'),
+  resumeDir: resolve(build, 'resume'),
 });

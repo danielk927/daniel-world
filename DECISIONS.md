@@ -1246,3 +1246,15 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
   "The server lags sometimes" was measured: the live room server held 60 ticks a second with snapshot jitter p99 16 ms, but from a Mac on Wi-Fi snapshots were held up to 148 ms every half second, which the old delay could absorb only about 50 ms of; on a recorded minute 5.5% of frames extrapolated remote cooks, and at 150 ms 0.28%.
   Hits stay fair: an input's `view` is the tick drawn, and the server rewinds up to 400 ms.
   Only the client uses the constant, so the server bundle and the protocol are unchanged.
+
+### The resume from Overleaf (2026-11-05)
+
+- **The live site serves the resume from Overleaf**, at Daniel's request, so an edit there shows without a deploy: CloudFront answers `RESUME_PATH` from a Lambda function URL (`infra/resume`) and keeps the PDF ten minutes (`RESUME_CACHE_SECONDS`), so Overleaf is asked that often at most, and only while someone reads it.
+- **Overleaf has no public address for a project's PDF** (Git and GitHub sync are paid), so the function does what the viewer link does in a browser: it opens the project's invite page, checks the link's token into that session, asks for a compile and downloads the PDF, about a second in all.
+  These are the pages and calls Overleaf's own web app makes, not an API it promises to keep, so the function fails closed: any surprise is a 502, on which CloudFront's origin group serves the PDF in the site's bucket, the one in `apps/client/public` as of the last deploy, refreshed with `scripts/resume-from-overleaf.ts`.
+  A viewer link was chosen over linking the button to Overleaf itself, which would open the LaTeX editor with the source beside the PDF, slowly and badly on a phone, and ask anyone signed in to Overleaf to join the project.
+- **The viewer link is a Parameter Store parameter** (`OVERLEAF_LINK_PARAMETER`, a plain String), resolved by CloudFormation into the function's environment at deploy time, so it is in neither this public repo nor the synthesized template; it gives read access to the resume's source only, which is why it is not a Secrets Manager secret. A deploy fails until it exists (README).
+- **The function URL takes only CloudFront's signed requests** (Origin Access Control); it runs Node 24 on ARM with 256 MB and gives up after 10 s, when the bucket's copy is served instead.
+  It is bundled by `infra/scripts/build-assets.ts`, like the server, so a synth bundles nothing.
+- **Vercel redirects the resume's path to the AWS copy** (temporary, 307), since it would serve the repo's; redirects come before Vercel's static files.
+- The repo's PDF was refreshed from Overleaf with this change: Overleaf had the danieLLM inference engine, Bridge with its own entry, the LAHacks AI Hackathon award and coursework, which the old copy lacked. The kitchen's panels (`content.ts`) do not have them yet.
