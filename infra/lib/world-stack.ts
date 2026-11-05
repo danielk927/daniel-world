@@ -327,7 +327,8 @@ export class WorldStack extends Stack {
           origin: new OriginGroup({
             primaryOrigin: FunctionUrlOrigin.withOriginAccessControl(resumeUrl),
             fallbackOrigin: siteOrigin,
-            fallbackStatusCodes: [500, 502, 503, 504],
+            // A refusal as much as a failure: whatever the function answers but the PDF.
+            fallbackStatusCodes: [403, 404, 500, 502, 503, 504],
           }),
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: resumeCache,
@@ -346,6 +347,15 @@ export class WorldStack extends Stack {
           originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
         },
       },
+    });
+
+    // Lambda asks whoever calls a function URL for lambda:InvokeFunction as well, which the origin's
+    // own grant (lambda:InvokeFunctionUrl) does not give: this distribution, through the URL only.
+    resumeFunction.addPermission('InvokeFromDistribution', {
+      principal: new ServicePrincipal('cloudfront.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: distribution.distributionArn,
+      invokedViaFunctionUrl: true,
     });
 
     // The site goes up in two parts with different caching. Vite names everything in assets/ by

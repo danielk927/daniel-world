@@ -211,7 +211,7 @@ describe('WorldStack', () => {
     expect(behavior).toMatchObject({ ViewerProtocolPolicy: 'redirect-to-https' });
     // The function first; on a server error from it, the bucket the rest of the site comes from.
     const group = config.OriginGroups.Items.find((g) => g.Id === behavior.TargetOriginId)!;
-    expect(group.FailoverCriteria.StatusCodes.Items).toEqual([500, 502, 503, 504]);
+    expect(group.FailoverCriteria.StatusCodes.Items).toEqual([403, 404, 500, 502, 503, 504]);
     const [primary, fallback] = group.Members.Items.map((m) => m.OriginId);
     expect(fallback).toBe(config.DefaultCacheBehavior.TargetOriginId);
     const functionOrigin = config.Origins.find((o) => o.Id === primary)!;
@@ -227,10 +227,14 @@ describe('WorldStack', () => {
 
     // Its URL answers CloudFront's signed requests only.
     template.hasResourceProperties('AWS::Lambda::Url', { AuthType: 'AWS_IAM' });
-    template.hasResourceProperties('AWS::Lambda::Permission', {
-      Action: 'lambda:InvokeFunctionUrl',
-      Principal: 'cloudfront.amazonaws.com',
-    });
+    // Lambda asks for both actions, each for this distribution only.
+    for (const action of ['lambda:InvokeFunctionUrl', 'lambda:InvokeFunction']) {
+      template.hasResourceProperties('AWS::Lambda::Permission', {
+        Action: action,
+        Principal: 'cloudfront.amazonaws.com',
+        SourceArn: Match.anyValue(),
+      });
+    }
 
     // The viewer link comes from Parameter Store at deploy time: the template only names it.
     const link = resources('AWS::Lambda::Function')
