@@ -25,6 +25,7 @@ const serverUrl = `ws://localhost:${serverPort}`;
 
 async function enter(page: Page, name: string, room = ''): Promise<void> {
   await page.goto(`${clientUrl}/?quality=high&time=20:00`);
+  await page.getByRole('button', { name: 'Play the game' }).click();
   // Other pages may still be rendering on the same GPU, so loading can take a while.
   await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 60_000 });
   await page.getByLabel('Your name').fill(name);
@@ -92,7 +93,15 @@ async function main(): Promise<void> {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
 
+    // The intro, the first screen, with the kitchen loading behind it.
     await page.goto(`${clientUrl}/?quality=high&time=20:00`);
+    await page.getByRole('button', { name: 'Play the game' }).waitFor();
+    // The dev server styles the page from script, after it first paints: let the buttons' colors
+    // finish easing in from the browser's own.
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${outDir}/intro.png` });
+
+    await page.getByRole('button', { name: 'Play the game' }).click();
     await page.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
     await page.getByLabel('Your name').fill('Curious Otter');
     await page.waitForTimeout(2500);
@@ -212,8 +221,8 @@ async function main(): Promise<void> {
     });
     const phonePage = await phone.newPage();
     await phonePage.goto(`${clientUrl}/`);
-    await phonePage.getByRole('button', { name: 'Enter the kitchen' }).waitFor({ timeout: 30_000 });
-    await phonePage.waitForTimeout(1500);
+    await phonePage.getByRole('button', { name: 'Play the game' }).waitFor({ timeout: 30_000 });
+    await phonePage.waitForTimeout(500);
     await phonePage.screenshot({ path: `${outDir}/mobile-landing.png` });
     console.log(`Screenshots written to ${outDir}`);
   } finally {

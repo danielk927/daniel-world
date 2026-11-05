@@ -1,5 +1,12 @@
-/** Controls the loading screen that is already in index.html, so it shows before any JS runs. */
+/**
+ * Controls the loading screen in index.html. It shows only if the visitor asks for the game before
+ * the kitchen behind the intro is ready.
+ */
 export const loading = {
+  show(): void {
+    const root = document.getElementById('loading');
+    if (root) root.hidden = false;
+  },
   setText(text: string): void {
     const node = document.querySelector('#loading .loading-text');
     if (node) node.textContent = text;

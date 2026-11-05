@@ -9,8 +9,12 @@ export const TICK_MS = 1000 / TICK_RATE;
 /** The room sends a snapshot every this many ticks (20 a second); inputs still go every tick. */
 export const SNAPSHOT_EVERY_TICKS = 3;
 
-/** Remote players are rendered this far in the past so there are always two snapshots to blend. */
-export const INTERPOLATION_DELAY_MS = 100;
+/**
+ * Remote players are rendered this far in the past so there are always two snapshots to blend:
+ * three snapshot periods, so a snapshot held up to 100 ms (Wi-Fi does this every half second or so)
+ * still arrives in time, where two periods left remote cooks stuttering (DECISIONS.md, 2026-11-05).
+ */
+export const INTERPOLATION_DELAY_MS = 150;
 
 /** Bump whenever the protocol or the shared simulation changes, so stale clients reload. */
 export const PROTOCOL_VERSION = 9;

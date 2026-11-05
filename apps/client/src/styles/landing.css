@@ -208,10 +208,6 @@
   }
 }
 
-.no-webgl .landing {
-  background: none;
-}
-
 /* Also how the pause menu and name tags come in. */
 @keyframes fade-in {
   from {

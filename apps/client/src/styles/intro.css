@@ -1,0 +1,130 @@
+/* ---------- Intro ---------- */
+
+/*
+ * The first screen, before the game loads: Daniel's name, the bar, what he studies, what he has
+ * done, and the two ways on, the resume and the game. Centered on the house navy, no boxes. It is
+ * in index.html, so it shows before any script runs, and scrolls when a window cannot fit it (auto
+ * margins center it, and give way to the scroll instead of cutting its top off).
+ */
+.intro {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  overflow-y: auto;
+  background: var(--night);
+  text-align: center;
+  transition: opacity 0.35s ease;
+}
+
+/*
+ * Leaving: it fades out over the kitchen and the landing coming in, quicker than the landing fades
+ * in, so the two names do not show over each other.
+ */
+.intro.is-done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.intro-main {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  max-width: 960px;
+  margin: auto;
+  padding: 24px 0;
+}
+
+/* As the landing sets the name, so the two screens agree. */
+.intro-title {
+  font-size: clamp(34px, min(calc((100vw - 48px) / 9), 10.2vh), 92px);
+  text-wrap: balance;
+}
+
+.intro-bar {
+  width: 140px;
+  margin: clamp(14px, 2.6vh, 24px) 0 clamp(14px, 2.8vh, 25px);
+}
+
+.intro-headline {
+  margin: 0;
+  font: 400 20px/1.3 var(--font-body);
+  color: var(--ink-muted);
+}
+
+/* What he has done, as the station panels list points: short brass dashes, read left to right. */
+.intro-points {
+  display: grid;
+  gap: 8px;
+  max-width: 36em;
+  margin: clamp(26px, 5.5vh, 48px) 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font: 400 17px/1.55 var(--font-body);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+.intro-points li {
+  position: relative;
+  padding-left: 23px;
+}
+
+.intro-points li::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: calc(0.5lh - 1.5px);
+  width: 8px;
+  height: 3px;
+  border-radius: 1.5px;
+  background: var(--accent);
+}
+
+/* Two ways on, side by side and alike: neither is the one a visitor is meant to take. */
+.intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px 56px;
+  margin-top: clamp(30px, 6.5vh, 60px);
+}
+
+/* Both are the screen's main actions, so both are in full ivory, the bar coming up on hover. */
+.intro-actions .button {
+  color: var(--ink);
+}
+
+/* Why the game is not offered, or how it is best played: one plain line, never a box. */
+.intro-note {
+  max-width: 32em;
+  margin: 20px 0 0;
+  font: 400 16px/1.5 var(--font-body);
+  color: var(--ink-muted);
+  text-wrap: balance;
+}
+
+@media (max-width: 560px) {
+  .intro {
+    padding-inline: 20px;
+  }
+
+  .intro-points {
+    gap: 6px;
+    font-size: 15.5px;
+    line-height: 1.45;
+  }
+
+  .intro-actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .intro-actions .button-large {
+    font-size: 24px;
+  }
+}

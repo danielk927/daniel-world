@@ -2,12 +2,22 @@ import { expect, test } from '@playwright/test';
 import { RESUME_LABEL, RESUME_URL } from '../apps/client/src/resume.ts';
 import { enterWorld, followResume } from './helpers.ts';
 
-test('landing screen loads over the 3D world', async ({ page }) => {
+test('the intro shows who Daniel is, with the resume and the game, before the kitchen loads', async ({
+  page,
+}) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Doyoon (Daniel) Kim' })).toBeVisible({
+  const intro = page.getByRole('main');
+  await expect(intro.getByRole('heading', { name: 'Doyoon (Daniel) Kim' })).toBeVisible();
+  await expect(intro.getByText('CS + Statistics @ UChicago')).toBeVisible();
+  await expect(intro.getByRole('listitem')).toHaveCount(6);
+  await expect(intro.getByRole('link', { name: RESUME_LABEL })).toHaveAttribute('href', RESUME_URL);
+  // The kitchen builds behind it, and the landing shows once asked for, the intro fading out.
+  await page.getByRole('button', { name: 'Play the game' }).click();
+  await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeEnabled({
     timeout: 30_000,
   });
-  await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeEnabled();
+  await expect(intro).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Doyoon (Daniel) Kim' })).toBeVisible();
   await expect(page.getByLabel('Your name')).not.toHaveValue('');
 
   // The party code field stays closed until the private party is opened from the bottom row.
@@ -19,7 +29,7 @@ test('landing screen loads over the 3D world', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Party code' })).toBeFocused();
 });
 
-test('on a phone the resume is the way in, and the kitchen a quiet second choice', async ({
+test('on a phone the resume is the way in, and the game a quiet second choice', async ({
   browser,
 }) => {
   const phone = await browser.newContext({
@@ -34,14 +44,13 @@ test('on a phone the resume is the way in, and the kitchen a quiet second choice
   await expect(resume).toHaveAttribute('href', RESUME_URL);
   // The way in on a phone, where the kitchen has no touch controls: the PDF in this tab, and Back comes home.
   await expect(resume).not.toHaveAttribute('target', /.*/);
+  await expect(resume).toHaveClass(/button-primary/);
   await expect(resume).toBeFocused();
-  // Still there for a tablet with a keyboard, but no longer the main action.
-  const enter = page.getByRole('button', { name: 'Enter the kitchen' });
-  await expect(enter).toBeVisible();
-  await expect(enter).not.toHaveClass(/button-primary/);
-  // The quiet row's own link would only repeat it: the one link to the resume is the main action.
-  await expect(page.getByRole('link', { name: RESUME_LABEL })).toHaveCount(1);
-  await expect(page.locator('.landing-row .landing-link', { hasText: 'PDF' })).toBeHidden();
+  await expect(page.getByRole('main').getByText('made for a keyboard and mouse')).toBeVisible();
+  // Still there for a tablet with a keyboard, but not the main action.
+  const play = page.getByRole('button', { name: 'Play the game' });
+  await expect(play).toBeVisible();
+  await expect(play).not.toHaveClass(/button-primary/);
   await followResume(page, () => resume.tap(), { newTab: false });
   await phone.close();
 });
@@ -62,12 +71,15 @@ test('a kitchen that fails to load says so and offers the resume, on a desktop o
     // A deploy lands while the page loads: the game's code it asks for is gone.
     await page.route(/\/assets\/game-[^/]*\.js$/, (route) => route.abort());
     await page.goto('/');
+    // A desktop builds the kitchen behind the intro by itself; a phone only once asked.
+    if (device.hasTouch) await page.getByRole('button', { name: 'Play the game' }).tap();
+    await expect(page.locator('.intro-note')).toContainText('did not load', { timeout: 30_000 });
     const resume = page.getByRole('link', { name: RESUME_LABEL });
-    await expect(resume).toBeVisible({ timeout: 30_000 });
+    await expect(resume).toBeVisible();
     await expect(resume).toHaveCount(1);
     await expect(resume).toHaveAttribute('href', RESUME_URL);
     await expect(resume).toBeFocused();
-    await expect(page.locator('.landing-notice')).toContainText('did not load');
+    await expect(page.getByRole('button', { name: 'Play the game' })).toBeHidden();
     await expect(page.getByRole('button', { name: 'Enter the kitchen' })).toBeHidden();
     await expect(page.locator('#loading')).toHaveCount(0);
     expect(errors.length).toBeGreaterThan(0);
@@ -80,6 +92,7 @@ test('a kitchen that fails to load says so and offers the resume, on a desktop o
 
 test('an invite link opens the private party with its code in', async ({ page }) => {
   await page.goto('/?room=friday-service');
+  await page.getByRole('button', { name: 'Play the game' }).click();
   await expect(page.getByRole('button', { name: 'Private party' })).toHaveAttribute(
     'aria-expanded',
     'true',
@@ -91,13 +104,17 @@ test('an invite link opens the private party with its code in', async ({ page })
   );
 });
 
-test('without JavaScript the world points to the resume, a PDF', async ({ browser }) => {
-  // With scripts off Playwright cannot wait out the landing's fade-in before clicking, so the
-  // visitor asks for no motion and it shows at once.
-  const context = await browser.newContext({ javaScriptEnabled: false, reducedMotion: 'reduce' });
+test('without JavaScript the intro is all there is, with the resume, a PDF', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto('/');
-  await expect(page.locator('.landing-notice')).toContainText('needs JavaScript');
+  await expect(page.getByRole('heading', { name: 'Doyoon (Daniel) Kim' })).toBeVisible();
+  // By its class: Playwright's text matching skips what is inside a noscript.
+  await expect(page.locator('noscript .intro-note')).toContainText('needs JavaScript');
+  // The game does nothing without scripts, so it is not offered.
+  await expect(page.getByRole('button', { name: 'Play the game' })).toBeHidden();
   const resume = page.getByRole('link', { name: RESUME_LABEL });
   await expect(resume).toHaveAttribute('href', RESUME_URL);
   // Clicked as a visitor would, so nothing may lie over it.

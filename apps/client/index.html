@@ -10,42 +10,51 @@
     <meta name="theme-color" content="#0d1024" />
     <title>Daniel's World</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <!-- Without scripts the world never loads: say so instead of loading forever. By its id, so
-         it holds over the stylesheet the build links after it. -->
-    <noscript>
-      <style>
-        #loading {
-          display: none;
-        }
-      </style>
-    </noscript>
   </head>
   <body>
     <div id="app">
-      <div id="loading" class="loading" role="status" aria-live="polite">
+      <!-- The first screen, here so it shows before any script runs: who Daniel is, the resume and
+           the game, which loads behind it (main.ts). The resume's address is RESUME_URL in
+           src/resume.ts (resume.test.ts checks they agree). -->
+      <main id="intro" class="intro" aria-labelledby="intro-title">
+        <div class="intro-main">
+          <h1 class="title intro-title" id="intro-title">Doyoon (Daniel) Kim</h1>
+          <span class="bar intro-bar" aria-hidden="true"></span>
+          <p class="intro-headline">CS + Statistics @ UChicago</p>
+          <ul class="intro-points">
+            <li>
+              Won the LAHacks 2026 Best Hardware Award. Built an image and audio to Braille
+              transcriber with custom 3D-printed parts within 48 hours.
+            </li>
+            <li>
+              Co-founded an AI rehab platform, piloted at 3 NGOs, with 3,000+ on the waitlist and 2
+              angel offers.
+            </li>
+            <li>Engineered an LLM eval data pipeline at Anto Biosciences (YC F25).</li>
+            <li>Currently building my own LLM inference engine.</li>
+            <li>Part of the Hong Kong National Kendo Team.</li>
+            <li>Worked at a 1-Michelin-star French restaurant.</li>
+          </ul>
+          <div class="intro-actions">
+            <a class="button button-large intro-resume" href="/Doyoon-Kim-resume.pdf">
+              View the resume (PDF)
+            </a>
+            <button class="button button-large intro-play" type="button" hidden>
+              Play the game
+            </button>
+          </div>
+          <p class="intro-note" role="note" hidden></p>
+          <noscript>
+            <p class="intro-note">The game is a 3D world and needs JavaScript.</p>
+          </noscript>
+        </div>
+      </main>
+      <!-- Shown only if the visitor asks for the game before it is ready. -->
+      <div id="loading" class="loading" role="status" aria-live="polite" hidden>
         <p class="loading-title">Doyoon (Daniel) Kim</p>
         <div class="loading-bar" aria-hidden="true"><div class="loading-bar-fill"></div></div>
         <p class="loading-text">Loading…</p>
       </div>
-      <noscript>
-        <!-- As the landing says it when the world cannot run: the resume is the way in. Its address
-             is RESUME_URL in src/resume.ts (resume.test.ts checks they agree). -->
-        <section class="overlay landing" aria-labelledby="noscript-title">
-          <div class="landing-main">
-            <h1 class="title landing-title" id="noscript-title">Doyoon (Daniel) Kim</h1>
-            <span class="bar landing-bar" aria-hidden="true"></span>
-            <p class="landing-notice">
-              This site is a small 3D world and needs JavaScript. You can read the resume instead.
-            </p>
-            <a
-              class="button button-primary button-large landing-resume"
-              href="/Doyoon-Kim-resume.pdf"
-            >
-              View the resume (PDF)
-            </a>
-          </div>
-        </section>
-      </noscript>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

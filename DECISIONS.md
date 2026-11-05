@@ -1221,3 +1221,28 @@ The protocol is version 9; the room server half reaches visitors only with `npm 
   `e2e/stations.spec.ts` had opened the plonge from the aisle with the walk-in shut, since a pick whose ten meter ray crossed the east wall used to be refused (2026-10-09); the truffle croissant from the spawn was the other case that fix named, and the spec opens it now.
   A new spec walks to the pastry table and opens Education there, the map and the room giving way to its panel as before.
 - `stations.test.ts`' reach check aims at the pâtisserie from the north, past the windows: from the south its ray would pass the entremetier first.
+
+### The intro before the kitchen, and a faster first load (2026-11-05)
+
+- **A first screen comes before the kitchen**, at Daniel's request: his name, what he studies, six things he has done in his own words, and two ways on, "View the resume (PDF)" and "Play the game", alike, so nobody has to play to read about him.
+  It is plain HTML in `index.html` (`ui/intro.ts` wires it), so it shows before any script runs, and it is the page without JavaScript too: the old no-JavaScript landing is gone, and without scripts the intro hides Play and says the game needs JavaScript.
+- **The kitchen builds behind it**, on a desktop, once the browser is first idle (`buildKitchen` in `main.ts`): the code, the scene, its shaders and one frame drawn behind the intro, so post-processing's shaders compile then, too.
+  Play then shows the landing at once (measured: about 70 ms after the click on an M5, against about 0.7 s of building there and many seconds on a slow machine).
+  After that one frame nothing draws until Play, so a visitor who only reads costs no GPU; asked for before it is ready, Play shows the loading screen until it is.
+- **A phone builds nothing until asked**: the intro makes the resume the main action there, with the line the landing gave, and Play stays as a quiet second choice for a tablet with a keyboard.
+- **No WebGL and a failed load are said on the intro**, which hides Play and makes the resume the way in, opening in place; `Landing.setUnsupported` and the `no-webgl` class went with it.
+  While the kitchen builds behind the intro, its resume link opens in a tab of its own, as the landing's does.
+- **The game's button is "Play the game"**, not "Enter the kitchen", which stays the landing's and would otherwise name two buttons.
+  The landing still follows Play as it was (the cook's name, the party, the way in), and leaving the kitchen still goes back to it, not to the intro.
+- **The rehab platform's waitlist is "3,000+" on the intro**, as Daniel wrote it; the Projects panel (`content.ts`, from the resume) still says 1,400+.
+- **Shaders compile for what they draw into** (`compileFor` in `world/scene.ts`).
+  three.js keys a program on its output color space, which is the canvas's when no render target is set, as it was while `compile` ran; the high tier draws the world into post-processing's buffers, never to the canvas, so every program compiled while loading was one it never drew with, and the ones it drew with compiled synchronously when the reflection probe was captured and on the first frame.
+  The walk-in light's programs, compiled so that the door opening would not stall, were the canvas's as well, so it still stalled.
+  The high tier now compiles against a 1x1 render target, the low tier still for the canvas, where it draws.
+  Measured on an M5 with an empty shader cache: 82 programs before the kitchen was ready, now 33; 118 in all with the walk-in open, now 69; the probe's capture 150 ms of the main thread, now 28 ms.
+  Every program is one the frame used before, so the picture is the same; the kitchen's materials are about 91 kB of fragment shader each (13 lights, unrolled), which is what makes each one slow to compile on Windows, where ANGLE compiles through Direct3D.
+- **The walk-in light's programs compile once the kitchen is ready** (`compileWalkInLight`), in the background, instead of during loading: 25 fewer programs to wait for. A door opened before they finish waits only for what is left.
+- **Remote players are drawn 150 ms in the past, was 100** (`INTERPOLATION_DELAY_MS`, three snapshot periods instead of two).
+  "The server lags sometimes" was measured: the live room server held 60 ticks a second with snapshot jitter p99 16 ms, but from a Mac on Wi-Fi snapshots were held up to 148 ms every half second, which the old delay could absorb only about 50 ms of; on a recorded minute 5.5% of frames extrapolated remote cooks, and at 150 ms 0.28%.
+  Hits stay fair: an input's `view` is the tick drawn, and the server rewinds up to 400 ms.
+  Only the client uses the constant, so the server bundle and the protocol are unchanged.
