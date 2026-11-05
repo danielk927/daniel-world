@@ -6,10 +6,12 @@ import { App, Stack } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { RESUME_URL } from '../../apps/client/src/resume.ts';
+import { RESUME_CACHE_SECONDS } from '../resume/index.ts';
 import {
   LOG_MAX_SIZE,
   LOG_ROTATIONS,
   OLD_PORTFOLIO_PATH,
+  OVERLEAF_LINK_PARAMETER,
   RESUME_PATH,
   SERVER_PATH,
   SERVER_PORT,
@@ -81,19 +83,23 @@ beforeAll(() => {
   const dir = mkdtempSync(join(tmpdir(), 'world-infra-'));
   const clientDir = join(dir, 'client');
   const serverDir = join(dir, 'server');
+  const resumeDir = join(dir, 'resume');
   mkdirSync(join(clientDir, SITE_ASSETS_DIR), { recursive: true });
   mkdirSync(serverDir);
+  mkdirSync(resumeDir);
   writeFileSync(join(clientDir, 'index.html'), '<!doctype html>');
   writeFileSync(join(clientDir, 'favicon.svg'), '<svg/>');
   writeFileSync(join(clientDir, RESUME_FILE), '%PDF-1.5\n%%EOF\n');
   writeFileSync(join(clientDir, SITE_ASSETS_DIR, 'main-B8FjIsg3.js'), 'export {}');
   writeFileSync(join(serverDir, 'index.js'), 'console.log("server")');
+  writeFileSync(join(resumeDir, 'index.mjs'), 'export const handler = () => ({});');
 
   const app = new App({ context: { [AMI_CONTEXT_KEY]: CACHED_AMI } });
   const stack = new WorldStack(app, 'Test', {
     env: { account: '123456789012', region: 'us-east-1' },
     clientDir,
     serverDir,
+    resumeDir,
   });
   template = Template.fromStack(stack);
   assemblyDir = app.synth().directory;
@@ -118,7 +124,11 @@ describe('WorldStack', () => {
       },
       BucketEncryption: Match.objectLike({}),
     });
-    template.resourceCountIs('AWS::CloudFront::OriginAccessControl', 1);
+    template.resourcePropertiesCountIs(
+      'AWS::CloudFront::OriginAccessControl',
+      { OriginAccessControlConfig: Match.objectLike({ OriginAccessControlOriginType: 's3' }) },
+      1,
+    );
   });
 
   it('keeps every hashed file of earlier builds, cached for good, and has pages checked each visit', () => {
@@ -158,7 +168,7 @@ describe('WorldStack', () => {
       DistributionConfig: Match.objectLike({
         DefaultRootObject: 'index.html',
         DefaultCacheBehavior: Match.objectLike({ ViewerProtocolPolicy: 'redirect-to-https' }),
-        CacheBehaviors: [
+        CacheBehaviors: Match.arrayWith([
           Match.objectLike({
             PathPattern: `${SERVER_PATH}*`,
             ViewerProtocolPolicy: 'https-only',
@@ -167,7 +177,7 @@ describe('WorldStack', () => {
             OriginRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac',
             AllowedMethods: Match.arrayWith(['GET', 'OPTIONS', 'POST']),
           }),
-        ],
+        ]),
         Origins: Match.arrayWith([
           Match.objectLike({
             CustomOriginConfig: Match.objectLike({
@@ -180,6 +190,67 @@ describe('WorldStack', () => {
     });
   });
 
+  it("serves the resume compiled fresh from Overleaf, and the bucket's copy when that fails", () => {
+    const config = (
+      Object.values(template.findResources('AWS::CloudFront::Distribution'))[0] as {
+        Properties: { DistributionConfig: Record<string, unknown> };
+      }
+    ).Properties.DistributionConfig as {
+      DefaultCacheBehavior: { TargetOriginId: string };
+      CacheBehaviors: Record<string, unknown>[];
+      Origins: { Id: string; OriginAccessControlId?: unknown }[];
+      OriginGroups: {
+        Items: {
+          Id: string;
+          FailoverCriteria: { StatusCodes: { Items: number[] } };
+          Members: { Items: { OriginId: string }[] };
+        }[];
+      };
+    };
+    const behavior = config.CacheBehaviors.find((b) => b.PathPattern === RESUME_PATH)!;
+    expect(behavior).toMatchObject({ ViewerProtocolPolicy: 'redirect-to-https' });
+    // The function first; on a server error from it, the bucket the rest of the site comes from.
+    const group = config.OriginGroups.Items.find((g) => g.Id === behavior.TargetOriginId)!;
+    expect(group.FailoverCriteria.StatusCodes.Items).toEqual([403, 404, 500, 502, 503, 504]);
+    const [primary, fallback] = group.Members.Items.map((m) => m.OriginId);
+    expect(fallback).toBe(config.DefaultCacheBehavior.TargetOriginId);
+    const functionOrigin = config.Origins.find((o) => o.Id === primary)!;
+    expect(functionOrigin.OriginAccessControlId).toBeDefined();
+
+    // Kept as long as the function says, so Overleaf is asked that often at most.
+    const [cachePolicyId] = resources('AWS::CloudFront::CachePolicy').find(
+      ([, policy]) =>
+        (policy.Properties.CachePolicyConfig as { DefaultTTL: number }).DefaultTTL ===
+        RESUME_CACHE_SECONDS,
+    )!;
+    expect(behavior.CachePolicyId).toEqual({ Ref: cachePolicyId });
+
+    // Its URL answers CloudFront's signed requests only.
+    template.hasResourceProperties('AWS::Lambda::Url', { AuthType: 'AWS_IAM' });
+    // Lambda asks for both actions, each for this distribution only.
+    for (const action of ['lambda:InvokeFunctionUrl', 'lambda:InvokeFunction']) {
+      template.hasResourceProperties('AWS::Lambda::Permission', {
+        Action: action,
+        Principal: 'cloudfront.amazonaws.com',
+        SourceArn: Match.anyValue(),
+      });
+    }
+
+    // The viewer link comes from Parameter Store at deploy time: the template only names it.
+    const link = resources('AWS::Lambda::Function')
+      .map(([, fn]) => fn.Properties.Environment as { Variables?: Record<string, { Ref: string }> })
+      .find((environment) => environment?.Variables?.OVERLEAF_SHARE_LINK)!.Variables!
+      .OVERLEAF_SHARE_LINK!;
+    const parameters = template.toJSON().Parameters as Record<
+      string,
+      { Type: string; Default: string }
+    >;
+    expect(parameters[link.Ref]).toEqual({
+      Type: 'AWS::SSM::Parameter::Value<String>',
+      Default: OVERLEAF_LINK_PARAMETER,
+    });
+  });
+
   it('sends the old portfolio address to the resume at the edge, for the site only', () => {
     expect(RESUME_PATH).toBe(RESUME_URL);
     const functions = resources('AWS::CloudFront::Function');
@@ -188,8 +259,8 @@ describe('WorldStack', () => {
     expect(redirect.Properties).toMatchObject({ AutoPublish: true });
     expect(redirect.Properties.FunctionConfig).toMatchObject({ Runtime: 'cloudfront-js-2.0' });
 
-    // Asked first on the site's own requests (viewer-request), and on those only: the room
-    // server's /ws* behavior has no function, so its WebSocket upgrades are never touched.
+    // Asked first on the site's own requests (viewer-request), and on those only: the resume's and
+    // the room server's behaviors have none, so its WebSocket upgrades are never touched.
     const distribution = Object.values(
       template.findResources('AWS::CloudFront::Distribution'),
     )[0] as {
@@ -204,9 +275,10 @@ describe('WorldStack', () => {
     expect(DefaultCacheBehavior.FunctionAssociations).toEqual([
       { EventType: 'viewer-request', FunctionARN: { 'Fn::GetAtt': [functionId, 'FunctionARN'] } },
     ]);
-    expect(CacheBehaviors).toHaveLength(1);
-    expect(CacheBehaviors[0]).not.toHaveProperty('FunctionAssociations');
-    expect(CacheBehaviors[0]).not.toHaveProperty('LambdaFunctionAssociations');
+    for (const behavior of CacheBehaviors) {
+      expect(behavior).not.toHaveProperty('FunctionAssociations');
+      expect(behavior).not.toHaveProperty('LambdaFunctionAssociations');
+    }
     // Nothing else of the site's behavior moved with it.
     expect(DefaultCacheBehavior).toMatchObject({
       ViewerProtocolPolicy: 'redirect-to-https',
@@ -257,7 +329,7 @@ describe('WorldStack', () => {
       template.findResources('AWS::CloudFront::Distribution'),
     )[0] as { Properties: { DistributionConfig: { Origins: Record<string, unknown>[] } } };
     const origin = distribution.Properties.DistributionConfig.Origins.find(
-      (o) => 'CustomOriginConfig' in o,
+      (o) => (o.CustomOriginConfig as { HTTPPort?: number } | undefined)?.HTTPPort === SERVER_PORT,
     )!;
     const sample = { [`${addressId}.PublicIp`]: '203.0.113.7', 'AWS::URLSuffix': 'amazonaws.com' };
     expect(evaluate(origin.DomainName, sample)).toBe('ec2-203-0-113-7.compute-1.amazonaws.com');

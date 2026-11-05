@@ -17,7 +17,12 @@ import {
   ResponseHeadersPolicy,
   ViewerProtocolPolicy,
 } from 'aws-cdk-lib/aws-cloudfront';
-import { HttpOrigin, S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import {
+  FunctionUrlOrigin,
+  HttpOrigin,
+  OriginGroup,
+  S3BucketOrigin,
+} from 'aws-cdk-lib/aws-cloudfront-origins';
 import {
   BlockDeviceVolume,
   CfnEIP,
@@ -37,17 +42,28 @@ import {
   AmazonLinuxCpuType,
 } from 'aws-cdk-lib/aws-ec2';
 import { ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import {
+  Architecture,
+  Code,
+  Function as LambdaFunction,
+  FunctionUrlAuthType,
+  Runtime,
+} from 'aws-cdk-lib/aws-lambda';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
 import { BucketDeployment, CacheControl, Source } from 'aws-cdk-lib/aws-s3-deployment';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import type { Construct } from 'constructs';
+import { RESUME_CACHE_SECONDS } from '../resume/index.ts';
 
 export interface WorldStackProps extends StackProps {
   /** Built static client (see scripts/build-assets.ts). */
   clientDir: string;
   /** Directory holding the single-file server bundle `index.js`. */
   serverDir: string;
+  /** Directory holding the resume function, bundled as `index.mjs` (resume/index.ts). */
+  resumeDir: string;
 }
 
 /** Port the room server listens on inside the instance. Only CloudFront can reach it. */
@@ -59,6 +75,11 @@ export const SITE_ASSETS_DIR = 'assets';
 /** The page the site had before the resume PDF replaced it, and where a link saved to it goes now. */
 export const OLD_PORTFOLIO_PATH = '/portfolio.html';
 export const RESUME_PATH = '/Doyoon-Kim-resume.pdf';
+/**
+ * The Parameter Store parameter holding the resume's Overleaf viewer link, which the repo is public
+ * and so does not hold. Created once by hand (README's deployment section); a deploy reads it.
+ */
+export const OVERLEAF_LINK_PARAMETER = '/daniel-world/overleaf-share-link';
 
 // Pinned Node.js runtime for the instance, verified by checksum before it is used.
 const NODE_VERSION = 'v24.21.0';
@@ -79,8 +100,10 @@ export const LOG_ROTATIONS = 7;
 /**
  * The whole site on AWS:
  *
- *   visitor ──HTTPS──▶ CloudFront ─┬─ /*    ──▶ S3 bucket (private, Origin Access Control)
- *                                  └─ /ws*  ──▶ EC2 room server (Graviton, port 3001)
+ *   visitor ──HTTPS──▶ CloudFront ─┬─ /*      ──▶ S3 bucket (private, Origin Access Control)
+ *                                  ├─ resume  ──▶ Lambda, compiling it from Overleaf (the bucket's
+ *                                  │              copy when that fails)
+ *                                  └─ /ws*    ──▶ EC2 room server (Graviton, port 3001)
  *
  * One domain serves both, so the page reaches the server at wss://<same host>/ws with CloudFront's
  * certificate and no custom domain. The instance accepts traffic only from CloudFront, has no SSH
@@ -255,13 +278,42 @@ export class WorldStack extends Stack {
       code: FunctionCode.fromInline(redirectCode(OLD_PORTFOLIO_PATH, RESUME_PATH)),
     });
 
+    // The resume, compiled fresh from its Overleaf project (resume/index.ts) whenever CloudFront's
+    // copy is older than RESUME_CACHE_SECONDS. The function URL takes only CloudFront's signed
+    // requests (Origin Access Control); when Overleaf fails, the bucket's copy is served instead.
+    const resumeFunction = new LambdaFunction(this, 'Resume', {
+      description: 'The resume PDF, compiled fresh from its Overleaf project',
+      runtime: Runtime.NODEJS_24_X,
+      architecture: Architecture.ARM_64,
+      handler: 'index.handler',
+      code: Code.fromAsset(props.resumeDir),
+      memorySize: 256,
+      // A compile takes a second or two; a hang gives way to the bucket's copy.
+      timeout: Duration.seconds(10),
+      environment: {
+        OVERLEAF_SHARE_LINK: StringParameter.valueForStringParameter(this, OVERLEAF_LINK_PARAMETER),
+      },
+      logGroup: new LogGroup(this, 'ResumeLogs', {
+        retention: RetentionDays.TWO_WEEKS,
+        removalPolicy: RemovalPolicy.DESTROY,
+      }),
+    });
+    const resumeUrl = resumeFunction.addFunctionUrl({ authType: FunctionUrlAuthType.AWS_IAM });
+    const resumeCache = new CachePolicy(this, 'ResumeCache', {
+      comment: 'The resume: as long as its function says, so Overleaf is asked that often at most',
+      defaultTtl: Duration.seconds(RESUME_CACHE_SECONDS),
+      minTtl: Duration.seconds(0),
+      maxTtl: Duration.days(1),
+    });
+
+    const siteOrigin = S3BucketOrigin.withOriginAccessControl(siteBucket);
     const distribution = new Distribution(this, 'Distribution', {
       comment: "Daniel's World",
       defaultRootObject: 'index.html',
       httpVersion: HttpVersion.HTTP2_AND_3,
       priceClass: PriceClass.PRICE_CLASS_100,
       defaultBehavior: {
-        origin: S3BucketOrigin.withOriginAccessControl(siteBucket),
+        origin: siteOrigin,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: CachePolicy.CACHING_OPTIMIZED,
         responseHeadersPolicy: ResponseHeadersPolicy.SECURITY_HEADERS,
@@ -271,6 +323,17 @@ export class WorldStack extends Stack {
         ],
       },
       additionalBehaviors: {
+        [RESUME_PATH]: {
+          origin: new OriginGroup({
+            primaryOrigin: FunctionUrlOrigin.withOriginAccessControl(resumeUrl),
+            fallbackOrigin: siteOrigin,
+            // A refusal as much as a failure: whatever the function answers but the PDF.
+            fallbackStatusCodes: [403, 404, 500, 502, 503, 504],
+          }),
+          viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: resumeCache,
+          responseHeadersPolicy: ResponseHeadersPolicy.SECURITY_HEADERS,
+        },
         [`${SERVER_PATH}*`]: {
           origin: new HttpOrigin(serverOrigin, {
             protocolPolicy: OriginProtocolPolicy.HTTP_ONLY,
@@ -284,6 +347,15 @@ export class WorldStack extends Stack {
           originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
         },
       },
+    });
+
+    // Lambda asks whoever calls a function URL for lambda:InvokeFunction as well, which the origin's
+    // own grant (lambda:InvokeFunctionUrl) does not give: this distribution, through the URL only.
+    resumeFunction.addPermission('InvokeFromDistribution', {
+      principal: new ServicePrincipal('cloudfront.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: distribution.distributionArn,
+      invokedViaFunctionUrl: true,
     });
 
     // The site goes up in two parts with different caching. Vite names everything in assets/ by

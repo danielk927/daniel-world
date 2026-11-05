@@ -35,13 +35,22 @@ describe('the resume', () => {
     expect(link![1]).toBe(RESUME_LABEL);
   });
 
-  it('is where a link saved to the old portfolio page goes, on Vercel as on AWS', () => {
+  it('is where a link saved to the old portfolio page goes, and Vercel sends it to the live copy', () => {
     const { redirects } = JSON.parse(readFileSync(repoFile('vercel.json'), 'utf8')) as {
       redirects?: { source: string; destination: string; permanent?: boolean }[];
     };
-    // Permanent (a 308), to the PDF, for that one path.
-    expect(redirects).toEqual([
-      { source: '/portfolio.html', destination: RESUME_URL, permanent: true },
-    ]);
+    // The old page: permanent (a 308), to the PDF, for that one path. The PDF itself: to the AWS
+    // site, whose copy is compiled from Overleaf, where Vercel would serve the one in the repo;
+    // temporary, as it is only where the live copy is for now.
+    expect(redirects).toHaveLength(2);
+    expect(redirects![0]).toEqual({
+      source: '/portfolio.html',
+      destination: RESUME_URL,
+      permanent: true,
+    });
+    expect(redirects![1]).toMatchObject({ source: RESUME_URL, permanent: false });
+    expect(redirects![1]!.destination).toMatch(
+      new RegExp(`^https://[a-z0-9]+\\.cloudfront\\.net${RESUME_URL}$`),
+    );
   });
 });

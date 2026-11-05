@@ -9,6 +9,11 @@
       "source": "/portfolio.html",
       "destination": "/Doyoon-Kim-resume.pdf",
       "permanent": true
+    },
+    {
+      "source": "/Doyoon-Kim-resume.pdf",
+      "destination": "https://d1ivv0s5bbzyx0.cloudfront.net/Doyoon-Kim-resume.pdf",
+      "permanent": false
     }
   ]
 }
